@@ -11,5 +11,5 @@ sphinx-book-theme==1.1.2
 pandoc==2.3
 sphinx-rtd-theme==2.0.0
 readthedocs-sphinx-ext==2.2.5
-lxml-html-clean==0.4.0
+lxml-html-clean==0.4.4
 pydata-sphinx-theme==0.15.2
