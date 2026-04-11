@@ -32,3 +32,7 @@ lint:
 format:
     poetry run docformatter --in-place --recursive --wrap-summaries 120 --wrap-descriptions 120 .
     poetry run ruff format .
+
+# create a conventional commit using commitizen
+commit:
+    poetry run cz commit

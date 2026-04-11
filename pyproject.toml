@@ -35,6 +35,8 @@ pytest-cov = "^4.1"
 ruff = ">=0.3"
 pre-commit = "^3.6"
 docformatter = "^1.4"
+commitizen = "^3.29.1"
+python-semantic-release = "^9.12.0"
 
 
 [tool.poetry.urls]
@@ -100,3 +102,75 @@ in-place = true
 wrap-summaries = 120
 wrap-descriptions = 120
 exclude = ["build", "dist", ".venv", ".git"]
+
+# Commitizen configuration
+[tool.commitizen]
+name = "cz_conventional_commits"
+version = "1.6.1"
+version_files = ["pyproject.toml:version", "deeptab/__version__.py"]
+tag_format = "v$version"
+update_changelog_on_bump = true
+major_version_zero = false
+
+# Python Semantic Release configuration
+[tool.semantic_release]
+version_toml = ["pyproject.toml:tool.poetry.version"]
+version_variables = ["deeptab/__version__.py:__version__"]
+build_command = "poetry build"
+branch = "master"
+upload_to_pypi = true
+upload_to_release = true
+commit_parser = "angular"
+
+[tool.semantic_release.branches.master]
+match = "(master|main)"
+prerelease = false
+
+[tool.semantic_release.changelog]
+template_dir = "templates"
+changelog_file = "CHANGELOG.md"
+exclude_commit_patterns = []
+
+[tool.semantic_release.changelog.environment]
+block_start_string = "{%"
+block_end_string = "%}"
+variable_start_string = "{{"
+variable_end_string = "}}"
+comment_start_string = "{#"
+comment_end_string = "#}"
+trim_blocks = false
+lstrip_blocks = false
+newline_sequence = "\n"
+keep_trailing_newline = false
+extensions = []
+autoescape = true
+
+[tool.semantic_release.commit_parser_options]
+allowed_tags = [
+  "build",
+  "chore",
+  "ci",
+  "docs",
+  "feat",
+  "fix",
+  "perf",
+  "style",
+  "refactor",
+  "test",
+]
+minor_tags = ["feat"]
+patch_tags = ["fix", "perf"]
+
+[tool.semantic_release.remote]
+name = "origin"
+type = "github"
+ignore_token_for_push = false
+
+[tool.semantic_release.publish]
+dist_glob_patterns = ["dist/*"]
+upload_to_vcs_release = true
+
+[[tool.semantic_release.publish.repositories]]
+name = "pypi"
+url = "https://upload.pypi.org/legacy/"
+token_var = "PYPI_TOKEN"

@@ -1,0 +1,51 @@
+# CHANGELOG
+
+{% for version, release in context.history.items() %}
+## {{ version }} ({{ release.tagged_date.strftime("%Y-%m-%d") }})
+
+{% if release.elements.breaking %}
+### 💥 Breaking Changes
+{% for commit in release.elements.breaking %}
+- {{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% if commit.descriptions | length > 1 %}
+  {{ commit.descriptions[1] }}
+{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if release.elements.feature %}
+### 🚀 Features
+{% for commit in release.elements.feature %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% endfor %}
+{% endif %}
+
+{% if release.elements.fix %}
+### 🐛 Bug Fixes
+{% for commit in release.elements.fix %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% endfor %}
+{% endif %}
+
+{% if release.elements.documentation %}
+### 📚 Documentation
+{% for commit in release.elements.documentation %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% endfor %}
+{% endif %}
+
+{% if release.elements.performance %}
+### ⚡ Performance Improvements
+{% for commit in release.elements.performance %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% endfor %}
+{% endif %}
+
+{% if release.elements.refactoring %}
+### 🔨 Refactoring
+{% for commit in release.elements.refactoring %}
+- {% if commit.scope %}**{{ commit.scope }}**: {% endif %}{{ commit.descriptions[0] }} ([`{{ commit.short_hash }}`]({{ commit.hexsha_link }}))
+{% endfor %}
+{% endif %}
+
+{% endfor %}
