@@ -1,0 +1,182 @@
+name: Sync Develop with Master
+
+on:
+  workflow_run:
+    workflows: ["Semantic Release"]
+    types:
+      - completed
+    branches:
+      - master
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync-develop:
+    runs-on: ubuntu-latest
+    # Only run if semantic release succeeded and actually released
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch all branches
+        run: |
+          git fetch origin master:master
+          git fetch origin develop:develop
+
+      - name: Check if develop is behind master
+        id: check
+        run: |
+          git checkout develop
+          BEHIND=$(git rev-list --count develop..master)
+          echo "commits_behind=$BEHIND" >> $GITHUB_OUTPUT
+
+          if [ "$BEHIND" -eq "0" ]; then
+            echo "Develop is already up to date with master"
+            echo "needs_sync=false" >> $GITHUB_OUTPUT
+          else
+            echo "Develop is $BEHIND commits behind master"
+            echo "needs_sync=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Attempt automatic merge
+        id: merge
+        if: steps.check.outputs.needs_sync == 'true'
+        run: |
+          git checkout develop
+
+          # Try to merge master into develop
+          if git merge master --no-edit; then
+            echo "Merge successful - no conflicts"
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "has_conflicts=false" >> $GITHUB_OUTPUT
+          else
+            echo "Merge has conflicts"
+            git merge --abort
+            echo "status=conflict" >> $GITHUB_OUTPUT
+            echo "has_conflicts=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Push changes if no conflicts
+        if: steps.merge.outputs.status == 'success'
+        run: |
+          git push origin develop
+          echo "✅ Successfully synced develop with master"
+
+      - name: Get latest version tag
+        id: version
+        if: steps.merge.outputs.has_conflicts == 'true'
+        run: |
+          VERSION=$(git describe --tags --abbrev=0 master)
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create PR if conflicts exist
+        if: steps.merge.outputs.has_conflicts == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          branch: sync/master-to-develop-${{ steps.version.outputs.tag }}
+          base: develop
+          title: "chore: sync develop with master ${{ steps.version.outputs.tag }}"
+          body: |
+            ## 🔄 Automatic Sync: Master → Develop
+
+            This PR syncs `develop` branch with the latest release from `master`.
+
+            **Release Version:** `${{ steps.version.outputs.tag }}`
+            **Triggered by:** Semantic Release workflow completion
+
+            ### ⚠️ Merge Conflicts Detected
+
+            Automatic merge failed due to conflicts. Please resolve conflicts manually:
+
+            ```bash
+            git checkout develop
+            git pull origin develop
+            git merge master
+            # Resolve conflicts
+            git add .
+            git commit
+            git push origin develop
+            ```
+
+            ### Changes from Master:
+            - Updated version files (`pyproject.toml`, `__version__.py`)
+            - Updated `CHANGELOG.md`
+            - New release tag: `${{ steps.version.outputs.tag }}`
+
+            ---
+
+            🤖 This PR was created automatically by the sync-develop workflow.
+          labels: |
+            chore
+            sync
+            automated
+          assignees: ${{ github.repository_owner }}
+
+      - name: Add comment with instructions
+        if: steps.merge.outputs.has_conflicts == 'true'
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          issue-number: ${{ steps.pr.outputs.pull-request-number }}
+          body: |
+            ### 📋 Manual Merge Instructions
+
+            Since automatic merge failed, follow these steps:
+
+            1. **Checkout and update develop:**
+               ```bash
+               git checkout develop
+               git pull origin develop
+               ```
+
+            2. **Merge master:**
+               ```bash
+               git merge master
+               ```
+
+            3. **Resolve conflicts** in:
+               - `pyproject.toml` (keep master version)
+               - `deeptab/__version__.py` (keep master version)
+               - `CHANGELOG.md` (merge both)
+               - Any other conflicting files
+
+            4. **Complete the merge:**
+               ```bash
+               git add .
+               git commit -m "chore: sync develop with master ${{ steps.version.outputs.tag }}"
+               git push origin develop
+               ```
+
+            5. **Close this PR** (changes will be in develop)
+
+            💡 **Tip:** Version files should always use master's values after a release.
+
+      - name: Summary
+        if: always()
+        run: |
+          echo "## Sync Develop Workflow Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "${{ steps.check.outputs.needs_sync }}" == "false" ]; then
+            echo "✅ Develop is already up to date with master" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.merge.outputs.status }}" == "success" ]; then
+            echo "✅ Successfully merged master into develop automatically" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Commits synced:** ${{ steps.check.outputs.commits_behind }}" >> $GITHUB_STEP_SUMMARY
+          elif [ "${{ steps.merge.outputs.has_conflicts }}" == "true" ]; then
+            echo "⚠️ Merge conflicts detected - PR created for manual resolution" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Action required:** Review and merge the auto-created PR" >> $GITHUB_STEP_SUMMARY
+          fi
