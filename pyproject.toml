@@ -5,7 +5,7 @@ version = "1.6.1"
 
 
 description = "A python package for tabular deep learning."
-authors = ["Anton Thielmann", "Manish Kumar", "Christoph Weisser"]
+authors = ["Anonymous Authors"]
 readme = "README.md"
 packages = [{ include = "deeptab" }]
 
@@ -40,10 +40,6 @@ python-semantic-release = "^9.12.0"
 
 
 [tool.poetry.urls]
-homepage = "https://github.com/OpenTabular/deeptab"
-documentation = "https://deeptab.readthedocs.io/"
-repository = "https://github.com/OpenTabular/deeptab"
-package = "https://pypi.org/project/deeptab/"
 
 
 # code quality tools
@@ -118,7 +114,7 @@ version_toml = ["pyproject.toml:tool.poetry.version"]
 version_variables = ["deeptab/__version__.py:__version__"]
 build_command = "poetry build"
 branch = "master"
-upload_to_pypi = true
+upload_to_pypi = false
 upload_to_release = true
 commit_parser = "angular"
 
@@ -169,8 +165,3 @@ ignore_token_for_push = false
 [tool.semantic_release.publish]
 dist_glob_patterns = ["dist/*"]
 upload_to_vcs_release = true
-
-[[tool.semantic_release.publish.repositories]]
-name = "pypi"
-url = "https://upload.pypi.org/legacy/"
-token_var = "PYPI_TOKEN"

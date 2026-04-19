@@ -1,24 +1,4 @@
-<div align="center">
-  <img src="./docs/images/logo/mamba_tabular.jpg" width="400"/>
-
-[![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
-![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
-[![docs build](https://readthedocs.org/projects/deeptab/badge/?version=latest)](https://deeptab.readthedocs.io/en/latest/?badge=latest)
-[![docs](https://img.shields.io/badge/docs-latest-blue)](https://deeptab.readthedocs.io/en/latest/)
-[![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/deeptab/issues)
-
-[📘Documentation](https://deeptab.readthedocs.io/en/latest/index.html) |
-[🛠️Installation](https://deeptab.readthedocs.io/en/latest/installation.html) |
-[Models](https://deeptab.readthedocs.io/en/latest/api/models/index.html) |
-[🤔Report Issues](https://github.com/OpenTabular/deeptab/issues)
-
-</div>
-
-<div style="text-align: center;">
-    <h1>deeptab: Tabular Deep Learning Made Simple</h1>
-</div>
-
-deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available [here](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.
+deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets.
 
 <h3>⚡ What's New ⚡</h3>
 <ul>
@@ -35,11 +15,9 @@ deeptab is a Python library for tabular deep learning. It includes models that l
 - [🏃 Quickstart](#-quickstart)
 - [📖 Introduction](#-introduction)
 - [🤖 Models](#-models)
-- [📚 Documentation](#-documentation)
-- [🛠️ Installation](#️-installation)
+- [️ Installation](#️-installation)
 - [🚀 Usage](#-usage)
 - [💻 Implement Your Own Model](#-implement-your-own-model)
-- [🏷️ Citation](#️-citation)
 - [License](#license)
 
 # 🏃 Quickstart
@@ -63,16 +41,16 @@ deeptab is a Python package that brings the power of advanced deep learning arch
 
 | Model            | Description                                                                                                                                                                                                 |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Mambular`       | A sequential model using Mamba blocks specifically designed for various tabular data tasks introduced [here](https://arxiv.org/abs/2408.06291).                                                             |
+| `Mambular`       | A sequential model using Mamba blocks specifically designed for various tabular data tasks.                                                                                                                 |
 | `TabM`           | Batch Ensembling for a MLP as introduced by [Gorishniy et al.](https://arxiv.org/abs/2410.24210)                                                                                                            |
 | `NODE`           | Neural Oblivious Decision Ensembles as introduced by [Popov et al.](https://arxiv.org/abs/1909.06312)                                                                                                       |
 | `FTTransformer`  | A model leveraging transformer encoders, as introduced by [Gorishniy et al.](https://arxiv.org/abs/2106.11959), for tabular data.                                                                           |
 | `MLP`            | A classical Multi-Layer Perceptron (MLP) model for handling tabular data tasks.                                                                                                                             |
 | `ResNet`         | An adaptation of the ResNet architecture for tabular data applications.                                                                                                                                     |
 | `TabTransformer` | A transformer-based model for tabular data introduced by [Huang et al.](https://arxiv.org/abs/2012.06678), enhancing feature learning capabilities.                                                         |
-| `MambaTab`       | A tabular model using a Mamba-Block on a joint input representation described [here](https://arxiv.org/abs/2401.08867) . Not a sequential model.                                                            |
-| `TabulaRNN`      | A Recurrent Neural Network for Tabular data, introduced [here](https://arxiv.org/pdf/2411.17207).                                                                                                           |
-| `MambAttention`  | A combination between Mamba and Transformers, also introduced [here](https://arxiv.org/pdf/2411.17207).                                                                                                     |
+| `MambaTab`       | A tabular model using a Mamba-Block on a joint input representation. Not a sequential model.                                                                                                                |
+| `TabulaRNN`      | A Recurrent Neural Network for Tabular data.                                                                                                                                                                |
+| `MambAttention`  | A combination between Mamba and Transformers.                                                                                                                                                               |
 | `NDTF`           | A neural decision forest using soft decision trees. See [Kontschieder et al.](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) for inspiration. |
 | `SAINT`          | Improve neural networs via Row Attention and Contrastive Pre-Training, introduced [here](https://arxiv.org/pdf/2106.01342).                                                                                 |
 | `AutoInt`        | Automatic Feature Interaction Learning via Self-Attentive Neural Networks introduced [here](https://arxiv.org/abs/1810.11921).                                                                              |
@@ -84,16 +62,12 @@ deeptab is a Python package that brings the power of advanced deep learning arch
 All models are available for `regression`, `classification` and distributional regression, denoted by `LSS`.
 Hence, they are available as e.g. `MambularRegressor`, `MambularClassifier` or `MambularLSS`
 
-# 📚 Documentation
+# ️ Installation
 
-You can find the deeptab API documentation [here](https://deeptab.readthedocs.io/en/latest/).
-
-# 🛠️ Installation
-
-Install deeptab using pip:
+Install deeptab from source:
 
 ```sh
-pip install deeptab
+pip install .
 ```
 
 If you want to use the original mamba and mamba2 implementations, additionally install mamba-ssm via:
@@ -102,22 +76,12 @@ If you want to use the original mamba and mamba2 implementations, additionally i
 pip install mamba-ssm
 ```
 
-Be careful to use the correct torch and cuda versions:
-
-```sh
-pip install torch==2.0.0+cu118 torchvision==0.15.0+cu118 torchaudio==2.0.0+cu118 -f https://download.pytorch.org/whl/cu118/torch_stable.html
-pip install mamba-ssm
-```
-
 # 🚀 Usage
 
 <h2> Preprocessing </h2>
 
-deeptab uses pretab preprocessing: https://github.com/OpenTabular/PreTab
-
-Hence, datatypes etc. are detected automatically and all preprocessing methods from pretab as well as from Sklearn.preprocessing are available.
+deeptab uses pretab preprocessing. Datatypes etc. are detected automatically and all preprocessing methods from pretab as well as from Sklearn.preprocessing are available.
 Additionally, you can specify that each feature is preprocessed differently, according to your requirements, by setting the `feature_preprocessing={}`argument during model initialization.
-For an overview over all available methods: [pretab](https://github.com/OpenTabular/PreTab)
 
 <h3> Data Type Detection and Transformation </h3>
 
@@ -379,49 +343,6 @@ Here's how you can implement a custom model with deeptab:
 
    regressor.evaluate(X_test, y_test)
    ```
-
-# 🤝 Contributing
-
-We welcome contributions! This project uses [Conventional Commits](https://www.conventionalcommits.org/) and automated semantic versioning.
-
-**Quick Start for Contributors:**
-
-```bash
-# Install dependencies with pre-commit hooks
-just install
-
-# Make your changes and commit using the interactive tool
-just commit
-
-# Or commit manually following conventional commits format
-git commit -m "feat(models): add new model architecture"
-```
-
-See our [Contributing Guide](docs/contributing.md) for detailed guidelines and [Conventional Commits Reference](CONVENTIONAL_COMMITS.md) for commit message formatting.
-
-# 🏷️ Citation
-
-If you find this project useful in your research, please consider cite:
-
-```BibTeX
-@article{thielmann2024mambular,
-  title={Mambular: A Sequential Model for Tabular Deep Learning},
-  author={Thielmann, Anton Frederik and Kumar, Manish and Weisser, Christoph and Reuter, Arik and S{\"a}fken, Benjamin and Samiee, Soheila},
-  journal={arXiv preprint arXiv:2408.06291},
-  year={2024}
-}
-```
-
-If you use TabulaRNN please consider to cite:
-
-```BibTeX
-@article{thielmann2024efficiency,
-  title={On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning},
-  author={Thielmann, Anton Frederik and Samiee, Soheila},
-  journal={arXiv preprint arXiv:2411.17207},
-  year={2024}
-}
-```
 
 # License
 
