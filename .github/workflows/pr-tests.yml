@@ -5,7 +5,7 @@ on:
   pull_request:
     branches:
       - develop
-      - main  # Add any other branches where you want to enforce tests
+      - main # Add any other branches where you want to enforce tests
 
 concurrency:
   group: pytest-${{ github.head_ref || github.sha }}
@@ -31,7 +31,7 @@ jobs:
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
+          cache: "poetry"
 
       - name: Install Dependencies
         run: poetry install
@@ -45,4 +45,4 @@ jobs:
 
       - name: Fail PR on Test Failure
         if: ${{ failure() }}
-        run: exit 1  # This ensures the PR cannot be merged if tests fail
+        run: exit 1 # This ensures the PR cannot be merged if tests fail

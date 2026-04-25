@@ -91,19 +91,16 @@ This project uses automated semantic versioning and releases. Here's how release
 **Step-by-Step:**
 
 1. **Development Phase**
-
    - Create feature branch from `develop`
    - Make your changes
    - Commit using conventional commits (e.g., `feat:`, `fix:`)
 
 2. **Merge to Develop**
-
    - Create PR to `develop` branch
    - After review, merge to `develop`
    - ReadTheDocs dev documentation updates automatically
 
 3. **Merge to Main** (Triggers Release)
-
    - Merge `develop` to `main`
    - GitHub Actions semantic-release workflow runs automatically
 
