@@ -1,4 +1,4 @@
-name: PR Checks
+name: CI
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
           cache: "poetry"
 
       - name: Install dependencies
-        run: poetry install --only main,dev
+        run: poetry install --with dev
 
       - name: Run ruff check
         run: poetry run ruff check .
@@ -53,7 +53,7 @@ jobs:
           cache: "poetry"
 
       - name: Install dependencies
-        run: poetry install --only main,dev
+        run: poetry install --with dev
 
       - name: Run pyright
         run: poetry run pyright

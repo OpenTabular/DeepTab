@@ -37,6 +37,7 @@ pre-commit = "^3.6"
 docformatter = "^1.4"
 commitizen = "^3.29.1"
 twine = "^6.2.0"
+pyright = "^1.1.409"
 
 
 [tool.poetry.urls]
