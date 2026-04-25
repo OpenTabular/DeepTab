@@ -1,4 +1,5 @@
 from dataclasses import replace
+
 import torch
 import torch.nn as nn
 
@@ -11,7 +12,6 @@ from .utils.basemodel import BaseModel
 
 
 class TabulaRNN(BaseModel):
-
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)

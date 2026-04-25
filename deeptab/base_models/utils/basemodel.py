@@ -33,11 +33,7 @@ class BaseModel(nn.Module):
             List of keys to ignore while saving hyperparameters, by default [].
         """
         # Filter the config and extra hparams for ignored keys
-        config_hparams = (
-            {k: v for k, v in vars(self.config).items() if k not in ignore}
-            if self.config
-            else {}
-        )
+        config_hparams = {k: v for k, v in vars(self.config).items() if k not in ignore} if self.config else {}
         extra_hparams = {k: v for k, v in self.extra_hparams.items() if k not in ignore}
         config_hparams.update(extra_hparams)
 
@@ -152,9 +148,7 @@ class BaseModel(nn.Module):
         """Initializes the layers needed for learnable pooling methods based on self.hparams.pooling_method."""
         if self.hparams.pooling_method == "learned_flatten":
             # Flattening + Linear layer
-            self.learned_flatten_pooling = nn.Linear(
-                n_inputs * config.dim_feedforward, config.dim_feedforward
-            )
+            self.learned_flatten_pooling = nn.Linear(n_inputs * config.dim_feedforward, config.dim_feedforward)
 
         elif self.hparams.pooling_method == "attention":
             # Attention-based pooling with learnable attention weights
@@ -229,9 +223,7 @@ class BaseModel(nn.Module):
 
         # Check if at least one of the contextualized embedding methods exists
         valid_layers = ["mamba", "rnn", "lstm", "encoder"]
-        available_layer = next(
-            (attr for attr in valid_layers if hasattr(self, attr)), None
-        )
+        available_layer = next((attr for attr in valid_layers if hasattr(self, attr)), None)
 
         if not available_layer:
             raise ValueError("The model does not generate contextualized embeddings")
@@ -239,10 +231,8 @@ class BaseModel(nn.Module):
         # Get the actual layer and call it
         if not grad:
             with torch.no_grad():
-
                 # Get the actual layer and call it
                 x = self.embedding_layer(*data)
-
 
                 if getattr(self.hparams, "shuffle_embeddings", False):
                     x = x[:, self.perm, :]
@@ -265,7 +255,7 @@ class BaseModel(nn.Module):
             else:
                 embeddings = layer(x)
         return embeddings
-    
+
     def embedding_parameters(self):
         """Returns only embedding parameters for pretraining."""
         return (p for name, p in self.named_parameters() if "embedding" in name)
@@ -273,12 +263,11 @@ class BaseModel(nn.Module):
     def encode_features(self, num_features, cat_features, embeddings):
         """Encodes features using embeddings, returning their representations."""
         return self.forward(num_features, cat_features, embeddings, output_embeddings=True)
-    
+
     def get_embedding_state_dict(self):
         """Returns only the state dict of the embeddings."""
         return {k: v for k, v in self.state_dict().items() if "embedding" in k}
-    
+
     def load_embedding_state_dict(self, state_dict):
         """Loads pretrained embeddings into the model."""
         self.load_state_dict(state_dict, strict=False)
-

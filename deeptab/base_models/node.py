@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
@@ -6,7 +7,6 @@ from ..arch_utils.node_utils import DenseBlock
 from ..configs.node_config import DefaultNODEConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
-import numpy as np
 
 
 class NODE(BaseModel):
@@ -68,9 +68,7 @@ class NODE(BaseModel):
                 *feature_information,
                 config=config,
             )
-            input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
+            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
 
         else:
             input_dim = get_feature_dimensions(*feature_information)

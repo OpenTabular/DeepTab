@@ -1,7 +1,9 @@
 import warnings
 from collections.abc import Callable
+
 import torch
 from sklearn.metrics import mean_squared_error
+
 from .sklearn_parent import SklearnBase
 
 
@@ -9,9 +11,7 @@ class SklearnBaseRegressor(SklearnBase):
     def __init__(self, model, config, **kwargs):
         super().__init__(model, config, **kwargs)
         # Raise a warning if task is set to 'classification'
-        preprocessor_kwargs = {
-            k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names
-        }
+        preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
 
         if preprocessor_kwargs.get("task") == "classification":
             warnings.warn(
@@ -250,9 +250,7 @@ class SklearnBaseRegressor(SklearnBase):
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore
 
         # Check if ensemble is used
-        if getattr(
-            self.task_model.estimator, "returns_ensemble", False
-        ):  # If using ensemble
+        if getattr(self.task_model.estimator, "returns_ensemble", False):  # If using ensemble
             predictions = predictions.mean(dim=1)  # Average over ensemble dimension
 
         # Convert predictions to NumPy array and return
@@ -367,9 +365,7 @@ class SklearnBaseRegressor(SklearnBase):
 
         """
         if not self.built:
-            raise ValueError(
-                "The model has not been built yet. Call model.build_model(**args) first."
-            )
+            raise ValueError("The model has not been built yet. Call model.build_model(**args) first.")
 
         if not hasattr(self.task_model.estimator, "embedding_layer"):
             raise ValueError("The model does not have an embedding layer")

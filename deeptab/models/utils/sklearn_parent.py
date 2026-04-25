@@ -5,21 +5,16 @@ import lightning as pl
 import pandas as pd
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
+from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
 from skopt import gp_minimize
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from ...base_models.utils.lightning_wrapper import TaskModel
-from ...data_utils.datamodule import MambularDataModule
-from pretab.preprocessor import Preprocessor
-from ...utils.config_mapper import (
-    activation_mapper,
-    get_search_space,
-    round_to_nearest_16,
-)
-
 from ...base_models.utils.pretraining import pretrain_embeddings
+from ...data_utils.datamodule import MambularDataModule
+from ...utils.config_mapper import activation_mapper, get_search_space, round_to_nearest_16
 
 
 class SklearnBase(BaseEstimator):
@@ -43,15 +38,11 @@ class SklearnBase(BaseEstimator):
         ]
 
         self.config_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
+            k: v for k, v in kwargs.items() if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
         }
         self.config = config(**self.config_kwargs)
 
-        self.preprocessor_kwargs = {
-            k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names
-        }
+        self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
 
         self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
         self.estimator = model
@@ -63,8 +54,7 @@ class SklearnBase(BaseEstimator):
         self.optimizer_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k
-            not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
+            if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
             and k.startswith("optimizer_")
         }
 
@@ -84,12 +74,8 @@ class SklearnBase(BaseEstimator):
 
     def set_params(self, **parameters):
         """Set the parameters of this estimator."""
-        config_params = {
-            k: v for k, v in parameters.items() if k not in self.preprocessor_arg_names
-        }
-        preprocessor_params = {
-            k: v for k, v in parameters.items() if k in self.preprocessor_arg_names
-        }
+        config_params = {k: v for k, v in parameters.items() if k not in self.preprocessor_arg_names}
+        preprocessor_params = {k: v for k, v in parameters.items() if k in self.preprocessor_arg_names}
 
         # Update config and preprocessor parameters correctly
         if config_params:
@@ -120,7 +106,7 @@ class SklearnBase(BaseEstimator):
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        num_classes: int = None,
+        num_classes: int = None,  # noqa: RUF013
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
@@ -217,13 +203,9 @@ class SklearnBase(BaseEstimator):
                 self.data_module.embedding_feature_info,
             ),
             lr=lr if lr is not None else self.config.lr,
-            lr_patience=(
-                lr_patience if lr_patience is not None else self.config.lr_patience
-            ),
+            lr_patience=(lr_patience if lr_patience is not None else self.config.lr_patience),
             lr_factor=lr_factor if lr_factor is not None else self.config.lr_factor,
-            weight_decay=(
-                weight_decay if weight_decay is not None else self.config.weight_decay
-            ),
+            weight_decay=(weight_decay if weight_decay is not None else self.config.weight_decay),
             num_classes=num_classes,
             train_metrics=train_metrics,
             val_metrics=val_metrics,
@@ -256,9 +238,7 @@ class SklearnBase(BaseEstimator):
             If the model has not been built prior to calling this method.
         """
         if not self.built:
-            raise ValueError(
-                "The model must be built before the number of parameters can be estimated"
-            )
+            raise ValueError("The model must be built before the number of parameters can be estimated")
         else:
             if requires_grad:
                 return sum(p.numel() for p in self.task_model.parameters() if p.requires_grad)  # type: ignore
@@ -275,7 +255,7 @@ class SklearnBase(BaseEstimator):
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        num_classes: int = None,
+        num_classes: int = None,  # noqa: RUF013
         max_epochs: int = 100,
         random_state: int = 101,
         batch_size: int = 128,
@@ -427,9 +407,7 @@ class SklearnBase(BaseEstimator):
         return metric(y, predictions)
 
     def predict(self, X, embeddings=None, device=None):
-        raise NotImplementedError(
-            "The 'predict' method is not implemented in the Parent class."
-        )
+        raise NotImplementedError("The 'predict' method is not implemented in the Parent class.")
 
     def encode(self, X, embeddings=None, batch_size=64):
         """
@@ -462,9 +440,7 @@ class SklearnBase(BaseEstimator):
         # Process data in batches
         encoded_outputs = []
         for batch in tqdm(data_loader):
-            embeddings = self.task_model.estimator.encode(
-                batch
-            )  # Call your encode function
+            embeddings = self.task_model.estimator.encode(batch)  # Call your encode function
             encoded_outputs.append(embeddings)
 
         # Concatenate all encoded outputs
@@ -486,7 +462,6 @@ class SklearnBase(BaseEstimator):
         use_negative=True,
         pool_sequence=True,
     ):
-
         pretrain_embeddings(
             base_model=base_model,
             train_dataloader=train_dataloader,
@@ -576,13 +551,9 @@ class SklearnBase(BaseEstimator):
             if X_val is not None and y_val is not None:
                 val_loss = self.score(X_val, y_val)
             else:
-                val_loss = self.trainer.validate(self.task_model, self.data_module)[0][
-                    "val_loss"
-                ]
+                val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
         else:
-            raise NotImplementedError(
-                "The 'score' method is not implemented in the child class."
-            )
+            raise NotImplementedError("The 'score' method is not implemented in the child class.")
 
         best_val_loss = val_loss
         best_epoch_val_loss = self.task_model.epoch_val_loss_at(  # type: ignore
@@ -608,9 +579,7 @@ class SklearnBase(BaseEstimator):
                         if param_value in activation_mapper:
                             setattr(self.config, key, activation_mapper[param_value])
                         else:
-                            raise ValueError(
-                                f"Unknown activation function: {param_value}"
-                            )
+                            raise ValueError(f"Unknown activation function: {param_value}")
                     else:
                         setattr(self.config, key, param_value)
 
@@ -633,9 +602,7 @@ class SklearnBase(BaseEstimator):
 
             # Dynamically set the early pruning threshold
             if prune_by_epoch:
-                early_pruning_threshold = (
-                    best_epoch_val_loss * 1.5
-                )  # Prune based on specific epoch loss
+                early_pruning_threshold = best_epoch_val_loss * 1.5  # Prune based on specific epoch loss
             else:
                 # Prune based on the best overall validation loss
                 early_pruning_threshold = best_val_loss * 1.5
@@ -661,13 +628,9 @@ class SklearnBase(BaseEstimator):
                     if X_val is not None and y_val is not None:
                         val_loss = self._score(X_val, y_val)
                     else:
-                        val_loss = self.trainer.validate(
-                            self.task_model, self.data_module
-                        )[0]["val_loss"]
+                        val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
                 else:
-                    raise NotImplementedError(
-                        "The 'score' method is not implemented in the child class."
-                    )
+                    raise NotImplementedError("The 'score' method is not implemented in the child class.")
 
                 # Pruning based on validation loss at specific epoch
                 epoch_val_loss = self.task_model.epoch_val_loss_at(  # type: ignore
@@ -684,21 +647,15 @@ class SklearnBase(BaseEstimator):
 
             except Exception as e:
                 # Penalize the hyperparameter configuration with a large value
-                print(
-                    f"Error encountered during fit with hyperparameters {hyperparams}: {e}"
-                )
-                return (
-                    best_val_loss * 100
-                )  # Large value to discourage this configuration
+                print(f"Error encountered during fit with hyperparameters {hyperparams}: {e}")
+                return best_val_loss * 100  # Large value to discourage this configuration
 
         # Perform Bayesian optimization using scikit-optimize
         result = gp_minimize(_objective, param_space, n_calls=time, random_state=42)
 
         # Update the model with the best-found hyperparameters
         best_hparams = result.x  # type: ignore
-        head_layer_sizes = (
-            [] if "head_layer_sizes" in self.config.__dataclass_fields__ else None
-        )
+        head_layer_sizes = [] if "head_layer_sizes" in self.config.__dataclass_fields__ else None
         layer_sizes = [] if "layer_sizes" in self.config.__dataclass_fields__ else None
 
         # Iterate over the best hyperparameters found by optimization

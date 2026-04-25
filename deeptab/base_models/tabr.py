@@ -1,13 +1,16 @@
+import math
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from ..utils.get_feature_dimensions import get_feature_dimensions
+from torch import Tensor
+
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..configs.tabr_config import DefaultTabRConfig
+from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
-from torch import Tensor
-import math
+
 
 class TabR(BaseModel):
     delu = None
@@ -24,8 +27,8 @@ class TabR(BaseModel):
         super().__init__(config=config, **kwargs)
         self.save_hyperparameters(ignore=["feature_information"])
 
-        # lazy import 
-        if TabR.delu or TabR.faiss or TabR.faiss_torch_utils is None: 
+        # lazy import
+        if TabR.delu or TabR.faiss or TabR.faiss_torch_utils is None:
             self._lazy_import_dependencies()
 
         self.returns_ensemble = False
@@ -37,9 +40,7 @@ class TabR(BaseModel):
                 config=config,
             )
             print(self.embedding_layer)
-            input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
+            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
@@ -59,12 +60,12 @@ class TabR(BaseModel):
         context_dropout = self.hparams.context_dropout
 
         if memory_efficient:
-            assert self.candidate_encoding_batch_size !=0
+            assert self.candidate_encoding_batch_size != 0  # noqa: S101
 
-        if mixer_normalization == 'auto':
+        if mixer_normalization == "auto":
             mixer_normalization = encoder_n_blocks > 0
         if encoder_n_blocks == 0:
-            assert not mixer_normalization
+            assert not mixer_normalization  # noqa: S101
 
         # Encoder Module: E
         d_in = input_dim
@@ -72,7 +73,6 @@ class TabR(BaseModel):
         Normalization = getattr(nn, normalization)
         self.linear = nn.Linear(d_in, d_main)
         self.context_size = self.hparams.context_size
-
 
         def make_block(prenorm: bool) -> nn.Sequential:
             return nn.Sequential(
@@ -83,12 +83,10 @@ class TabR(BaseModel):
                 nn.Linear(d_block, d_main),
                 nn.Dropout(dropout1),
             )
-        
+
         # here in the TabR paper, for first block of Encoder(E),
         # LayerNorm is omitted. In code, we omitted Normalization.
-        self.blocks0 = nn.ModuleList(
-            [make_block(i > 0) for i in range(encoder_n_blocks)]
-        )
+        self.blocks0 = nn.ModuleList([make_block(i > 0) for i in range(encoder_n_blocks)])
 
         # Retrieval Module: R
         self.normalization = Normalization(d_main) if mixer_normalization else None
@@ -98,24 +96,24 @@ class TabR(BaseModel):
             nn.Linear(1, d_main)
             if num_classes == 1
             else nn.Sequential(
-                    nn.Embedding(num_classes, d_main),
-                    # gives depreciation warning
-                    delu.nn.Lambda(lambda x: x.squeeze(-2)) # Removes the unnecessary extra dimension added by the embedding layer
+                nn.Embedding(num_classes, d_main),
+                # gives depreciation warning
+                delu.nn.Lambda(
+                    lambda x: x.squeeze(-2)
+                ),  # Removes the unnecessary extra dimension added by the embedding layer
             )
         )
-        self.K = nn.Linear(d_main, d_main) # W_k in paper
+        self.K = nn.Linear(d_main, d_main)  # W_k in paper
         self.T = nn.Sequential(
             nn.Linear(d_main, d_block),
             activation,
             nn.Dropout(dropout0),
             nn.Linear(d_block, d_main, bias=False),
-        ) # T for T(k-k_i) form the TabR paper.  
+        )  # T for T(k-k_i) form the TabR paper.
         self.dropout = nn.Dropout(context_dropout)
 
         # Predictor Module : P
-        self.blocks1 = nn.ModuleList(
-            [make_block(True) for _ in range(predictor_n_blocks)]
-        )
+        self.blocks1 = nn.ModuleList([make_block(True) for _ in range(predictor_n_blocks)])
         self.head = nn.Sequential(
             Normalization(d_main),
             activation,
@@ -126,45 +124,47 @@ class TabR(BaseModel):
         self.search_index = None
         self.memory_efficient = memory_efficient
         self.reset_parameters()
-    
+
     def reset_parameters(self):
-        if isinstance(self.label_encoder, nn.Linear): # if num_classes==1
-            bound = 1 / math.sqrt(2.0) # He initialization (common for layers with ReLU activation)
-            nn.init.uniform_(self.label_encoder.weight, -bound, bound)  # type: ignore[code]  # noqa: E501
-            nn.init.uniform_(self.label_encoder.bias, -bound, bound)  # type: ignore[code]  # noqa: E501
-        else: 
-            assert isinstance(self.label_encoder[0], nn.Embedding)
-            nn.init.uniform_(self.label_encoder[0].weight, -1.0, 1.0)  # type: ignore[code]  # noqa: E501
+        if isinstance(self.label_encoder, nn.Linear):  # if num_classes==1
+            bound = 1 / math.sqrt(2.0)  # He initialization (common for layers with ReLU activation)
+            nn.init.uniform_(self.label_encoder.weight, -bound, bound)  # type: ignore[code]
+            nn.init.uniform_(self.label_encoder.bias, -bound, bound)  # type: ignore[code]
+        else:
+            assert isinstance(self.label_encoder[0], nn.Embedding)  # noqa: S101
+            nn.init.uniform_(self.label_encoder[0].weight, -1.0, 1.0)  # type: ignore[code]
 
     def _lazy_import_dependencies(self):
         """Lazily import external dependencies and store them as class attributes."""
-        if TabR.delu is None: 
+        if TabR.delu is None:
             try:
                 import delu
+
                 TabR.delu = delu
                 print("Successfully lazy imported delu dependency.")
 
             except ImportError:
-                raise ImportError("Failed to import delu module for TabR. Ensure all dependencies are installed\n" 
-                "You can install delu running 'pip install delu'.") from None
+                raise ImportError(
+                    "Failed to import delu module for TabR. Ensure all dependencies are installed\n"
+                    "You can install delu running 'pip install delu'."
+                ) from None
 
-        if TabR.faiss is None: 
-            try: 
+        if TabR.faiss is None:
+            try:
                 import faiss
                 import faiss.contrib.torch_utils
-                
+
                 TabR.faiss = faiss
                 TabR.faiss_torch_utils = faiss.contrib.torch_utils
                 print("Successfully lazy imported faiss dependency")
 
             except ImportError as e:
-                raise ImportError("Failed to import faiss module for TabR. Ensure all dependencies are installed\n" 
-                "You can install faiss running 'pip install faiss-cpu' for CPU and 'pip install faiss-gpu' for GPU.") from None
+                raise ImportError(
+                    "Failed to import faiss module for TabR. Ensure all dependencies are installed\n"
+                    "You can install faiss running 'pip install faiss-cpu' for CPU and 'pip install faiss-gpu' for GPU."
+                ) from None
 
-    def _encode(
-            self, 
-            a
-        ):
+    def _encode(self, a):
         # x = x.double() # issue
         x = a.float()
         # x=a.clone().detach().requires_grad_(True)
@@ -173,13 +173,10 @@ class TabR(BaseModel):
         for block in self.blocks0:
             x = x + block(x)
         k = self.K(x if self.normalization is None else self.normalization(x))
-        
+
         return x, k
 
-    def forward(
-            self, 
-            *data
-        ):
+    def forward(self, *data):
         """
         Standard forward pass without candidate selection (for baseline compatibility).
         """
@@ -189,8 +186,8 @@ class TabR(BaseModel):
             x = x.reshape(B, S * D)
         else:
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-        x,k = self._encode(x)
-        context_k = k.unsqueeze(1).expand(-1, self.context_size, -1) # using the batch itself as context
+        x, k = self._encode(x)
+        context_k = k.unsqueeze(1).expand(-1, self.context_size, -1)  # using the batch itself as context
         similarities = (
             -k.square().sum(-1, keepdim=True)
             + (2 * (k[..., None, :] @ context_k.transpose(-1, -2))).squeeze(-2)
@@ -203,15 +200,9 @@ class TabR(BaseModel):
             x = x + block(x + t)
         return self.head(x)
 
-    def train_with_candidates(
-            self, 
-            *data, 
-            targets, 
-            candidate_x, 
-            candidate_y
-        ):
+    def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
         """TabR-style training forward pass selecting candidates."""
-        assert targets is not None
+        assert targets is not None  # noqa: S101
 
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
@@ -221,27 +212,18 @@ class TabR(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
-            
-        with torch.set_grad_enabled(
-            torch.is_grad_enabled() and not self.memory_efficient
-        ):
-            
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+
+        with torch.set_grad_enabled(torch.is_grad_enabled() and not self.memory_efficient):
             candidate_k = (
-                self._encode(candidate_x)[1] # normalized candidate_x 
-                if self.candidate_encoding_batch_size ==0
+                self._encode(candidate_x)[1]  # normalized candidate_x
+                if self.candidate_encoding_batch_size == 0
                 else torch.cat(
                     [
-                        self._encode(x)[1] # normalized x
+                        self._encode(x)[1]  # normalized x
                         # for x in delu.iter_batches(
-                        for x in TabR.delu.iter_batches(
-                            candidate_x, 
-                            self.candidate_encoding_batch_size
-                        )
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
                     ]
                 )
             )
@@ -257,11 +239,8 @@ class TabR(BaseModel):
             # initializing the search index
             if self.search_index is None:
                 self.search_index = (
-                    TabR.faiss.GpuIndexFlatL2(
-                        TabR.faiss.StandardGpuResources(), 
-                        d_main
-                    )
-                    if device.type == 'cuda'
+                    TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
+                    if device.type == "cuda"
                     else TabR.faiss.IndexFlatL2(d_main)
                 )
             # Updating the index is much faster than creating a new one.
@@ -274,18 +253,16 @@ class TabR(BaseModel):
             )
             # NOTE: to avoid leakage, the index i must be removed from the i-th row,
             # (because of how candidate_k is constructed).
-            distances[
-                context_idx == torch.arange(batch_size, device=device)[:, None]
-            ] = torch.inf
+            distances[context_idx == torch.arange(batch_size, device=device)[:, None]] = torch.inf
             # Not the most elegant solution to remove the argmax, but anyway.
             context_idx = context_idx.gather(-1, distances.argsort()[:, :-1])
 
         if self.memory_efficient and torch.is_grad_enabled():
             # Repeating the same computation,
             # but now only for the context objects and with autograd on.
-            context_k = self._encode(
-                torch.cat([x,candidate_x])[context_idx].flatten(0,1)
-            )[1].reshape(batch_size, context_size, -1)
+            context_k = self._encode(torch.cat([x, candidate_x])[context_idx].flatten(0, 1))[1].reshape(
+                batch_size, context_size, -1
+            )
         else:
             context_k = candidate_k[context_idx]
 
@@ -300,31 +277,26 @@ class TabR(BaseModel):
         )
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
-        
-        if self.hparams.num_classes > 1: # for classification
+
+        if self.hparams.num_classes > 1:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
-        else: # for regression
+        else:  # for regression
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
             if len(context_y_emb.shape) == 4:
-                context_y_emb = context_y_emb[:,:,0,:]
+                context_y_emb = context_y_emb[:, :, 0, :]
 
         # Combine keys and labels with a transformation T.
         values = context_y_emb + self.T(k[:, None] - context_k)
         context_x = (probs[:, None] @ values).squeeze(1)
         x = x + context_x
 
-        # Predictor has LayerNorm, ReLU and Linear after the N_P number of blocks. 
+        # Predictor has LayerNorm, ReLU and Linear after the N_P number of blocks.
         for block in self.blocks1:
             x = x + block(x)
         x = self.head(x)
         return x
 
-    def validate_with_candidates(
-                            self, 
-                            *data, 
-                            candidate_x, 
-                            candidate_y
-        ):
+    def validate_with_candidates(self, *data, candidate_x, candidate_y):
         """Validation forward pass with TabR-style candidate selection."""
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
@@ -335,28 +307,23 @@ class TabR(BaseModel):
             candidate_x = candidate_x.reshape(B, S * D)
         else:
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
 
         if not self.memory_efficient:
             candidate_k = (
-                self._encode(candidate_x)[1] # normalized candidate_x 
+                self._encode(candidate_x)[1]  # normalized candidate_x
                 if self.candidate_encoding_batch_size == 0
                 else torch.cat(
                     [
-                        self._encode(x)[1] # normalized x
-                        for x in TabR.delu.iter_batches(
-                            candidate_x, 
-                            self.candidate_encoding_batch_size
-                        )
+                        self._encode(x)[1]  # normalized x
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
                     ]
                 )
             )
-        else: 
-            candidate_x, candidate_k = self._encode(candidate_x) 
+        else:
+            candidate_x, candidate_k = self._encode(candidate_x)
 
-        x, k = self._encode(x) # encoded x and k 
+        x, k = self._encode(x)  # encoded x and k
         batch_size, d_main = k.shape
         device = k.device
         context_size = self.context_size
@@ -364,10 +331,10 @@ class TabR(BaseModel):
         if self.search_index is None:
             self.search_index = (
                 TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
-                if device.type == 'cuda'
+                if device.type == "cuda"
                 else TabR.faiss.IndexFlatL2(d_main)
             )
-            
+
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
@@ -382,16 +349,16 @@ class TabR(BaseModel):
             -k.square().sum(-1, keepdim=True)
             + (2 * (k[..., None, :] @ context_k.transpose(-1, -2))).squeeze(-2)
             - context_k.square().sum(-1)
-        )        
+        )
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
-        
-        if self.hparams.num_classes > 1: # for classification
+
+        if self.hparams.num_classes > 1:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
-        else: # for regression
+        else:  # for regression
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
             if len(context_y_emb.shape) == 4:
-                context_y_emb = context_y_emb[:,:,0,:]
+                context_y_emb = context_y_emb[:, :, 0, :]
 
         values = context_y_emb + self.T(k[:, None] - context_k)
         context_x = (probs[:, None] @ values).squeeze(1)
@@ -403,13 +370,7 @@ class TabR(BaseModel):
         x = self.head(x)
         return x
 
-
-    def predict_with_candidates(
-                            self, 
-                            *data, 
-                            candidate_x, 
-                            candidate_y
-        ):
+    def predict_with_candidates(self, *data, candidate_x, candidate_y):
         """Prediction forward pass with TabR-style candidate selection."""
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
@@ -420,28 +381,23 @@ class TabR(BaseModel):
             candidate_x = candidate_x.reshape(B, S * D)
         else:
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
 
         if not self.memory_efficient:
             candidate_k = (
-                self._encode(candidate_x)[1] # normalized candidate_x 
+                self._encode(candidate_x)[1]  # normalized candidate_x
                 if self.candidate_encoding_batch_size == 0
                 else torch.cat(
                     [
-                        self._encode(x)[1] # normalized x
-                        for x in TabR.delu.iter_batches(
-                            candidate_x, 
-                            self.candidate_encoding_batch_size
-                        )
+                        self._encode(x)[1]  # normalized x
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
                     ]
                 )
             )
-        else: 
-            candidate_x, candidate_k = self._encode(candidate_x) 
+        else:
+            candidate_x, candidate_k = self._encode(candidate_x)
 
-        x, k = self._encode(x) # encoded x and k 
+        x, k = self._encode(x)  # encoded x and k
         batch_size, d_main = k.shape
         device = k.device
         context_size = self.context_size
@@ -449,11 +405,10 @@ class TabR(BaseModel):
         if self.search_index is None:
             self.search_index = (
                 TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
-                if device.type == 'cuda'
+                if device.type == "cuda"
                 else TabR.faiss.IndexFlatL2(d_main)
             )
 
-            
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
@@ -468,16 +423,16 @@ class TabR(BaseModel):
             -k.square().sum(-1, keepdim=True)
             + (2 * (k[..., None, :] @ context_k.transpose(-1, -2))).squeeze(-2)
             - context_k.square().sum(-1)
-        )        
+        )
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
-        
-        if self.hparams.num_classes > 1: # for classification
+
+        if self.hparams.num_classes > 1:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
-        else: # for regression
+        else:  # for regression
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
             if len(context_y_emb.shape) == 4:
-                context_y_emb = context_y_emb[:,:,0,:]
+                context_y_emb = context_y_emb[:, :, 0, :]
 
         values = context_y_emb + self.T(k[:, None] - context_k)
         context_x = (probs[:, None] @ values).squeeze(1)

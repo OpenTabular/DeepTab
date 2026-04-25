@@ -1,9 +1,10 @@
+from itertools import chain
+
+import lightning as pl
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import lightning as pl
 from lightning.pytorch.callbacks import ModelSummary
-from itertools import chain
 
 
 class ContrastivePretrainer(pl.LightningModule):
@@ -48,27 +49,17 @@ class ContrastivePretrainer(pl.LightningModule):
         if not self.regression:
             for i in range(batch_size):
                 same_class_indices = (labels == labels[i]).nonzero(as_tuple=True)[0]
-                different_class_indices = (labels != labels[i]).nonzero(as_tuple=True)[
-                    0
-                ]
+                different_class_indices = (labels != labels[i]).nonzero(as_tuple=True)[0]
                 same_class_indices = same_class_indices[same_class_indices != i]
 
                 knn_indices[i] = self._sample_indices(same_class_indices, k_neighbors)
-                neg_indices[i] = self._sample_indices(
-                    different_class_indices, k_neighbors
-                )
+                neg_indices[i] = self._sample_indices(different_class_indices, k_neighbors)
         else:
             with torch.no_grad():
-                target_distances = torch.cdist(
-                    labels.float(), labels.float(), p=2
-                ).squeeze(-1)
+                target_distances = torch.cdist(labels.float(), labels.float(), p=2).squeeze(-1)
 
-            knn_indices = target_distances.topk(k_neighbors + 1, largest=False).indices[
-                :, 1:
-            ]
-            neg_indices = target_distances.topk(k_neighbors, largest=True).indices[
-                :, :k_neighbors
-            ]
+            knn_indices = target_distances.topk(k_neighbors + 1, largest=False).indices[:, 1:]
+            neg_indices = target_distances.topk(k_neighbors, largest=True).indices[:, :k_neighbors]
 
         return knn_indices.to(self.device), neg_indices.to(self.device)
 
@@ -95,9 +86,7 @@ class ContrastivePretrainer(pl.LightningModule):
                     labels.append(-torch.ones(N * k_neighbors, device=self.device))
 
                 if not pairs:
-                    raise ValueError(
-                        "At least one of use_positive or use_negative must be True."
-                    )
+                    raise ValueError("At least one of use_positive or use_negative must be True.")
 
                 all_pairs = torch.cat(pairs, dim=0)
                 all_labels = torch.cat(labels, dim=0)
@@ -127,9 +116,7 @@ class ContrastivePretrainer(pl.LightningModule):
                 labels.append(-torch.ones(N * k_neighbors, device=self.device))
 
             if not pairs:
-                raise ValueError(
-                    "At least one of use_positive or use_negative must be True."
-                )
+                raise ValueError("At least one of use_positive or use_negative must be True.")
 
             all_pairs = torch.cat(pairs, dim=0)
             all_labels = torch.cat(labels, dim=0)
@@ -139,7 +126,6 @@ class ContrastivePretrainer(pl.LightningModule):
             return loss
 
     def training_step(self, batch, batch_idx):
-
         self.estimator.embedding_layer.train()
 
         data, labels = batch
@@ -147,9 +133,7 @@ class ContrastivePretrainer(pl.LightningModule):
         knn_indices, neg_indices = self.get_knn(labels)
         loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
 
-        self.log(
-            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
-        )
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def test_step(self, batch, batch_idx):
@@ -157,9 +141,7 @@ class ContrastivePretrainer(pl.LightningModule):
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)
         loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
-        self.log(
-            "test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
-        )
+        self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -167,9 +149,7 @@ class ContrastivePretrainer(pl.LightningModule):
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)
         loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
-        self.log(
-            "val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True
-        )
+        self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def configure_optimizers(self):

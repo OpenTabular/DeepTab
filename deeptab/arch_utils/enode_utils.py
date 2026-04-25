@@ -1,15 +1,17 @@
+from warnings import warn
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
 from deeptab.arch_utils.layer_utils.sparsemax import sparsemax, sparsemoid
+
 from .data_aware_initialization import ModuleWithInit
 from .numpy_utils import check_numpy
-import numpy as np
-from warnings import warn
 
 
 class ODSTE(ModuleWithInit):
-
     def __init__(
         self,
         in_features,  # J (number of features)
@@ -41,22 +43,16 @@ class ODSTE(ModuleWithInit):
         )
 
         # Response values for each leaf
-        self.response = nn.Parameter(
-            torch.zeros([num_trees, tree_dim, embed_dim, 2**depth]), requires_grad=True
-        )
+        self.response = nn.Parameter(torch.zeros([num_trees, tree_dim, embed_dim, 2**depth]), requires_grad=True)
 
         initialize_response_(self.response)
 
         # Feature selection logits (choose J)
-        self.feature_selection_logits = nn.Parameter(
-            torch.zeros([num_trees, depth, in_features]), requires_grad=True
-        )
+        self.feature_selection_logits = nn.Parameter(torch.zeros([num_trees, depth, in_features]), requires_grad=True)
         initialize_selection_logits_(self.feature_selection_logits)
 
         # Embedding selection logits (choose D within J)
-        self.embedding_selection_logits = nn.Parameter(
-            torch.randn([num_trees, depth, in_features, embed_dim])
-        )
+        self.embedding_selection_logits = nn.Parameter(torch.randn([num_trees, depth, in_features, embed_dim]))
 
         # Thresholds & temperatures (random initialization)
         self.feature_thresholds = nn.Parameter(torch.randn([num_trees, depth]))
@@ -66,9 +62,7 @@ class ODSTE(ModuleWithInit):
         with torch.no_grad():
             indices = torch.arange(2**self.depth)
             offsets = 2 ** torch.arange(self.depth)
-            bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(
-                torch.float32
-            )
+            bin_codes = (indices.view(1, -1) // offsets.view(-1, 1) % 2).to(torch.float32)
             bin_codes_1hot = torch.stack([bin_codes, 1.0 - bin_codes], dim=-1)
             self.bin_codes_1hot = nn.Parameter(bin_codes_1hot, requires_grad=False)
 
@@ -86,7 +80,7 @@ class ODSTE(ModuleWithInit):
             raise ValueError("Input tensor must have shape (batch_size, J, D)")
 
         if x.shape[0] < 1000:
-            warn(
+            warn(  # noqa: B028
                 "Data-aware initialization is performed on less than 1000 data points. This may cause instability."
                 "To avoid potential problems, run this model on a data batch with at least 1000 data samples."
                 "You can do so manually before training. Use with torch.no_grad() for memory efficiency."
@@ -94,23 +88,17 @@ class ODSTE(ModuleWithInit):
 
         with torch.no_grad():
             # Select features (J)
-            feature_selectors = self.choice_function(
-                self.feature_selection_logits, dim=-1
-            )
+            feature_selectors = self.choice_function(self.feature_selection_logits, dim=-1)
             # feature_selectors shape: (num_trees, depth, J)
 
             selected_features = torch.einsum("bjd,ntj->bntd", x, feature_selectors)
             # selected_features shape: (B, num_trees, depth, D)
 
             # Select embeddings (D)
-            embedding_selectors = self.choice_function(
-                self.embedding_selection_logits, dim=-1
-            )
+            embedding_selectors = self.choice_function(self.embedding_selection_logits, dim=-1)
             # embedding_selectors shape: (num_trees, depth, J, D)
 
-            selected_embeddings = torch.einsum(
-                "bntd,ntjd->bntd", selected_features, embedding_selectors
-            )
+            selected_embeddings = torch.einsum("bntd,ntjd->bntd", selected_features, embedding_selectors)
             # selected_embeddings shape: (B, num_trees, depth, D)
 
             # Initialize thresholds using percentiles from the data
@@ -120,9 +108,7 @@ class ODSTE(ModuleWithInit):
                 size=[self.num_trees, self.depth],
             )
 
-            reshaped_embeddings = selected_embeddings.permute(1, 2, 0, 3).reshape(
-                self.num_trees * self.depth, -1
-            )
+            reshaped_embeddings = selected_embeddings.permute(1, 2, 0, 3).reshape(self.num_trees * self.depth, -1)
             self.feature_thresholds.data[...] = torch.as_tensor(
                 list(
                     map(
@@ -137,9 +123,7 @@ class ODSTE(ModuleWithInit):
 
             # Initialize temperatures based on the threshold differences
             temperatures = np.percentile(
-                check_numpy(
-                    abs(selected_embeddings - self.feature_thresholds.unsqueeze(-1))
-                ),
+                check_numpy(abs(selected_embeddings - self.feature_thresholds.unsqueeze(-1))),
                 q=100 * min(1.0, self.threshold_init_cutoff),
                 axis=0,
             )
@@ -161,26 +145,20 @@ class ODSTE(ModuleWithInit):
             raise ValueError("Input tensor must have shape (batch_size, J, D)")
 
         # Select feature (J) and embedding dimension (D) separately
-        feature_selectors = self.choice_function(
-            self.feature_selection_logits, dim=-1
-        )  # [num_trees, depth, J]
+        feature_selectors = self.choice_function(self.feature_selection_logits, dim=-1)  # [num_trees, depth, J]
 
-        embedding_selectors = self.choice_function(
-            self.embedding_selection_logits, dim=-1
-        )  # [num_trees, depth, J, D]
+        embedding_selectors = self.choice_function(self.embedding_selection_logits, dim=-1)  # [num_trees, depth, J, D]
 
         # Select features (J) first
         selected_features = torch.einsum("bjd,ntj->bntd", x, feature_selectors)
 
         # Select embeddings (D) within selected features
-        selected_embeddings = torch.einsum(
-            "bntd,ntjd->bntd", selected_features, embedding_selectors
-        )
+        selected_embeddings = torch.einsum("bntd,ntjd->bntd", selected_features, embedding_selectors)
 
         # Compute threshold logits
-        threshold_logits = (
-            selected_embeddings - self.feature_thresholds.unsqueeze(0).unsqueeze(-1)
-        ) * torch.exp(-self.log_temperatures.unsqueeze(0).unsqueeze(-1))
+        threshold_logits = (selected_embeddings - self.feature_thresholds.unsqueeze(0).unsqueeze(-1)) * torch.exp(
+            -self.log_temperatures.unsqueeze(0).unsqueeze(-1)
+        )
 
         threshold_logits = torch.stack([-threshold_logits, threshold_logits], dim=-1)
 
@@ -267,9 +245,7 @@ class DenseBlock(nn.Module):
                     **kwargs,
                 )
             )
-            input_dim = min(
-                input_dim + layer_dim * tree_dim, max_features or float("inf")
-            )
+            input_dim = min(input_dim + layer_dim * tree_dim, max_features or float("inf"))
 
     def forward(self, x):
         """Forward pass through the DenseBlock.
@@ -292,9 +268,7 @@ class DenseBlock(nn.Module):
             if self.max_features is not None:
                 tail_features = min(self.max_features, x.shape[1]) - initial_features
                 if tail_features > 0:
-                    x = torch.cat(
-                        [x[:, :initial_features, :], x[:, -tail_features:, :]], dim=1
-                    )
+                    x = torch.cat([x[:, :initial_features, :], x[:, -tail_features:, :]], dim=1)
 
             if self.training and self.input_dropout:
                 x = F.dropout(x, self.input_dropout)

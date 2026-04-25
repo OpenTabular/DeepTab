@@ -5,8 +5,8 @@ from ..arch_utils.layer_utils.normalization_layers import LayerNorm
 from ..arch_utils.mamba_utils.mamba_arch import Mamba
 from ..arch_utils.mamba_utils.mamba_original import MambaOriginal
 from ..arch_utils.mlp_utils import MLPhead
-from ..utils.get_feature_dimensions import get_feature_dimensions
 from ..configs.mambatab_config import DefaultMambaTabConfig
+from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
 

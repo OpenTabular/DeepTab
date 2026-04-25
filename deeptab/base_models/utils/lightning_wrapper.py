@@ -116,13 +116,10 @@ class TaskModel(pl.LightningModule):
 
             # Maintain structure: each feature type remains a list of tensors
             self.train_features = (
-                [torch.cat(features, dim=0) for features in zip(*all_train_num)],
-                [torch.cat(features, dim=0) for features in zip(*all_train_cat)],
+                [torch.cat(features, dim=0) for features in zip(*all_train_num, strict=False)],
+                [torch.cat(features, dim=0) for features in zip(*all_train_cat, strict=False)],
                 (
-                    [
-                        torch.cat(features, dim=0)
-                        for features in zip(*all_train_embeddings)
-                    ]
+                    [torch.cat(features, dim=0) for features in zip(*all_train_embeddings, strict=False)]
                     if all_train_embeddings
                     else None
                 ),
@@ -177,10 +174,7 @@ class TaskModel(pl.LightningModule):
                 )
 
         if getattr(self.estimator, "returns_ensemble", False):  # Ensemble case
-            if (
-                self.loss_fct.__class__.__name__ == "CrossEntropyLoss"
-                and predictions.dim() == 3
-            ):
+            if self.loss_fct.__class__.__name__ == "CrossEntropyLoss" and predictions.dim() == 3:
                 # Classification case with ensemble: predictions (N, E, k), y_true (N,)
                 N, E, k = predictions.shape
                 loss = 0.0
@@ -240,9 +234,7 @@ class TaskModel(pl.LightningModule):
             loss = self.compute_loss(preds, labels)
 
         # Log the training loss
-        self.log(
-            "train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True
-        )
+        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # Log custom training metrics
         for metric_name, metric_fn in self.train_metrics.items():
@@ -277,8 +269,7 @@ class TaskModel(pl.LightningModule):
         data, labels = batch
         if hasattr(self.estimator, "validate_with_candidates") and self.train_features is not None:
             preds = self.estimator.validate_with_candidates(
-                                                    *data, 
-                                                    candidate_x=self.train_features, candidate_y=self.train_targets
+                *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
         else:
             preds = self(*data)
@@ -323,10 +314,10 @@ class TaskModel(pl.LightningModule):
             Test loss.
         """
         data, labels = batch
-        if hasattr(self.estimator, 'predict_with_candidates') and self.train_features is not None:
+        if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
             preds = self.estimator.predict_with_candidates(
                 *data, candidates_x=self.train_features, candidates_y=self.train_targets
-            )   
+            )
         else:
             preds = self(*data)
         test_loss = self.compute_loss(preds, labels)
@@ -407,13 +398,8 @@ class TaskModel(pl.LightningModule):
 
             # Apply pruning logic if needed
             if self.current_epoch >= self.pruning_epoch:
-                if (
-                    self.early_pruning_threshold is not None
-                    and val_loss_value > self.early_pruning_threshold
-                ):
-                    print(
-                        f"Pruned at epoch {self.current_epoch}, val_loss {val_loss_value}"
-                    )
+                if self.early_pruning_threshold is not None and val_loss_value > self.early_pruning_threshold:
+                    print(f"Pruned at epoch {self.current_epoch}, val_loss {val_loss_value}")
                     self.trainer.should_stop = True  # Stop training early
 
     def epoch_val_loss_at(self, epoch):
@@ -564,22 +550,16 @@ class TaskModel(pl.LightningModule):
         # Ensure k_neighbors doesn't exceed available samples
         k_neighbors = min(k_neighbors, batch_size - 1)
 
-        knn_indices = torch.zeros(
-            batch_size, k_neighbors, dtype=torch.long, device=labels.device
-        )
+        knn_indices = torch.zeros(batch_size, k_neighbors, dtype=torch.long, device=labels.device)
 
         if not regression:
             # Classification: Find samples with the same class label
             for i in range(batch_size):
                 same_class_indices = (labels == labels[i]).nonzero(as_tuple=True)[0]
-                same_class_indices = same_class_indices[
-                    same_class_indices != i
-                ]  # Remove self-index
+                same_class_indices = same_class_indices[same_class_indices != i]  # Remove self-index
 
                 if len(same_class_indices) >= k_neighbors:
-                    knn_indices[i] = same_class_indices[
-                        torch.randperm(len(same_class_indices))[:k_neighbors]
-                    ]
+                    knn_indices[i] = same_class_indices[torch.randperm(len(same_class_indices))[:k_neighbors]]
                 else:
                     knn_indices[i, : len(same_class_indices)] = same_class_indices
                     knn_indices[i, len(same_class_indices) :] = same_class_indices[
@@ -592,13 +572,9 @@ class TaskModel(pl.LightningModule):
         else:
             # Regression: Find nearest neighbors using Euclidean distance
             with torch.no_grad():
-                target_distances = torch.cdist(
-                    labels.float(), labels.float(), p=2
-                ).squeeze(-1)
+                target_distances = torch.cdist(labels.float(), labels.float(), p=2).squeeze(-1)
 
-            knn_indices = target_distances.topk(k_neighbors + 1, largest=False).indices[
-                :, 1:
-            ]  # Exclude self
+            knn_indices = target_distances.topk(k_neighbors + 1, largest=False).indices[:, 1:]  # Exclude self
 
         return knn_indices
 
@@ -629,9 +605,7 @@ class TaskModel(pl.LightningModule):
         loss_fn = torch.nn.CosineEmbeddingLoss(margin=0.0, reduction="mean")
 
         for s in range(S):  # Loop over sequence length
-            embeddings_s = embeddings[
-                :, s, :
-            ]  # Shape: (N, D) -> Single token per sample
+            embeddings_s = embeddings[:, s, :]  # Shape: (N, D) -> Single token per sample
 
             # Gather nearest neighbor embeddings for this time step
             positive_pairs = torch.gather(
@@ -641,15 +615,11 @@ class TaskModel(pl.LightningModule):
             )  # Shape: (N, k_neighbors, D)
 
             # Flatten batch and neighbors into a single batch dimension
-            embeddings_s = embeddings_s.repeat_interleave(
-                k_neighbors, dim=0
-            )  # (N * k_neighbors, D)
+            embeddings_s = embeddings_s.repeat_interleave(k_neighbors, dim=0)  # (N * k_neighbors, D)
             positive_pairs = positive_pairs.view(-1, D)  # (N * k_neighbors, D)
 
             # Labels: +1 for positive similarity
-            labels = torch.ones(
-                embeddings_s.shape[0], device=embeddings.device
-            )  # Shape: (N * k_neighbors)
+            labels = torch.ones(embeddings_s.shape[0], device=embeddings.device)  # Shape: (N * k_neighbors)
 
             # Compute cosine embedding loss
             loss += -1.0 * loss_fn(embeddings_s, positive_pairs, labels)

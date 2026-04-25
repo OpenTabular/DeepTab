@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.batch_ensemble_layer import LinearBatchEnsembleLayer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
@@ -11,7 +12,6 @@ from .utils.basemodel import BaseModel
 
 
 class TabM(BaseModel):
-
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
@@ -42,9 +42,7 @@ class TabM(BaseModel):
             if self.hparams.average_embeddings:
                 input_dim = self.hparams.d_model
             else:
-                input_dim = np.sum(
-                    [len(info) * self.hparams.d_model for info in feature_information]
-                )
+                input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
 
         else:
             input_dim = get_feature_dimensions(*feature_information)
@@ -72,11 +70,7 @@ class TabM(BaseModel):
         if self.hparams.use_glu:
             self.layers.append(nn.GLU())
         else:
-            self.layers.append(
-                self.hparams.activation
-                if hasattr(self.hparams, "activation")
-                else nn.SELU()
-            )
+            self.layers.append(self.hparams.activation if hasattr(self.hparams, "activation") else nn.SELU())
         if self.hparams.dropout > 0.0:
             self.layers.append(nn.Dropout(self.hparams.dropout))
 
@@ -110,11 +104,7 @@ class TabM(BaseModel):
             if self.hparams.use_glu:
                 self.layers.append(nn.GLU())
             else:
-                self.layers.append(
-                    self.hparams.activation
-                    if hasattr(self.hparams, "activation")
-                    else nn.SELU()
-                )
+                self.layers.append(self.hparams.activation if hasattr(self.hparams, "activation") else nn.SELU())
             if self.hparams.dropout > 0.0:
                 self.layers.append(nn.Dropout(self.hparams.dropout))
 
@@ -159,11 +149,7 @@ class TabM(BaseModel):
             if isinstance(self.layers[i], LinearBatchEnsembleLayer):
                 out = self.layers[i](x)
                 # `out` shape is expected to be (batch_size, ensemble_size, out_features)
-                if (
-                    hasattr(self, "skip_connections")
-                    and self.skip_connections
-                    and x.shape == out.shape
-                ):
+                if hasattr(self, "skip_connections") and self.skip_connections and x.shape == out.shape:
                     x = x + out
                 else:
                     x = out

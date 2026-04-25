@@ -1,7 +1,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Literal
+
 import torch.nn as nn
+
 from .base_config import BaseConfig
 
 

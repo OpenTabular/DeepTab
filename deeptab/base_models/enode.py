@@ -1,13 +1,13 @@
+import numpy as np
 import torch
+import torch.nn as nn
 
+from ..arch_utils.enode_utils import DenseBlock
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
-from ..arch_utils.enode_utils import DenseBlock
 from ..configs.enode_config import DefaultENODEConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
-import numpy as np
-import torch.nn as nn
 
 
 class ENODE(BaseModel):

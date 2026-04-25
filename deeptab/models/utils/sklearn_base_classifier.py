@@ -1,19 +1,19 @@
 import warnings
 from collections.abc import Callable
+
+import numpy as np
 import pandas as pd
 import torch
 from sklearn.metrics import accuracy_score, log_loss
+
 from .sklearn_parent import SklearnBase
-import numpy as np
 
 
 class SklearnBaseClassifier(SklearnBase):
     def __init__(self, model, config, **kwargs):
         super().__init__(model, config, **kwargs)
         # Raise a warning if task is set to 'classification'
-        preprocessor_kwargs = {
-            k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names
-        }
+        preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
 
         if preprocessor_kwargs.get("task") == "regression":
             warnings.warn(
@@ -450,9 +450,7 @@ class SklearnBaseClassifier(SklearnBase):
 
         """
         if not self.built:
-            raise ValueError(
-                "The model has not been built yet. Call model.build_model(**args) first."
-            )
+            raise ValueError("The model has not been built yet. Call model.build_model(**args) first.")
 
         if not hasattr(self.task_model.estimator, "embedding_layer"):
             raise ValueError("The model does not have an embedding layer")

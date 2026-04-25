@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..configs.mlp_config import DefaultMLPConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
@@ -75,9 +76,7 @@ class MLP(BaseModel):
                 *feature_information,
                 config=config,
             )
-            input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
+            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
@@ -95,9 +94,7 @@ class MLP(BaseModel):
 
         # Hidden layers
         for i in range(1, len(self.hparams.layer_sizes)):
-            self.layers.append(
-                nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i])
-            )
+            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i]))
             if self.hparams.batch_norm:
                 self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[i]))
             if self.hparams.layer_norm:

@@ -1,12 +1,13 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import numpy as np
-from ..utils.get_feature_dimensions import get_feature_dimensions
+
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
 from ..configs.modernnca_config import DefaultModernNCAConfig
+from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
 
@@ -31,10 +32,8 @@ class ModernNCA(BaseModel):
                 *feature_information,
                 config=config,
             )
-            
-            input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
+
+            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
@@ -86,11 +85,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
 
         # Encode input
         x = self.encoder(x)
@@ -113,9 +109,7 @@ class ModernNCA(BaseModel):
 
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
-            candidate_y = F.one_hot(
-                candidate_y, num_classes=self.hparams.num_classes
-            ).to(x.dtype)
+            candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
 
@@ -142,9 +136,7 @@ class ModernNCA(BaseModel):
             candidate_x = candidate_x.reshape(B, S * D)
         else:
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
 
         # Encode input
         x = self.encoder(x)
@@ -156,9 +148,7 @@ class ModernNCA(BaseModel):
 
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
-            candidate_y = F.one_hot(
-                candidate_y, num_classes=self.hparams.num_classes
-            ).to(x.dtype)
+            candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
 
@@ -185,9 +175,7 @@ class ModernNCA(BaseModel):
             candidate_x = candidate_x.reshape(B, S * D)
         else:
             x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat(
-                [t for tensors in candidate_x for t in tensors], dim=1
-            )
+            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
 
         # Encode input
         x = self.encoder(x)
@@ -199,9 +187,7 @@ class ModernNCA(BaseModel):
 
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
-            candidate_y = F.one_hot(
-                candidate_y, num_classes=self.hparams.num_classes
-            ).to(x.dtype)
+            candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
 
