@@ -107,7 +107,7 @@ exclude = ["build", "dist", ".venv", ".git"]
 [tool.commitizen]
 name = "cz_conventional_commits"
 version = "1.6.1"
-version_files = ["pyproject.toml:version", "deeptab/__version__.py"]
+version_files = ["pyproject.toml:version"]
 tag_format = "v$version"
 update_changelog_on_bump = true
 major_version_zero = false
@@ -115,7 +115,6 @@ major_version_zero = false
 # Python Semantic Release configuration
 [tool.semantic_release]
 version_toml = ["pyproject.toml:tool.poetry.version"]
-version_variables = ["deeptab/__version__.py:__version__"]
 build_command = "poetry build"
 branch = "main"
 upload_to_pypi = true
