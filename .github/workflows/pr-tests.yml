@@ -1,4 +1,4 @@
-name: PR Unit Tests
+name: PR Checks
 
 on:
   workflow_dispatch:
@@ -7,11 +7,86 @@ on:
       - main
 
 concurrency:
-  group: pytest-${{ github.head_ref || github.sha }}
+  group: pr-${{ github.head_ref || github.sha }}
   cancel-in-progress: true
 
 jobs:
-  test:
+  lint:
+    name: Lint (ruff)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "poetry"
+
+      - name: Install dependencies
+        run: poetry install --only main,dev
+
+      - name: Run ruff check
+        run: poetry run ruff check .
+
+      - name: Run ruff format check
+        run: poetry run ruff format --check .
+
+  typecheck:
+    name: Type check (pyright)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "poetry"
+
+      - name: Install dependencies
+        run: poetry install --only main,dev
+
+      - name: Run pyright
+        run: poetry run pyright
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "poetry"
+
+      - name: Install dependencies
+        run: poetry install --only main
+
+      - name: Build package
+        run: poetry build
+
+      - name: Check package
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+
+  tests:
+    name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -20,28 +95,19 @@ jobs:
         python-version: ["3.10", "3.11", "3.12", "3.13"]
 
     steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install Poetry
-        uses: abatilo/actions-poetry@v4
+        uses: snok/install-poetry@v1
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
           cache: "poetry"
 
-      - name: Install Dependencies
+      - name: Install dependencies
         run: poetry install
 
-      - name: Run Unit Tests
+      - name: Run unit tests
         run: poetry run pytest tests/ -v
-
-      - name: Verify Tests Passed
-        if: ${{ success() }}
-        run: echo "All tests passed! Pull request is allowed."
-
-      - name: Fail PR on Test Failure
-        if: ${{ failure() }}
-        run: exit 1 # This ensures the PR cannot be merged if tests fail
