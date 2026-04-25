@@ -61,7 +61,7 @@ pip install -r docs/requirements_docs.txt
 
 ### How to Contribute
 
-1. Create a new branch from the `develop` branch for your contributions. Please use descriptive and concise branch names.
+1. Create a new branch from `main` for your contributions. Please use descriptive and concise branch names.
 2. Make your desired changes or additions to the codebase.
 3. Ensure that your code adheres to [PEP8](https://peps.python.org/pep-0008/) coding style guidelines.
 4. Write appropriate tests for your changes, ensuring that they pass.
@@ -74,7 +74,7 @@ pip install -r docs/requirements_docs.txt
 7. Verify the html documents created under `docs/_build/html` directory. `index.html` file is the main file which contains link to all other files and doctree.
 
 8. Commit your changes following the Conventional Commits specification (see below).
-9. Submit a pull request from your branch to the development branch of the original repository.
+9. Submit a pull request from your branch to `main` in the original repository.
 10. Wait for the maintainers to review your pull request. Address any feedback or comments if required.
 11. Once approved, your changes will be merged into the main codebase.
 
@@ -96,26 +96,22 @@ This project uses conventional commits and intentional, maintainer-controlled re
 **Step-by-Step:**
 
 1. **Development Phase**
-   - Create feature branch from `develop`
+   - Create feature branch from `main`
    - Make your changes
    - Commit using conventional commits (e.g., `feat:`, `fix:`)
 
-2. **Merge to Develop**
-   - Create PR to `develop` branch
-   - After review, merge to `develop`
-   - ReadTheDocs dev documentation updates automatically
-
-3. **Merge to Main** (CI only — no release)
-   - Merge `develop` to `main`
+2. **Merge to Main** (CI only — no release)
+   - Create PR to `main`
+   - After review, merge to `main`
    - GitHub Actions runs tests
    - **No version bump, no tag, no PyPI publish happens automatically**
 
-4. **Maintainer Release PR** (periodic, intentional)
+3. **Maintainer Release PR** (periodic, intentional)
    - Maintainer creates a `release/vX.Y.Z` branch
    - Runs `cz bump` to update `pyproject.toml` and `CHANGELOG.md`
    - Opens PR to `main`, merges after review
 
-5. **Maintainer Creates Git Tag**
+4. **Maintainer Creates Git Tag**
    - After the release PR is merged:
      ```bash
      git checkout main && git pull
