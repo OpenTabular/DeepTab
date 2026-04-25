@@ -1,4 +1,4 @@
-name: Sync Develop with Master
+name: Sync Develop with Main
 
 on:
   workflow_run:
@@ -6,7 +6,7 @@ on:
     types:
       - completed
     branches:
-      - master
+      - main
 
 permissions:
   contents: write
@@ -32,21 +32,21 @@ jobs:
 
       - name: Fetch all branches
         run: |
-          git fetch origin master:master
+          git fetch origin main:main
           git fetch origin develop:develop
 
-      - name: Check if develop is behind master
+      - name: Check if develop is behind main
         id: check
         run: |
           git checkout develop
-          BEHIND=$(git rev-list --count develop..master)
+          BEHIND=$(git rev-list --count develop..main)
           echo "commits_behind=$BEHIND" >> $GITHUB_OUTPUT
 
           if [ "$BEHIND" -eq "0" ]; then
-            echo "Develop is already up to date with master"
+            echo "Develop is already up to date with main"
             echo "needs_sync=false" >> $GITHUB_OUTPUT
           else
-            echo "Develop is $BEHIND commits behind master"
+            echo "Develop is $BEHIND commits behind main"
             echo "needs_sync=true" >> $GITHUB_OUTPUT
           fi
 
@@ -56,8 +56,8 @@ jobs:
         run: |
           git checkout develop
 
-          # Try to merge master into develop
-          if git merge master --no-edit; then
+          # Try to merge main into develop
+          if git merge main --no-edit; then
             echo "Merge successful - no conflicts"
             echo "status=success" >> $GITHUB_OUTPUT
             echo "has_conflicts=false" >> $GITHUB_OUTPUT
@@ -72,13 +72,13 @@ jobs:
         if: steps.merge.outputs.status == 'success'
         run: |
           git push origin develop
-          echo "✅ Successfully synced develop with master"
+          echo "✅ Successfully synced develop with main"
 
       - name: Get latest version tag
         id: version
         if: steps.merge.outputs.has_conflicts == 'true'
         run: |
-          VERSION=$(git describe --tags --abbrev=0 master)
+          VERSION=$(git describe --tags --abbrev=0 main)
           echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Create PR if conflicts exist
@@ -86,13 +86,13 @@ jobs:
         uses: peter-evans/create-pull-request@v6
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          branch: sync/master-to-develop-${{ steps.version.outputs.tag }}
+          branch: sync/main-to-develop-${{ steps.version.outputs.tag }}
           base: develop
-          title: "chore: sync develop with master ${{ steps.version.outputs.tag }}"
+          title: "chore: sync develop with main ${{ steps.version.outputs.tag }}"
           body: |
-            ## 🔄 Automatic Sync: Master → Develop
+            ## 🔄 Automatic Sync: Main → Develop
 
-            This PR syncs `develop` branch with the latest release from `master`.
+            This PR syncs `develop` branch with the latest release from `main`.
 
             **Release Version:** `${{ steps.version.outputs.tag }}`
             **Triggered by:** Semantic Release workflow completion
@@ -104,14 +104,14 @@ jobs:
             ```bash
             git checkout develop
             git pull origin develop
-            git merge master
+            git merge main
             # Resolve conflicts
             git add .
             git commit
             git push origin develop
             ```
 
-            ### Changes from Master:
+            ### Changes from Main:
             - Updated version files (`pyproject.toml`, `__version__.py`)
             - Updated `CHANGELOG.md`
             - New release tag: `${{ steps.version.outputs.tag }}`
@@ -141,27 +141,27 @@ jobs:
                git pull origin develop
                ```
 
-            2. **Merge master:**
+            2. **Merge main:**
                ```bash
-               git merge master
+               git merge main
                ```
 
             3. **Resolve conflicts** in:
-               - `pyproject.toml` (keep master version)
-               - `deeptab/__version__.py` (keep master version)
+               - `pyproject.toml` (keep main version)
+               - `deeptab/__version__.py` (keep main version)
                - `CHANGELOG.md` (merge both)
                - Any other conflicting files
 
             4. **Complete the merge:**
                ```bash
                git add .
-               git commit -m "chore: sync develop with master ${{ steps.version.outputs.tag }}"
+               git commit -m "chore: sync develop with main ${{ steps.version.outputs.tag }}"
                git push origin develop
                ```
 
             5. **Close this PR** (changes will be in develop)
 
-            💡 **Tip:** Version files should always use master's values after a release.
+            💡 **Tip:** Version files should always use main's values after a release.
 
       - name: Summary
         if: always()
@@ -170,9 +170,9 @@ jobs:
           echo "" >> $GITHUB_STEP_SUMMARY
 
           if [ "${{ steps.check.outputs.needs_sync }}" == "false" ]; then
-            echo "✅ Develop is already up to date with master" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Develop is already up to date with main" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.merge.outputs.status }}" == "success" ]; then
-            echo "✅ Successfully merged master into develop automatically" >> $GITHUB_STEP_SUMMARY
+            echo "✅ Successfully merged main into develop automatically" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "**Commits synced:** ${{ steps.check.outputs.commits_behind }}" >> $GITHUB_STEP_SUMMARY
           elif [ "${{ steps.merge.outputs.has_conflicts }}" == "true" ]; then

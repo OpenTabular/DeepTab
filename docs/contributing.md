@@ -85,7 +85,7 @@ This project uses automated semantic versioning and releases. Here's how release
 #### Automated Release Process
 
 ```
-1. Make Changes → 2. Conventional Commit → 3. Merge to Master → 4. Automated Release
+1. Make Changes → 2. Conventional Commit → 3. Merge to Main → 4. Automated Release
 ```
 
 **Step-by-Step:**
@@ -102,12 +102,12 @@ This project uses automated semantic versioning and releases. Here's how release
    - After review, merge to `develop`
    - ReadTheDocs dev documentation updates automatically
 
-3. **Merge to Master** (Triggers Release)
+3. **Merge to Main** (Triggers Release)
 
-   - Merge `develop` to `master`
+   - Merge `develop` to `main`
    - GitHub Actions semantic-release workflow runs automatically
 
-4. **Automated Release (on Master)**
+4. **Automated Release (on Main)**
    - ✅ Analyzes conventional commits since last release
    - ✅ Determines version bump (major/minor/patch)
    - ✅ Updates version in `pyproject.toml` and `__version__.py`
@@ -133,21 +133,21 @@ This project uses automated semantic versioning and releases. Here's how release
 
 ```bash
 git commit -m "docs: update API reference"
-# Merge to master → No version bump, no PyPI release
+# Merge to main → No version bump, no PyPI release
 ```
 
 **Scenario 2: Bug Fix (Patch Release)**
 
 ```bash
 git commit -m "fix: resolve memory leak in dataloader"
-# Merge to master → Version 1.6.1 → 1.6.2 → PyPI release
+# Merge to main → Version 1.6.1 → 1.6.2 → PyPI release
 ```
 
 **Scenario 3: New Feature (Minor Release)**
 
 ```bash
 git commit -m "feat(models): add TabNet architecture"
-# Merge to master → Version 1.6.1 → 1.7.0 → PyPI release
+# Merge to main → Version 1.6.1 → 1.7.0 → PyPI release
 ```
 
 **Scenario 4: Breaking Change (Major Release)**
@@ -156,22 +156,22 @@ git commit -m "feat(models): add TabNet architecture"
 git commit -m "feat!: remove Python 3.9 support
 
 BREAKING CHANGE: Python 3.10 is now the minimum required version"
-# Merge to master → Version 1.6.1 → 2.0.0 → PyPI release
+# Merge to main → Version 1.6.1 → 2.0.0 → PyPI release
 ```
 
 #### Important Notes
 
-- **Only master branch** triggers releases
+- **Only main branch** triggers releases
 - **Semantic-release is fully automated** - no manual version bumping needed
 - **Never manually edit version numbers** in `pyproject.toml` or `deeptab/__version__.py` - they are automatically updated by semantic-release
 - **PyPI token** is configured in GitHub repository secrets
-- **Review commits carefully** before merging to master (they determine the version!)
+- **Review commits carefully** before merging to main (they determine the version!)
 
 #### Working with Updated Versions
 
 **Q: What happens to `develop` branch after a release?**
 
-After semantic-release completes on `master`, the version files are automatically updated. The `develop` branch syncs automatically:
+After semantic-release completes on `main`, the version files are automatically updated. The `develop` branch syncs automatically:
 
 **Automatic Sync Flow:**
 
@@ -180,10 +180,10 @@ After semantic-release completes on `master`, the version files are automaticall
 │              Release & Sync Process                         │
 └─────────────────────────────────────────────────────────────┘
 
-1. Merge develop → master
+1. Merge develop → main
    │
    ▼
-2. Semantic Release runs on master
+2. Semantic Release runs on main
    │
    ├─→ Version: 1.6.1 → 1.7.0
    ├─→ Update pyproject.toml
@@ -196,12 +196,12 @@ After semantic-release completes on `master`, the version files are automaticall
    │
    ├─→ [No Conflicts] ✅
    │   │
-   │   ├─→ Merge master → develop automatically
-   │   └─→ Develop updated within 60 seconds
+   ├→ Merge main → develop automatically
+   └→ Develop updated within 60 seconds
    │
-   └─→ [Conflicts Detected] ⚠️
+   └→ [Conflicts Detected] ⚠️
        │
-       ├─→ Create PR: "chore: sync develop with master"
+       ├→ Create PR: "chore: sync develop with main"
        ├─→ Notify maintainers
        └─→ Manual merge required (rare)
 ```
@@ -219,9 +219,9 @@ git pull origin develop
 git checkout -b feature/my-new-feature
 ```
 
-**Note:** 95% of the time, `develop` syncs automatically. If you see a PR titled "sync develop with master", it means manual conflict resolution is needed (maintainers handle this).
+**Note:** 95% of the time, `develop` syncs automatically. If you see a PR titled "sync develop with main", it means manual conflict resolution is needed (maintainers handle this).
 
-Don't worry if the version seems "old" in your branch - semantic-release calculates the correct new version based on commits when merging to master.
+Don't worry if the version seems "old" in your branch - semantic-release calculates the correct new version based on commits when merging to main.
 
 ### Submitting Contributions
 

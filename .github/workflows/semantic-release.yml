@@ -3,7 +3,6 @@ name: Semantic Release
 on:
   push:
     branches:
-      - master
       - main
 
 permissions:
@@ -15,7 +14,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     concurrency: release
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

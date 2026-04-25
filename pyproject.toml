@@ -117,13 +117,13 @@ major_version_zero = false
 version_toml = ["pyproject.toml:tool.poetry.version"]
 version_variables = ["deeptab/__version__.py:__version__"]
 build_command = "poetry build"
-branch = "master"
+branch = "main"
 upload_to_pypi = true
 upload_to_release = true
 commit_parser = "angular"
 
-[tool.semantic_release.branches.master]
-match = "(master|main)"
+[tool.semantic_release.branches.main]
+match = "(main|master)"
 prerelease = false
 
 [tool.semantic_release.changelog]

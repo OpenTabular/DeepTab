@@ -23,8 +23,8 @@ The package version is mantained in `deeptab/__version__.py` and `pyproject.toml
 ## 3. Release
 
 - Create a pull request from your `feature` branch to the `develop` branch.
-- Once the pull request is approved and merged to develop. The maintainer will test the package and documentation. If everything is fine, the maintainer will proceed further to merge the changed to `master` and `release` branch.
-- Ideally content of `master` and `release` branch should be same. The `release` branch is used to publish the package to PyPi while `master` branch is used to publish the documentation to readthedocs and can be accesseed at [deeptab.readthedocs.io](https://deeptab.readthedocs.io/en/latest/).
+- Once the pull request is approved and merged to develop. The maintainer will test the package and documentation. If everything is fine, the maintainer will proceed further to merge the changed to `main` and `release` branch.
+- Ideally content of `main` and `release` branch should be same. The `release` branch is used to publish the package to PyPi while `main` branch is used to publish the documentation to readthedocs and can be accesseed at [deeptab.readthedocs.io](https://deeptab.readthedocs.io/en/latest/).
 
 
 ## 4. Publish package to PyPi
