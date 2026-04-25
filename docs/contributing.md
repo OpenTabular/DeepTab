@@ -107,7 +107,7 @@ This project uses automated semantic versioning and releases. Here's how release
 4. **Automated Release (on Main)**
    - ✅ Analyzes conventional commits since last release
    - ✅ Determines version bump (major/minor/patch)
-   - ✅ Updates version in `pyproject.toml` and `__version__.py`
+   - ✅ Updates version in `pyproject.toml`
    - ✅ Generates/updates `CHANGELOG.md`
    - ✅ Creates git tag (e.g., `v1.7.0`)
    - ✅ Builds package (`poetry build`)
@@ -160,7 +160,7 @@ BREAKING CHANGE: Python 3.10 is now the minimum required version"
 
 - **Only main branch** triggers releases
 - **Semantic-release is fully automated** - no manual version bumping needed
-- **Never manually edit version numbers** in `pyproject.toml` or `deeptab/__version__.py` - they are automatically updated by semantic-release
+- **Never manually edit the version number** in `pyproject.toml` — use `cz bump` on a release branch
 - **PyPI token** is configured in GitHub repository secrets
 - **Review commits carefully** before merging to main (they determine the version!)
 
@@ -184,7 +184,6 @@ After semantic-release completes on `main`, the version files are automatically 
    │
    ├─→ Version: 1.6.1 → 1.7.0
    ├─→ Update pyproject.toml
-   ├─→ Update __version__.py
    ├─→ Update CHANGELOG.md
    └─→ Create tag v1.7.0
    │

@@ -16,11 +16,9 @@ Fix any docstring related issue, then proceed with next steps.
 
 ## 2. Version update
 
-The package version is mantained in `deeptab/__version__.py` and `pyproject.toml` file. Increment the version according to the changes such as patch, minor, major or all.
+The package version is maintained in `pyproject.toml` only. The version is read at runtime via `importlib.metadata`. Increment the version using `cz bump` on a release branch according to the changes: patch, minor, or major.
 
 - The version number should be in the format `major.minor.patch`. For example, `1.0.1`.
-
-**Note:** Don't forget to update the version in the `pyproject.toml` file as well.
 
 ## 3. Release
 

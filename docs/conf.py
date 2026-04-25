@@ -4,10 +4,12 @@
 # https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
+import sys
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
-import sys
 
 sys.path.insert(0, os.path.abspath("."))
 sys.path.insert(0, os.path.abspath("../"))
@@ -17,13 +19,11 @@ project = "deeptab"
 project_copyright = "2024, BASF SE"
 author = "Anton Frederik Thielmann, Manish Kumar, Christoph Weisser, Benjamin Saefken, Soheila Samiee"
 
-VERSION_PATH = "../deeptab/__version__.py"
-with open(VERSION_PATH) as f:
-    lines = f.readlines()
-    for line in lines:
-        if line.startswith("__version__"):
-            version = line.split("=")[-1].strip().strip('"')
-            release = version
+try:
+    version = _version("deeptab")
+except PackageNotFoundError:
+    version = "0+unknown"
+release = version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
