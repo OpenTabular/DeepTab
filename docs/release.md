@@ -16,20 +16,62 @@ Fix any docstring related issue, then proceed with next steps.
 
 ## 2. Version update
 
-The package version is maintained in `pyproject.toml` only. The version is read at runtime via `importlib.metadata`. Increment the version using `cz bump` on a release branch according to the changes: patch, minor, or major.
+The package version is maintained in `pyproject.toml` only. The version is read at runtime via `importlib.metadata`.
 
-- The version number should be in the format `major.minor.patch`. For example, `1.0.1`.
+On a `release/vX.Y.Z` branch, run:
 
-## 3. Release
+```bash
+cz bump
+```
 
-- Create a pull request from your `feature` branch to the `develop` branch.
-- Once the pull request is approved and merged to develop. The maintainer will test the package and documentation. If everything is fine, the maintainer will proceed further to merge the changed to `main` and `release` branch.
-- Ideally content of `main` and `release` branch should be same. The `release` branch is used to publish the package to PyPi while `main` branch is used to publish the documentation to readthedocs and can be accesseed at [deeptab.readthedocs.io](https://deeptab.readthedocs.io/en/latest/).
+This will:
 
-## 4. Publish package to PyPi
+- Determine the next version from conventional commits since the last tag
+- Update the version in `pyproject.toml`
+- Update `CHANGELOG.md`
+- Create a local commit `bump: version X.Y.Z-1 → X.Y.Z`
 
-The package is published to PyPi using GitHub Actions. The workflow is triggered when a new tag is pushed to the repository. The workflow will build the package, upload it to PyPi.
+The version number follows the format `major.minor.patch`. For example, `1.0.1`.
 
-## 5. GitHub Release
+## 3. Release PR
 
-Create a new release on GitHub with the version number and release notes. The release notes should include the changes made in the release.
+- Open a PR from `release/vX.Y.Z` to `main`
+- After review and approval, merge the PR
+- **Merging to `main` does NOT trigger a PyPI release**
+
+## 4. Create and push the Git tag
+
+After the release PR is merged, the maintainer creates the release tag:
+
+```bash
+git checkout main && git pull
+git tag -a vX.Y.Z -m "Release vX.Y.Z"
+git push origin vX.Y.Z
+```
+
+For a release candidate:
+
+```bash
+git tag -a vX.Y.Zrc1 -m "Release candidate vX.Y.Zrc1"
+git push origin vX.Y.Zrc1
+```
+
+## 5. Publish package to PyPI
+
+The tag push automatically triggers the appropriate workflow in GitHub Actions:
+
+- Stable tag (`vX.Y.Z`) → `publish-pypi.yml` → publishes to **PyPI** + creates GitHub Release
+- RC tag (`vX.Y.Zrc1`) → `publish-testpypi.yml` → publishes to **TestPyPI** + creates GitHub pre-release
+
+Both workflows:
+
+- Build the package (`poetry build`)
+- Validate with `twine check`
+- Publish via **OIDC Trusted Publishing** (no API tokens required)
+- Create a GitHub Release with auto-generated notes
+
+> **Note:** A `pypi-publish` GitHub Environment (for stable) and `testpypi-publish` environment (for RCs) must be configured with tag-based deployment protection rules.
+
+## 6. GitHub Release
+
+The GitHub Release is created automatically by the publish workflow. Verify the release notes are correct and add any manual context if needed.

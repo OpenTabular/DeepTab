@@ -80,12 +80,17 @@ pip install -r docs/requirements_docs.txt
 
 ### Release Workflow
 
-This project uses automated semantic versioning and releases. Here's how releases work:
+This project uses conventional commits and intentional, maintainer-controlled releases.
 
-#### Automated Release Process
+#### Release Process Overview
 
 ```
-1. Make Changes → 2. Conventional Commit → 3. Merge to Main → 4. Automated Release
+1. Make Changes → 2. Conventional Commit → 3. Merge to Main → 4. CI runs
+                                                                     ↓
+                                          (no automatic release — main is not a release trigger)
+
+5. Maintainer opens Release PR → version bump + CHANGELOG update → merge to main
+6. Maintainer creates Git tag → PyPI publish triggered automatically
 ```
 
 **Step-by-Step:**
@@ -100,29 +105,44 @@ This project uses automated semantic versioning and releases. Here's how release
    - After review, merge to `develop`
    - ReadTheDocs dev documentation updates automatically
 
-3. **Merge to Main** (Triggers Release)
+3. **Merge to Main** (CI only — no release)
    - Merge `develop` to `main`
-   - GitHub Actions semantic-release workflow runs automatically
+   - GitHub Actions runs tests
+   - **No version bump, no tag, no PyPI publish happens automatically**
 
-4. **Automated Release (on Main)**
-   - ✅ Analyzes conventional commits since last release
-   - ✅ Determines version bump (major/minor/patch)
-   - ✅ Updates version in `pyproject.toml`
-   - ✅ Generates/updates `CHANGELOG.md`
-   - ✅ Creates git tag (e.g., `v1.7.0`)
-   - ✅ Builds package (`poetry build`)
-   - ✅ Publishes to PyPI
-   - ✅ Creates GitHub Release with notes
+4. **Maintainer Release PR** (periodic, intentional)
+   - Maintainer creates a `release/vX.Y.Z` branch
+   - Runs `cz bump` to update `pyproject.toml` and `CHANGELOG.md`
+   - Opens PR to `main`, merges after review
+
+5. **Maintainer Creates Git Tag**
+   - After the release PR is merged:
+     ```bash
+     git checkout main && git pull
+     git tag -a vX.Y.Z -m "Release vX.Y.Z"
+     git push origin vX.Y.Z
+     ```
+   - This tag push triggers `publish-pypi.yml` → builds and publishes to PyPI + creates GitHub Release
+   - For RC tags (`vX.Y.Zrc1`), push triggers `publish-testpypi.yml` → publishes to TestPyPI instead
 
 #### What Triggers a Release?
 
-| Commit Type                                              | Version Bump  | PyPI Release |
-| -------------------------------------------------------- | ------------- | ------------ |
-| `feat:`                                                  | Minor (1.x.0) | ✅ Yes       |
-| `fix:`                                                   | Patch (1.6.x) | ✅ Yes       |
-| `perf:`                                                  | Patch (1.6.x) | ✅ Yes       |
-| `feat!:` or `BREAKING CHANGE:`                           | Major (x.0.0) | ✅ Yes       |
-| `docs:`, `style:`, `refactor:`, `test:`, `chore:`, `ci:` | None          | ❌ No        |
+| Event                         | Result                                |
+| ----------------------------- | ------------------------------------- |
+| Push to `main`                | CI tests only                         |
+| Maintainer pushes `v*` tag    | PyPI publish + GitHub Release         |
+| Maintainer pushes `v*rc*` tag | PyPI pre-release + GitHub pre-release |
+
+#### Commit Types and Their Effect on Version
+
+Commit messages determine the version bump chosen by the maintainer when running `cz bump`:
+
+| Commit Type                                              | Version Bump      |
+| -------------------------------------------------------- | ----------------- |
+| `feat:`                                                  | Minor (1.x.0)     |
+| `fix:`, `perf:`                                          | Patch (1.6.x)     |
+| `feat!:` / `BREAKING CHANGE:`                            | Major (x.0.0)     |
+| `docs:`, `style:`, `refactor:`, `test:`, `chore:`, `ci:` | No release needed |
 
 #### Example Scenarios
 
@@ -130,94 +150,38 @@ This project uses automated semantic versioning and releases. Here's how release
 
 ```bash
 git commit -m "docs: update API reference"
-# Merge to main → No version bump, no PyPI release
+# Merge to main → CI only, no release
 ```
 
 **Scenario 2: Bug Fix (Patch Release)**
 
 ```bash
 git commit -m "fix: resolve memory leak in dataloader"
-# Merge to main → Version 1.6.1 → 1.6.2 → PyPI release
+# Merged to main → later, maintainer runs cz bump → creates v1.6.2 tag → PyPI release
 ```
 
 **Scenario 3: New Feature (Minor Release)**
 
 ```bash
 git commit -m "feat(models): add TabNet architecture"
-# Merge to main → Version 1.6.1 → 1.7.0 → PyPI release
+# Merged to main → later, maintainer runs cz bump → creates v1.7.0 tag → PyPI release
 ```
 
-**Scenario 4: Breaking Change (Major Release)**
+**Scenario 4: RC for risky feature**
 
 ```bash
-git commit -m "feat!: remove Python 3.9 support
-
-BREAKING CHANGE: Python 3.10 is now the minimum required version"
-# Merge to main → Version 1.6.1 → 2.0.0 → PyPI release
+# Maintainer tags manually:
+git tag -a v1.7.0rc1 -m "Release candidate v1.7.0rc1"
+git push origin v1.7.0rc1
+# → PyPI pre-release, GitHub pre-release
 ```
 
 #### Important Notes
 
-- **Only main branch** triggers releases
-- **Semantic-release is fully automated** - no manual version bumping needed
+- **Merging to `main` never triggers a PyPI release**
+- **Only a manually pushed `v*` tag triggers publishing**
 - **Never manually edit the version number** in `pyproject.toml` — use `cz bump` on a release branch
-- **PyPI token** is configured in GitHub repository secrets
-- **Review commits carefully** before merging to main (they determine the version!)
-
-#### Working with Updated Versions
-
-**Q: What happens to `develop` branch after a release?**
-
-After semantic-release completes on `main`, the version files are automatically updated. The `develop` branch syncs automatically:
-
-**Automatic Sync Flow:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              Release & Sync Process                         │
-└─────────────────────────────────────────────────────────────┘
-
-1. Merge develop → main
-   │
-   ▼
-2. Semantic Release runs on main
-   │
-   ├─→ Version: 1.6.1 → 1.7.0
-   ├─→ Update pyproject.toml
-   ├─→ Update CHANGELOG.md
-   └─→ Create tag v1.7.0
-   │
-   ▼
-3. Auto-Sync Workflow triggers
-   │
-   ├─→ [No Conflicts] ✅
-   │   │
-   ├→ Merge main → develop automatically
-   └→ Develop updated within 60 seconds
-   │
-   └→ [Conflicts Detected] ⚠️
-       │
-       ├→ Create PR: "chore: sync develop with main"
-       ├─→ Notify maintainers
-       └─→ Manual merge required (rare)
-```
-
-**For Contributors:**
-
-Before starting new work, always pull the latest `develop`:
-
-```bash
-# Pull latest develop (already synced automatically)
-git checkout develop
-git pull origin develop
-
-# Create your feature branch
-git checkout -b feature/my-new-feature
-```
-
-**Note:** 95% of the time, `develop` syncs automatically. If you see a PR titled "sync develop with main", it means manual conflict resolution is needed (maintainers handle this).
-
-Don't worry if the version seems "old" in your branch - semantic-release calculates the correct new version based on commits when merging to main.
+- **PyPI publishing** uses OIDC Trusted Publishing — no API tokens are stored in GitHub secrets
 
 ### Submitting Contributions
 
