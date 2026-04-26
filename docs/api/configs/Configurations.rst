@@ -1,50 +1,70 @@
 Configurations
 ===============
 
-.. autoclass:: mambular.configs.DefaultMambularConfig
+.. autoclass:: deeptab.configs.DefaultMambularConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultFTTransformerConfig
+.. autoclass:: deeptab.configs.DefaultFTTransformerConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultResNetConfig
+.. autoclass:: deeptab.configs.DefaultResNetConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultMLPConfig
+.. autoclass:: deeptab.configs.DefaultMLPConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultTabTransformerConfig
+.. autoclass:: deeptab.configs.DefaultTabTransformerConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultMambaTabConfig
+.. autoclass:: deeptab.configs.DefaultMambaTabConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultTabulaRNNConfig
+.. autoclass:: deeptab.configs.DefaultTabulaRNNConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultMambAttentionConfig
+.. autoclass:: deeptab.configs.DefaultMambAttentionConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultNDTFConfig
+.. autoclass:: deeptab.configs.DefaultNDTFConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultNODEConfig
+.. autoclass:: deeptab.configs.DefaultNODEConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultTabMConfig
+.. autoclass:: deeptab.configs.DefaultTabMConfig
    :members:
    :undoc-members:
 
-.. autoclass:: mambular.configs.DefaultSAINTConfig
+.. autoclass:: deeptab.configs.DefaultSAINTConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.DefaultAutoIntConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.DefaultENODEConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.DefaultModernNCAConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.DefaultTangosConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.DefaultTromptConfig
    :members:
    :undoc-members:

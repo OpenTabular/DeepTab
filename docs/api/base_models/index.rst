@@ -1,17 +1,15 @@
 .. -*- mode: rst -*-
 
-.. currentmodule:: mambular.base_models
+.. currentmodule:: deeptab.base_models
 
 BaseModels
 ==========
 
-This module provides foundational classes and architectures for Mambular models, including various neural network architectures tailored for tabular data.
+This module provides foundational classes and architectures for deeptab models, including various neural network architectures tailored for tabular data.
 
 =========================================    =======================================================================================================
 Modules                                       Description
 =========================================    =======================================================================================================
-:class:`BaseModel`                            Abstract base class defining the core structure and initialization logic for Mambular models.
-:class:`TaskModel`                            PyTorch Lightning module for managing model training, validation, and testing workflows.
 :class:`Mambular`                             Flexible neural network model leveraging the Mamba architecture with configurable normalization techniques for tabular data.
 :class:`MLP`                                  Multi-layer perceptron (MLP) model designed for tabular tasks, initialized with a custom configuration.
 :class:`ResNet`                               Deep residual network (ResNet) model optimized for structured/tabular datasets.
@@ -22,7 +20,13 @@ Modules                                       Description
 :class:`NDTF`                                 Neural Decision Tree Forest (NDTF) model for tabular tasks, blending decision tree concepts with neural networks.
 :class:`TabulaRNN`                            Recurrent neural network (RNN) model, including LSTM and GRU architectures, tailored for sequential or time-series tabular data.
 :class:`MambAttention`                        Attention-based architecture for tabular tasks, combining feature importance weighting with advanced normalization techniques.
-:class:`SAINT`                                SAINT model. Transformer based model using row and column attetion.
+:class:`SAINT`                                SAINT model. Transformer based model using row and column attention.
+:class:`MambaTab`                             Tabular model using a Mamba-Block on a joint input representation.
+:class:`AutoInt`                              Automatic Feature Interaction model for tabular data.
+:class:`ENODE`                                Embedding Neural Oblivious Decision Ensembles for tabular tasks.
+:class:`ModernNCA`                            Modern Nearest Centroid Approach for tabular deep learning.
+:class:`Tangos`                               Tangos model for tabular data.
+:class:`Trompt`                               Trompt model for tabular data.
 =========================================    =======================================================================================================
 
 

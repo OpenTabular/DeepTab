@@ -87,7 +87,7 @@ language = "en"
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This patterns also effect to html_static_path and html_extra_path
-exclude_patterns = ["_build", "_templates"]
+exclude_patterns = ["_build", "_templates", "homepage.md"]
 
 # The reST default role (single back ticks `dict`) cross links to any code
 # object (including Python, but others as well).
