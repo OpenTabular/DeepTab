@@ -1,8 +1,8 @@
-## Installation
+# Installation
 
 Please follow the steps below for installing `deeptab`.
 
-### Install from the source:
+## Install from the source:
 
 ```bash
 cd deeptab
@@ -12,7 +12,8 @@ poetry install
 
 Note: Make sure you in the same directory where `pyproject.toml` file resides.
 
-### Installation from PyPi:
+## Installation from PyPi:
+
 The package is available on PyPi. You can install it using the following command:
 
 ```bash

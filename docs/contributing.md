@@ -1,12 +1,12 @@
-## Contribution Guidelines
+# Contribution Guidelines
 
 Thank you for considering contributing to our Python package! We appreciate your time and effort in helping us improve our project. Please take a moment to review the following guidelines to ensure a smooth and efficient contribution process.
 
-### Code of Conduct
+## Code of Conduct
 
 We kindly request all contributors to adhere to our Code of Conduct when participating in this project. It outlines our expectations for respectful and inclusive behavior within the community.
 
-### Setting Up Development Environment
+## Setting Up Development Environment
 
 Before you start contributing to the project, you need to set up your development environment. This will allow you to make changes to the codebase, run tests, and build the documentation locally. The project uses `poetry` for dependency management and packaging. Along with that, `ruff` is used for source code formatting and linting.
 
@@ -59,7 +59,7 @@ pip install -r docs/requirements_docs.txt
 
 **Note:** You can also set up a virtual environment to isolate your development environment.
 
-### How to Contribute
+## How to Contribute
 
 1. Create a new branch from `main` for your contributions. Please use descriptive and concise branch names.
 2. Make your desired changes or additions to the codebase.
@@ -68,7 +68,7 @@ pip install -r docs/requirements_docs.txt
    - `make test`
 5. Update the documentation and examples, if necessary.
 6. Build the html documentation and verify if it works as expected. We have used Sphinx for documentation, you could build the documents as follows:
-   - `cd src/docs`
+   - `cd docs`
    - `make clean`
    - `make html`
 7. Verify the html documents created under `docs/_build/html` directory. `index.html` file is the main file which contains link to all other files and doctree.
@@ -78,11 +78,71 @@ pip install -r docs/requirements_docs.txt
 10. Wait for the maintainers to review your pull request. Address any feedback or comments if required.
 11. Once approved, your changes will be merged into the main codebase.
 
-### Release Workflow
+## Docs Workflow
+
+Documentation is built with [Sphinx](https://www.sphinx-doc.org/) and hosted on [Read the Docs](https://readthedocs.org/).
+
+The docs CI is defined in `.github/workflows/docs.yml` and is separate from the main CI workflow.
+
+### How docs are published
+
+| Trigger                                                               | CI (`docs.yml`)                                       | Read the Docs                                                 |
+| --------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- |
+| PR touching `docs/**`, `deeptab/**`, `README.md`, or `pyproject.toml` | Sphinx build check — PR is blocked if docs are broken | No publish                                                    |
+| Merge to `main`                                                       | Sphinx build check                                    | Publishes **latest** (dev) version                            |
+| Stable tag pushed (`vX.Y.Z`)                                          | Sphinx build check from that exact tagged commit      | Publishes **versioned** snapshot and updates **stable** alias |
+| RC tag pushed (`vX.Y.Zrc1`)                                           | Sphinx build check from that exact tagged commit      | Publishes versioned pre-release snapshot                      |
+
+> **Note:** The docs CI `push` trigger has **no `paths:` filter** — tag pushes always run the full docs build regardless of which files changed in the tagged commit. The `paths:` filter only applies to PRs to keep checks fast.
+
+> **Note:** Versioned and stable docs require **"Build tags"** to be enabled in the Read the Docs project settings under _Admin → Advanced settings_. RTD automatically sets the `stable` alias to the highest non-pre-release tag.
+
+### Tag → versioned docs flow
+
+```
+git tag -a v1.7.0 -m "Release v1.7.0"
+git push origin v1.7.0
+         ↓
+docs.yml triggers on that exact tagged commit
+         ↓
+Sphinx build succeeds (or blocks if broken)
+         ↓
+RTD webhook fires → builds docs from v1.7.0 source
+         ↓
+RTD publishes /en/v1.7.0/ (versioned)
+         ↓
+RTD updates /en/stable/ → points to v1.7.0
+```
+
+RC tags (`vX.Y.Zrc1`) follow the same flow but RTD does **not** update the `stable` alias for pre-release tags.
+
+### Building docs locally
+
+```bash
+# Install system dependency (macOS)
+brew install pandoc
+# or on Ubuntu
+sudo apt-get install pandoc
+
+# Install doc dependencies
+pip install -r docs/requirements_docs.txt
+
+# Build HTML docs (warnings treated as errors)
+sphinx-build -b html docs/ docs/_build/html -W --keep-going
+
+# Open in browser
+open docs/_build/html/index.html
+```
+
+### Version resolution
+
+The docs version is read at build time from the installed package metadata via `importlib.metadata.version("deeptab")`, which reflects the version in `pyproject.toml`. No separate version file is maintained.
+
+## Release Workflow
 
 This project uses conventional commits and intentional, maintainer-controlled releases.
 
-#### Release Process Overview
+### Release Process Overview
 
 ```
 1. Make Changes → 2. Conventional Commit → 3. Merge to Main → 4. CI runs
@@ -121,7 +181,7 @@ This project uses conventional commits and intentional, maintainer-controlled re
    - This tag push triggers `publish-pypi.yml` → builds and publishes to PyPI + creates GitHub Release
    - For RC tags (`vX.Y.Zrc1`), push triggers `publish-testpypi.yml` → publishes to TestPyPI instead
 
-#### What Triggers a Release?
+### What Triggers a Release?
 
 | Event                         | Result                                |
 | ----------------------------- | ------------------------------------- |
@@ -129,7 +189,7 @@ This project uses conventional commits and intentional, maintainer-controlled re
 | Maintainer pushes `v*` tag    | PyPI publish + GitHub Release         |
 | Maintainer pushes `v*rc*` tag | PyPI pre-release + GitHub pre-release |
 
-#### Commit Types and Their Effect on Version
+### Commit Types and Their Effect on Version
 
 Commit messages determine the version bump chosen by the maintainer when running `cz bump`:
 
@@ -140,7 +200,7 @@ Commit messages determine the version bump chosen by the maintainer when running
 | `feat!:` / `BREAKING CHANGE:`                            | Major (x.0.0)     |
 | `docs:`, `style:`, `refactor:`, `test:`, `chore:`, `ci:` | No release needed |
 
-#### Example Scenarios
+### Example Scenarios
 
 **Scenario 1: Documentation Update (No Release)**
 
@@ -172,14 +232,14 @@ git push origin v1.7.0rc1
 # → PyPI pre-release, GitHub pre-release
 ```
 
-#### Important Notes
+### Important Notes
 
 - **Merging to `main` never triggers a PyPI release**
 - **Only a manually pushed `v*` tag triggers publishing**
 - **Never manually edit the version number** in `pyproject.toml` — use `cz bump` on a release branch
 - **PyPI publishing** uses OIDC Trusted Publishing — no API tokens are stored in GitHub secrets
 
-### Submitting Contributions
+## Submitting Contributions
 
 When submitting your contributions, please ensure the following:
 
@@ -190,11 +250,11 @@ When submitting your contributions, please ensure the following:
 - Update the documentation if necessary to reflect the changes made.
 - Ensure that your pull request has a single, logical focus.
 
-### Issue Tracker
+## Issue Tracker
 
 If you encounter any bugs, have feature requests, or need assistance, please visit our [Issue Tracker](https://github.com/OpenTabular/DeepTab/issues). Make sure to search for existing issues before creating a new one.
 
-### License
+## License
 
 By contributing to this project, you agree that your contributions will be licensed under the LICENSE of the project.
 Please note that the above guidelines are subject to change, and the project maintainers hold the right to reject or request modifications to any contributions. Thank you for your understanding and support in making this project better!
