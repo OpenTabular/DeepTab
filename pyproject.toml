@@ -39,6 +39,23 @@ commitizen = "^3.29.1"
 twine = "^6.2.0"
 pyright = "^1.1.409"
 
+[tool.poetry.group.docs.dependencies]
+setuptools = "*"
+sphinx = "6.2.1"
+sphinx-autodoc-typehints = "1.23.0"
+numpydoc = "1.7.0"
+nbsphinx = "0.9.4"
+ipython = "*"
+myst-parser = "3.0.1"
+m2r2 = "0.3.3.post2"
+sphinx-copybutton = "0.5.2"
+sphinx-togglebutton = "0.3.2"
+sphinx-book-theme = "1.1.2"
+sphinx-rtd-theme = "2.0.0"
+readthedocs-sphinx-ext = "2.2.5"
+lxml-html-clean = "0.4.0"
+pydata-sphinx-theme = "0.15.2"
+
 
 [tool.poetry.urls]
 homepage = "https://github.com/OpenTabular/deeptab"
