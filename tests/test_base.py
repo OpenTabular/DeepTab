@@ -54,9 +54,9 @@ def test_model_has_forward_method(model_class):
     assert hasattr(model_class, "forward"), f"{model_class.__name__} is missing a forward method."
 
     sig = inspect.signature(model_class.forward)
-    assert any(
-        p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values()
-    ), f"{model_class.__name__}.forward should have *data argument."
+    assert any(p.kind == inspect.Parameter.VAR_POSITIONAL for p in sig.parameters.values()), (
+        f"{model_class.__name__}.forward should have *data argument."
+    )
 
 
 @pytest.mark.parametrize("model_class", model_classes)
@@ -77,9 +77,9 @@ def test_model_has_num_classes(model_class):
 def test_model_calls_super_init(model_class):
     """Test that each model calls super().__init__(config=config, **kwargs)."""
     source = inspect.getsource(model_class.__init__)
-    assert (
-        "super().__init__(config=config" in source
-    ), f"{model_class.__name__} should call super().__init__(config=config, **kwargs)."
+    assert "super().__init__(config=config" in source, (
+        f"{model_class.__name__} should call super().__init__(config=config, **kwargs)."
+    )
 
 
 @pytest.mark.parametrize("model_class", model_classes)

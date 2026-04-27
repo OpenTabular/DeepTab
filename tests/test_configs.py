@@ -66,20 +66,20 @@ def test_config_default_values(config_class):
         if origin is typing.Literal:
             # If the field is a Literal, ensure the value is one of the allowed options
             allowed_values = typing.get_args(expected_type)
-            assert (
-                value in allowed_values
-            ), f"{config_class.__name__}.{attr} has incorrect value: expected one of {allowed_values}, got {value}"
+            assert value in allowed_values, (
+                f"{config_class.__name__}.{attr} has incorrect value: expected one of {allowed_values}, got {value}"
+            )
         elif origin is typing.Union:
             # For Union types (e.g., Optional[str]), check if value matches any type in the union
             allowed_types = typing.get_args(expected_type)
-            assert any(
-                isinstance(value, t) for t in allowed_types
-            ), f"{config_class.__name__}.{attr} has incorrect type: expected one of {allowed_types}, got {type(value)}"
+            assert any(isinstance(value, t) for t in allowed_types), (
+                f"{config_class.__name__}.{attr} has incorrect type: expected one of {allowed_types}, got {type(value)}"
+            )
         elif origin is not None:
             # If it's another generic type (e.g., list[str]), check against the base type
-            assert (
-                isinstance(value, origin) or value is None
-            ), f"{config_class.__name__}.{attr} has incorrect type: expected {expected_type}, got {type(value)}"
+            assert isinstance(value, origin) or value is None, (
+                f"{config_class.__name__}.{attr} has incorrect type: expected {expected_type}, got {type(value)}"
+            )
         else:
             # Standard type check
             assert (
