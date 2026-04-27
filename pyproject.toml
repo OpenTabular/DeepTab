@@ -66,12 +66,28 @@ package = "https://pypi.org/project/deeptab/"
 
 # code quality tools
 [tool.pyright]
-ignore = []
-reportMissingImports = true
-reportMissingTypeStubs = false
+include = ["deeptab", "tests"]
+exclude = [
+  "**/__pycache__",
+  ".venv",
+  "build",
+  "dist",
+  "docs",
+  "notebooks",
+  "examples",
+]
+
 pythonVersion = "3.10"
+typeCheckingMode = "basic"
 venvPath = "."
 venv = ".venv"
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
 
 # Configure code linting
 [tool.ruff]
