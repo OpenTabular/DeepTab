@@ -24,9 +24,7 @@ class FTTransformerRegressor(SklearnBaseRegressor):
     )
 
     def __init__(self, **kwargs):
-        super().__init__(
-            model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs
-        )
+        super().__init__(model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs)
 
 
 class FTTransformerClassifier(SklearnBaseClassifier):
@@ -44,9 +42,7 @@ class FTTransformerClassifier(SklearnBaseClassifier):
     )
 
     def __init__(self, **kwargs):
-        super().__init__(
-            model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs
-        )
+        super().__init__(model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs)
 
 
 class FTTransformerLSS(SklearnBaseLSS):
@@ -65,6 +61,4 @@ class FTTransformerLSS(SklearnBaseLSS):
     )
 
     def __init__(self, **kwargs):
-        super().__init__(
-            model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs
-        )
+        super().__init__(model=FTTransformer, config=DefaultFTTransformerConfig, **kwargs)

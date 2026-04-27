@@ -43,9 +43,7 @@ class Mamba(nn.Module):
                     norm=get_normalization_layer(config),  # type: ignore
                     activation=getattr(config, "activation", nn.SiLU()),
                     bidirectional=getattr(config, "bidirectional", False),
-                    use_learnable_interaction=getattr(
-                        config, "use_learnable_interaction", False
-                    ),
+                    use_learnable_interaction=getattr(config, "use_learnable_interaction", False),
                     layer_norm_eps=getattr(config, "layer_norm_eps", 1e-5),
                     AD_weight_decay=getattr(config, "AD_weight_decay", True),
                     BC_layer_norm=getattr(config, "BC_layer_norm", False),
@@ -325,10 +323,7 @@ class MambaBlock(nn.Module):
                 self.pscan = pscan  # Store the imported pscan function
             except ImportError:
                 self.pscan = None  # Set to None if pscan is not available
-                print(
-                    "The 'mambapy' package is not installed. Please install it by running:\n"
-                    "pip install mambapy"
-                )
+                print("The 'mambapy' package is not installed. Please install it by running:\npip install mambapy")
         else:
             self.pscan = None
 
@@ -385,18 +380,16 @@ class MambaBlock(nn.Module):
         else:
             raise NotImplementedError
 
-        dt_fwd = torch.exp(
-            torch.rand(self.d_inner) * (math.log(dt_max) - math.log(dt_min))
-            + math.log(dt_min)
-        ).clamp(min=dt_init_floor)
+        dt_fwd = torch.exp(torch.rand(self.d_inner) * (math.log(dt_max) - math.log(dt_min)) + math.log(dt_min)).clamp(
+            min=dt_init_floor
+        )
         inv_dt_fwd = dt_fwd + torch.log(-torch.expm1(-dt_fwd))
         with torch.no_grad():
             self.dt_proj_fwd.bias.copy_(inv_dt_fwd)
 
         if self.bidirectional:
             dt_bwd = torch.exp(
-                torch.rand(self.d_inner) * (math.log(dt_max) - math.log(dt_min))
-                + math.log(dt_min)
+                torch.rand(self.d_inner) * (math.log(dt_max) - math.log(dt_min)) + math.log(dt_min)
             ).clamp(min=dt_init_floor)
             inv_dt_bwd = dt_bwd + torch.log(-torch.expm1(-dt_bwd))
             with torch.no_grad():

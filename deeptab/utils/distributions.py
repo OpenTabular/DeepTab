@@ -116,9 +116,7 @@ class BaseDistribution(torch.nn.Module):
         """
         transformed_params = []
         for idx, param_name in enumerate(self.param_names):
-            transform_func = self.get_transform(
-                getattr(self, f"{param_name}_transform", "none")
-            )
+            transform_func = self.get_transform(getattr(self, f"{param_name}_transform", "none"))
             transformed_params.append(
                 transform_func(predictions[:, idx]).unsqueeze(  # type: ignore
                     1
@@ -155,9 +153,7 @@ class NormalDistribution(BaseDistribution):
 
     def compute_loss(self, predictions, y_true):
         mean = self.mean_transform(predictions[:, self.param_names.index("mean")])
-        variance = self.variance_transform(
-            predictions[:, self.param_names.index("variance")]
-        )
+        variance = self.variance_transform(predictions[:, self.param_names.index("variance")])
 
         normal_dist = dist.Normal(mean, variance)
 
@@ -171,14 +167,10 @@ class NormalDistribution(BaseDistribution):
         y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
         y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
 
-        mse_loss = torch.nn.functional.mse_loss(
-            y_true_tensor, y_pred_tensor[:, self.param_names.index("mean")]
-        )
+        mse_loss = torch.nn.functional.mse_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("mean")])
         rmse = np.sqrt(mse_loss.detach().numpy())
         mae = (
-            torch.nn.functional.l1_loss(
-                y_true_tensor, y_pred_tensor[:, self.param_names.index("mean")]
-            )
+            torch.nn.functional.l1_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("mean")])
             .detach()
             .numpy()
         )
@@ -236,9 +228,7 @@ class PoissonDistribution(BaseDistribution):
             .detach()
             .numpy()  # type: ignore
         )  # type: ignore
-        poisson_deviance = 2 * torch.sum(
-            y_true_tensor * torch.log(y_true_tensor / rate) - (y_true_tensor - rate)
-        )
+        poisson_deviance = 2 * torch.sum(y_true_tensor * torch.log(y_true_tensor / rate) - (y_true_tensor - rate))
 
         metrics["mse"] = mse_loss.detach().numpy()
         metrics["mae"] = mae
@@ -377,9 +367,7 @@ class GammaDistribution(BaseDistribution):
         rate_transform (str or callable): Transformation for the rate parameter to ensure it remains positive.
     """
 
-    def __init__(
-        self, name="Gamma", shape_transform="positive", rate_transform="positive"
-    ):
+    def __init__(self, name="Gamma", shape_transform="positive", rate_transform="positive"):
         param_names = ["shape", "rate"]
         super().__init__(name, param_names)
 
@@ -446,16 +434,10 @@ class StudentTDistribution(BaseDistribution):
         y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
         y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
 
-        mse_loss = torch.nn.functional.mse_loss(
-            y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")]
-        )
+        mse_loss = torch.nn.functional.mse_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")])
         rmse = np.sqrt(mse_loss.detach().numpy())
         mae = (
-            torch.nn.functional.l1_loss(
-                y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")]
-            )
-            .detach()
-            .numpy()
+            torch.nn.functional.l1_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")]).detach().numpy()
         )
 
         metrics["mse"] = mse_loss.detach().numpy()
@@ -496,9 +478,7 @@ class NegativeBinomialDistribution(BaseDistribution):
     def compute_loss(self, predictions, y_true):
         # Apply transformations to ensure mean and dispersion parameters are positive
         mean = self.mean_transform(predictions[:, self.param_names.index("mean")])
-        dispersion = self.dispersion_transform(
-            predictions[:, self.param_names.index("dispersion")]
-        )
+        dispersion = self.dispersion_transform(predictions[:, self.param_names.index("dispersion")])
 
         # Calculate the probability (p) and number of successes (r) from mean and dispersion
         # These calculations follow from the mean and variance of the negative binomial distribution
@@ -631,9 +611,7 @@ class JohnsonSuDistribution(BaseDistribution):
         """
         z = skew + shape * torch.asinh((x - loc) / scale)
         log_pdf = (
-            torch.log(shape / (scale * np.sqrt(2 * np.pi)))
-            - 0.5 * z**2
-            - 0.5 * torch.log(1 + ((x - loc) / scale) ** 2)
+            torch.log(shape / (scale * np.sqrt(2 * np.pi))) - 0.5 * z**2 - 0.5 * torch.log(1 + ((x - loc) / scale) ** 2)
         )
         return log_pdf
 
@@ -653,14 +631,10 @@ class JohnsonSuDistribution(BaseDistribution):
         y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
         y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
 
-        mse_loss = torch.nn.functional.mse_loss(
-            y_true_tensor, y_pred_tensor[:, self.param_names.index("location")]
-        )
+        mse_loss = torch.nn.functional.mse_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("location")])
         rmse = np.sqrt(mse_loss.detach().numpy())
         mae = (
-            torch.nn.functional.l1_loss(
-                y_true_tensor, y_pred_tensor[:, self.param_names.index("location")]
-            )
+            torch.nn.functional.l1_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("location")])
             .detach()
             .numpy()
         )
