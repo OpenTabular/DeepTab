@@ -232,28 +232,28 @@ class BaseModel(nn.Module):
         if not grad:
             with torch.no_grad():
                 # Get the actual layer and call it
-                x = self.embedding_layer(*data)
+                x = self.embedding_layer(*data)  # type: ignore[reportCallIssue]
 
                 if getattr(self.hparams, "shuffle_embeddings", False):
                     x = x[:, self.perm, :]
 
                 layer = getattr(self, available_layer)
                 if available_layer == "rnn":
-                    embeddings, _ = layer(x)
+                    embeddings, _ = layer(x)  # type: ignore[reportCallIssue]
                 else:
-                    embeddings = self.encoder(x)
-                    embeddings = layer(x)
+                    embeddings = self.encoder(x)  # type: ignore[reportCallIssue]
+                    embeddings = layer(x)  # type: ignore[reportCallIssue]
         else:
-            x = self.embedding_layer(*data)
+            x = self.embedding_layer(*data)  # type: ignore[reportCallIssue]
 
             if getattr(self.hparams, "shuffle_embeddings", False):
                 x = x[:, self.perm, :]
 
             layer = getattr(self, available_layer)
             if available_layer == "rnn":
-                embeddings, _ = layer(x)
+                embeddings, _ = layer(x)  # type: ignore[reportCallIssue]
             else:
-                embeddings = layer(x)
+                embeddings = layer(x)  # type: ignore[reportCallIssue]
         return embeddings
 
     def embedding_parameters(self):

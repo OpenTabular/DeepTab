@@ -106,7 +106,7 @@ class SklearnBaseLSS(BaseEstimator):
         params.update(self.config_kwargs)
 
         if deep:
-            preprocessor_params = {"prepro__" + key: value for key, value in self.preprocessor.get_params().items()}
+            preprocessor_params = {"prepro__" + key: value for key, value in self.preprocessor.get_params().items()}  # type: ignore[attr-defined]
             params.update(preprocessor_params)
 
         return params
@@ -136,7 +136,7 @@ class SklearnBaseLSS(BaseEstimator):
                 self.config = self.config_class(**self.config_kwargs)  # type: ignore
 
         if preprocessor_params:
-            self.preprocessor.set_params(**preprocessor_params)
+            self.preprocessor.set_params(**preprocessor_params)  # type: ignore[attr-defined]
 
         return self
 
@@ -471,7 +471,7 @@ class SklearnBaseLSS(BaseEstimator):
         predictions_list = self.trainer.predict(self.task_model, self.data_module)
 
         # Concatenate predictions from all batches
-        predictions = torch.cat(predictions_list, dim=0)
+        predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]
 
         # Check if ensemble is used
         if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
@@ -614,7 +614,7 @@ class SklearnBaseLSS(BaseEstimator):
         # Process data in batches
         encoded_outputs = []
         for num_features, cat_features in tqdm(data_loader):
-            embeddings = self.task_model.estimator.encode(num_features, cat_features)  # Call your encode function
+            embeddings = self.task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
             encoded_outputs.append(embeddings)
 
         # Concatenate all encoded outputs
@@ -670,7 +670,7 @@ class SklearnBaseLSS(BaseEstimator):
             Best hyperparameters found during optimization.
         """
 
-        return super().optimize_hparams(
+        return super().optimize_hparams(  # type: ignore[attr-defined]
             X,
             y,
             regression=False,

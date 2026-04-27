@@ -160,19 +160,19 @@ class AutoInt(BaseModel):
             x_residual = x  # Store original input for residual connection
 
             # Apply normalization before attention if prenormalization is enabled
-            x_residual = layer["norm0"](x_residual)
+            x_residual = layer["norm0"](x_residual)  # type: ignore[index]
 
             # Retrieve key-value compression layers
             key_compression, value_compression = self._get_kv_compressions(layer)
 
             # Multihead Attention
-            x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)
+            x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)  # type: ignore[index]
 
             # Apply residual connection
             x = x + x_residual
 
             # Apply the linear transformation
-            x_residual = layer["linear"](x)
+            x_residual = layer["linear"](x)  # type: ignore[index]
             x = x + x_residual  # Second residual connection
 
         if self.last_norm:

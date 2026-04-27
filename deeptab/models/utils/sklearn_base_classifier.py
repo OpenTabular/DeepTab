@@ -299,7 +299,7 @@ class SklearnBaseClassifier(SklearnBase):
         logits_list = self.trainer.predict(self.task_model, self.data_module)
 
         # Concatenate predictions from all batches
-        logits = torch.cat(logits_list, dim=0)
+        logits = torch.cat(logits_list, dim=0)  # type: ignore[arg-type]
 
         # Check if ensemble is used
         if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
@@ -452,13 +452,13 @@ class SklearnBaseClassifier(SklearnBase):
         if not self.built:
             raise ValueError("The model has not been built yet. Call model.build_model(**args) first.")
 
-        if not hasattr(self.task_model.estimator, "embedding_layer"):
+        if not hasattr(self.task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
             raise ValueError("The model does not have an embedding layer")
 
         self.data_module.setup("fit")
 
         super()._pretrain(
-            self.task_model.estimator,
+            self.task_model.estimator,  # type: ignore[union-attr]
             self.data_module,
             pretrain_epochs=pretrain_epochs,
             k_neighbors=k_neighbors,

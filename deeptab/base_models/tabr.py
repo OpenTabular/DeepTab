@@ -98,7 +98,7 @@ class TabR(BaseModel):
             else nn.Sequential(
                 nn.Embedding(num_classes, d_main),
                 # gives depreciation warning
-                delu.nn.Lambda(
+                delu.nn.Lambda(  # type: ignore[union-attr]
                     lambda x: x.squeeze(-2)
                 ),  # Removes the unnecessary extra dimension added by the embedding layer
             )
@@ -138,7 +138,7 @@ class TabR(BaseModel):
         """Lazily import external dependencies and store them as class attributes."""
         if TabR.delu is None:
             try:
-                import delu
+                import delu  # type: ignore[import-untyped]
 
                 TabR.delu = delu
                 print("Successfully lazy imported delu dependency.")
@@ -151,8 +151,8 @@ class TabR(BaseModel):
 
         if TabR.faiss is None:
             try:
-                import faiss
-                import faiss.contrib.torch_utils
+                import faiss  # type: ignore[import-untyped]
+                import faiss.contrib.torch_utils  # type: ignore[import-untyped]
 
                 TabR.faiss = faiss
                 TabR.faiss_torch_utils = faiss.contrib.torch_utils
@@ -223,7 +223,7 @@ class TabR(BaseModel):
                     [
                         self._encode(x)[1]  # normalized x
                         # for x in delu.iter_batches(
-                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)  # type: ignore[union-attr]
                     ]
                 )
             )
@@ -239,9 +239,9 @@ class TabR(BaseModel):
             # initializing the search index
             if self.search_index is None:
                 self.search_index = (
-                    TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
+                    TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)  # type: ignore[union-attr]
                     if device.type == "cuda"
-                    else TabR.faiss.IndexFlatL2(d_main)
+                    else TabR.faiss.IndexFlatL2(d_main)  # type: ignore[union-attr]
                 )
             # Updating the index is much faster than creating a new one.
             self.search_index.reset()
@@ -316,7 +316,7 @@ class TabR(BaseModel):
                 else torch.cat(
                     [
                         self._encode(x)[1]  # normalized x
-                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)  # type: ignore[union-attr]
                     ]
                 )
             )
@@ -330,9 +330,9 @@ class TabR(BaseModel):
 
         if self.search_index is None:
             self.search_index = (
-                TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
+                TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)  # type: ignore[union-attr]
                 if device.type == "cuda"
-                else TabR.faiss.IndexFlatL2(d_main)
+                else TabR.faiss.IndexFlatL2(d_main)  # type: ignore[union-attr]
             )
 
         # Updating the index is much faster than creating a new one.
@@ -390,7 +390,7 @@ class TabR(BaseModel):
                 else torch.cat(
                     [
                         self._encode(x)[1]  # normalized x
-                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)
+                        for x in TabR.delu.iter_batches(candidate_x, self.candidate_encoding_batch_size)  # type: ignore[union-attr]
                     ]
                 )
             )
@@ -404,9 +404,9 @@ class TabR(BaseModel):
 
         if self.search_index is None:
             self.search_index = (
-                TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)
+                TabR.faiss.GpuIndexFlatL2(TabR.faiss.StandardGpuResources(), d_main)  # type: ignore[union-attr]
                 if device.type == "cuda"
-                else TabR.faiss.IndexFlatL2(d_main)
+                else TabR.faiss.IndexFlatL2(d_main)  # type: ignore[union-attr]
             )
 
         # Updating the index is much faster than creating a new one.

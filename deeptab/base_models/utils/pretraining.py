@@ -52,8 +52,8 @@ class ContrastivePretrainer(pl.LightningModule):
                 different_class_indices = (labels != labels[i]).nonzero(as_tuple=True)[0]
                 same_class_indices = same_class_indices[same_class_indices != i]
 
-                knn_indices[i] = self._sample_indices(same_class_indices, k_neighbors)
-                neg_indices[i] = self._sample_indices(different_class_indices, k_neighbors)
+                knn_indices[i] = self._sample_indices(same_class_indices, k_neighbors)  # type: ignore[reportCallIssue]
+                neg_indices[i] = self._sample_indices(different_class_indices, k_neighbors)  # type: ignore[reportCallIssue]
         else:
             with torch.no_grad():
                 target_distances = torch.cdist(labels.float(), labels.float(), p=2).squeeze(-1)
@@ -79,10 +79,10 @@ class ContrastivePretrainer(pl.LightningModule):
                 labels = []
 
                 if self.use_positive:
-                    pairs.append(positive_pairs.view(-1, D))
+                    pairs.append(positive_pairs.view(-1, D))  # type: ignore[union-attr]
                     labels.append(torch.ones(N * k_neighbors, device=self.device))
                 if self.use_negative:
-                    pairs.append(negative_pairs.view(-1, D))
+                    pairs.append(negative_pairs.view(-1, D))  # type: ignore[union-attr]
                     labels.append(-torch.ones(N * k_neighbors, device=self.device))
 
                 if not pairs:
@@ -109,10 +109,10 @@ class ContrastivePretrainer(pl.LightningModule):
             labels = []
 
             if self.use_positive:
-                pairs.append(positive_pairs.view(-1, D))
+                pairs.append(positive_pairs.view(-1, D))  # type: ignore[union-attr]
                 labels.append(torch.ones(N * k_neighbors, device=self.device))
             if self.use_negative:
-                pairs.append(negative_pairs.view(-1, D))
+                pairs.append(negative_pairs.view(-1, D))  # type: ignore[union-attr]
                 labels.append(-torch.ones(N * k_neighbors, device=self.device))
 
             if not pairs:

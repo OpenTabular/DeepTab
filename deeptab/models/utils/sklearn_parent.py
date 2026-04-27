@@ -66,7 +66,7 @@ class SklearnBase(BaseEstimator):
         if deep:
             preprocessor_params = {
                 key: value
-                for key, value in self.preprocessor.get_params().items()
+                for key, value in self.preprocessor.get_params().items()  # type: ignore[attr-defined]
                 if key in self.preprocessor_arg_names
             }
             params.update(preprocessor_params)
@@ -83,7 +83,7 @@ class SklearnBase(BaseEstimator):
 
         if preprocessor_params:
             self.preprocessor_kwargs.update(preprocessor_params)
-            self.preprocessor.set_params(**self.preprocessor_kwargs)
+            self.preprocessor.set_params(**self.preprocessor_kwargs)  # type: ignore[attr-defined]
 
         return self
 
@@ -106,7 +106,7 @@ class SklearnBase(BaseEstimator):
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        num_classes: int = None,  # noqa: RUF013
+        num_classes: int | None = None,
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
@@ -206,7 +206,7 @@ class SklearnBase(BaseEstimator):
             lr_patience=(lr_patience if lr_patience is not None else self.config.lr_patience),
             lr_factor=lr_factor if lr_factor is not None else self.config.lr_factor,
             weight_decay=(weight_decay if weight_decay is not None else self.config.weight_decay),
-            num_classes=num_classes,
+            num_classes=num_classes,  # type: ignore[arg-type]
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             optimizer_type=self.optimizer_type,
@@ -255,7 +255,7 @@ class SklearnBase(BaseEstimator):
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        num_classes: int = None,  # noqa: RUF013
+        num_classes: int | None = None,
         max_epochs: int = 100,
         random_state: int = 101,
         batch_size: int = 128,
@@ -382,8 +382,8 @@ class SklearnBase(BaseEstimator):
             ],
             **trainer_kwargs,
         )
-        self.task_model.train()
-        self.task_model.estimator.train()
+        self.task_model.train()  # type: ignore[union-attr]
+        self.task_model.estimator.train()  # type: ignore[union-attr]
         self.trainer.fit(self.task_model, self.data_module)  # type: ignore
 
         self.best_model_path = checkpoint_callback.best_model_path
@@ -440,7 +440,9 @@ class SklearnBase(BaseEstimator):
         # Process data in batches
         encoded_outputs = []
         for batch in tqdm(data_loader):
-            embeddings = self.task_model.estimator.encode(batch)  # Call your encode function
+            embeddings = self.task_model.estimator.encode(
+                batch
+            )  # Call your encode function  # type: ignore[union-attr]
             encoded_outputs.append(embeddings)
 
         # Concatenate all encoded outputs
@@ -547,9 +549,9 @@ class SklearnBase(BaseEstimator):
         )
         best_val_loss = float("inf")
 
-        if hasattr(self, "score") and callable(self.score):
+        if hasattr(self, "score") and callable(self.score):  # type: ignore[attr-defined]
             if X_val is not None and y_val is not None:
-                val_loss = self.score(X_val, y_val)
+                val_loss = self.score(X_val, y_val)  # type: ignore[attr-defined]
             else:
                 val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
         else:
@@ -605,7 +607,7 @@ class SklearnBase(BaseEstimator):
                 early_pruning_threshold = best_epoch_val_loss * 1.5  # Prune based on specific epoch loss
             else:
                 # Prune based on the best overall validation loss
-                early_pruning_threshold = best_val_loss * 1.5
+                early_pruning_threshold = best_val_loss * 1.5  # type: ignore[operator]
 
             # Initialize the model with pruning
             self.task_model.early_pruning_threshold = early_pruning_threshold  # type: ignore
@@ -626,7 +628,7 @@ class SklearnBase(BaseEstimator):
                 # Evaluate validation loss
                 if hasattr(self, "score") and callable(self._score):
                     if X_val is not None and y_val is not None:
-                        val_loss = self._score(X_val, y_val)
+                        val_loss = self._score(X_val, y_val)  # type: ignore[call-arg]
                     else:
                         val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
                 else:
@@ -640,7 +642,7 @@ class SklearnBase(BaseEstimator):
                 if prune_by_epoch and epoch_val_loss < best_epoch_val_loss:
                     best_epoch_val_loss = epoch_val_loss
 
-                if val_loss < best_val_loss:
+                if val_loss < best_val_loss:  # type: ignore[operator]
                     best_val_loss = val_loss
 
                 return val_loss
@@ -648,7 +650,7 @@ class SklearnBase(BaseEstimator):
             except Exception as e:
                 # Penalize the hyperparameter configuration with a large value
                 print(f"Error encountered during fit with hyperparameters {hyperparams}: {e}")
-                return best_val_loss * 100  # Large value to discourage this configuration
+                return best_val_loss * 100  # Large value to discourage this configuration  # type: ignore[operator]
 
         # Perform Bayesian optimization using scikit-optimize
         result = gp_minimize(_objective, param_space, n_calls=time, random_state=42)

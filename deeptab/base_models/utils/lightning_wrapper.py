@@ -103,9 +103,9 @@ class TaskModel(pl.LightningModule):
             all_train_embeddings = []
             all_train_targets = []
 
-            device = self.device if hasattr(self, "device") else self.trainer.device
+            device = self.device if hasattr(self, "device") else self.trainer.device  # type: ignore[attr-defined]
 
-            for batch in self.trainer.datamodule.train_dataloader():
+            for batch in self.trainer.datamodule.train_dataloader():  # type: ignore[attr-defined]
                 (num_features, cat_features, embeddings), labels = batch
 
                 all_train_num.append([f.to(device) for f in num_features])  # Keep lists
@@ -219,10 +219,10 @@ class TaskModel(pl.LightningModule):
 
         # Check if the model has a `penalty_forward` method
         if hasattr(self.estimator, "penalty_forward"):
-            preds, penalty = self.estimator.penalty_forward(*data)
+            preds, penalty = self.estimator.penalty_forward(*data)  # type: ignore[reportCallIssue]
             loss = self.compute_loss(preds, labels) + penalty
         elif hasattr(self.estimator, "train_with_candidates"):
-            preds = self.estimator.train_with_candidates(
+            preds = self.estimator.train_with_candidates(  # type: ignore[reportCallIssue]
                 *data,
                 targets=labels,
                 candidate_x=self.train_features,
@@ -268,7 +268,7 @@ class TaskModel(pl.LightningModule):
 
         data, labels = batch
         if hasattr(self.estimator, "validate_with_candidates") and self.train_features is not None:
-            preds = self.estimator.validate_with_candidates(
+            preds = self.estimator.validate_with_candidates(  # type: ignore[reportCallIssue]
                 *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
         else:
@@ -315,7 +315,7 @@ class TaskModel(pl.LightningModule):
         """
         data, labels = batch
         if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
-            preds = self.estimator.predict_with_candidates(
+            preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
                 *data, candidates_x=self.train_features, candidates_y=self.train_targets
             )
         else:
@@ -349,7 +349,7 @@ class TaskModel(pl.LightningModule):
             Predictions.
         """
         if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
-            preds = self.estimator.predict_with_candidates(
+            preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
                 *batch,
                 candidate_x=self.train_features,
                 candidate_y=self.train_targets,
@@ -489,7 +489,7 @@ class TaskModel(pl.LightningModule):
         print("🚀 Pretraining embeddings...")
         self.estimator.train()
 
-        optimizer = torch.optim.Adam(self.estimator.embedding_parameters(), lr=lr)
+        optimizer = torch.optim.Adam(self.estimator.embedding_parameters(), lr=lr)  # type: ignore[reportCallIssue]
 
         # 🔥 Single tqdm progress bar across all epochs and batches
         total_batches = pretrain_epochs * len(train_dataloader)
@@ -503,7 +503,7 @@ class TaskModel(pl.LightningModule):
                 optimizer.zero_grad()
 
                 # Forward pass through embeddings only
-                embeddings = self.estimator.encode(data, grad=True)
+                embeddings = self.estimator.encode(data, grad=True)  # type: ignore[reportCallIssue]
 
                 # Compute nearest neighbors based on task type
                 knn_indices = self.get_knn(labels, k_neighbors, regression)
@@ -525,7 +525,7 @@ class TaskModel(pl.LightningModule):
         progress_bar.close()
 
         # Save pretrained embeddings
-        torch.save(self.estimator.get_embedding_state_dict(), save_path)
+        torch.save(self.estimator.get_embedding_state_dict(), save_path)  # type: ignore[reportCallIssue]
         print(f"✅ Embeddings saved to {save_path}")
 
     def get_knn(self, labels, k_neighbors=5, regression=True, device=""):

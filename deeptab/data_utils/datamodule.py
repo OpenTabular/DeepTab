@@ -159,7 +159,7 @@ class MambularDataModule(pl.LightningDataModule):
                 self.embeddings_val = None
 
         # Fit the preprocessor on the combined training and validation data
-        combined_X = pd.concat([self.X_train, self.X_val], axis=0).reset_index(drop=True)
+        combined_X = pd.concat([self.X_train, self.X_val], axis=0).reset_index(drop=True)  # type: ignore[arg-type]
         combined_y = np.concatenate((self.y_train, self.y_val), axis=0)
 
         if self.embeddings_train is not None and self.embeddings_val is not None:

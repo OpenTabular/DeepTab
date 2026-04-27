@@ -367,13 +367,13 @@ class SklearnBaseRegressor(SklearnBase):
         if not self.built:
             raise ValueError("The model has not been built yet. Call model.build_model(**args) first.")
 
-        if not hasattr(self.task_model.estimator, "embedding_layer"):
+        if not hasattr(self.task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
             raise ValueError("The model does not have an embedding layer")
 
         self.data_module.setup("fit")
 
         super()._pretrain(
-            self.task_model.estimator,
+            self.task_model.estimator,  # type: ignore[union-attr]
             self.data_module,
             pretrain_epochs=pretrain_epochs,
             k_neighbors=k_neighbors,

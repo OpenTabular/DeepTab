@@ -228,7 +228,7 @@ class PoissonDistribution(BaseDistribution):
             .detach()
             .numpy()  # type: ignore
         )  # type: ignore
-        poisson_deviance = 2 * torch.sum(y_true_tensor * torch.log(y_true_tensor / rate) - (y_true_tensor - rate))
+        poisson_deviance = 2 * torch.sum(y_true_tensor * torch.log(y_true_tensor / rate) - (y_true_tensor - rate))  # type: ignore[operator]
 
         metrics["mse"] = mse_loss.detach().numpy()
         metrics["mae"] = mae
@@ -483,7 +483,7 @@ class NegativeBinomialDistribution(BaseDistribution):
         # Calculate the probability (p) and number of successes (r) from mean and dispersion
         # These calculations follow from the mean and variance of the negative binomial distribution
         # where variance = mean + mean^2 / dispersion
-        r = torch.tensor(1.0) / dispersion
+        r = torch.tensor(1.0) / dispersion  # type: ignore[operator]
         p = r / (r + mean)
 
         # Define the Negative Binomial distribution with the transformed parameters

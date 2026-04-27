@@ -83,7 +83,7 @@ def test_config_default_values(config_class):
         else:
             # Standard type check
             assert (
-                isinstance(value, expected_type) or value is None
+                isinstance(value, expected_type) or value is None  # type: ignore[arg-type]
             ), f"{config_class.__name__}.{attr} has incorrect type: expected {expected_type}, got {type(value)}"
 
 

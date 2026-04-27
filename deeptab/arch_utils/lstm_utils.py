@@ -156,12 +156,12 @@ class mLSTMblock(nn.Module):
 
         ct_1 = self.ct_1
 
-        ct = f * ct_1 + i * v * k
+        ct = f * ct_1 + i * v * k  # type: ignore[operator]
         ct = torch.mean(self.ln_c(ct), [0, 1], keepdim=True)
         self.ct_1 = ct.detach()
 
         nt_1 = self.nt_1
-        nt = f * nt_1 + i * k
+        nt = f * nt_1 + i * k  # type: ignore[operator]
         nt = torch.mean(self.ln_n(nt), [0, 1], keepdim=True)
         self.nt_1 = nt.detach()
 
@@ -321,12 +321,12 @@ class sLSTMblock(nn.Module):
         z = torch.tanh(self.ln_z(self.z_gate(x) + self.rz_gate(ht_1)))
 
         ct_1 = self.ct_1
-        ct = f * ct_1 + i * z
+        ct = f * ct_1 + i * z  # type: ignore[operator]
         ct = torch.mean(self.ln_c(ct), [0, 1], keepdim=True)
         self.ct_1 = ct.detach()
 
         nt_1 = self.nt_1
-        nt = f * nt_1 + i
+        nt = f * nt_1 + i  # type: ignore[operator]
         nt = torch.mean(self.ln_n(nt), [0, 1], keepdim=True)
         self.nt_1 = nt.detach()
 

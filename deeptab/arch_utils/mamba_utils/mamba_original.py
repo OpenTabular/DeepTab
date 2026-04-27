@@ -187,7 +187,7 @@ class MambaOriginal(nn.Module):
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
         return {
             i: layer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
-            for i, layer in enumerate(self.layers)
+            for i, layer in enumerate(self.layers)  # type: ignore[arg-type]
         }
 
     def forward(self, x):
