@@ -48,12 +48,16 @@ cd DeepTab
 
 poetry install
 
-poetry run pre-commit install
+poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 ```
 
-If you need to update the documentation, please install the dependencies requried for documentation:
+If you need to update the documentation, please install the documentation dependencies:
 
-```
+```bash
+# Recommended: install via the docs dependency group
+poetry install --with docs
+
+# Alternative: install directly
 pip install -r docs/requirements_docs.txt
 ```
 
@@ -64,19 +68,66 @@ pip install -r docs/requirements_docs.txt
 1. Create a new branch from `main` for your contributions. Please use descriptive and concise branch names.
 2. Make your desired changes or additions to the codebase.
 3. Ensure that your code adheres to [PEP8](https://peps.python.org/pep-0008/) coding style guidelines.
-4. Write appropriate tests for your changes, ensuring that they pass.
-   - `make test`
+4. Write appropriate tests for your changes and verify they pass:
+   ```bash
+   just test
+   ```
 5. Update the documentation and examples, if necessary.
-6. Build the html documentation and verify if it works as expected. We have used Sphinx for documentation, you could build the documents as follows:
-   - `cd docs`
-   - `make clean`
-   - `make html`
-7. Verify the html documents created under `docs/_build/html` directory. `index.html` file is the main file which contains link to all other files and doctree.
-
-8. Commit your changes following the Conventional Commits specification (see below).
+6. Build the HTML documentation and verify it works as expected:
+   ```bash
+   just docs
+   ```
+   Verify the output under `docs/_build/html/`. `index.html` is the entry point.
+7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
+   ```bash
+   just check
+   ```
+8. Commit your changes following the Conventional Commits specification (see below):
+   ```bash
+   just commit
+   ```
 9. Submit a pull request from your branch to `main` in the original repository.
 10. Wait for the maintainers to review your pull request. Address any feedback or comments if required.
 11. Once approved, your changes will be merged into the main codebase.
+
+## Pre-commit Hooks
+
+This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. The hooks run on two stages:
+
+- **commit** — `ruff` format and lint checks, plus general file hygiene hooks
+- **push** — `pyright` type checking (slow, so deferred to push)
+
+`just install` registers all three hook types (`commit-msg`, `pre-commit`, `pre-push`) so everything fires at the right time automatically.
+
+> **Important:** Run `just check` before opening a PR. It executes all hooks against every file in the repo (both commit and push stages), giving you the same signal CI will see.
+
+```bash
+# Run commit-stage hooks on all files (ruff format, ruff lint, file hygiene)
+just lint
+
+# Run ruff formatter
+just format
+
+# Run pyright type checker
+just typecheck
+
+# Run ALL hooks across ALL files (commit + push stages) — equivalent to what CI checks
+just check
+```
+
+If pre-commit reports files that _would be reformatted_, run `just format`, stage the changes, and commit before pushing. Formatting-only changes should be committed separately with `style: apply ruff formatting`.
+
+### Type checking (pyright)
+
+Type checking with `pyright` runs automatically on `git push` via the pre-push hook (registered by `just install`). It also runs in CI as the `typecheck` job in `.github/workflows/ci.yml`.
+
+To run it manually at any time:
+
+```bash
+just typecheck
+```
+
+Fix any reported errors before opening a PR.
 
 ## Docs Workflow
 
@@ -124,8 +175,8 @@ brew install pandoc
 # or on Ubuntu
 sudo apt-get install pandoc
 
-# Install doc dependencies
-pip install -r docs/requirements_docs.txt
+# Install doc dependencies (if not already done)
+poetry install --with docs
 
 # Build HTML docs (warnings treated as errors)
 sphinx-build -b html docs/ docs/_build/html -W --keep-going
