@@ -51,11 +51,8 @@ jobs:
           path: .venv
           key: venv-docs-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
 
-      - name: Install package
-        run: poetry install --only main
-
-      - name: Install docs dependencies
-        run: pip install -r docs/requirements_docs.txt
+      - name: Install package and docs dependencies
+        run: poetry install --with docs
 
       - name: Build Sphinx docs
         run: poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going

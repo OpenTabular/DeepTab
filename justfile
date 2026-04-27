@@ -29,7 +29,6 @@ lint:
 
 # run docformatter and ruff formatter
 format:
-    poetry run docformatter --in-place --recursive --wrap-summaries 120 --wrap-descriptions 120 .
     poetry run ruff format .
 
 # run pyright type checking
@@ -42,9 +41,11 @@ test:
 
 # build HTML docs locally (warnings treated as errors)
 docs:
-    sphinx-build -b html docs/ docs/_build/html -W --keep-going
+    poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
 
 # run all pre-commit hooks on all files (commit + push stage)
+# if ruff-format modifies files, stage and commit them before pushing:
+#   git add -u && git commit -m "style: apply ruff formatting"
 check:
     poetry run pre-commit run --all-files
     poetry run pre-commit run --all-files --hook-stage push

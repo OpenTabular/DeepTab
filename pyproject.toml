@@ -132,13 +132,6 @@ ignore = [
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 120
 
-[tool.docformatter]
-recursive = true
-in-place = true
-wrap-summaries = 120
-wrap-descriptions = 120
-exclude = ["build", "dist", ".venv", ".git"]
-
 # Commitizen configuration
 [tool.commitizen]
 name = "cz_conventional_commits"

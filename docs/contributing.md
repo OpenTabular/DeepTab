@@ -82,6 +82,11 @@ pip install -r docs/requirements_docs.txt
    ```bash
    just check
    ```
+   If `ruff-format` modifies any files, commit those changes before pushing:
+   ```bash
+   git add -u
+   git commit -m "style: apply ruff formatting"
+   ```
 8. Commit your changes following the Conventional Commits specification (see below):
    ```bash
    just commit
