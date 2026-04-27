@@ -1,15 +1,15 @@
-import torch.nn as nn
+import numpy as np
 import torch
+import torch.nn as nn
+
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
+from ..arch_utils.trompt_utils import TromptCell, TromptDecoder
 from ..configs.trompt_config import DefaultTromptConfig
 from .utils.basemodel import BaseModel
-from ..arch_utils.trompt_utils import TromptCell, TromptDecoder
-import numpy as np
 
 
 class Trompt(BaseModel):
-
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
@@ -22,9 +22,7 @@ class Trompt(BaseModel):
         self.returns_ensemble = True
 
         # embedding layer
-        self.cells = nn.ModuleList(
-            TromptCell(feature_information, config) for _ in range(config.n_cycles)
-        )
+        self.cells = nn.ModuleList(TromptCell(feature_information, config) for _ in range(config.n_cycles))
         self.decoder = TromptDecoder(config.d_model, num_classes)
         self.init_rec = nn.Parameter(torch.empty(config.P, config.d_model))
         self.n_cycles = config.n_cycles
@@ -42,11 +40,11 @@ class Trompt(BaseModel):
         Tensor
             The output predictions of the model.
         """
-        O = self.init_rec.unsqueeze(0).repeat(data[0][0].shape[0], 1, 1)
+        O = self.init_rec.unsqueeze(0).repeat(data[0][0].shape[0], 1, 1)  # noqa: E741
         outputs = []
 
         for i in range(self.n_cycles):
-            O = self.cells[i](*data, O=O)
+            O = self.cells[i](*data, O=O)  # noqa: E741
             # print(O.shape)
             # print(self.tdown(O).shape)
             outputs.append(self.decoder(O))

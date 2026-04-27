@@ -1,5 +1,6 @@
-import torch
 import numpy as np
+import torch
+
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mamba_utils.mambattn_arch import MambAttn

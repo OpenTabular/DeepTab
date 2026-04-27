@@ -1,9 +1,10 @@
-import torch.nn as nn
-from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
-from .utils.basemodel import BaseModel
-import torch.nn.init as nn_init
 import numpy as np
+import torch.nn as nn
+import torch.nn.init as nn_init
+
+from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..configs.autoint_config import DefaultAutoIntConfig
+from .utils.basemodel import BaseModel
 
 
 class AutoInt(BaseModel):
@@ -80,9 +81,7 @@ class AutoInt(BaseModel):
             return compression
 
         self.shared_kv_compression = (
-            make_kv_compression()
-            if self.kv_compression and self.kv_compression_sharing == "layerwise"
-            else None
+            make_kv_compression() if self.kv_compression and self.kv_compression_sharing == "layerwise" else None
         )
 
         # Transformer-based Interaction Layers
@@ -106,14 +105,12 @@ class AutoInt(BaseModel):
                 if self.kv_compression_sharing == "headwise":
                     layer["value_compression"] = make_kv_compression()
                 else:
-                    assert self.kv_compression_sharing == "key-value"
+                    assert self.kv_compression_sharing == "key-value"  # noqa: S101
 
             self.layers.append(layer)
 
         # Final Normalization & Output Head
-        self.last_norm = (
-            nn.LayerNorm(config.d_model) if getattr(config, "prenorm", False) else None
-        )
+        self.last_norm = nn.LayerNorm(config.d_model) if getattr(config, "prenorm", False) else None
 
         self.head = nn.Linear(config.d_model * n_inputs, num_classes)
 
@@ -138,9 +135,7 @@ class AutoInt(BaseModel):
                 (layer["key_compression"], layer["value_compression"])
                 if "key_compression" in layer and "value_compression" in layer
                 else (
-                    (layer["key_compression"], layer["key_compression"])
-                    if "key_compression" in layer
-                    else (None, None)
+                    (layer["key_compression"], layer["key_compression"]) if "key_compression" in layer else (None, None)
                 )
             )
         )
@@ -165,19 +160,19 @@ class AutoInt(BaseModel):
             x_residual = x  # Store original input for residual connection
 
             # Apply normalization before attention if prenormalization is enabled
-            x_residual = layer["norm0"](x_residual)
+            x_residual = layer["norm0"](x_residual)  # type: ignore[index]
 
             # Retrieve key-value compression layers
             key_compression, value_compression = self._get_kv_compressions(layer)
 
             # Multihead Attention
-            x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)
+            x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)  # type: ignore[index]
 
             # Apply residual connection
             x = x + x_residual
 
             # Apply the linear transformation
-            x_residual = layer["linear"](x)
+            x_residual = layer["linear"](x)  # type: ignore[index]
             x = x + x_residual  # Second residual connection
 
         if self.last_norm:

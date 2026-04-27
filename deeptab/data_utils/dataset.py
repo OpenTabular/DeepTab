@@ -24,8 +24,8 @@ class MambularDataset(Dataset):
         labels=None,
         regression=True,
     ):
-        assert cat_features_list or num_features_list
-        
+        assert cat_features_list or num_features_list  # noqa: S101
+
         self.cat_features_list = cat_features_list  # Categorical features tensors
         self.num_features_list = num_features_list  # Numerical features tensors
         self.embeddings_list = embeddings_list  # Embeddings tensors (optional)
@@ -61,9 +61,7 @@ class MambularDataset(Dataset):
             tuple: A tuple containing lists of tensors for numerical features, categorical features, embeddings
             (if available), and a label (if available).
         """
-        cat_features = [
-            feature_tensor[idx] for feature_tensor in self.cat_features_list
-        ]
+        cat_features = [feature_tensor[idx] for feature_tensor in self.cat_features_list]
         num_features = [
             torch.as_tensor(feature_tensor[idx]).clone().detach().to(torch.float32)
             for feature_tensor in self.num_features_list

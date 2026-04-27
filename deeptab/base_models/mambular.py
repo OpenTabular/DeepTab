@@ -1,3 +1,4 @@
+import numpy as np
 import torch
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
@@ -6,7 +7,6 @@ from ..arch_utils.mamba_utils.mamba_original import MambaOriginal
 from ..arch_utils.mlp_utils import MLPhead
 from ..configs.mambular_config import DefaultMambularConfig
 from .utils.basemodel import BaseModel
-import numpy as np
 
 
 class Mambular(BaseModel):

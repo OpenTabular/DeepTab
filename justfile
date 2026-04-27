@@ -1,20 +1,20 @@
 # list recipes
-defaut:
+default:
 	@just --list --unsorted
 
-# install dependencies
+# install dependencies and set up all pre-commit hooks
 install:
 	poetry install
-	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit
+	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
-# update dependencies
+# update dependencies and pre-commit hook revisions
 update:
 	poetry update
 	poetry run pre-commit autoupdate
 
-# update the poetry.lock file if the pyproject.toml file has been updated
+# regenerate poetry.lock without upgrading dependencies
 lock:
-    poetry lock
+    poetry lock --no-update
 
 # remove Python file artifacts
 clean:
@@ -23,15 +23,32 @@ clean:
 	find . -name '*~' -exec rm -f {} +
 	find . -name '__pycache__' -exec rm -fr {} +
 
-
-# run ruff linting and fix all fixable linting errors
+# run ruff linting and fix all fixable errors
 lint:
     poetry run ruff check --fix .
 
-# run ruff formatter to format all files
+# run docformatter and ruff formatter
 format:
-    poetry run docformatter --in-place --recursive --wrap-summaries 120 --wrap-descriptions 120 .
     poetry run ruff format .
+
+# run pyright type checking
+typecheck:
+    poetry run pyright
+
+# run tests with coverage
+test:
+    poetry run pytest --cov=deeptab tests/
+
+# build HTML docs locally (warnings treated as errors)
+docs:
+    poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
+
+# run all pre-commit hooks on all files (commit + push stage)
+# if ruff-format modifies files, stage and commit them before pushing:
+#   git add -u && git commit -m "style: apply ruff formatting"
+check:
+    poetry run pre-commit run --all-files
+    poetry run pre-commit run --all-files --hook-stage push
 
 # create a conventional commit using commitizen
 commit:

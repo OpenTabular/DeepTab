@@ -1,3 +1,6 @@
+import inspect
+import textwrap
+
 from pretab.preprocessor import Preprocessor
 
 
@@ -6,27 +9,34 @@ def generate_docstring(config, model_description, examples):
 
     The `Parameters` tag is stripped from the Preprocessor docstring to avoid duplication.
     """
-    config_doc = config.__doc__ or "No documentation for DefaultFTTransformerConfig."
-    preprocessor_doc = Preprocessor.__doc__ or "No documentation for Preprocessor."
+    # inspect.cleandoc is the correct tool for Python docstrings: it strips
+    # leading blank lines, then removes the common indentation from lines 2+
+    # (the class-body indent).  textwrap.dedent cannot do this because Python
+    # stores line 1 without any leading whitespace, making the common indent 0.
+    config_doc = inspect.cleandoc(config.__doc__ or "No documentation.")
+    preprocessor_doc = inspect.cleandoc(Preprocessor.__doc__ or "No documentation.")
 
-    # Remove "Parameters" section header from the Preprocessor docstring
-    preprocessor_doc_cleaned = preprocessor_doc.split("Parameters\n    ----------\n", 1)[-1].strip()
-
+    # After cleandoc the section header is at column 0: "Parameters\n----------\n"
+    preprocessor_doc_cleaned = preprocessor_doc.split("Parameters\n----------\n", 1)[-1].strip()
     preprocessor_doc_cleaned = preprocessor_doc_cleaned.split("Attributes")[0].strip()
 
-    config_doc += preprocessor_doc_cleaned
+    # Combine config doc + preprocessor params, then re-indent uniformly at 4 spaces.
+    config_doc_indented = textwrap.indent(config_doc + "\n\n" + preprocessor_doc_cleaned, "    ")
+
+    description_indented = textwrap.indent(textwrap.dedent(model_description).strip(), "    ")
+    examples_indented = textwrap.indent(textwrap.dedent(examples).strip(), "    ")
 
     return f"""
-    {model_description.strip()}
+{description_indented}
 
     Notes
     -----
     The parameters for this class include the attributes from the config
     dataclass as well as preprocessing arguments handled by the base class.
 
-    {config_doc}
+{config_doc_indented}
 
     Examples
     --------
-    {examples.strip()}
+{examples_indented}
     """

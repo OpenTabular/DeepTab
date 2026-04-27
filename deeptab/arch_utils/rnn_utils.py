@@ -38,10 +38,7 @@ class ConvRNN(nn.Module):
 
         if self.residuals:
             self.residual_matrix = nn.ParameterList(
-                [
-                    nn.Parameter(torch.randn(self.hidden_size, self.hidden_size))
-                    for _ in range(self.num_layers)
-                ]
+                [nn.Parameter(torch.randn(self.hidden_size, self.hidden_size)) for _ in range(self.num_layers)]
             )
 
         # First Conv1d layer uses input_size
@@ -165,10 +162,7 @@ class EnsembleConvRNN(nn.Module):
 
         if self.residuals:
             self.residual_matrix = nn.ParameterList(
-                [
-                    nn.Parameter(torch.randn(self.hidden_size, self.hidden_size))
-                    for _ in range(self.num_layers)
-                ]
+                [nn.Parameter(torch.randn(self.hidden_size, self.hidden_size)) for _ in range(self.num_layers)]
             )
 
         # First Conv1d layer uses input_size

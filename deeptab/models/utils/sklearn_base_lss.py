@@ -7,6 +7,7 @@ import pandas as pd
 import properscoring as ps
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
+from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
 from sklearn.metrics import accuracy_score, mean_squared_error
 from torch.utils.data import DataLoader
@@ -14,8 +15,6 @@ from tqdm import tqdm
 
 from ...base_models.utils.lightning_wrapper import TaskModel
 from ...data_utils.datamodule import MambularDataModule
-from pretab.preprocessor import Preprocessor
-
 from ...utils.distributional_metrics import (
     beta_brier_score,
     dirichlet_error,
@@ -31,12 +30,12 @@ from ...utils.distributions import (
     DirichletDistribution,
     GammaDistribution,
     InverseGammaDistribution,
+    JohnsonSuDistribution,
     NegativeBinomialDistribution,
     NormalDistribution,
     PoissonDistribution,
     Quantile,
     StudentTDistribution,
-    JohnsonSuDistribution,
 )
 
 
@@ -61,15 +60,11 @@ class SklearnBaseLSS(BaseEstimator):
         ]
 
         self.config_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
+            k: v for k, v in kwargs.items() if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
         }
         self.config = config(**self.config_kwargs)
 
-        preprocessor_kwargs = {
-            k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names
-        }
+        preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
 
         self.preprocessor = Preprocessor(**preprocessor_kwargs)
         self.task_model = None
@@ -90,8 +85,7 @@ class SklearnBaseLSS(BaseEstimator):
         self.optimizer_kwargs = {
             k: v
             for k, v in kwargs.items()
-            if k
-            not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
+            if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
             and k.startswith("optimizer_")
         }
 
@@ -112,10 +106,7 @@ class SklearnBaseLSS(BaseEstimator):
         params.update(self.config_kwargs)
 
         if deep:
-            preprocessor_params = {
-                "prepro__" + key: value
-                for key, value in self.preprocessor.get_params().items()
-            }
+            preprocessor_params = {"prepro__" + key: value for key, value in self.preprocessor.get_params().items()}  # type: ignore[attr-defined]
             params.update(preprocessor_params)
 
         return params
@@ -133,14 +124,8 @@ class SklearnBaseLSS(BaseEstimator):
         self : object
             Estimator instance.
         """
-        config_params = {
-            k: v for k, v in parameters.items() if not k.startswith("prepro__")
-        }
-        preprocessor_params = {
-            k.split("__")[1]: v
-            for k, v in parameters.items()
-            if k.startswith("prepro__")
-        }
+        config_params = {k: v for k, v in parameters.items() if not k.startswith("prepro__")}
+        preprocessor_params = {k.split("__")[1]: v for k, v in parameters.items() if k.startswith("prepro__")}
 
         if config_params:
             self.config_kwargs.update(config_params)
@@ -151,7 +136,7 @@ class SklearnBaseLSS(BaseEstimator):
                 self.config = self.config_class(**self.config_kwargs)  # type: ignore
 
         if preprocessor_params:
-            self.preprocessor.set_params(**preprocessor_params)
+            self.preprocessor.set_params(**preprocessor_params)  # type: ignore[attr-defined]
 
         return self
 
@@ -236,9 +221,7 @@ class SklearnBaseLSS(BaseEstimator):
             **dataloader_kwargs,
         )
 
-        self.data_module.preprocess_data(
-            X, y, X_val, y_val, val_size=val_size, random_state=random_state
-        )
+        self.data_module.preprocess_data(X, y, X_val, y_val, val_size=val_size, random_state=random_state)
 
         self.task_model = TaskModel(
             model_class=self.estimator,  # type: ignore
@@ -251,13 +234,9 @@ class SklearnBaseLSS(BaseEstimator):
                 self.data_module.embedding_feature_info,
             ),
             lr=lr if lr is not None else self.config.lr,
-            lr_patience=(
-                lr_patience if lr_patience is not None else self.config.lr_patience
-            ),
+            lr_patience=(lr_patience if lr_patience is not None else self.config.lr_patience),
             lr_factor=lr_factor if lr_factor is not None else self.config.lr_factor,
-            weight_decay=(
-                weight_decay if weight_decay is not None else self.config.weight_decay
-            ),
+            weight_decay=(weight_decay if weight_decay is not None else self.config.weight_decay),
             lss=True,
             train_metrics=train_metrics,
             val_metrics=val_metrics,
@@ -290,9 +269,7 @@ class SklearnBaseLSS(BaseEstimator):
             If the model has not been built prior to calling this method.
         """
         if not self.built:
-            raise ValueError(
-                "The model must be built before the number of parameters can be estimated"
-            )
+            raise ValueError("The model must be built before the number of parameters can be estimated")
         else:
             if requires_grad:
                 return sum(p.numel() for p in self.task_model.parameters() if p.requires_grad)  # type: ignore
@@ -494,7 +471,7 @@ class SklearnBaseLSS(BaseEstimator):
         predictions_list = self.trainer.predict(self.task_model, self.data_module)
 
         # Concatenate predictions from all batches
-        predictions = torch.cat(predictions_list, dim=0)
+        predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]
 
         # Check if ensemble is used
         if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
@@ -535,9 +512,7 @@ class SklearnBaseLSS(BaseEstimator):
         """
         # Infer distribution family from model settings if not provided
         if distribution_family is None:
-            distribution_family = getattr(
-                self.task_model, "distribution_family", "normal"
-            )
+            distribution_family = getattr(self.task_model, "distribution_family", "normal")
 
         # Setup default metrics if none are provided
         if metrics is None:
@@ -573,10 +548,7 @@ class SklearnBaseLSS(BaseEstimator):
             "normal": {
                 "MSE": lambda y, pred: mean_squared_error(y, pred[:, 0]),
                 "CRPS": lambda y, pred: np.mean(
-                    [
-                        ps.crps_gaussian(y[i], mu=pred[i, 0], sig=np.sqrt(pred[i, 1]))
-                        for i in range(len(y))
-                    ]
+                    [ps.crps_gaussian(y[i], mu=pred[i, 0], sig=np.sqrt(pred[i, 1])) for i in range(len(y))]
                 ),
             },
             "poisson": {"Poisson Deviance": poisson_deviance},
@@ -642,9 +614,7 @@ class SklearnBaseLSS(BaseEstimator):
         # Process data in batches
         encoded_outputs = []
         for num_features, cat_features in tqdm(data_loader):
-            embeddings = self.task_model.estimator.encode(
-                num_features, cat_features
-            )  # Call your encode function
+            embeddings = self.task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
             encoded_outputs.append(embeddings)
 
         # Concatenate all encoded outputs
@@ -700,7 +670,7 @@ class SklearnBaseLSS(BaseEstimator):
             Best hyperparameters found during optimization.
         """
 
-        return super().optimize_hparams(
+        return super().optimize_hparams(  # type: ignore[attr-defined]
             X,
             y,
             regression=False,

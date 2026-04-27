@@ -1,158 +1,218 @@
-mambular.models
-===============
+deeptab.models
+==============
 
-.. autoclass:: mambular.models.MambularClassifier
+.. autoclass:: deeptab.models.MambularClassifier
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.MambularRegressor
+.. autoclass:: deeptab.models.MambularRegressor
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.MambularLSS
+.. autoclass:: deeptab.models.MambularLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.FTTransformerClassifier
+.. autoclass:: deeptab.models.FTTransformerClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.FTTransformerRegressor
+.. autoclass:: deeptab.models.FTTransformerRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.FTTransformerLSS
+.. autoclass:: deeptab.models.FTTransformerLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MLPClassifier
+.. autoclass:: deeptab.models.MLPClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MLPRegressor
+.. autoclass:: deeptab.models.MLPRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MLPLSS
+.. autoclass:: deeptab.models.MLPLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabTransformerClassifier
+.. autoclass:: deeptab.models.TabTransformerClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabTransformerRegressor
+.. autoclass:: deeptab.models.TabTransformerRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabTransformerLSS
+.. autoclass:: deeptab.models.TabTransformerLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.ResNetClassifier
+.. autoclass:: deeptab.models.ResNetClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.ResNetRegressor
+.. autoclass:: deeptab.models.ResNetRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.ResNetLSS
+.. autoclass:: deeptab.models.ResNetLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambaTabClassifier
+.. autoclass:: deeptab.models.MambaTabClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambaTabRegressor
+.. autoclass:: deeptab.models.MambaTabRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambaTabLSS
+.. autoclass:: deeptab.models.MambaTabLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambAttentionClassifier
+.. autoclass:: deeptab.models.MambAttentionClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambAttentionRegressor
+.. autoclass:: deeptab.models.MambAttentionRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.MambAttentionLSS
+.. autoclass:: deeptab.models.MambAttentionLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabulaRNNClassifier
+.. autoclass:: deeptab.models.TabulaRNNClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabulaRNNRegressor
+.. autoclass:: deeptab.models.TabulaRNNRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabulaRNNLSS
+.. autoclass:: deeptab.models.TabulaRNNLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.TabMClassifier
+.. autoclass:: deeptab.models.TabMClassifier
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.TabMRegressor
+.. autoclass:: deeptab.models.TabMRegressor
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.TabMLSS
+.. autoclass:: deeptab.models.TabMLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.NODEClassifier
+.. autoclass:: deeptab.models.NODEClassifier
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.NODERegressor
+.. autoclass:: deeptab.models.NODERegressor
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.NODELSS
+.. autoclass:: deeptab.models.NODELSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.NDTFClassifier
+.. autoclass:: deeptab.models.NDTFClassifier
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.NDTFRegressor
+.. autoclass:: deeptab.models.NDTFRegressor
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.NDTFLSS
+.. autoclass:: deeptab.models.NDTFLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.SAINTClassifier
+.. autoclass:: deeptab.models.SAINTClassifier
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.SAINTRegressor
+.. autoclass:: deeptab.models.SAINTRegressor
     :members:
     :inherited-members:
 
-.. autoclass:: mambular.models.SAINTLSS
+.. autoclass:: deeptab.models.SAINTLSS
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.SklearnBaseClassifier
+.. autoclass:: deeptab.models.AutoIntClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.SklearnBaseLSS
+.. autoclass:: deeptab.models.AutoIntRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: mambular.models.SklearnBaseRegressor
+.. autoclass:: deeptab.models.AutoIntLSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ENODEClassifier
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ENODERegressor
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ENODELSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ModernNCAClassifier
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ModernNCARegressor
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.ModernNCALSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TangosClassifier
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TangosRegressor
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TangosLSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TromptClassifier
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TromptRegressor
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.TromptLSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.SklearnBaseClassifier
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.SklearnBaseLSS
+    :members:
+    :undoc-members:
+
+.. autoclass:: deeptab.models.SklearnBaseRegressor
     :members:
     :undoc-members:

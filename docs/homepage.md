@@ -1,9 +1,9 @@
 # deeptab: Tabular Deep Learning Made Simple
 
-deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available [here](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.
-
+deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available on [arXiv](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.
 
 # 🏃 Quickstart
+
 Similar to any sklearn model, deeptab models can be fit as easy as this:
 
 ```python
@@ -16,39 +16,37 @@ model.fit(X, y, max_epochs=150, lr=1e-04)
 ```
 
 # 📖 Introduction
-deeptab is a Python package that brings the power of advanced deep learning architectures to tabular data, offering a suite of models for regression, classification, and distributional regression tasks. Designed with ease of use in mind, deeptab models adhere to scikit-learn's `BaseEstimator` interface, making them highly compatible with the familiar scikit-learn ecosystem. This means you can fit, predict, and evaluate using deeptab models just as you would with any traditional scikit-learn model, but with the added performance and flexibility of deep learning.
 
+deeptab is a Python package that brings the power of advanced deep learning architectures to tabular data, offering a suite of models for regression, classification, and distributional regression tasks. Designed with ease of use in mind, deeptab models adhere to scikit-learn's `BaseEstimator` interface, making them highly compatible with the familiar scikit-learn ecosystem. This means you can fit, predict, and evaluate using deeptab models just as you would with any traditional scikit-learn model, but with the added performance and flexibility of deep learning.
 
 # 🤖 Models
 
-| Model            | Description                                                                                                                                         |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Mambular`       | A sequential model using Mamba blocks specifically designed for various tabular data tasks introduced [here](https://arxiv.org/abs/2408.06291).     |
-| `TabM`           | Batch Ensembling for a MLP as introduced by [Gorishniy et al.](https://arxiv.org/abs/2410.24210)                                                    |
-| `NODE`           | Neural Oblivious Decision Ensembles as introduced by [Popov et al.](https://arxiv.org/abs/1909.06312)                                               |
-| `FTTransformer`  | A model leveraging transformer encoders, as introduced by [Gorishniy et al.](https://arxiv.org/abs/2106.11959), for tabular data.                   |
-| `MLP`            | A classical Multi-Layer Perceptron (MLP) model for handling tabular data tasks.                                                                     |
-| `ResNet`         | An adaptation of the ResNet architecture for tabular data applications.                                                                             |
-| `TabTransformer` | A transformer-based model for tabular data introduced by [Huang et al.](https://arxiv.org/abs/2012.06678), enhancing feature learning capabilities. |
-| `MambaTab`       | A tabular model using a Mamba-Block on a joint input representation described [here](https://arxiv.org/abs/2401.08867) . Not a sequential model.    |
-| `TabulaRNN`      | A Recurrent Neural Network for Tabular data, introduced [here](https://arxiv.org/pdf/2411.17207).                                                   |
-| `MambAttention`  | A combination between Mamba and Transformers, also introduced [here](https://arxiv.org/pdf/2411.17207).                                             |
+| Model            | Description                                                                                                                                                                                                 |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Mambular`       | A sequential model using Mamba blocks specifically designed for various tabular data tasks introduced in [Thielmann et al. (2024)](https://arxiv.org/abs/2408.06291).                                       |
+| `TabM`           | Batch Ensembling for a MLP as introduced by [Gorishniy et al. (2024)](https://arxiv.org/abs/2410.24210)                                                                                                     |
+| `NODE`           | Neural Oblivious Decision Ensembles as introduced by [Popov et al.](https://arxiv.org/abs/1909.06312)                                                                                                       |
+| `FTTransformer`  | A model leveraging transformer encoders, as introduced by [Gorishniy et al. (2021)](https://arxiv.org/abs/2106.11959), for tabular data.                                                                    |
+| `MLP`            | A classical Multi-Layer Perceptron (MLP) model for handling tabular data tasks.                                                                                                                             |
+| `ResNet`         | An adaptation of the ResNet architecture for tabular data applications.                                                                                                                                     |
+| `TabTransformer` | A transformer-based model for tabular data introduced by [Huang et al.](https://arxiv.org/abs/2012.06678), enhancing feature learning capabilities.                                                         |
+| `MambaTab`       | A tabular model using a Mamba-Block on a joint input representation described in [Ahamed et al.](https://arxiv.org/abs/2401.08867). Not a sequential model.                                                 |
+| `TabulaRNN`      | A Recurrent Neural Network for Tabular data, introduced in [Thielmann et al. (2025)](https://arxiv.org/pdf/2411.17207).                                                                                     |
+| `MambAttention`  | A combination between Mamba and Transformers, also introduced in [Thielmann et al. (2025)](https://arxiv.org/pdf/2411.17207).                                                                               |
 | `NDTF`           | A neural decision forest using soft decision trees. See [Kontschieder et al.](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) for inspiration. |
-| `SAINT`          | Improve neural networs via Row Attention and Contrastive Pre-Training, introduced [here](https://arxiv.org/pdf/2106.01342).                                              |
-
-
+| `SAINT`          | Improve neural networks via Row Attention and Contrastive Pre-Training, introduced by [Somepalli et al.](https://arxiv.org/pdf/2106.01342).                                                                 |
 
 All models are available for `regression`, `classification` and distributional regression, denoted by `LSS`.
 Hence, they are available as e.g. `MambularRegressor`, `MambularClassifier` or `MambularLSS`
 
-
 # 📚 Documentation
 
-You can find the deeptab API documentation [here](https://deeptab.readthedocs.io/en/latest/).
+You can find the deeptab API documentation on [Read the Docs](https://deeptab.readthedocs.io/en/latest/).
 
 # 🛠️ Installation
 
 Install deeptab using pip:
+
 ```sh
 pip install deeptab
 ```
@@ -74,19 +72,16 @@ deeptab simplifies data preprocessing with a range of tools designed for easy tr
 
 <h3> Data Type Detection and Transformation </h3>
 
-- **Ordinal & One-Hot Encoding**: Automatically transforms categorical data into numerical formats using continuous ordinal encoding or one-hot encoding. Includes options for transforming outputs to `float` for compatibility with downstream models.  
-- **Binning**: Discretizes numerical features into bins, with support for both fixed binning strategies and optimal binning derived from decision tree models.  
-- **MinMax**: Scales numerical data to a specific range, such as [-1, 1], using Min-Max scaling or similar techniques.  
-- **Standardization**: Centers and scales numerical features to have a mean of zero and unit variance for better compatibility with certain models.  
-- **Quantile Transformations**: Normalizes numerical data to follow a uniform or normal distribution, handling distributional shifts effectively.  
-- **Spline Transformations**: Captures nonlinearity in numerical features using spline-based transformations, ideal for complex relationships.  
-- **Piecewise Linear Encodings (PLE)**: Captures complex numerical patterns by applying piecewise linear encoding, suitable for data with periodic or nonlinear structures.  
-- **Polynomial Features**: Automatically generates polynomial and interaction terms for numerical features, enhancing the ability to capture higher-order relationships.  
-- **Box-Cox & Yeo-Johnson Transformations**: Performs power transformations to stabilize variance and normalize distributions.  
-- **Custom Binning**: Enables user-defined bin edges for precise discretization of numerical data.  
-
-
-
+- **Ordinal & One-Hot Encoding**: Automatically transforms categorical data into numerical formats using continuous ordinal encoding or one-hot encoding. Includes options for transforming outputs to `float` for compatibility with downstream models.
+- **Binning**: Discretizes numerical features into bins, with support for both fixed binning strategies and optimal binning derived from decision tree models.
+- **MinMax**: Scales numerical data to a specific range, such as [-1, 1], using Min-Max scaling or similar techniques.
+- **Standardization**: Centers and scales numerical features to have a mean of zero and unit variance for better compatibility with certain models.
+- **Quantile Transformations**: Normalizes numerical data to follow a uniform or normal distribution, handling distributional shifts effectively.
+- **Spline Transformations**: Captures nonlinearity in numerical features using spline-based transformations, ideal for complex relationships.
+- **Piecewise Linear Encodings (PLE)**: Captures complex numerical patterns by applying piecewise linear encoding, suitable for data with periodic or nonlinear structures.
+- **Polynomial Features**: Automatically generates polynomial and interaction terms for numerical features, enhancing the ability to capture higher-order relationships.
+- **Box-Cox & Yeo-Johnson Transformations**: Performs power transformations to stabilize variance and normalize distributions.
+- **Custom Binning**: Enables user-defined bin edges for precise discretization of numerical data.
 
 <h2> Fit a Model </h2>
 
@@ -124,8 +119,8 @@ Since all of the models are sklearn base estimators, you can use the built-in hy
 from sklearn.model_selection import RandomizedSearchCV
 
 param_dist = {
-    'd_model': randint(32, 128),  
-    'n_layers': randint(2, 10),  
+    'd_model': randint(32, 128),
+    'n_layers': randint(2, 10),
     'lr': uniform(1e-5, 1e-3)
 }
 
@@ -148,14 +143,12 @@ print("Best Parameters:", random_search.best_params_)
 print("Best Score:", random_search.best_score_)
 ```
 
-
-**Note:** that using this, you can also optimize the preprocessing. Just use the prefix ``prepro__`` when specifying the preprocessor arguments you want to optimize:
-
+**Note:** that using this, you can also optimize the preprocessing. Just use the prefix `prepro__` when specifying the preprocessor arguments you want to optimize:
 
 ```python
 param_dist = {
-    'd_model': randint(32, 128),  
-    'n_layers': randint(2, 10),  
+    'd_model': randint(32, 128),
+    'n_layers': randint(2, 10),
     'lr': uniform(1e-5, 1e-3),
     "prepro__numerical_preprocessing": ["ple", "standardization", "box-cox"]
 }
@@ -164,15 +157,13 @@ param_dist = {
 
 Since we have early stopping integrated and return the best model with respect to the validation loss, setting max_epochs to a large number is sensible.
 
-
 Or use the built-in bayesian hpo simply by running:
 
 ```python
 best_params = model.optimize_hparams(X, y)
 ```
 
-This automatically sets the search space based on the default config from ``deeptab.configs``. See the documentation for all params with regard to ``optimize_hparams()``. However, the preprocessor arguments are fixed and cannot be optimized here.
-
+This automatically sets the search space based on the default config from `deeptab.configs`. See the documentation for all params with regard to `optimize_hparams()`. However, the preprocessor arguments are fixed and cannot be optimized here.
 
 <h2> ⚖️ Distributional Regression with MambularLSS </h2>
 
@@ -200,7 +191,6 @@ MambularLSS allows you to model the full distribution of a response variable, no
 
 These distribution classes make MambularLSS versatile in modeling various data types and distributions.
 
-
 <h3> Getting Started with MambularLSS: </h3>
 
 To integrate distributional regression into your workflow with `MambularLSS`, start by initializing the model with your desired configuration, similar to other deeptab models:
@@ -222,12 +212,11 @@ model.fit(
     y,
     max_epochs=150,
     lr=1e-04,
-    patience=10,  
+    patience=10,
     family="normal" # define your distribution
     )
 
 ```
-
 
 # 💻 Implement Your Own Model
 
@@ -343,7 +332,7 @@ for epoch in range(10):  # Number of epochs
     # Dummy Data
     num_features = [torch.randn(32, 1) for _ in num_feature_info]
     cat_features = [torch.randint(0, 5, (32,)) for _ in cat_feature_info]
-    labels = torch.randn(32, num_classes)  
+    labels = torch.randn(32, num_classes)
 
     # Forward pass
     outputs = model(num_features, cat_features)
@@ -361,6 +350,7 @@ for epoch in range(10):  # Number of epochs
 # 🏷️ Citation
 
 If you find this project useful in your research, please consider cite:
+
 ```BibTeX
 @article{thielmann2024mambular,
   title={Mambular: A Sequential Model for Tabular Deep Learning},
@@ -371,6 +361,7 @@ If you find this project useful in your research, please consider cite:
 ```
 
 If you use TabulaRNN please consider to cite:
+
 ```BibTeX
 @article{thielmann2024efficiency,
   title={On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning},

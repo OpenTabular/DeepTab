@@ -36,7 +36,25 @@ ruff = ">=0.3"
 pre-commit = "^3.6"
 docformatter = "^1.4"
 commitizen = "^3.29.1"
-python-semantic-release = "^9.12.0"
+twine = "^6.2.0"
+pyright = "^1.1.409"
+
+[tool.poetry.group.docs.dependencies]
+setuptools = "*"
+sphinx = "6.2.1"
+sphinx-autodoc-typehints = "1.23.0"
+numpydoc = "1.7.0"
+nbsphinx = "0.9.4"
+ipython = "*"
+myst-parser = "3.0.1"
+m2r2 = "0.3.3.post2"
+sphinx-copybutton = "0.5.2"
+sphinx-togglebutton = "0.3.2"
+sphinx-book-theme = "1.1.2"
+sphinx-rtd-theme = "2.0.0"
+readthedocs-sphinx-ext = "2.2.5"
+lxml-html-clean = "0.4.0"
+pydata-sphinx-theme = "0.15.2"
 
 
 [tool.poetry.urls]
@@ -48,12 +66,28 @@ package = "https://pypi.org/project/deeptab/"
 
 # code quality tools
 [tool.pyright]
-ignore = []
-reportMissingImports = true
-reportMissingTypeStubs = false
+include = ["deeptab", "tests"]
+exclude = [
+  "**/__pycache__",
+  ".venv",
+  "build",
+  "dist",
+  "docs",
+  "notebooks",
+  "examples",
+]
+
 pythonVersion = "3.10"
+typeCheckingMode = "basic"
 venvPath = "."
 venv = ".venv"
+
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportPrivateImportUsage = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
 
 # Configure code linting
 [tool.ruff]
@@ -92,85 +126,16 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # allow asserts in test files (bandit)
 "test_*" = ["S101"]
+# long docstring line — suppress until refactored
+"deeptab/base_models/tangos.py" = ["W505"]
 
 [tool.ruff.lint.pycodestyle]
 max-doc-length = 120
 
-[tool.docformatter]
-recursive = true
-in-place = true
-wrap-summaries = 120
-wrap-descriptions = 120
-exclude = ["build", "dist", ".venv", ".git"]
-
 # Commitizen configuration
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "1.6.1"
-version_files = ["pyproject.toml:version", "deeptab/__version__.py"]
+version_provider = "poetry"
 tag_format = "v$version"
 update_changelog_on_bump = true
 major_version_zero = false
-
-# Python Semantic Release configuration
-[tool.semantic_release]
-version_toml = ["pyproject.toml:tool.poetry.version"]
-version_variables = ["deeptab/__version__.py:__version__"]
-build_command = "poetry build"
-branch = "master"
-upload_to_pypi = true
-upload_to_release = true
-commit_parser = "angular"
-
-[tool.semantic_release.branches.master]
-match = "(master|main)"
-prerelease = false
-
-[tool.semantic_release.changelog]
-template_dir = "templates"
-changelog_file = "CHANGELOG.md"
-exclude_commit_patterns = []
-
-[tool.semantic_release.changelog.environment]
-block_start_string = "{%"
-block_end_string = "%}"
-variable_start_string = "{{"
-variable_end_string = "}}"
-comment_start_string = "{#"
-comment_end_string = "#}"
-trim_blocks = false
-lstrip_blocks = false
-newline_sequence = "\n"
-keep_trailing_newline = false
-extensions = []
-autoescape = true
-
-[tool.semantic_release.commit_parser_options]
-allowed_tags = [
-  "build",
-  "chore",
-  "ci",
-  "docs",
-  "feat",
-  "fix",
-  "perf",
-  "style",
-  "refactor",
-  "test",
-]
-minor_tags = ["feat"]
-patch_tags = ["fix", "perf"]
-
-[tool.semantic_release.remote]
-name = "origin"
-type = "github"
-ignore_token_for_push = false
-
-[tool.semantic_release.publish]
-dist_glob_patterns = ["dist/*"]
-upload_to_vcs_release = true
-
-[[tool.semantic_release.publish.repositories]]
-name = "pypi"
-url = "https://upload.pypi.org/legacy/"
-token_var = "PYPI_TOKEN"

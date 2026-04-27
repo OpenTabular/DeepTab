@@ -122,7 +122,7 @@ def get_search_space(
             # Optimize individual layer sizes
             layer_size_min, layer_size_max = 16, 512
             for i in range(max_head_layers):
-                layer_key = f"head_layer_size_{i+1}"
+                layer_key = f"head_layer_size_{i + 1}"
                 param_names.append(layer_key)
                 param_space.append(Integer(layer_size_min, layer_size_max))
 

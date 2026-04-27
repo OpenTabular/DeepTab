@@ -75,13 +75,10 @@ class NDTF(BaseModel):
             [
                 NeuralDecisionTree(
                     input_dim=self.input_dimensions[idx],
-                    depth=np.random.randint(
-                        self.hparams.min_depth, self.hparams.max_depth
-                    ),
+                    depth=np.random.randint(self.hparams.min_depth, self.hparams.max_depth),
                     output_dim=num_classes,
                     lamda=self.hparams.lamda,
-                    temperature=self.hparams.temperature
-                    + np.abs(np.random.normal(0, 0.1)),
+                    temperature=self.hparams.temperature + np.abs(np.random.normal(0, 0.1)),
                     node_sampling=self.hparams.node_sampling,
                 )
                 for idx in range(self.hparams.n_ensembles)

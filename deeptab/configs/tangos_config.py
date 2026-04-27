@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
 import torch.nn as nn
+
 from .base_config import BaseConfig
 
 
@@ -34,4 +36,3 @@ class DefaultTangosConfig(BaseConfig):
     lamda1: float = 0.5
     lamda2: float = 0.1
     subsample: float = 0.5
-

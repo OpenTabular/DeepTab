@@ -1,8 +1,9 @@
-import torch.nn as nn
+import numpy as np
 import torch
+import torch.nn as nn
+
 from .layer_utils.embedding_layer import EmbeddingLayer
 from .layer_utils.importance import ImportanceGetter
-import numpy as np
 
 
 class Expander(nn.Module):  # Figure 3 part 3
@@ -29,7 +30,7 @@ class TromptCell(nn.Module):
         self.fe = ImportanceGetter(config.P, C, config.d_model)
         self.ex = Expander(config.P)
 
-    def forward(self, *data, O=None):
+    def forward(self, *data, O=None):  # noqa: E741
         x_res = self.ex(self.enc(*data))
 
         M = self.fe(O)

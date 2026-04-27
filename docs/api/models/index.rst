@@ -1,6 +1,6 @@
 .. -*- mode: rst -*-
 
-.. currentmodule:: mambular.models
+.. currentmodule:: deeptab.models
 
 Models
 ======

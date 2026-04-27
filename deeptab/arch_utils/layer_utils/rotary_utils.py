@@ -3,7 +3,7 @@
 import torch
 import torch.nn as nn
 from einops import rearrange
-from rotary_embedding_torch import RotaryEmbedding
+from rotary_embedding_torch import RotaryEmbedding  # type: ignore[import-untyped]
 
 
 class RotaryEmbeddingLayer(nn.Module):
@@ -104,4 +104,5 @@ class RotaryTransformerEncoder(nn.TransformerEncoder):
         )
 
     def forward(self, src, mask=None, src_key_padding_mask=None):  # type: ignore
+        return super().forward(src, mask, src_key_padding_mask)
         return super().forward(src, mask, src_key_padding_mask)

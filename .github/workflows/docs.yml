@@ -1,0 +1,74 @@
+name: Docs
+
+on:
+  workflow_dispatch:
+  pull_request:
+    # Only run on PRs that touch docs-related files to keep checks fast.
+    paths:
+      - "docs/**"
+      - "README.md"
+      - "pyproject.toml"
+      - "deeptab/**"
+  push:
+    # No paths filter here: tag pushes must always build docs regardless of
+    # which files changed in the tagged commit. Paths filters in GitHub Actions
+    # apply to both branches and tags under the same push: block, so a tag
+    # like v1.7.0 would be silently skipped if docs files weren't in that commit.
+    branches:
+      - main
+    tags:
+      - "v*"
+
+concurrency:
+  group: docs-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-docs:
+    name: Build docs (Sphinx)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-docs-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+
+      - name: Install package and docs dependencies
+        run: poetry install --with docs
+
+      - name: Build Sphinx docs
+        run: poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
+
+      # ── Triggered on push to main ──────────────────────────────────────────
+      # RTD listens to its own webhook and publishes "latest" automatically.
+      # The step below is informational; actual publishing is done by RTD.
+      - name: Notify latest/dev docs will be published
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: echo "Docs build succeeded. RTD will publish the 'latest' version."
+
+      # ── Triggered on a release tag ─────────────────────────────────────────
+      # RTD listens to tag pushes and publishes a versioned snapshot automatically
+      # when "Build tags" is enabled in the RTD project settings.
+      - name: Notify stable/versioned docs will be published
+        if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          echo "Docs build succeeded for tag ${TAG}. RTD will publish the '${TAG}' versioned docs."

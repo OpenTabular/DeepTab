@@ -21,6 +21,7 @@ class TabRRegressor(SklearnBaseRegressor):
         >>> model.evaluate(X_test, y_test)
         """,
     )
+
     def __init__(self, **kwargs):
         super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)
 
@@ -40,6 +41,7 @@ class TabRClassifier(SklearnBaseClassifier):
         >>> model.evaluate(X_test, y_test)
         """,
     )
+
     def __init__(self, **kwargs):
         super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)
 
@@ -59,5 +61,6 @@ class TabRLSS(SklearnBaseLSS):
         >>> model.evaluate(X_test, y_test)
         """,
     )
+
     def __init__(self, **kwargs):
         super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)

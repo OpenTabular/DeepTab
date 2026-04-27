@@ -1,0 +1,83 @@
+name: Publish to PyPI
+
+# Triggered when a maintainer pushes a stable release tag (e.g. v1.7.0).
+# RC tags (v1.7.0rc1) are handled by publish-testpypi.yml instead.
+#
+# Requires the "pypi-publish" GitHub Environment with tag-based protection.
+# Uses OIDC trusted publishing — no PYPI_TOKEN secret required.
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    environment: pypi-publish
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-publish-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --only main
+
+      - name: Check tag matches pyproject version
+        run: |
+          VERSION=$(python3 -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(d['tool']['poetry']['version'])")
+          TAG="${GITHUB_REF_NAME#v}"
+
+          echo "pyproject version: $VERSION"
+          echo "git tag version:   $TAG"
+
+          if [ "$VERSION" != "$TAG" ]; then
+            echo "❌ Tag version and pyproject.toml version do not match."
+            exit 1
+          fi
+
+      - name: Build package
+        run: poetry build
+
+      - name: Check package
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+
+      - name: Test wheel install
+        run: |
+          python -m venv /tmp/deeptab-wheel-test
+          source /tmp/deeptab-wheel-test/bin/activate
+          pip install dist/*.whl
+          python -c "import deeptab; print(deeptab.__version__)"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          prerelease: false
+          generate_release_notes: true
+          files: dist/*

@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..configs.tangos_config import DefaultTangosConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
@@ -9,7 +10,7 @@ from .utils.basemodel import BaseModel
 
 class Tangos(BaseModel):
     """
-    A Multi-Layer Perceptron (MLP) model with optional GLU activation, batch normalization, layer normalization, and dropout. 
+    A Multi-Layer Perceptron (MLP) model with optional GLU activation, batch normalization, layer normalization, and dropout.  # noqa: W505
     It includes a penalty term for specialization and orthogonality.
 
     Parameters
@@ -40,12 +41,13 @@ class Tangos(BaseModel):
     head : nn.Linear
         The final output layer.
     """
+
     def __init__(
         self,
         feature_information: tuple,
         num_classes=1,
-        config: DefaultTangosConfig = DefaultTangosConfig(),
-        **kwargs
+        config: DefaultTangosConfig = DefaultTangosConfig(),  # noqa: B008
+        **kwargs,
     ):
         super().__init__(config=config, **kwargs)
         self.save_hyperparameters(ignore=["feature_information"])
@@ -74,9 +76,7 @@ class Tangos(BaseModel):
 
         # Hidden layers
         for i in range(1, len(self.hparams.layer_sizes)):
-            self.layers.append(
-                nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i])
-            )
+            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i]))
             if self.hparams.batch_norm:
                 self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[i]))
             if self.hparams.layer_norm:
@@ -95,7 +95,7 @@ class Tangos(BaseModel):
         """
         Computes the forward pass for feature representations.
 
-        This method processes the input through the MLP layers, optionally using 
+        This method processes the input through the MLP layers, optionally using
         skip connections.
 
         Parameters
@@ -180,10 +180,10 @@ class Tangos(BaseModel):
 
         x = torch.cat([t for tensors in data for t in tensors], dim=1)
         batch_size = x.shape[0]
-        subsample = np.int32(self.subsample*batch_size)
+        subsample = np.int32(self.subsample * batch_size)
 
         # Flatten before passing to jacrev
-        flat_data = torch.cat([t for tensors in data for t in tensors], dim=1)      
+        flat_data = torch.cat([t for tensors in data for t in tensors], dim=1)
 
         # Compute Jacobian
         jacobian = torch.func.vmap(torch.func.jacrev(self.repr_forward), randomness="different")(flat_data)
@@ -201,23 +201,16 @@ class Tangos(BaseModel):
         orth_loss = torch.tensor(0.0, requires_grad=True).to(x.device)
         # apply subsampling routine for orthogonalization loss
         if self.subsample > 0 and self.subsample < h_dim * (h_dim - 1) / 2:
-            tensor_pairs = [
-                list(np.random.choice(h_dim, size=(2), replace=False))
-                for i in range(subsample)
-            ]
+            tensor_pairs = [list(np.random.choice(h_dim, size=(2), replace=False)) for i in range(subsample)]
             for tensor_pair in tensor_pairs:
-                pairwise_corr = cos(
-                    neuron_attr[tensor_pair[0], :, :], neuron_attr[tensor_pair[1], :, :]
-                ).norm(p=1)
+                pairwise_corr = cos(neuron_attr[tensor_pair[0], :, :], neuron_attr[tensor_pair[1], :, :]).norm(p=1)
                 orth_loss = orth_loss + pairwise_corr
 
             orth_loss = orth_loss / (batch_size * self.subsample)
         else:
             for neuron_i in range(1, h_dim):
                 for neuron_j in range(0, neuron_i):
-                    pairwise_corr = cos(
-                        neuron_attr[neuron_i, :, :], neuron_attr[neuron_j, :, :]
-                    ).norm(p=1)
+                    pairwise_corr = cos(neuron_attr[neuron_i, :, :], neuron_attr[neuron_j, :, :]).norm(p=1)
                     orth_loss = orth_loss + pairwise_corr
             num_pairs = h_dim * (h_dim - 1) / 2
             orth_loss = orth_loss / (batch_size * num_pairs)

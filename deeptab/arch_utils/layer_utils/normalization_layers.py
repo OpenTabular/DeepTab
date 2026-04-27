@@ -71,12 +71,12 @@ class BatchNorm(nn.Module):
             # Use unbiased=False for consistency with BatchNorm
             var = x.var(dim=0, unbiased=False)
             # Update running stats in-place
-            self.running_mean.mul_(1 - self.momentum).add_(self.momentum * mean)
-            self.running_var.mul_(1 - self.momentum).add_(self.momentum * var)
+            self.running_mean.mul_(1 - self.momentum).add_(self.momentum * mean)  # type: ignore[union-attr]
+            self.running_var.mul_(1 - self.momentum).add_(self.momentum * var)  # type: ignore[union-attr]
         else:
             mean = self.running_mean
             var = self.running_var
-        output = (x - mean) / torch.sqrt(var + self.eps)
+        output = (x - mean) / torch.sqrt(var + self.eps)  # type: ignore[operator]
         output = output * self.weight + self.bias
         return output
 

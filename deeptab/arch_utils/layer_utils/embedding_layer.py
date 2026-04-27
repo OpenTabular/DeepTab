@@ -22,12 +22,8 @@ class EmbeddingLayer(nn.Module):
         super().__init__()
 
         self.d_model = getattr(config, "d_model", 128)
-        self.embedding_activation = getattr(
-            config, "embedding_activation", nn.Identity()
-        )
-        self.layer_norm_after_embedding = getattr(
-            config, "layer_norm_after_embedding", False
-        )
+        self.embedding_activation = getattr(config, "embedding_activation", nn.Identity())
+        self.layer_norm_after_embedding = getattr(config, "layer_norm_after_embedding", False)
         self.embedding_projection = getattr(config, "embedding_projection", True)
         self.use_cls = getattr(config, "use_cls", False)
         self.cls_position = getattr(config, "cls_position", 0)
@@ -76,9 +72,7 @@ class EmbeddingLayer(nn.Module):
         # for splines and other embeddings
         # splines followed by linear if n_knots actual knots is less than the defined knots
         else:
-            raise ValueError(
-                "Invalid embedding_type. Choose from 'linear', 'ndt', or 'plr'."
-            )
+            raise ValueError("Invalid embedding_type. Choose from 'linear', 'ndt', or 'plr'.")
 
         self.cat_embeddings = nn.ModuleList(
             [
@@ -158,11 +152,7 @@ class EmbeddingLayer(nn.Module):
         # Process categorical embeddings
         if self.cat_embeddings and cat_features is not None:
             cat_embeddings = [
-                (
-                    emb(cat_features[i])
-                    if emb(cat_features[i]).ndim == 3
-                    else emb(cat_features[i]).unsqueeze(1)
-                )
+                (emb(cat_features[i]) if emb(cat_features[i]).ndim == 3 else emb(cat_features[i]).unsqueeze(1))
                 for i, emb in enumerate(self.cat_embeddings)
             ]
 
@@ -194,19 +184,14 @@ class EmbeddingLayer(nn.Module):
 
         if emb_features != []:
             if self.embedding_projection:
-                emb_embeddings = [
-                    emb(emb_features[i]) for i, emb in enumerate(self.emb_embeddings)
-                ]
+                emb_embeddings = [emb(emb_features[i]) for i, emb in enumerate(self.emb_embeddings)]
                 emb_embeddings = torch.stack(emb_embeddings, dim=1)
             else:
-
                 emb_embeddings = torch.stack(emb_features, dim=1)
             if self.layer_norm_after_embedding:
                 emb_embeddings = self.embedding_norm(emb_embeddings)
 
-        embeddings = [
-            e for e in [cat_embeddings, num_embeddings, emb_embeddings] if e is not None
-        ]
+        embeddings = [e for e in [cat_embeddings, num_embeddings, emb_embeddings] if e is not None]
 
         if embeddings:
             x = torch.cat(embeddings, dim=1) if len(embeddings) > 1 else embeddings[0]
@@ -221,26 +206,24 @@ class EmbeddingLayer(nn.Module):
             elif self.cls_position == 1:
                 x = torch.cat([x, cls_tokens], dim=1)  # type: ignore
             else:
-                raise ValueError(
-                    "Invalid cls_position value. It should be either 0 or 1."
-                )
+                raise ValueError("Invalid cls_position value. It should be either 0 or 1.")
 
         # Apply dropout to embeddings if specified in config
         if self.embedding_dropout is not None:
             x = self.embedding_dropout(x)
 
         return x
-    
-    def check_plr_embedding_compatibility(self, feature_info:tuple):
+
+    def check_plr_embedding_compatibility(self, feature_info: tuple):
         # List of incompatible preprocessing terms for PLR embedding
-        incompatible_terms = ['ple', 'one-hot', 'polynomial', 'splines', 'sigmoid', 'rbf']
-        
+        incompatible_terms = ["ple", "one-hot", "polynomial", "splines", "sigmoid", "rbf"]
+
         # Iterate through each dictionary in the tuple (data)
         for sub_dict in feature_info:
             # Iterate through each feature in the current dictionary
             for feature, properties in sub_dict.items():
-                preprocessing = properties.get('preprocessing', '')
-                
+                preprocessing = properties.get("preprocessing", "")
+
                 # Check for incompatible terms in the preprocessing string
                 for term in incompatible_terms:
                     if term in preprocessing:

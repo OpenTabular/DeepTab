@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
 import torch.nn as nn
+
 from ..arch_utils.transformer_utils import ReGLU
 from .base_config import BaseConfig
 

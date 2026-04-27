@@ -1,6 +1,7 @@
+import numpy as np
 import torch
 import torch.nn as nn
-import numpy as np
+
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.resnet_utils import ResidualBlock
 from ..configs.resnet_config import DefaultResNetConfig
@@ -71,9 +72,7 @@ class ResNet(BaseModel):
                 *feature_information,
                 config=config,
             )
-            input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
+            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
         else:
             input_dim = get_feature_dimensions(*feature_information)
 

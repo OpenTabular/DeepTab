@@ -1,5 +1,5 @@
-import torch.nn as nn
 import torch
+import torch.nn as nn
 
 
 class ImportanceGetter(nn.Module):  # Figure 3 part 1
@@ -16,7 +16,7 @@ class ImportanceGetter(nn.Module):  # Figure 3 part 1
         self.laynorm1 = nn.LayerNorm(self.d)
         self.laynorm2 = nn.LayerNorm(self.d)
 
-    def forward(self, O):
+    def forward(self, O):  # noqa: E741
         eprompt = self.pemb.unsqueeze(0).repeat(O.shape[0], 1, 1)
 
         dense_out = self.dense(torch.cat((self.laynorm1(eprompt), O), dim=-1))

@@ -1,3 +1,4 @@
+import numpy as np
 import torch.nn as nn
 
 from ..arch_utils.get_norm_fn import get_normalization_layer
@@ -6,7 +7,6 @@ from ..arch_utils.mlp_utils import MLPhead
 from ..arch_utils.transformer_utils import CustomTransformerEncoderLayer
 from ..configs.fttransformer_config import DefaultFTTransformerConfig
 from .utils.basemodel import BaseModel
-import numpy as np
 
 
 class FTTransformer(BaseModel):
@@ -100,7 +100,7 @@ class FTTransformer(BaseModel):
         Tensor
             The output predictions of the model.
         """
-        
+
         x = self.embedding_layer(*data)
 
         x = self.encoder(x)
