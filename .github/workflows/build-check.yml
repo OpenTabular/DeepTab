@@ -1,0 +1,61 @@
+name: Build & Check (dry run)
+
+# Manually triggered workflow to build, check, and smoke-test the package
+# without publishing anywhere. Use this to validate a release candidate
+# before cutting a tag or publishing to TestPyPI / PyPI.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-check:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-build-check-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry install --only main
+
+      - name: Build wheel and sdist
+        run: poetry build
+
+      - name: Check package (twine)
+        run: |
+          python -m pip install --upgrade twine
+          twine check dist/*
+
+      - name: Smoke-test wheel install
+        run: |
+          python -m venv /tmp/deeptab-wheel-test
+          source /tmp/deeptab-wheel-test/bin/activate
+          pip install dist/*.whl
+          python -c "import deeptab; print('version:', deeptab.__version__)"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
