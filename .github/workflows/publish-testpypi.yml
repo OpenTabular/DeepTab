@@ -84,3 +84,31 @@ jobs:
           prerelease: true
           generate_release_notes: true
           files: dist/*
+
+  smoke-test-testpypi:
+    name: Smoke-test install from TestPyPI
+    needs: publish-rc
+    runs-on: ubuntu-latest
+    permissions: {}
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install from TestPyPI (with retry)
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Installing deeptab==$VERSION from TestPyPI"
+          for i in 1 2 3 4 5; do
+            pip install \
+              --index-url https://test.pypi.org/simple/ \
+              --extra-index-url https://pypi.org/simple/ \
+              "deeptab==$VERSION" && break
+            echo "Attempt $i failed, retrying in 30s..."
+            sleep 30
+          done
+
+      - name: Import smoke test
+        run: python -c "import deeptab; print('version:', deeptab.__version__)"
