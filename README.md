@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./docs/images/logo/mamba_tabular.jpg" width="400"/>
+    <img src="./docs/images/logo/deeptab-v1.png" width="400"/>
 
 [![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)

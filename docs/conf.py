@@ -122,7 +122,7 @@ html_theme_options = {
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "images/logo/mamba_tabular.jpg"
+html_logo = "images/logo/deeptab-v1.png"
 
 # Override the Sphinx default title that appends `documentation`
 html_title = f"{project} {project_copyright}"
