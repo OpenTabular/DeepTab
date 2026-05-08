@@ -55,6 +55,7 @@ sphinx-rtd-theme = "2.0.0"
 readthedocs-sphinx-ext = "2.2.5"
 lxml-html-clean = "0.4.0"
 pydata-sphinx-theme = "0.15.2"
+sphinx-design = "*"
 
 
 [tool.poetry.urls]
