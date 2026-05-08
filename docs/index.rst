@@ -43,3 +43,4 @@
    developer_guide/contributing
    developer_guide/release
    developer_guide/model_promotion_policy
+   developer_guide/support_matrix
