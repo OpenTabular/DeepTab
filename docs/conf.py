@@ -48,6 +48,7 @@ extensions = [
     "myst_parser",
     "mdinclude",  # custom module
     "sphinx_rtd_theme",
+    "sphinxcontrib.mermaid",
     # "pydata_sphinx_theme",
     "sphinx_autodoc_typehints",
     "sphinx_design",
@@ -105,7 +106,7 @@ add_module_names = True
 show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
-pygments_style = "friendly"
+pygments_style = "github-light"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
@@ -120,8 +121,8 @@ html_theme_options = {
     "repository_url": "https://github.com/OpenTabular/DeepTab",
     "repository_branch": "main",
     "path_to_docs": "docs",
-    "use_edit_page_button": True,
-    "use_source_button": True,
+    "use_edit_page_button": False,
+    "use_source_button": False,
     "show_toc_level": 2,
     "navigation_with_keys": True,
     "show_prev_next": True,
