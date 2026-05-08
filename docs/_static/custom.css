@@ -1,0 +1,112 @@
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
+
+:root {
+  font-size: 90%; /* zoom-out: more content per page */
+  --pst-color-primary: #2563eb;
+  --pst-color-secondary: #7c3aed;
+  --pst-color-accent: #06b6d4;
+  --pst-color-link: #2563eb;
+  --pst-font-size-base: 1rem;
+  --code-font:
+    "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", "Consolas",
+    monospace;
+}
+
+html[data-theme="dark"] {
+  --pst-color-primary: #38bdf8;
+  --pst-color-secondary: #a78bfa;
+  --pst-color-accent: #22d3ee;
+  --pst-color-link: #38bdf8;
+}
+
+/* Dark mode: code block background and text */
+html[data-theme="dark"] div.highlight,
+html[data-theme="dark"] .highlight pre {
+  background: #1e2433;
+  color: #abb2bf;
+}
+
+html[data-theme="dark"] .highlight .k {
+  color: #c678dd;
+} /* keyword */
+html[data-theme="dark"] .highlight .s,
+html[data-theme="dark"] .highlight .s1,
+html[data-theme="dark"] .highlight .s2 {
+  color: #98c379;
+} /* string */
+html[data-theme="dark"] .highlight .c,
+html[data-theme="dark"] .highlight .c1 {
+  color: #5c6370;
+  font-style: italic;
+} /* comment */
+html[data-theme="dark"] .highlight .mi,
+html[data-theme="dark"] .highlight .mf {
+  color: #d19a66;
+} /* number */
+html[data-theme="dark"] .highlight .nf {
+  color: #61afef;
+} /* function name */
+html[data-theme="dark"] .highlight .nc {
+  color: #e5c07b;
+} /* class name */
+html[data-theme="dark"] .highlight .kn {
+  color: #c678dd;
+} /* import keyword */
+html[data-theme="dark"] .highlight .nn {
+  color: #e5c07b;
+} /* module name */
+
+.bd-main .bd-content .bd-article-container {
+  max-width: 900px;
+}
+
+.bd-sidebar-primary {
+  font-size: 0.92rem;
+}
+
+.sd-card {
+  border-radius: 14px;
+  box-shadow: none;
+  border: 1px solid var(--pst-color-border);
+}
+
+.sd-card:hover {
+  border-color: var(--pst-color-primary);
+  transform: translateY(-1px);
+  transition: all 0.15s ease-in-out;
+}
+
+.highlight pre {
+  border-radius: 12px;
+  font-family: var(--code-font);
+  font-size: 0.875rem;
+  line-height: 1.65;
+  padding: 1.1rem 1.25rem;
+  font-feature-settings:
+    "liga" 1,
+    "calt" 1;
+}
+
+/* Inline code */
+code.literal,
+p code,
+li code,
+td code {
+  font-family: var(--code-font);
+  font-size: 0.85em;
+  background: var(--pst-color-surface);
+  border: 1px solid var(--pst-color-border);
+  border-radius: 5px;
+  padding: 0.1em 0.4em;
+}
+
+/* sphinx-copybutton: align with rounded blocks */
+div.highlight {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.bd-header {
+  box-shadow: none;
+  border-bottom: 1px solid var(--pst-color-border);
+}
