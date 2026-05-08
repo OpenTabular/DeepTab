@@ -4247,6 +4247,26 @@ files = [
 test = ["flake8", "mypy", "pytest"]
 
 [[package]]
+name = "sphinxcontrib-mermaid"
+version = "2.0.2"
+description = "Mermaid diagrams in your Sphinx-powered docs"
+optional = false
+python-versions = ">=3.10"
+groups = ["docs"]
+files = [
+    {file = "sphinxcontrib_mermaid-2.0.2-py3-none-any.whl", hash = "sha256:d862e514991279fb4816302c5cfe167d2557bf3ce7125ae0cb47dac80a0f46ce"},
+    {file = "sphinxcontrib_mermaid-2.0.2.tar.gz", hash = "sha256:f09576c78ca93fa0e3034fd9c45aaffa7c44ab449de9c43b8b8d262afe52bc66"},
+]
+
+[package.dependencies]
+jinja2 = "*"
+pyyaml = "*"
+sphinx = "*"
+
+[package.extras]
+test = ["defusedxml", "myst-parser", "pytest", "ruff", "sphinx"]
+
+[[package]]
 name = "sphinxcontrib-qthelp"
 version = "2.0.0"
 description = "sphinxcontrib-qthelp is a sphinx extension which outputs QtHelp documents"
@@ -4868,4 +4888,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "568b7d95a8b6efd0f07df6fdd230e096b6772ec7cba02c3da0d0a1c647a32d46"
+content-hash = "83960ab51d000c28565beef5350b987f673689b24e033856dc43d50bdf4284ab"
