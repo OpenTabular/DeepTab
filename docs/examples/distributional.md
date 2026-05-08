@@ -57,3 +57,27 @@ The `family` argument controls which distribution parameters the model learns.
 For count data try `"poisson"`, for strictly positive targets try `"gamma"`.
 See the API reference for the full list of supported families.
 ```
+
+## Using your own data
+
+```python
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from deeptab.models import MambularLSS
+
+df = pd.read_csv("your_data.csv")
+X = df.drop(columns=["target"])
+y = df["target"].values
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = MambularLSS()
+model.fit(X_train, y_train, family="normal", max_epochs=50)
+print(model.evaluate(X_test, y_test))
+```
+
+## Next steps
+
+- [Key Concepts](../key_concepts) — understand the `LSS` task variant and available distribution families.
+- [Regression example](regression) — use a point-estimate regressor instead.
+- [API reference](../api/models/index) — full parameter documentation.

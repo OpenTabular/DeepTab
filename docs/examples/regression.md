@@ -58,3 +58,27 @@ print(metrics)
 Replace `MambularRegressor` with any other regressor from `deeptab.models`
 (e.g. `ResNetRegressor`, `FTTransformerRegressor`) without changing any other line.
 ```
+
+## Using your own data
+
+```python
+import pandas as pd
+from sklearn.model_selection import train_test_split
+from deeptab.models import MambularRegressor
+
+df = pd.read_csv("your_data.csv")
+X = df.drop(columns=["target"])
+y = df["target"].values
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+model = MambularRegressor()
+model.fit(X_train, y_train, max_epochs=50)
+print(model.evaluate(X_test, y_test))
+```
+
+## Next steps
+
+- [Key Concepts](../key_concepts) — learn how to tune hyperparameters via config objects.
+- [Distributional regression](distributional) — predict a full output distribution instead of a point estimate.
+- [API reference](../api/models/index) — full parameter documentation for all regressors.
