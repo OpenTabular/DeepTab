@@ -2,6 +2,43 @@
 
 The document outlines the steps to build and release the `deeptab` package. At this point, it is assumed that the development and testing of the package have been completed successfully.
 
+## Release workflow
+
+```{mermaid}
+%%{init: {'theme': 'base', 'themeVariables': {
+  'primaryColor': '#dbeafe',
+  'primaryTextColor': '#1e3a5f',
+  'primaryBorderColor': '#3b82f6',
+  'lineColor': '#6b7280',
+  'secondaryColor': '#ede9fe',
+  'tertiaryColor': '#f0fdf4',
+  'edgeLabelBackground': '#f9fafb'
+}}}%%
+flowchart TD
+    A[Create release/vX.Y.Z branch]:::setup --> B[Bump version]:::setup
+    B --> C[Update CHANGELOG.md]:::setup
+    C --> D[Commit & push branch]:::setup
+    D --> E[Open PR: release/vX.Y.Z → main]:::pr
+    E --> F{Review & approve}:::decision
+    F --> G[Merge PR into main]:::pr
+    G --> H[git checkout main && git pull]:::git
+    H --> I{Release type?}:::decision
+    I -->|RC| J["git tag vX.Y.ZrcN\ngit push origin vX.Y.ZrcN"]:::git
+    I -->|Stable| K["git tag vX.Y.Z\ngit push origin vX.Y.Z"]:::git
+    J --> L[CI: publish-testpypi.yml]:::ci
+    K --> M[CI: publish-pypi.yml]:::ci
+    L --> N[TestPyPI + GitHub pre-release]:::rc
+    M --> O[PyPI + GitHub Release]:::stable
+
+    classDef setup  fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef pr     fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
+    classDef decision fill:#fef9c3,stroke:#ca8a04,color:#713f12
+    classDef git    fill:#f0fdf4,stroke:#22c55e,color:#14532d
+    classDef ci     fill:#fff7ed,stroke:#f97316,color:#7c2d12
+    classDef rc     fill:#fdf4ff,stroke:#d946ef,color:#701a75
+    classDef stable fill:#ecfdf5,stroke:#10b981,color:#064e3b
+```
+
 ## 1. Test documentation
 
 It is expected from the contributor to update the documentation as an when required along side the change in source code. Please use the below process to test the documentation:
@@ -18,7 +55,9 @@ Fix any docstring related issue, then proceed with next steps.
 
 The package version is maintained in `pyproject.toml` only. The version is read at runtime via `importlib.metadata`.
 
-On a `release/vX.Y.Z` branch, run:
+On a `release/vX.Y.Z` branch:
+
+**For a stable release** — let `cz bump` derive the next version automatically from conventional commits:
 
 ```bash
 cz bump
@@ -31,7 +70,21 @@ This will:
 - Update `CHANGELOG.md`
 - Create a local commit `bump: version X.Y.Z-1 → X.Y.Z`
 
-The version number follows the format `major.minor.patch`. For example, `1.0.1`.
+**For a release candidate** — set the version explicitly (e.g. `1.7.0rc1`):
+
+```bash
+poetry version 1.7.0rc1
+poetry lock
+```
+
+Then update `CHANGELOG.md` manually and commit:
+
+```bash
+git add pyproject.toml poetry.lock CHANGELOG.md
+git commit -m "bump: version 1.6.1 → 1.7.0rc1"
+```
+
+The version number follows the format `major.minor.patch` for stable, or `major.minor.patchrcN` for release candidates.
 
 ## 3. Release PR
 
