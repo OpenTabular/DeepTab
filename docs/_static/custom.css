@@ -110,3 +110,10 @@ div.highlight {
   box-shadow: none;
   border-bottom: 1px solid var(--pst-color-border);
 }
+
+/* Page title (h1): visually similar to h2 to reduce dominance */
+.bd-article h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
