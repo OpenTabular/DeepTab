@@ -43,7 +43,7 @@ def classification_data():
     X = rng.standard_normal((N_SAMPLES, N_FEATURES))
     y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
     y = pd.qcut(y_cont, q=N_CLASSES, labels=False)
-    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(N_FEATURES)])
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
     return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
 
 
@@ -52,7 +52,7 @@ def regression_data():
     rng = np.random.default_rng(RANDOM_STATE)
     X = rng.standard_normal((N_SAMPLES, N_FEATURES))
     y = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
-    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(N_FEATURES)])
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
     return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
 
 
