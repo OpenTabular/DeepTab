@@ -1,7 +1,7 @@
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
 
 :root {
-  font-size: 90%; /* zoom-out: more content per page */
+  font-size: 95%; /* zoom-out: more content per page */
   --pst-color-primary: #2563eb;
   --pst-color-secondary: #7c3aed;
   --pst-color-accent: #06b6d4;
