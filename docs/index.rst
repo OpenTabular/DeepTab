@@ -40,5 +40,6 @@
    :caption: Developer Guide
    :maxdepth: 1
 
-   contributing
-   release
+   developer_guide/contributing
+   developer_guide/release
+   developer_guide/model_promotion_policy
