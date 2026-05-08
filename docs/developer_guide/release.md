@@ -7,7 +7,7 @@ The document outlines the steps to build and release the `deeptab` package. At t
 It is expected from the contributor to update the documentation as an when required along side the change in source code. Please use the below process to test the documentation:
 
 ```sh
-cd deeptab/docs/
+cd docs/
 
 make doctest
 ```

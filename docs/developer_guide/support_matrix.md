@@ -34,7 +34,7 @@ The table below shows the range of versions supported by the package metadata (`
 
 | Package                                              | Minimum | Upper bound | Notes                                                      |
 | ---------------------------------------------------- | ------- | ----------- | ---------------------------------------------------------- |
-| [PyTorch](https://pytorch.org/)                      | 2.2.2   | 2.7.0       | Pinned range; update when a new PyTorch stable is released |
+| [PyTorch](https://pytorch.org/)                      | 2.2.2   | < 2.8.0     | Pinned range; update when a new PyTorch stable is released |
 | [Lightning](https://lightning.ai/)                   | 2.3.3   | < 3.0       |                                                            |
 | [NumPy](https://numpy.org/)                          | 2.0.0   | < 3.0       | NumPy 1.x is **not** supported                             |
 | [pandas](https://pandas.pydata.org/)                 | 2.0.3   | < 3.0       |                                                            |
