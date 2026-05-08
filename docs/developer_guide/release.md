@@ -39,6 +39,8 @@ The version number follows the format `major.minor.patch`. For example, `1.0.1`.
 - After review and approval, merge the PR
 - **Merging to `main` does NOT trigger a PyPI release**
 
+> **Promoting a model from experimental to stable?** Verify the [Model Promotion Policy](model_promotion_policy.md) checklist is complete before merging a release PR that includes a promotion.
+
 ## 4. Create and push the Git tag
 
 After the release PR is merged, the maintainer creates the release tag:
