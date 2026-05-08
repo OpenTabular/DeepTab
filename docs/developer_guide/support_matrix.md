@@ -6,15 +6,15 @@ This page lists the officially supported versions of Python and core dependencie
 
 ## Python
 
-| Version | Status         |
-| ------- | -------------- |
-| 3.10    | Supported      |
-| 3.11    | Supported      |
-| 3.12    | Supported      |
-| 3.13    | Supported      |
-| 3.14    | Supported      |
-| < 3.10  | Not supported  |
-| 3.15+   | Not yet tested |
+| Version | Status                                                                                                                                  |
+| ------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| 3.10    | Supported                                                                                                                               |
+| 3.11    | Supported                                                                                                                               |
+| 3.12    | Supported                                                                                                                               |
+| 3.13    | Supported                                                                                                                               |
+| 3.14    | Experimental — tracked in CI, not yet blocking. `scipy` wheels not available; see [scipy#22000](https://github.com/scipy/scipy/issues). |
+| < 3.10  | Not supported                                                                                                                           |
+| 3.15+   | Not yet tested                                                                                                                          |
 
 ---
 
