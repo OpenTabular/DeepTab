@@ -235,15 +235,30 @@ This project uses conventional commits and intentional, maintainer-controlled re
      git push origin vX.Y.Z
      ```
    - This tag push triggers `publish-pypi.yml` → builds and publishes to PyPI + creates GitHub Release
-   - For RC tags (`vX.Y.Zrc1`), push triggers `publish-testpypi.yml` → publishes to TestPyPI instead
+   - For RC tags (`vX.Y.Zrc1`), push triggers `publish-testpypi.yml` → publishes to TestPyPI, then a second `smoke-test-testpypi` job installs the exact RC from TestPyPI in a clean environment and runs an import smoke test to confirm the uploaded package is installable from the index
+
+### Validating a Build Without Publishing
+
+Before cutting a tag or publishing anywhere, you can trigger a full dry-run build via the **Build & Check** workflow:
+
+1. Go to **Actions → Build & Check (dry run)** in the GitHub repository.
+2. Click **Run workflow** and select the branch to validate.
+3. The workflow will:
+   - Build both wheel and sdist with Poetry
+   - Run `twine check` on both artifacts
+   - Install the wheel in a fresh virtual environment and run an import smoke test
+   - Upload the `dist/` folder as a downloadable artifact (retained for 7 days)
+
+This is the recommended step before opening a release PR or pushing an RC tag.
 
 ### What Triggers a Release?
 
-| Event                         | Result                                |
-| ----------------------------- | ------------------------------------- |
-| Push to `main`                | CI tests only                         |
-| Maintainer pushes `v*` tag    | PyPI publish + GitHub Release         |
-| Maintainer pushes `v*rc*` tag | PyPI pre-release + GitHub pre-release |
+| Event                         | Result                                                              |
+| ----------------------------- | ------------------------------------------------------------------- |
+| `workflow_dispatch`           | Dry-run build + twine check + smoke test (no publish)               |
+| Push to `main`                | CI tests only                                                       |
+| Maintainer pushes `v*rc*` tag | TestPyPI publish + GitHub pre-release + TestPyPI install smoke test |
+| Maintainer pushes `v*` tag    | PyPI publish + GitHub Release                                       |
 
 ### Commit Types and Their Effect on Version
 

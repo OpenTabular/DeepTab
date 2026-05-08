@@ -1,0 +1,35 @@
+# DeepTab
+
+> DeepTab is a Python library for tabular deep learning built on PyTorch and Lightning.
+> It provides a unified scikit-learn-compatible API for a wide range of deep learning
+> architectures for tabular data, including MLP, ResNet, FT-Transformer, Mambular,
+> TabTransformer, SAINT, NODE, TabM, TabR, AutoInt, and more.
+
+## Getting started
+
+- Overview: https://deeptab.readthedocs.io/en/stable/overview.html
+- Installation: https://deeptab.readthedocs.io/en/stable/installation.html
+- Key concepts: https://deeptab.readthedocs.io/en/stable/key_concepts.html
+- Classification example: https://deeptab.readthedocs.io/en/stable/examples/classification.html
+- Regression example: https://deeptab.readthedocs.io/en/stable/examples/regression.html
+- Distributional regression example: https://deeptab.readthedocs.io/en/stable/examples/distributional.html
+
+## API reference
+
+- Models: https://deeptab.readthedocs.io/en/stable/api/models/index.html
+- Base models: https://deeptab.readthedocs.io/en/stable/api/base_models/index.html
+- Configs: https://deeptab.readthedocs.io/en/stable/api/configs/index.html
+- Data utilities: https://deeptab.readthedocs.io/en/stable/api/data_utils/index.html
+
+## Developer guide
+
+- Contributing: https://deeptab.readthedocs.io/en/stable/developer_guide/contributing.html
+- Build and release: https://deeptab.readthedocs.io/en/stable/developer_guide/release.html
+- Model promotion policy: https://deeptab.readthedocs.io/en/stable/developer_guide/model_promotion_policy.html
+- Support matrix: https://deeptab.readthedocs.io/en/stable/developer_guide/support_matrix.html
+
+## Project links
+
+- Source: https://github.com/OpenTabular/DeepTab
+- PyPI: https://pypi.org/project/deeptab/
+- Issue tracker: https://github.com/OpenTabular/DeepTab/issues

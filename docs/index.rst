@@ -11,7 +11,9 @@
    :maxdepth: 2
    :hidden:
 
+   overview
    installation
+   key_concepts
 
 .. toctree::
    :name: Examples
@@ -39,6 +41,9 @@
    :name: Developer Guide
    :caption: Developer Guide
    :maxdepth: 1
+   :hidden:
 
-   contributing
-   release
+   developer_guide/contributing
+   developer_guide/release
+   developer_guide/model_promotion_policy
+   developer_guide/support_matrix

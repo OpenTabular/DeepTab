@@ -1,23 +1,50 @@
 # Installation
 
-Please follow the steps below for installing `deeptab`.
+## Prerequisites
 
-## Install from the source:
+- Python 3.10 – 3.14
+- [pip](https://pip.pypa.io/) or [poetry](https://python-poetry.org/)
+- A working PyTorch installation (CPU or CUDA). See the [support matrix](developer_guide/support_matrix) for tested versions.
+
+## Install from PyPI
 
 ```bash
-cd deeptab
+pip install deeptab
+```
 
+Verify the installation:
+
+```python
+import deeptab
+print(deeptab.__version__)
+```
+
+## Install from source
+
+For development or to use unreleased features:
+
+```bash
+git clone https://github.com/OpenTabular/DeepTab
+cd DeepTab
 poetry install
 ```
 
-Note: Make sure you in the same directory where `pyproject.toml` file resides.
+See [Contributing](developer_guide/contributing) for the full development setup.
 
-## Installation from PyPi:
+## Optional: Mamba CUDA kernels
 
-The package is available on PyPi. You can install it using the following command:
+The default DeepTab Mamba implementation runs on any hardware. If you want the original optimised CUDA kernels (requires a compatible GPU and CUDA toolkit):
 
 ```bash
-pip install -U deeptab
+pip install mamba-ssm
 ```
 
-PyPi link: [deeptab](https://pypi.org/project/deeptab/)
+## GPU setup
+
+If you need a specific PyTorch + CUDA combination, install PyTorch first following the [official selector](https://pytorch.org/get-started/locally/), then install DeepTab:
+
+```bash
+# Example: CUDA 11.8
+pip install torch --index-url https://download.pytorch.org/whl/cu118
+pip install deeptab
+```

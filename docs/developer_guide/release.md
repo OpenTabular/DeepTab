@@ -7,7 +7,7 @@ The document outlines the steps to build and release the `deeptab` package. At t
 It is expected from the contributor to update the documentation as an when required along side the change in source code. Please use the below process to test the documentation:
 
 ```sh
-cd deeptab/docs/
+cd docs/
 
 make doctest
 ```
@@ -38,6 +38,8 @@ The version number follows the format `major.minor.patch`. For example, `1.0.1`.
 - Open a PR from `release/vX.Y.Z` to `main`
 - After review and approval, merge the PR
 - **Merging to `main` does NOT trigger a PyPI release**
+
+> **Promoting a model from experimental to stable?** Verify the [Model Promotion Policy](model_promotion_policy.md) checklist is complete before merging a release PR that includes a promotion.
 
 ## 4. Create and push the Git tag
 
