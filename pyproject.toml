@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "deeptab"
 
-version = "1.6.1"
+version = "1.7.0rc1"
 
 
 description = "A python package for tabular deep learning."
@@ -56,6 +56,7 @@ readthedocs-sphinx-ext = "2.2.5"
 lxml-html-clean = "0.4.0"
 pydata-sphinx-theme = "0.15.2"
 sphinx-design = "*"
+sphinxcontrib-mermaid = "*"
 
 
 [tool.poetry.urls]
