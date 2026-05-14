@@ -77,7 +77,7 @@ class TaskModel(pl.LightningModule):
             else:
                 self.loss_fct = nn.MSELoss()
 
-        self.save_hyperparameters(ignore=["model_class", "loss_fn"])
+        self.save_hyperparameters(ignore=["model_class", "loss_fn", "family"])
 
         self.lr = self.hparams.get("lr", config.lr)
         self.lr_patience = self.hparams.get("lr_patience", config.lr_patience)
