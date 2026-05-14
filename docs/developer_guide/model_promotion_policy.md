@@ -54,16 +54,20 @@ No open GitHub issues labelled `bug` for the model may describe a failure in a c
 
 ### 7. Registry
 
-A config class must exist in `deeptab/configs/` and be exported from `deeptab/configs/__init__.py`. The model must be exported from `deeptab/models/__init__.py` and listed in `deeptab/utils/config_mapper.py`.
+A config class must exist in `deeptab/configs/` and be exported from `deeptab/configs/__init__.py`. The model must be exported from `deeptab/models/experimental/__init__.py` while experimental, or from `deeptab/models/__init__.py` once stable, and listed in `deeptab/utils/config_mapper.py`. The `MODEL_REGISTRY` in `deeptab/models/_registry.py` must contain an entry with the correct `status` and `import_path`.
 
 ## Promotion PR
 
 Open a PR titled `feat(<model-name>): promote to stable`. The PR must:
 
-1. Remove any `.. experimental::` admonition from the model's doc page.
-2. Remove any `ExperimentalWarning` raised in `__init__` or `fit`.
-3. Remove the experimental badge from the API reference entry.
-4. Add the model to the changelog under `### Promoted to Stable`.
+1. Move the model file from `deeptab/models/experimental/` to `deeptab/models/` using `git mv`.
+2. Update relative imports in the moved file (reduce one `..` level).
+3. Remove the model from `deeptab/models/experimental/__init__.py` and its `__all__`.
+4. Add the model to `deeptab/models/__init__.py` imports and `__all__`.
+5. Update `MODEL_REGISTRY` in `deeptab/models/_registry.py`: change `status` to `"stable"` and `import_path` to `"deeptab.models"`.
+6. Remove any `.. experimental::` admonition from the model's doc page.
+7. Remove the experimental badge from the API reference entry.
+8. Add the model to the changelog under `### Promoted to Stable`.
 
 Approval requires at least one maintainer review beyond the author. Use the promotion checklist in the PR template to track each requirement.
 
