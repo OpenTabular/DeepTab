@@ -163,5 +163,26 @@ Modules                                     Description
 
 .. toctree::
    :maxdepth: 1
+   :caption: Stable Models
+
+   mlp
+   resnet
+   fttransformer
+   tabtransformer
+   saint
+   tabm
+   tabr
+   node
+   ndtf
+   tabularrnn
+   mambular
+   mambatab
+   mambattention
+   enode
+   autoint
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Full API Reference
 
    Models
