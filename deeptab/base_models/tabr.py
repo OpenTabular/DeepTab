@@ -21,10 +21,11 @@ class TabR(BaseModel):
         self,
         feature_information: tuple,
         num_classes=1,
+        lss: bool = False,
         config: DefaultTabRConfig = DefaultTabRConfig(),  # noqa: B008
         **kwargs,
     ):
-        super().__init__(config=config, **kwargs)
+        super().__init__(config=config, lss=lss, **kwargs)
         self.save_hyperparameters(ignore=["feature_information"])
 
         # lazy import
@@ -94,7 +95,7 @@ class TabR(BaseModel):
         delu = TabR.delu
         self.label_encoder = (
             nn.Linear(1, d_main)
-            if num_classes == 1
+            if num_classes == 1 or lss
             else nn.Sequential(
                 nn.Embedding(num_classes, d_main),
                 # gives depreciation warning
@@ -278,9 +279,9 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
-        else:  # for regression
+        else:  # for regression or LSS
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
@@ -352,7 +353,7 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
@@ -425,7 +426,7 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])

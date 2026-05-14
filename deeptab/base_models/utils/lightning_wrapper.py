@@ -93,6 +93,7 @@ class TaskModel(pl.LightningModule):
             config=config,
             feature_information=feature_information,
             num_classes=output_dim,
+            lss=lss,
             **kwargs,
         )
 
