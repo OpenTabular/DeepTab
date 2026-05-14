@@ -96,7 +96,10 @@ class TabTransformer(BaseModel):
         mlp_input_dim = 0
         for feature_name, info in num_feature_info.items():
             mlp_input_dim += info["dimension"]
+        num_input_dim = mlp_input_dim  # save before adding d_model
         mlp_input_dim += self.hparams.d_model
+
+        self.num_norm = nn.LayerNorm(num_input_dim)
 
         self.tabular_head = MLPhead(
             input_dim=mlp_input_dim,
@@ -125,13 +128,13 @@ class TabTransformer(BaseModel):
         cat_embeddings = self.embedding_layer(*(None, cat_features, emb_features))
 
         num_features = torch.cat(num_features, dim=1)
-        num_embeddings = self.norm_f(num_features)  # type: ignore
+        num_features = self.num_norm(num_features)
 
         x = self.encoder(cat_embeddings)
 
         x = self.pool_sequence(x)
 
-        x = torch.cat((x, num_embeddings), axis=1)  # type: ignore
+        x = torch.cat((x, num_features), axis=1)  # type: ignore
         preds = self.tabular_head(x)
 
         return preds
