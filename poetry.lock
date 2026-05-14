@@ -781,6 +781,22 @@ files = [
 ]
 
 [[package]]
+name = "delu"
+version = "0.0.26"
+description = "Deep Learning Utilities for PyTorch users."
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "delu-0.0.26-py3-none-any.whl", hash = "sha256:b074f0ad5664b80d70096ead0bd6c69133a9ff883a0f7b341b7570619c91870b"},
+    {file = "delu-0.0.26.tar.gz", hash = "sha256:460fb6e1bb8b8fcc5639337486c3d32752820147be7442f1d52bbf93beb919a4"},
+]
+
+[package.dependencies]
+numpy = ">=1.21,<3"
+torch = ">=1.9,<3"
+
+[[package]]
 name = "distlib"
 version = "0.3.9"
 description = "Distribution utilities"
@@ -4888,4 +4904,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "83960ab51d000c28565beef5350b987f673689b24e033856dc43d50bdf4284ab"
+content-hash = "5bcf8e13789e6e6d6b90091278c75c9d553920aacc6d55db64c7a8dc455603ff"
