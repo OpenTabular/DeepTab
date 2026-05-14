@@ -47,7 +47,7 @@ jobs:
 
       - name: Check tag matches pyproject version
         run: |
-          VERSION=$(python3 -c "import tomllib; d=tomllib.load(open('pyproject.toml','rb')); print(d['tool']['poetry']['version'])")
+          VERSION=$(poetry version --short)
           TAG="${GITHUB_REF_NAME#v}"
 
           echo "pyproject version: $VERSION"
