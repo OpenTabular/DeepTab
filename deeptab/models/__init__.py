@@ -1,3 +1,6 @@
+import importlib
+import warnings
+
 from .autoint import AutoIntClassifier, AutoIntLSS, AutoIntRegressor
 from .enode import ENODELSS, ENODEClassifier, ENODERegressor
 from .fttransformer import (
@@ -79,3 +82,32 @@ __all__ = [
     "TabulaRNNLSS",
     "TabulaRNNRegressor",
 ]
+
+# ---------------------------------------------------------------------------
+# Backwards-compatibility shim for experimental models
+# ---------------------------------------------------------------------------
+
+_EXPERIMENTAL_COMPAT: dict[str, str] = {
+    "ModernNCAClassifier": "deeptab.models.experimental",
+    "ModernNCALSS": "deeptab.models.experimental",
+    "ModernNCARegressor": "deeptab.models.experimental",
+    "TangosClassifier": "deeptab.models.experimental",
+    "TangosLSS": "deeptab.models.experimental",
+    "TangosRegressor": "deeptab.models.experimental",
+    "TromptClassifier": "deeptab.models.experimental",
+    "TromptLSS": "deeptab.models.experimental",
+    "TromptRegressor": "deeptab.models.experimental",
+}
+
+
+def __getattr__(name: str):
+    if name in _EXPERIMENTAL_COMPAT:
+        new_path = _EXPERIMENTAL_COMPAT[name]
+        warnings.warn(
+            f"{name!r} has moved to '{new_path}'. Update your import: from {new_path} import {name}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        mod = importlib.import_module(new_path)
+        return getattr(mod, name)
+    raise AttributeError(f"module 'deeptab.models' has no attribute {name!r}")

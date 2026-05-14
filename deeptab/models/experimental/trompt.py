@@ -15,7 +15,7 @@ class TromptRegressor(SklearnBaseRegressor):
         configuration.
         """,
         examples="""
-        >>> from deeptab.models import TromptRegressor
+        >>> from deeptab.models.experimental import TromptRegressor
         >>> model = TromptRegressor(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
@@ -33,7 +33,7 @@ class TromptClassifier(SklearnBaseClassifier):
         """Trompt Classifier. This class extends the SklearnBaseClassifier class
         and uses the Trompt model with the default Trompt configuration.""",
         examples="""
-        >>> from deeptab.models import TromptClassifier
+        >>> from deeptab.models.experimental import TromptClassifier
         >>> model = TromptClassifier(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
@@ -52,7 +52,7 @@ class TromptLSS(SklearnBaseLSS):
         This class extends the SklearnBaseLSS class and uses the
         Trompt model with the default Trompt configuration.""",
         examples="""
-        >>> from deeptab.models import TromptLSS
+        >>> from deeptab.models.experimental import TromptLSS
         >>> model = TromptLSS(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train, family="normal")
         >>> preds = model.predict(X_test)

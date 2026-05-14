@@ -158,3 +158,42 @@ def test_registry_experimental_import_paths():
             assert info.import_path == "deeptab.models.experimental", (
                 f"{name}: expected 'deeptab.models.experimental', got {info.import_path!r}"
             )
+
+
+# ---------------------------------------------------------------------------
+# Deprecation warnings
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("class_name", EXPERIMENTAL_CLASSES)
+def test_experimental_via_stable_emits_deprecation(class_name: str):
+    """Accessing an experimental class via deeptab.models emits DeprecationWarning."""
+    import deeptab.models as m
+
+    with pytest.warns(DeprecationWarning, match=class_name):
+        cls = getattr(m, class_name)
+    assert cls is not None
+
+
+@pytest.mark.parametrize("class_name", EXPERIMENTAL_CLASSES)
+def test_deprecation_message_contains_new_path(class_name: str):
+    """Deprecation warning message includes the correct new import path."""
+    import warnings
+
+    import deeptab.models as m
+
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        getattr(m, class_name)
+
+    assert any("deeptab.models.experimental" in str(w.message) for w in caught), (
+        f"Expected new path in deprecation message for {class_name!r}"
+    )
+
+
+def test_unknown_attribute_raises():
+    """Accessing a truly unknown attribute on deeptab.models still raises AttributeError."""
+    import deeptab.models as m
+
+    with pytest.raises(AttributeError):
+        _ = m.ThisDoesNotExist

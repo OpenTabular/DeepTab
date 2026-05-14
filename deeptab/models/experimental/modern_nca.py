@@ -14,7 +14,7 @@ class ModernNCARegressor(SklearnBaseRegressor):
         with the default ModernNCA configuration.
         """,
         examples="""
-        >>> from deeptab.models import ModernNCARegressor
+        >>> from deeptab.models.experimental import ModernNCARegressor
         >>> model = ModernNCARegressor(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
@@ -34,7 +34,7 @@ class ModernNCAClassifier(SklearnBaseClassifier):
         with the default ModernNCA configuration.
         """,
         examples="""
-        >>> from deeptab.models import ModernNCAClassifier
+        >>> from deeptab.models.experimental import ModernNCAClassifier
         >>> model = ModernNCAClassifier(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
@@ -54,7 +54,7 @@ class ModernNCALSS(SklearnBaseLSS):
         with the default ModernNCA configuration.
         """,
         examples="""
-        >>> from deeptab.models import ModernNCALSS
+        >>> from deeptab.models.experimental import ModernNCALSS
         >>> model = ModernNCALSS(d_model=64, n_layers=8)
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
