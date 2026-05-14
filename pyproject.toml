@@ -71,6 +71,18 @@ package = "https://pypi.org/project/deeptab/"
 # test configuration
 [tool.pytest.ini_options]
 pythonpath = ["."]
+filterwarnings = [
+  # Lightning trainer noise (dataloader workers, log interval, checkpoint dir, tensorboard)
+  "ignore::UserWarning:lightning",
+  # PyTorch transformer / RNN config warnings
+  "ignore::UserWarning:torch",
+  # properscoring invalid escape sequences
+  "ignore::DeprecationWarning:properscoring",
+  # faiss SwigPy builtin type warnings (emitted during import)
+  "ignore::DeprecationWarning:importlib",
+  # delu.nn.Lambda custom-function deprecation
+  "ignore::DeprecationWarning:delu",
+]
 
 # code quality tools
 [tool.pyright]
