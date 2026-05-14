@@ -9,6 +9,45 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ---
 
+## v1.7.0 (2026-05-14)
+
+### Documentation
+
+- Added **Developer Guide** section with dedicated pages for contributing, the release process, model promotion policy (experimental → stable), and a SPEC 0–aligned support matrix
+- Added **Getting Started** section: new Overview page with full model reference table, Installation guide (prerequisites, PyPI, source, optional Mamba CUDA kernels), and Key Concepts page covering the sklearn API, task variants, config system, and preprocessing
+- Rewrote all three example pages (classification, regression, distributional regression) as narrative tutorials with runnable code and "using your own data" sections
+- Added `llms.txt` index for LLM tool discovery
+- Switched to `sphinx_design` for cards and grid layouts; added custom CSS with JetBrains Mono font and brand colour palette
+- Added `pygments_style = "friendly"` and dark-mode code block colours via CSS
+- Updated release workflow documentation; fixed Mermaid diagram node line breaks
+
+### CI
+
+- Dropped Python 3.14 from the test matrix (`scipy` wheels are not yet available); ceiling reverted to `<3.14` in `pyproject.toml`
+- Fixed `torch` upper bound from `<=2.7.0` to `<2.8.0` to allow patch releases
+- Replaced `tomllib` with `poetry version --short` for Python 3.10 compatibility in CI scripts
+- Added Lightning log filtering to reduce test output noise
+- Regenerated `poetry.lock` after dependency constraint changes
+
+### Bug Fixes
+
+- Fixed Pyright type errors in test fixtures (DataFrame construction and unused variable bindings)
+
+---
+
+## v1.7.0rc2 (2026-05-09)
+
+### Documentation
+
+- Updated and fixed release workflow documentation
+- Applied doc theme and header size style refinements
+
+### CI
+
+- Fixed `tomllib` usage replaced with `poetry version --short` for Python 3.10 compatibility
+
+---
+
 ## v1.7.0rc1 (2026-05-08)
 
 ### Documentation
