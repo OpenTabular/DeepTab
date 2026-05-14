@@ -1,10 +1,12 @@
 """
 End-to-end behavioural tests for the sklearn-compatible model API.
 
-Tests cover fit → predict → evaluate for a representative subset of models
-(MLP, ResNet, FTTransformer, Mambular) across all three task variants
-(Classifier, Regressor, LSS).  A small synthetic dataset keeps CI fast.
+Tests cover fit → predict → evaluate for all 15 stable models across all
+three task variants (Classifier, Regressor, LSS).  A small synthetic dataset
+keeps CI fast.
 """
+
+import platform
 
 import numpy as np
 import pandas as pd
@@ -12,18 +14,57 @@ import pytest
 from sklearn.model_selection import train_test_split
 
 from deeptab.models import (
+    ENODELSS,
     MLPLSS,
+    NDTFLSS,
+    NODELSS,
+    SAINTLSS,
+    AutoIntClassifier,
+    AutoIntLSS,
+    AutoIntRegressor,
+    ENODEClassifier,
+    ENODERegressor,
     FTTransformerClassifier,
     FTTransformerLSS,
     FTTransformerRegressor,
+    MambaTabClassifier,
+    MambaTabLSS,
+    MambaTabRegressor,
+    MambAttentionClassifier,
+    MambAttentionLSS,
+    MambAttentionRegressor,
     MambularClassifier,
     MambularLSS,
     MambularRegressor,
     MLPClassifier,
     MLPRegressor,
+    NDTFClassifier,
+    NDTFRegressor,
+    NODEClassifier,
+    NODERegressor,
     ResNetClassifier,
     ResNetLSS,
     ResNetRegressor,
+    SAINTClassifier,
+    SAINTRegressor,
+    TabMClassifier,
+    TabMLSS,
+    TabMRegressor,
+    TabRClassifier,
+    TabRLSS,
+    TabRRegressor,
+    TabTransformerClassifier,
+    TabTransformerLSS,
+    TabTransformerRegressor,
+    TabulaRNNClassifier,
+    TabulaRNNLSS,
+    TabulaRNNRegressor,
+)
+
+_macos_arm64 = platform.system() == "Darwin" and platform.machine() == "arm64"
+_skip_tabr = pytest.mark.skipif(
+    _macos_arm64,
+    reason="faiss-cpu from PyPI segfaults on macOS arm64; install via conda for TabR support",
 )
 
 # ---------------------------------------------------------------------------
@@ -56,6 +97,29 @@ def regression_data():
     return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
 
 
+@pytest.fixture(scope="module")
+def classification_data_with_cat():
+    """Fixture with one categorical column — required by TabTransformer."""
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = pd.qcut(y_cont, q=N_CLASSES, labels=False)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    df["cat_col"] = rng.choice(["A", "B", "C"], size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def regression_data_with_cat():
+    """Fixture with one categorical column — required by TabTransformer."""
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    df["cat_col"] = rng.choice(["A", "B", "C"], size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
 # ---------------------------------------------------------------------------
 # Classifier tests
 # ---------------------------------------------------------------------------
@@ -65,6 +129,16 @@ CLASSIFIERS = [
     ResNetClassifier,
     FTTransformerClassifier,
     MambularClassifier,
+    TabMClassifier,
+    pytest.param(TabRClassifier, marks=_skip_tabr),
+    NODEClassifier,
+    NDTFClassifier,
+    SAINTClassifier,
+    AutoIntClassifier,
+    MambaTabClassifier,
+    MambAttentionClassifier,
+    TabulaRNNClassifier,
+    ENODEClassifier,
 ]
 
 
@@ -115,6 +189,16 @@ REGRESSORS = [
     ResNetRegressor,
     FTTransformerRegressor,
     MambularRegressor,
+    TabMRegressor,
+    pytest.param(TabRRegressor, marks=_skip_tabr),
+    NODERegressor,
+    NDTFRegressor,
+    SAINTRegressor,
+    AutoIntRegressor,
+    MambaTabRegressor,
+    MambAttentionRegressor,
+    TabulaRNNRegressor,
+    ENODERegressor,
 ]
 
 
@@ -149,6 +233,16 @@ LSS_MODELS = [
     ResNetLSS,
     FTTransformerLSS,
     MambularLSS,
+    TabMLSS,
+    pytest.param(TabRLSS, marks=_skip_tabr),
+    NODELSS,
+    NDTFLSS,
+    SAINTLSS,
+    AutoIntLSS,
+    MambaTabLSS,
+    MambAttentionLSS,
+    TabulaRNNLSS,
+    ENODELSS,
 ]
 
 
@@ -173,3 +267,57 @@ def test_lss_evaluate_returns_dict(cls, regression_data):
     metrics = model.evaluate(X_test, y_test)
     assert isinstance(metrics, dict), f"{cls.__name__}.evaluate should return a dict"
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
+
+
+# ---------------------------------------------------------------------------
+# Config serialisation round-trip (Requirement 5)
+# ---------------------------------------------------------------------------
+
+ALL_ESTIMATOR_CLASSES = (
+    CLASSIFIERS + REGRESSORS + LSS_MODELS + [TabTransformerClassifier, TabTransformerRegressor, TabTransformerLSS]
+)
+
+
+@pytest.mark.parametrize("cls", ALL_ESTIMATOR_CLASSES)
+def test_config_serialisation_roundtrip(cls):
+    """get_params() → construct new instance → config values survive."""
+    model = cls()
+    params = model.get_params()
+
+    # Constructing a second instance with the same params must not raise.
+    model2 = cls(**params)
+
+    # All config kwargs must round-trip exactly.
+    for key, value in model.config_kwargs.items():
+        assert getattr(model2.config, key, object()) == value, (
+            f"{cls.__name__}: config.{key}={value!r} did not survive get_params round-trip"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TabTransformer — requires at least one categorical feature
+# ---------------------------------------------------------------------------
+
+TAB_TRANSFORMER_MODELS = [
+    (TabTransformerClassifier, "classification"),
+    (TabTransformerRegressor, "regression"),
+    (TabTransformerLSS, "lss"),
+]
+
+
+@pytest.mark.parametrize("cls,task", TAB_TRANSFORMER_MODELS)
+def test_tabtransformer_fit_predict(cls, task, classification_data_with_cat, regression_data_with_cat):
+    if task == "classification":
+        X_train, X_test, y_train, _y_test = classification_data_with_cat
+    else:
+        X_train, X_test, y_train, _y_test = regression_data_with_cat
+
+    model = cls()
+    if task == "lss":
+        model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+    else:
+        model.fit(X_train, y_train, **FIT_KWARGS)
+
+    preds = model.predict(X_test)
+    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected shape"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
