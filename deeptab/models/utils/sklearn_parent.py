@@ -63,10 +63,10 @@ class SklearnBase(BaseEstimator):
         params = {}
         params.update(self.config_kwargs)
         params.update(self.preprocessor_kwargs)
-        if deep:
+        if deep and hasattr(self.preprocessor, "get_params"):
             preprocessor_params = {
                 key: value
-                for key, value in self.preprocessor.get_params().items()  # type: ignore[attr-defined]
+                for key, value in self.preprocessor.get_params().items()
                 if key in self.preprocessor_arg_names
             }
             params.update(preprocessor_params)
@@ -477,6 +477,142 @@ class SklearnBase(BaseEstimator):
             use_negative=use_negative,
             pool_sequence=pool_sequence,
         )
+
+    # ------------------------------------------------------------------
+    # Persistence
+    # ------------------------------------------------------------------
+
+    def save(self, path: str) -> None:
+        """Save the fitted model to *path*.
+
+        The bundle written by this method can be restored with
+        :meth:`load`.  It contains all state required for inference:
+        the config, the fitted preprocessor, feature metadata, and
+        the neural-network weights.
+
+        Parameters
+        ----------
+        path : str
+            Destination file path (e.g. ``"model.pt"``).
+
+        Raises
+        ------
+        ValueError
+            If the model has not been fitted yet.
+        """
+        if not getattr(self, "is_fitted_", False):
+            raise ValueError("Model must be fitted before saving.")
+        bundle = {
+            "_class": type(self),
+            "config": self.config,
+            "config_kwargs": self.config_kwargs,
+            "preprocessor_kwargs": getattr(self, "preprocessor_kwargs", {}),
+            "preprocessor": self.preprocessor,
+            "feature_info": {
+                "num": self.data_module.num_feature_info,
+                "cat": self.data_module.cat_feature_info,
+                "emb": self.data_module.embedding_feature_info,
+            },
+            "batch_size": self.data_module.batch_size,
+            "regression": self.data_module.regression,
+            "model_class": type(self.estimator),
+            "num_classes": self.task_model.num_classes,
+            "lss": False,
+            "family": None,
+            "optimizer_type": self.optimizer_type,
+            "optimizer_kwargs": self.optimizer_kwargs,
+            "lr": self.task_model.lr,
+            "lr_patience": self.task_model.lr_patience,
+            "lr_factor": self.task_model.lr_factor,
+            "weight_decay": self.task_model.weight_decay,
+            "task_model_state_dict": self.task_model.state_dict(),
+        }
+        torch.save(bundle, path)
+
+    @classmethod
+    def load(cls, path: str):
+        """Load and return a fitted model from *path*.
+
+        Parameters
+        ----------
+        path : str
+            Path to a file previously written by :meth:`save`.
+
+        Returns
+        -------
+        estimator
+            A fully reconstructed, ready-to-predict estimator of the
+            same type that was saved.
+        """
+        bundle = torch.load(path, weights_only=False)
+
+        obj = bundle["_class"].__new__(bundle["_class"])
+        obj.config = bundle["config"]
+        obj.config_kwargs = bundle["config_kwargs"]
+        obj.preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
+        obj.preprocessor = bundle["preprocessor"]
+        obj.optimizer_type = bundle["optimizer_type"]
+        obj.optimizer_kwargs = bundle["optimizer_kwargs"]
+        obj.built = True
+        obj.is_fitted_ = True
+        obj.preprocessor_arg_names = [
+            "n_bins",
+            "feature_preprocessing",
+            "numerical_preprocessing",
+            "categorical_preprocessing",
+            "use_decision_tree_bins",
+            "binning_strategy",
+            "task",
+            "cat_cutoff",
+            "treat_all_integers_as_numerical",
+            "degree",
+            "scaling_strategy",
+            "n_knots",
+            "use_decision_tree_knots",
+            "knots_strategy",
+            "spline_implementation",
+        ]
+
+        obj.data_module = MambularDataModule(
+            preprocessor=bundle["preprocessor"],
+            batch_size=bundle["batch_size"],
+            shuffle=False,
+            regression=bundle["regression"],
+        )
+        obj.data_module.num_feature_info = bundle["feature_info"]["num"]
+        obj.data_module.cat_feature_info = bundle["feature_info"]["cat"]
+        obj.data_module.embedding_feature_info = bundle["feature_info"]["emb"]
+
+        obj.task_model = TaskModel(
+            model_class=bundle["model_class"],
+            config=bundle["config"],
+            feature_information=(
+                bundle["feature_info"]["num"],
+                bundle["feature_info"]["cat"],
+                bundle["feature_info"]["emb"],
+            ),
+            num_classes=bundle["num_classes"],
+            lss=bundle["lss"],
+            family=bundle["family"],
+            optimizer_type=bundle["optimizer_type"],
+            optimizer_args=bundle["optimizer_kwargs"],
+            lr=bundle["lr"],
+            lr_patience=bundle["lr_patience"],
+            lr_factor=bundle["lr_factor"],
+            weight_decay=bundle["weight_decay"],
+        )
+        obj.task_model.load_state_dict(bundle["task_model_state_dict"])
+        obj.task_model.eval()
+        obj.estimator = obj.task_model.estimator
+
+        obj.trainer = pl.Trainer(
+            max_epochs=1,
+            enable_progress_bar=False,
+            enable_model_summary=False,
+            logger=False,
+        )
+
+        return obj
 
     def optimize_hparams(
         self,
