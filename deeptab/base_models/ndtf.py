@@ -123,9 +123,9 @@ class NDTF(BaseModel):
             tree_input = x[:, : self.input_dimensions[idx]]
             preds.append(tree(tree_input, return_penalty=False))
 
-        preds = torch.stack(preds, dim=1).squeeze(-1)
-
-        return preds @ self.tree_weights
+        preds = torch.stack(preds, dim=1)  # (batch, n_ensembles, output_dim)
+        # Weighted sum over ensemble dim: (batch, output_dim, n_ensembles) @ (n_ensembles, 1)
+        return (preds.transpose(1, 2) @ self.tree_weights).squeeze(-1)
 
     def penalty_forward(self, *data) -> torch.Tensor:
         """Forward pass of the NDTF model.
@@ -158,5 +158,6 @@ class NDTF(BaseModel):
             penalty += pen
 
         # Stack predictions and calculate mean across trees
-        preds = torch.stack(preds, dim=1).squeeze(-1)
-        return preds @ self.tree_weights, self.hparams.penalty_factor * penalty  # type: ignore
+        preds = torch.stack(preds, dim=1)  # (batch, n_ensembles, output_dim)
+        # Weighted sum over ensemble dim: (batch, output_dim, n_ensembles) @ (n_ensembles, 1)
+        return (preds.transpose(1, 2) @ self.tree_weights).squeeze(-1), self.hparams.penalty_factor * penalty  # type: ignore
