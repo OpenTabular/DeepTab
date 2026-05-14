@@ -11,6 +11,7 @@ For each task type (Regressor, Classifier, LSS) we:
 We use the lightest available model (MLP) to keep CI fast.
 """
 
+import os
 import tempfile
 from typing import Any
 
@@ -63,9 +64,13 @@ def test_regressor_save_load_predictions(regression_data):
 
     preds_before = model.predict(X_test)
 
-    with tempfile.NamedTemporaryFile(suffix=".pt") as f:
-        model.save(f.name)
-        loaded = MLPRegressor.load(f.name)
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
 
     preds_after = loaded.predict(X_test)
 
@@ -96,9 +101,13 @@ def test_classifier_save_load_predictions(classification_data):
     preds_before = model.predict(X_test)
     proba_before = model.predict_proba(X_test)
 
-    with tempfile.NamedTemporaryFile(suffix=".pt") as f:
-        model.save(f.name)
-        loaded = MLPClassifier.load(f.name)
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPClassifier.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
 
     preds_after = loaded.predict(X_test)
     proba_after = loaded.predict_proba(X_test)
@@ -127,9 +136,13 @@ def test_lss_save_load_predictions(regression_data):
 
     preds_before = model.predict(X_test)
 
-    with tempfile.NamedTemporaryFile(suffix=".pt") as f:
-        model.save(f.name)
-        loaded = MLPLSS.load(f.name)
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPLSS.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
 
     preds_after = loaded.predict(X_test)
 
