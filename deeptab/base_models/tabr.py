@@ -282,7 +282,7 @@ class TabR(BaseModel):
         if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression or LSS
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 
@@ -356,7 +356,7 @@ class TabR(BaseModel):
         if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 
@@ -429,7 +429,7 @@ class TabR(BaseModel):
         if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 
