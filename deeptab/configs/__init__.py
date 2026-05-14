@@ -12,6 +12,7 @@ from .node_config import DefaultNODEConfig
 from .resnet_config import DefaultResNetConfig
 from .saint_config import DefaultSAINTConfig
 from .tabm_config import DefaultTabMConfig
+from .tabr_config import DefaultTabRConfig
 from .tabtransformer_config import DefaultTabTransformerConfig
 from .tabularnn_config import DefaultTabulaRNNConfig
 from .tangos_config import DefaultTangosConfig
@@ -32,6 +33,7 @@ __all__ = [
     "DefaultResNetConfig",
     "DefaultSAINTConfig",
     "DefaultTabMConfig",
+    "DefaultTabRConfig",
     "DefaultTabTransformerConfig",
     "DefaultTabulaRNNConfig",
     "DefaultTangosConfig",
