@@ -20,7 +20,7 @@ flowchart TD
     B -->|Stable| ST1[Bump version e.g. 1.7.0]:::setup
     RC1 --> RC2[Update CHANGELOG.md]:::setup
     RC2 --> RC3[Commit & push branch]:::setup
-    RC3 --> RC4["git tag vX.Y.ZrcN\ngit push origin vX.Y.ZrcN"]:::git
+    RC3 --> RC4["git tag vX.Y.ZrcN<br/>git push origin vX.Y.ZrcN"]:::git
     RC4 --> RC5[CI: publish-testpypi.yml]:::ci
     RC5 --> RC6[TestPyPI + GitHub pre-release]:::rc
     RC6 -->|Issues found| RC1
@@ -31,7 +31,7 @@ flowchart TD
     ST4 --> ST5{Review & approve}:::decision
     ST5 --> ST6[Merge PR into main]:::pr
     ST6 --> ST7[git checkout main && git pull]:::git
-    ST7 --> ST8["git tag vX.Y.Z\ngit push origin vX.Y.Z"]:::git
+    ST7 --> ST8["git tag vX.Y.Z<br/>git push origin vX.Y.Z"]:::git
     ST8 --> ST9[CI: publish-pypi.yml]:::ci
     ST9 --> ST10[PyPI + GitHub Release]:::stable
 
