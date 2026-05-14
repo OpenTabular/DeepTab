@@ -1,9 +1,9 @@
-from ..base_models.modern_nca import ModernNCA
-from ..configs.modernnca_config import DefaultModernNCAConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from ...base_models.modern_nca import ModernNCA
+from ...configs.modernnca_config import DefaultModernNCAConfig
+from ...utils.docstring_generator import generate_docstring
+from ..utils.sklearn_base_classifier import SklearnBaseClassifier
+from ..utils.sklearn_base_lss import SklearnBaseLSS
+from ..utils.sklearn_base_regressor import SklearnBaseRegressor
 
 
 class ModernNCARegressor(SklearnBaseRegressor):

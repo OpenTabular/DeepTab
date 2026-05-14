@@ -1,9 +1,9 @@
-from ..base_models.tangos import Tangos
-from ..configs.tangos_config import DefaultTangosConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from ...base_models.tangos import Tangos
+from ...configs.tangos_config import DefaultTangosConfig
+from ...utils.docstring_generator import generate_docstring
+from ..utils.sklearn_base_classifier import SklearnBaseClassifier
+from ..utils.sklearn_base_lss import SklearnBaseLSS
+from ..utils.sklearn_base_regressor import SklearnBaseRegressor
 
 
 class TangosRegressor(SklearnBaseRegressor):
