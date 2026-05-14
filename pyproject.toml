@@ -66,6 +66,10 @@ repository = "https://github.com/OpenTabular/deeptab"
 package = "https://pypi.org/project/deeptab/"
 
 
+# test configuration
+[tool.pytest.ini_options]
+pythonpath = ["."]
+
 # code quality tools
 [tool.pyright]
 include = ["deeptab", "tests"]
