@@ -12,6 +12,7 @@ We use the lightest available model (MLP) to keep CI fast.
 """
 
 import tempfile
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -28,7 +29,7 @@ N_SAMPLES = 200
 N_FEATURES = 6
 N_CLASSES = 3
 RANDOM_STATE = 7
-FIT_KWARGS = {"max_epochs": 2, "batch_size": 64}
+FIT_KWARGS: dict[str, Any] = {"max_epochs": 2, "batch_size": 64}
 
 
 @pytest.fixture(scope="module")

@@ -119,9 +119,11 @@ class SklearnBaseLSS(BaseEstimator):
         params = {}
         params.update(self.config_kwargs)
 
-        if deep and hasattr(self.preprocessor, "get_params"):
-            preprocessor_params = {"prepro__" + key: value for key, value in self.preprocessor.get_params().items()}
-            params.update(preprocessor_params)
+        if deep:
+            get_params_fn = getattr(self.preprocessor, "get_params", None)
+            if get_params_fn is not None:
+                preprocessor_params = {"prepro__" + key: value for key, value in get_params_fn().items()}
+                params.update(preprocessor_params)
 
         return params
 
@@ -656,6 +658,8 @@ class SklearnBaseLSS(BaseEstimator):
         """
         if not getattr(self, "is_fitted_", False):
             raise ValueError("Model must be fitted before saving.")
+        if self.task_model is None:
+            raise RuntimeError("task_model is unexpectedly None after fitting.")
         bundle = {
             "_class": type(self),
             "config": self.config,
