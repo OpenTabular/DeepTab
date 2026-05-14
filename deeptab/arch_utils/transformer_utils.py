@@ -329,11 +329,10 @@ class BatchEnsembleTransformerEncoder(nn.Module):
             The output tensor of shape (N, S, E, D).
         """
         if x.dim() == 3:  # Case: (B, L, D) - no ensembles
-            batch_size, seq_len, input_size = x.shape
             # Shape: (B, L, ensemble_size, D)
             x = x.unsqueeze(2).expand(-1, -1, self.ensemble_size, -1)
         elif x.dim() == 4 and x.size(2) == self.ensemble_size:  # Case: (B, L, ensemble_size, D)
-            batch_size, seq_len, ensemble_size, _ = x.shape
+            _, _, ensemble_size, _ = x.shape
             if ensemble_size != self.ensemble_size:
                 raise ValueError(f"Input shape {x.shape} is invalid. Expected shape: (B, S, ensemble_size, N)")
         else:
@@ -425,7 +424,7 @@ class RowColTransformer(nn.Module):
             x: Input embeddings of shape (N, J, D),
                where N = batch size, J = number of features, D = embedding dimension.
         """
-        _, n, d = x.shape
+        _, n, _ = x.shape
 
         for attn1, ff1, attn2, ff2 in self.layers:  # type: ignore
             # Column-wise attention

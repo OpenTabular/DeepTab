@@ -162,9 +162,6 @@ class AutoInt(BaseModel):
             # Apply normalization before attention if prenormalization is enabled
             x_residual = layer["norm0"](x_residual)  # type: ignore[index]
 
-            # Retrieve key-value compression layers
-            key_compression, value_compression = self._get_kv_compressions(layer)
-
             # Multihead Attention
             x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)  # type: ignore[index]
 

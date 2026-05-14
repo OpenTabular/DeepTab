@@ -176,7 +176,7 @@ class TaskModel(pl.LightningModule):
         if getattr(self.estimator, "returns_ensemble", False):  # Ensemble case
             if self.loss_fct.__class__.__name__ == "CrossEntropyLoss" and predictions.dim() == 3:
                 # Classification case with ensemble: predictions (N, E, k), y_true (N,)
-                N, E, k = predictions.shape
+                _, E, _ = predictions.shape
                 loss = 0.0
                 for ensemble_member in range(E):
                     loss += self.loss_fct(
@@ -595,7 +595,7 @@ class TaskModel(pl.LightningModule):
         Tensor
             Contrastive loss value.
         """
-        N, S, D = embeddings.shape  # Batch size, sequence length, embedding dim
+        _, S, D = embeddings.shape  # Batch size, sequence length, embedding dim
         k_neighbors = knn_indices.shape[1]  # Number of neighbors
 
         # Normalize embeddings

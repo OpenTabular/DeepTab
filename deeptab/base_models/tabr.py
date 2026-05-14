@@ -324,7 +324,7 @@ class TabR(BaseModel):
             candidate_x, candidate_k = self._encode(candidate_x)
 
         x, k = self._encode(x)  # encoded x and k
-        batch_size, d_main = k.shape
+        _, d_main = k.shape
         device = k.device
         context_size = self.context_size
 
@@ -338,9 +338,8 @@ class TabR(BaseModel):
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
-        distances: Tensor
         context_idx: Tensor
-        distances, context_idx = self.search_index.search(  # type: ignore[code]
+        _, context_idx = self.search_index.search(  # type: ignore[code]
             k.to(torch.float32), context_size
         )
 
@@ -398,7 +397,7 @@ class TabR(BaseModel):
             candidate_x, candidate_k = self._encode(candidate_x)
 
         x, k = self._encode(x)  # encoded x and k
-        batch_size, d_main = k.shape
+        _, d_main = k.shape
         device = k.device
         context_size = self.context_size
 
@@ -412,9 +411,8 @@ class TabR(BaseModel):
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
-        distances: Tensor
         context_idx: Tensor
-        distances, context_idx = self.search_index.search(  # type: ignore[code]
+        _, context_idx = self.search_index.search(  # type: ignore[code]
             k.to(torch.float32), context_size
         )
 

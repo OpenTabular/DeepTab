@@ -437,7 +437,7 @@ class MambaBlock(nn.Module):
 
         if self.bidirectional:
             xz_bwd = self.in_proj_bwd(x)
-            x_bwd, z_bwd = xz_bwd.chunk(2, dim=-1)
+            x_bwd, _ = xz_bwd.chunk(2, dim=-1)
 
             x_bwd = x_bwd.transpose(1, 2)
             x_bwd = self.conv1d_bwd(x_bwd)[:, :, :L]
