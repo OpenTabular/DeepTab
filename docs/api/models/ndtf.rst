@@ -30,11 +30,14 @@ API Reference
 .. autoclass:: NDTFRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: NDTFClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: NDTFLSS
    :members:
    :undoc-members:
+   :noindex:

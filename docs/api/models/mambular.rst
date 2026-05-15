@@ -30,11 +30,14 @@ API Reference
 .. autoclass:: MambularRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambularClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambularLSS
    :members:
    :undoc-members:
+   :noindex:

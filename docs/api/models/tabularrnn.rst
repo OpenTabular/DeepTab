@@ -31,11 +31,14 @@ API Reference
 .. autoclass:: TabulaRNNRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabulaRNNClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabulaRNNLSS
    :members:
    :undoc-members:
+   :noindex:

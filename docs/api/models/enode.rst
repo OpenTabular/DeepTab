@@ -30,11 +30,14 @@ API Reference
 .. autoclass:: ENODERegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: ENODEClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: ENODELSS
    :members:
    :undoc-members:
+   :noindex:

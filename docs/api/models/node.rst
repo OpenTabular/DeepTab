@@ -30,11 +30,14 @@ API Reference
 .. autoclass:: NODERegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: NODEClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: NODELSS
    :members:
    :undoc-members:
+   :noindex:

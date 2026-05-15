@@ -29,11 +29,14 @@ API Reference
 .. autoclass:: TabTransformerRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabTransformerClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabTransformerLSS
    :members:
    :undoc-members:
+   :noindex:

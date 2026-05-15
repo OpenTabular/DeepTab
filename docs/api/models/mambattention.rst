@@ -29,11 +29,14 @@ API Reference
 .. autoclass:: MambAttentionRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambAttentionClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambAttentionLSS
    :members:
    :undoc-members:
+   :noindex:

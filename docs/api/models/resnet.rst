@@ -28,11 +28,14 @@ API Reference
 .. autoclass:: ResNetRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: ResNetClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: ResNetLSS
    :members:
    :undoc-members:
+   :noindex:

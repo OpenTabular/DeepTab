@@ -30,11 +30,14 @@ API Reference
 .. autoclass:: SAINTRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: SAINTClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: SAINTLSS
    :members:
    :undoc-members:
+   :noindex:

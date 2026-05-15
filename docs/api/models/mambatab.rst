@@ -28,11 +28,14 @@ API Reference
 .. autoclass:: MambaTabRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambaTabClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MambaTabLSS
    :members:
    :undoc-members:
+   :noindex:

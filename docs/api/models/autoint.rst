@@ -33,11 +33,14 @@ API Reference
 .. autoclass:: AutoIntRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: AutoIntClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: AutoIntLSS
    :members:
    :undoc-members:
+   :noindex:

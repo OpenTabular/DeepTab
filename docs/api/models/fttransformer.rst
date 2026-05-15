@@ -29,11 +29,14 @@ API Reference
 .. autoclass:: FTTransformerRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: FTTransformerClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: FTTransformerLSS
    :members:
    :undoc-members:
+   :noindex:

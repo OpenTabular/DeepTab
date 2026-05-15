@@ -28,11 +28,14 @@ API Reference
 .. autoclass:: TabMRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabMClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: TabMLSS
    :members:
    :undoc-members:
+   :noindex:

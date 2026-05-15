@@ -29,11 +29,14 @@ API Reference
 .. autoclass:: MLPRegressor
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MLPClassifier
    :members:
    :undoc-members:
+   :noindex:
 
 .. autoclass:: MLPLSS
    :members:
    :undoc-members:
+   :noindex:
