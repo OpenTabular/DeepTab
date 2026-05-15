@@ -193,7 +193,7 @@ class BaseModel(nn.Module):
             return out[:, 0, :]
         elif self.hparams.pooling_method == "learned_flatten":
             # Flatten sequence and apply a learned linear layer
-            batch_size, seq_len, hidden_size = out.shape
+            batch_size, _, _ = out.shape
             # Shape: (batch_size, seq_len * hidden_size)
             out = out.reshape(batch_size, -1)
             # Shape: (batch_size, hidden_size)

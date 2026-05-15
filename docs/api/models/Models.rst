@@ -169,39 +169,50 @@ deeptab.models
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.ModernNCAClassifier
+
+Experimental Models
+-------------------
+
+.. warning::
+
+   The classes below live in ``deeptab.models.experimental``. Their API may
+   change without a deprecation cycle. Import them explicitly::
+
+      from deeptab.models.experimental import ModernNCAClassifier
+
+.. autoclass:: deeptab.models.experimental.ModernNCAClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.ModernNCARegressor
+.. autoclass:: deeptab.models.experimental.ModernNCARegressor
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.ModernNCALSS
+.. autoclass:: deeptab.models.experimental.ModernNCALSS
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TangosClassifier
+.. autoclass:: deeptab.models.experimental.TangosClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TangosRegressor
+.. autoclass:: deeptab.models.experimental.TangosRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TangosLSS
+.. autoclass:: deeptab.models.experimental.TangosLSS
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TromptClassifier
+.. autoclass:: deeptab.models.experimental.TromptClassifier
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TromptRegressor
+.. autoclass:: deeptab.models.experimental.TromptRegressor
     :members:
     :undoc-members:
 
-.. autoclass:: deeptab.models.TromptLSS
+.. autoclass:: deeptab.models.experimental.TromptLSS
     :members:
     :undoc-members:
 

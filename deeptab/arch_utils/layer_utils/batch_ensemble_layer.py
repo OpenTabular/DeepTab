@@ -184,7 +184,7 @@ class RNNBatchEnsembleLayer(nn.Module):
         """
         # Check input shape and expand if necessary
         if x.dim() == 3:  # Case: (B, L, D) - no ensembles
-            batch_size, seq_len, input_size = x.shape
+            batch_size, seq_len, _ = x.shape
             # Shape: (B, L, ensemble_size, D)
             x = x.unsqueeze(2).expand(-1, -1, self.ensemble_size, -1)
         elif x.dim() == 4 and x.size(2) == self.ensemble_size:  # Case: (B, L, ensemble_size, D)
@@ -451,7 +451,7 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
             If the ensemble size `E` does not match `self.ensemble_size`.
         """
 
-        N, S, E, D = query.size()
+        N, S, E, _ = query.size()
         if E != self.ensemble_size:
             raise ValueError("Ensemble size mismatch.")
 

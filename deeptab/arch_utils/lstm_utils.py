@@ -128,7 +128,7 @@ class mLSTMblock(nn.Module):
         """
         if x.ndim != 3:
             raise ValueError("Input tensor must have 3 dimensions (batch, sequence_length, input_size)")
-        B, N, D = x.shape
+        B, N, _ = x.shape
         device = x.device
 
         # Initialize states dynamically based on input shape
@@ -293,7 +293,7 @@ class sLSTMblock(nn.Module):
         torch.Tensor
             Output tensor of shape (batch, sequence_length, input_size).
         """
-        B, N, D = x.shape
+        B, N, _ = x.shape
         device = x.device
 
         # Initialize states dynamically based on input shape

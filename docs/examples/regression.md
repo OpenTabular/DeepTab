@@ -77,6 +77,30 @@ model.fit(X_train, y_train, max_epochs=50)
 print(model.evaluate(X_test, y_test))
 ```
 
+## All stable regressors
+
+Swap `MambularRegressor` for any class below — no other code changes are needed:
+
+| Class                     | Architecture                          | Notes                                |
+| ------------------------- | ------------------------------------- | ------------------------------------ |
+| `MLPRegressor`            | Feedforward MLP                       | Fastest baseline                     |
+| `ResNetRegressor`         | Residual MLP                          | Better than MLP for deeper networks  |
+| `FTTransformerRegressor`  | Feature-Tokenizer Transformer         | Strong general-purpose model         |
+| `TabTransformerRegressor` | Transformer on categorical embeddings | Best for categorical-heavy data      |
+| `SAINTRegressor`          | Self + intersample attention          | Good for semi-supervised settings    |
+| `TabMRegressor`           | Batch-ensembling MLP                  | Ensemble accuracy at low cost        |
+| `TabRRegressor`           | Retrieval-augmented                   | Strong when local similarity matters |
+| `NODERegressor`           | Differentiable decision trees         | Gradient-boosting inductive bias     |
+| `NDTFRegressor`           | Neural decision tree forest           | Use `n_ensembles` and `max_depth`    |
+| `TabulaRNNRegressor`      | RNN / LSTM / GRU                      | Use `model_type` to select cell      |
+| `MambularRegressor`       | Stacked Mamba SSM                     | Efficient sequence model             |
+| `MambaTabRegressor`       | Single Mamba block                    | Lightest Mamba variant               |
+| `MambAttentionRegressor`  | Mamba + attention hybrid              | Local + global patterns              |
+| `ENODERegressor`          | Extended NODE                         | NODE with feature embeddings         |
+| `AutoIntRegressor`        | Attention-based interaction           | Explicit feature crossing            |
+
+Experimental regressors (`ModernNCARegressor`, `TromptRegressor`, `TangosRegressor`) are available from `deeptab.models.experimental`. See [Experimental models](experimental).
+
 ## Next steps
 
 - [Key Concepts](../key_concepts) — learn how to tune hyperparameters via config objects.

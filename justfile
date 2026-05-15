@@ -2,9 +2,10 @@
 default:
 	@just --list --unsorted
 
-# install dependencies and set up all pre-commit hooks
+# install dependencies, editable package, and set up all pre-commit hooks
 install:
 	poetry install
+	poetry run pip install -e . --quiet
 	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
 # update dependencies and pre-commit hook revisions

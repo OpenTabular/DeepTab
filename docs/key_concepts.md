@@ -33,6 +33,27 @@ from deeptab.models import MambularRegressor    # regression
 from deeptab.models import MambularLSS          # distributional regression
 ```
 
+## Stable vs experimental models
+
+DeepTab ships models at two tiers:
+
+| Tier             | Import path                                   | Guarantee                                   |
+| ---------------- | --------------------------------------------- | ------------------------------------------- |
+| **Stable**       | `from deeptab.models import ...`              | Public API frozen under semantic versioning |
+| **Experimental** | `from deeptab.models.experimental import ...` | May change without a deprecation cycle      |
+
+Always use the explicit experimental import path to signal that you accept the instability:
+
+```python
+# stable
+from deeptab.models import FTTransformerClassifier
+
+# experimental — explicit path required
+from deeptab.models.experimental import TromptClassifier
+```
+
+See [Using experimental models](examples/experimental) for a full worked example.
+
 ## Configuring hyperparameters
 
 Every model has a corresponding config class in `deeptab.configs` that documents all available hyperparameters. You can either pass hyperparameters directly to the constructor or via a config object:

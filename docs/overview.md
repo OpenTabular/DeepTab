@@ -15,6 +15,8 @@ Tabular data is the most common format in applied machine learning, yet most dee
 
 All models support regression, classification, and distributional regression out of the box. Import them as `<ModelName>Regressor`, `<ModelName>Classifier`, or `<ModelName>LSS`.
 
+### Stable
+
 | Model            | Architecture                                   | Reference                                                                                                                                 |
 | ---------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
 | `Mambular`       | Sequential Mamba (SSM) blocks for tabular data | [Thielmann et al. (2024)](https://arxiv.org/abs/2408.06291)                                                                               |
@@ -32,9 +34,16 @@ All models support regression, classification, and distributional regression out
 | `TabulaRNN`      | Recurrent neural network for tabular data      | [Thielmann et al. (2025)](https://arxiv.org/pdf/2411.17207)                                                                               |
 | `ENODE`          | Extended NODE variant                          | —                                                                                                                                         |
 | `AutoInt`        | Automatic feature interaction via attention    | —                                                                                                                                         |
-| `ModernNCA`      | Modern neural classification architecture      | —                                                                                                                                         |
-| `Trompt`         | Tabular-specific prompting model               | —                                                                                                                                         |
-| `TANGOS`         | Tabular model with graph-based structure       | —                                                                                                                                         |
+
+### Experimental
+
+Experimental models are imported from `deeptab.models.experimental`. Their API may change without a deprecation cycle. See [Using experimental models](examples/experimental) for a worked example.
+
+| Model       | Architecture                              | Reference |
+| ----------- | ----------------------------------------- | --------- |
+| `ModernNCA` | Modern neural classification architecture | —         |
+| `Trompt`    | Tabular-specific prompting model          | —         |
+| `Tangos`    | Tabular model with graph-based structure  | —         |
 
 ## Next steps
 

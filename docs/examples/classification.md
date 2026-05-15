@@ -79,6 +79,30 @@ model.fit(X_train, y_train, max_epochs=50)
 print(model.evaluate(X_test, y_test))
 ```
 
+## All stable classifiers
+
+Swap `MambularClassifier` for any class below — no other code changes are needed:
+
+| Class                      | Architecture                          | Notes                                |
+| -------------------------- | ------------------------------------- | ------------------------------------ |
+| `MLPClassifier`            | Feedforward MLP                       | Fastest baseline                     |
+| `ResNetClassifier`         | Residual MLP                          | Better than MLP for deeper networks  |
+| `FTTransformerClassifier`  | Feature-Tokenizer Transformer         | Strong general-purpose model         |
+| `TabTransformerClassifier` | Transformer on categorical embeddings | Best for categorical-heavy data      |
+| `SAINTClassifier`          | Self + intersample attention          | Good for semi-supervised settings    |
+| `TabMClassifier`           | Batch-ensembling MLP                  | Ensemble accuracy at low cost        |
+| `TabRClassifier`           | Retrieval-augmented                   | Strong when local similarity matters |
+| `NODEClassifier`           | Differentiable decision trees         | Gradient-boosting inductive bias     |
+| `NDTFClassifier`           | Neural decision tree forest           | Use `n_ensembles` and `max_depth`    |
+| `TabulaRNNClassifier`      | RNN / LSTM / GRU                      | Use `model_type` to select cell      |
+| `MambularClassifier`       | Stacked Mamba SSM                     | Efficient sequence model             |
+| `MambaTabClassifier`       | Single Mamba block                    | Lightest Mamba variant               |
+| `MambAttentionClassifier`  | Mamba + attention hybrid              | Local + global patterns              |
+| `ENODEClassifier`          | Extended NODE                         | NODE with feature embeddings         |
+| `AutoIntClassifier`        | Attention-based interaction           | Explicit feature crossing            |
+
+Experimental classifiers (`ModernNCAClassifier`, `TromptClassifier`, `TangosClassifier`) are available from `deeptab.models.experimental`. See [Experimental models](experimental).
+
 ## Next steps
 
 - [Key Concepts](../key_concepts) — learn how to tune hyperparameters via config objects.

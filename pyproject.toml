@@ -28,6 +28,8 @@ einops = "^0.8.0"
 accelerate = "^1.2.1"
 scipy = "^1.15.0"
 pretab = "^0.0.1"
+delu = "*"
+faiss-cpu = "*"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.1"
@@ -65,6 +67,22 @@ documentation = "https://deeptab.readthedocs.io/"
 repository = "https://github.com/OpenTabular/deeptab"
 package = "https://pypi.org/project/deeptab/"
 
+
+# test configuration
+[tool.pytest.ini_options]
+pythonpath = ["."]
+filterwarnings = [
+  # Lightning trainer noise (dataloader workers, log interval, checkpoint dir, tensorboard)
+  "ignore::UserWarning:lightning",
+  # PyTorch transformer / RNN config warnings
+  "ignore::UserWarning:torch",
+  # properscoring invalid escape sequences
+  "ignore::DeprecationWarning:properscoring",
+  # faiss SwigPy builtin type warnings (emitted during import)
+  "ignore::DeprecationWarning:importlib",
+  # delu.nn.Lambda custom-function deprecation
+  "ignore::DeprecationWarning:delu",
+]
 
 # code quality tools
 [tool.pyright]

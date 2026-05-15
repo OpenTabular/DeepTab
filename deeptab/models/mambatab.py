@@ -13,7 +13,13 @@ class MambaTabRegressor(SklearnBaseRegressor):
         MambaTab regressor. This class extends the SklearnBaseRegressor class and uses the MambaTab model
         with the default MambaTab configuration.
         """,
-        examples="",
+        examples="""
+        >>> from deeptab.models import MambaTabRegressor
+        >>> model = MambaTabRegressor(d_model=64, n_layers=2)
+        >>> model.fit(X_train, y_train)
+        >>> preds = model.predict(X_test)
+        >>> model.evaluate(X_test, y_test)
+        """,
     )
 
     def __init__(self, **kwargs):
@@ -27,7 +33,13 @@ class MambaTabClassifier(SklearnBaseClassifier):
         MambaTab classifier. This class extends the SklearnBaseClassifier class and uses the MambaTab model
         with the default MambaTab configuration.
         """,
-        examples="",
+        examples="""
+        >>> from deeptab.models import MambaTabClassifier
+        >>> model = MambaTabClassifier(d_model=64, n_layers=2)
+        >>> model.fit(X_train, y_train)
+        >>> preds = model.predict(X_test)
+        >>> model.evaluate(X_test, y_test)
+        """,
     )
 
     def __init__(self, **kwargs):
@@ -41,7 +53,13 @@ class MambaTabLSS(SklearnBaseLSS):
         MambaTab LSS for distributional regression. This class extends the SklearnBaseLSS class and uses the MambaTab model
         with the default MambaTab configuration.
         """,
-        examples="",
+        examples="""
+        >>> from deeptab.models import MambaTabLSS
+        >>> model = MambaTabLSS(d_model=64, n_layers=2)
+        >>> model.fit(X_train, y_train, family='normal')
+        >>> preds = model.predict(X_test)
+        >>> model.evaluate(X_test, y_test)
+        """,
     )
 
     def __init__(self, **kwargs):

@@ -21,10 +21,11 @@ class TabR(BaseModel):
         self,
         feature_information: tuple,
         num_classes=1,
+        lss: bool = False,
         config: DefaultTabRConfig = DefaultTabRConfig(),  # noqa: B008
         **kwargs,
     ):
-        super().__init__(config=config, **kwargs)
+        super().__init__(config=config, lss=lss, **kwargs)
         self.save_hyperparameters(ignore=["feature_information"])
 
         # lazy import
@@ -94,7 +95,7 @@ class TabR(BaseModel):
         delu = TabR.delu
         self.label_encoder = (
             nn.Linear(1, d_main)
-            if num_classes == 1
+            if num_classes == 1 or lss
             else nn.Sequential(
                 nn.Embedding(num_classes, d_main),
                 # gives depreciation warning
@@ -278,10 +279,10 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
-        else:  # for regression
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+        else:  # for regression or LSS
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 
@@ -324,7 +325,7 @@ class TabR(BaseModel):
             candidate_x, candidate_k = self._encode(candidate_x)
 
         x, k = self._encode(x)  # encoded x and k
-        batch_size, d_main = k.shape
+        _, d_main = k.shape
         device = k.device
         context_size = self.context_size
 
@@ -338,9 +339,8 @@ class TabR(BaseModel):
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
-        distances: Tensor
         context_idx: Tensor
-        distances, context_idx = self.search_index.search(  # type: ignore[code]
+        _, context_idx = self.search_index.search(  # type: ignore[code]
             k.to(torch.float32), context_size
         )
 
@@ -353,10 +353,10 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 
@@ -398,7 +398,7 @@ class TabR(BaseModel):
             candidate_x, candidate_k = self._encode(candidate_x)
 
         x, k = self._encode(x)  # encoded x and k
-        batch_size, d_main = k.shape
+        _, d_main = k.shape
         device = k.device
         context_size = self.context_size
 
@@ -412,9 +412,8 @@ class TabR(BaseModel):
         # Updating the index is much faster than creating a new one.
         self.search_index.reset()
         self.search_index.add(candidate_k.to(torch.float32))  # type: ignore[code]
-        distances: Tensor
         context_idx: Tensor
-        distances, context_idx = self.search_index.search(  # type: ignore[code]
+        _, context_idx = self.search_index.search(  # type: ignore[code]
             k.to(torch.float32), context_size
         )
 
@@ -427,10 +426,10 @@ class TabR(BaseModel):
         probs = F.softmax(similarities, dim=-1)
         probs = self.dropout(probs)
 
-        if self.hparams.num_classes > 1:  # for classification
+        if self.hparams.num_classes > 1 and not self.hparams.lss:  # for classification
             context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].long())
         else:  # for regression
-            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None])
+            context_y_emb = self.label_encoder(candidate_y[context_idx][..., None].float())
             if len(context_y_emb.shape) == 4:
                 context_y_emb = context_y_emb[:, :, 0, :]
 

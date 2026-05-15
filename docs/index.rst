@@ -24,6 +24,7 @@
    examples/classification
    examples/regression
    examples/distributional
+   examples/experimental
 
 .. toctree::
    :name: API Reference

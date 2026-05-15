@@ -137,7 +137,52 @@ Modules                                     Description
 :class:`SklearnBaseRegressor`               Base class for regression tasks.
 =======================================    =======================================================================================================
 
+Experimental Models
+-------------------
+
+.. warning::
+
+   Experimental models are available from ``deeptab.models.experimental``.
+   Their API may change without a deprecation cycle.
+
+.. currentmodule:: deeptab.models.experimental
+
+=======================================    ===========================================================================
+Modules                                     Description
+=======================================    ===========================================================================
+:class:`ModernNCAClassifier`                ModernNCA for classification tasks.
+:class:`ModernNCARegressor`                 ModernNCA for regression tasks.
+:class:`ModernNCALSS`                       ModernNCA for distributional tasks.
+:class:`TangosClassifier`                   Tangos for classification tasks.
+:class:`TangosRegressor`                    Tangos for regression tasks.
+:class:`TangosLSS`                          Tangos for distributional tasks.
+:class:`TromptClassifier`                   Trompt for classification tasks.
+:class:`TromptRegressor`                    Trompt for regression tasks.
+:class:`TromptLSS`                          Trompt for distributional tasks.
+=======================================    ===========================================================================
+
 .. toctree::
    :maxdepth: 1
+   :caption: Stable Models
+
+   mlp
+   resnet
+   fttransformer
+   tabtransformer
+   saint
+   tabm
+   tabr
+   node
+   ndtf
+   tabularrnn
+   mambular
+   mambatab
+   mambattention
+   enode
+   autoint
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Full API Reference
 
    Models

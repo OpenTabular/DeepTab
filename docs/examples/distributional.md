@@ -76,6 +76,30 @@ model.fit(X_train, y_train, family="normal", max_epochs=50)
 print(model.evaluate(X_test, y_test))
 ```
 
+## All stable LSS models
+
+Swap `MambularLSS` for any class below — pass `family=` to `.fit()` to select the output distribution:
+
+| Class               | Architecture                          | Notes                                |
+| ------------------- | ------------------------------------- | ------------------------------------ |
+| `MLPLSS`            | Feedforward MLP                       | Fastest baseline                     |
+| `ResNetLSS`         | Residual MLP                          | Better than MLP for deeper networks  |
+| `FTTransformerLSS`  | Feature-Tokenizer Transformer         | Strong general-purpose model         |
+| `TabTransformerLSS` | Transformer on categorical embeddings | Best for categorical-heavy data      |
+| `SAINTLSS`          | Self + intersample attention          | Good for semi-supervised settings    |
+| `TabMLSS`           | Batch-ensembling MLP                  | Ensemble accuracy at low cost        |
+| `TabRLSS`           | Retrieval-augmented                   | Strong when local similarity matters |
+| `NODELSS`           | Differentiable decision trees         | Gradient-boosting inductive bias     |
+| `NDTFLSS`           | Neural decision tree forest           | Use `n_ensembles` and `max_depth`    |
+| `TabulaRNNLSS`      | RNN / LSTM / GRU                      | Use `model_type` to select cell      |
+| `MambularLSS`       | Stacked Mamba SSM                     | Efficient sequence model             |
+| `MambaTabLSS`       | Single Mamba block                    | Lightest Mamba variant               |
+| `MambAttentionLSS`  | Mamba + attention hybrid              | Local + global patterns              |
+| `ENODELSS`          | Extended NODE                         | NODE with feature embeddings         |
+| `AutoIntLSS`        | Attention-based interaction           | Explicit feature crossing            |
+
+Experimental LSS models (`ModernNCALSS`, `TromptLSS`, `TangosLSS`) are available from `deeptab.models.experimental`. See [Experimental models](experimental).
+
 ## Next steps
 
 - [Key Concepts](../key_concepts) — understand the `LSS` task variant and available distribution families.
