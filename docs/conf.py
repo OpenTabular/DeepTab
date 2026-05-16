@@ -8,6 +8,8 @@ import sys
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
+from sphinxawesome_theme.postprocess import Icons
+
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
@@ -39,15 +41,12 @@ extensions = [
     "sphinx.ext.coverage",
     "sphinx.ext.mathjax",
     "sphinx.ext.ifconfig",
-    "sphinx_copybutton",
     "sphinx_togglebutton",
     "nbsphinx",
     "numpydoc",
     "IPython.sphinxext.ipython_console_highlighting",
     "IPython.sphinxext.ipython_directive",
     "myst_parser",
-    "mdinclude",  # custom module
-    "sphinx_rtd_theme",
     "sphinxcontrib.mermaid",
     # "pydata_sphinx_theme",
     "sphinx_autodoc_typehints",
@@ -77,8 +76,8 @@ templates_path = ["_templates"]
 source_suffix = [".rst", ".md"]
 # source_suffix = ".rst"
 
-# The master toctree document.
-master_doc = "index"
+# The root toctree document.
+root_doc = "index"
 
 # This is also used if you do content translation via gettext catalogs.
 # Usually you set "language" from the command line for these cases.
@@ -107,38 +106,38 @@ show_authors = False
 
 # The name of the Pygments (syntax highlighting) style to use.
 pygments_style = "github-light"
+pygments_style_dark = "github-dark"
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-# 'sphinx_rtd_theme'  # 'furo', 'press', 'pydata_sphinx_theme'
-html_theme = "sphinx_book_theme"
+# sphinxawesome_theme
+html_theme = "sphinxawesome_theme"
 html_static_path = ["_static"]
 html_css_files = ["custom.css"]
+templates_path = ["_templates"]
 html_extra_path = ["llms.txt"]
 
 html_theme_options = {
-    "repository_url": "https://github.com/OpenTabular/DeepTab",
-    "repository_branch": "main",
-    "path_to_docs": "docs",
-    "use_edit_page_button": False,
-    "use_source_button": False,
-    "show_toc_level": 2,
-    "navigation_with_keys": True,
+    "show_breadcrumbs": True,
     "show_prev_next": True,
-    "globaltoc_collapse": False,
-    "icon_links": [
-        {
-            "name": "GitHub",
-            "url": "https://github.com/OpenTabular/DeepTab",
-            "icon": "fa-brands fa-github",
-        },
-        {
-            "name": "PyPI",
-            "url": "https://pypi.org/project/deeptab/",
-            "icon": "fa-brands fa-python",
-        },
-    ],
+    "show_scrolltop": True,
+    "awesome_headerlinks": True,
+    "awesome_external_links": True,
+    "main_nav_links": {
+        "GitHub": "https://github.com/OpenTabular/DeepTab",
+        "PyPI": "https://pypi.org/project/deeptab/",
+    },
+}
+
+# Use the theme's own permalink icon
+html_permalinks_icon = Icons.permalinks_icon
+
+# On API reference pages the page TOC would list every class and every method —
+# hundreds of entries.  Suppress it there; keep it on regular doc pages.
+html_sidebars = {
+    "api/**": ["sidebar_main_nav_links.html"],
+    "**": ["sidebar_main_nav_links.html", "sidebar_toc.html"],
 }
 
 # The name of an image file (relative to this directory) to place at the top
@@ -149,13 +148,6 @@ html_logo = "images/logo/deeptab-v1.png"
 html_title = "DeepTab"
 # Format of the last updated section in the footer
 html_last_updated_fmt = "%Y-%m-%d"
-
-html_context = {
-    "github_user": "OpenTabular",
-    "github_repo": "DeepTab",
-    "github_version": "main",
-    "doc_path": "docs",
-}
 
 # -- Options for autodoc ------------------------------------------------------
 
