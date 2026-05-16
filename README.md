@@ -1,5 +1,5 @@
 <div align="center">
-    <img src="./docs/images/logo/deeptab-v1.png" width="520"/>
+    <img src="./docs/images/logo/deeptab-v1.png" width="550"/>
 
 [![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
@@ -15,7 +15,7 @@
 </div>
 
 <div style="text-align: center;">
-    <h1>deeptab: Tabular Deep Learning Made Simple</h1>
+    <h1>DeepTab: Tabular Deep Learning Made Simple</h1>
 </div>
 
 deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available [here](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.

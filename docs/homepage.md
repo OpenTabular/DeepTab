@@ -1,4 +1,4 @@
-# deeptab: Tabular Deep Learning Made Simple
+# DeepTab: Tabular Deep Learning Made Simple
 
 deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available on [arXiv](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.
 
@@ -229,69 +229,69 @@ Here's how you can implement a custom model with deeptab:
 1. **First, define your config:**  
    The configuration class allows you to specify hyperparameters and other settings for your model. This can be done using a simple dataclass.
 
-   ```python
-   from dataclasses import dataclass
+```python
+from dataclasses import dataclass
 
-   @dataclass
-   class MyConfig:
-       lr: float = 1e-04
-       lr_patience: int = 10
-       weight_decay: float = 1e-06
-       lr_factor: float = 0.1
-   ```
+@dataclass
+class MyConfig:
+    lr: float = 1e-04
+    lr_patience: int = 10
+    weight_decay: float = 1e-06
+    lr_factor: float = 0.1
+```
 
 2. **Second, define your model:**  
    Define your custom model just as you would for an `nn.Module`. The main difference is that you will inherit from `BaseModel` and use the provided feature information to construct your layers. To integrate your model into the existing API, you only need to define the architecture and the forward pass.
 
-   ```python
-   from deeptab.base_models import BaseModel
-   from deeptab.utils.get_feature_dimensions import get_feature_dimensions
-   import torch
-   import torch.nn
+```python
+from deeptab.base_models import BaseModel
+from deeptab.utils.get_feature_dimensions import get_feature_dimensions
+import torch
+import torch.nn
 
-   class MyCustomModel(BaseModel):
-       def __init__(
-           self,
-           cat_feature_info,
-           num_feature_info,
-           num_classes: int = 1,
-           config=None,
-           **kwargs,
-       ):
-           super().__init__(**kwargs)
-           self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
+class MyCustomModel(BaseModel):
+    def __init__(
+        self,
+        cat_feature_info,
+        num_feature_info,
+        num_classes: int = 1,
+        config=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.save_hyperparameters(ignore=["cat_feature_info", "num_feature_info"])
 
-           input_dim = get_feature_dimensions(num_feature_info, cat_feature_info)
+        input_dim = get_feature_dimensions(num_feature_info, cat_feature_info)
 
-           self.linear = nn.Linear(input_dim, num_classes)
+        self.linear = nn.Linear(input_dim, num_classes)
 
-       def forward(self, num_features, cat_features):
-           x = num_features + cat_features
-           x = torch.cat(x, dim=1)
+    def forward(self, num_features, cat_features):
+        x = num_features + cat_features
+        x = torch.cat(x, dim=1)
 
-           # Pass through linear layer
-           output = self.linear(x)
-           return output
-   ```
+        # Pass through linear layer
+        output = self.linear(x)
+        return output
+```
 
 3. **Leverage the deeptab API:**  
    You can build a regression, classification, or distributional regression model that can leverage all of deeptab's built-in methods by using the following:
 
-   ```python
-   from deeptab.models import SklearnBaseRegressor
+```python
+from deeptab.models import SklearnBaseRegressor
 
-   class MyRegressor(SklearnBaseRegressor):
-       def __init__(self, **kwargs):
-           super().__init__(model=MyCustomModel, config=MyConfig, **kwargs)
-   ```
+class MyRegressor(SklearnBaseRegressor):
+    def __init__(self, **kwargs):
+        super().__init__(model=MyCustomModel, config=MyConfig, **kwargs)
+```
 
 4. **Train and evaluate your model:**  
    You can now fit, evaluate, and predict with your custom model just like with any other deeptab model. For classification or distributional regression, inherit from `SklearnBaseClassifier` or `SklearnBaseLSS` respectively.
 
-   ```python
-   regressor = MyRegressor(numerical_preprocessing="ple")
-   regressor.fit(X_train, y_train, max_epochs=50)
-   ```
+```python
+regressor = MyRegressor(numerical_preprocessing="ple")
+regressor.fit(X_train, y_train, max_epochs=50)
+```
 
 # Custom Training
 
