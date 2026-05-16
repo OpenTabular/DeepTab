@@ -43,17 +43,15 @@ pyright = "^1.1.409"
 
 [tool.poetry.group.docs.dependencies]
 setuptools = "*"
-sphinx = "6.2.1"
-sphinx-autodoc-typehints = "1.23.0"
-numpydoc = "1.7.0"
+sphinx = { version = "9.1.0", python = ">=3.12" }
+sphinx-autodoc-typehints = { version = ">=3.0", python = ">=3.12" }
+numpydoc = ">=1.8"
 nbsphinx = "0.9.4"
 ipython = "*"
-myst-parser = "3.0.1"
-m2r2 = "0.3.3.post2"
-sphinx-copybutton = "0.5.2"
+myst-parser = { version = ">=4.0", python = ">=3.12" }
+
 sphinx-togglebutton = "0.3.2"
-sphinx-book-theme = "1.1.2"
-sphinx-rtd-theme = "2.0.0"
+sphinxawesome-theme = { version = ">=6.0", python = ">=3.12" }
 readthedocs-sphinx-ext = "2.2.5"
 lxml-html-clean = "0.4.0"
 pydata-sphinx-theme = "0.15.2"
