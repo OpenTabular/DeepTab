@@ -3,7 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. mdinclude:: homepage.md
+.. include:: homepage.md
+   :parser: myst_parser.sphinx_
 
 .. toctree::
    :name: Getting Started
@@ -45,6 +46,10 @@
    :hidden:
 
    developer_guide/contributing
+   developer_guide/testing
+   developer_guide/documentation
    developer_guide/release
+   developer_guide/versioning
+   developer_guide/ci_cd
    developer_guide/model_promotion_policy
    developer_guide/support_matrix
