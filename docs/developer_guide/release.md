@@ -58,9 +58,7 @@ Fix any docstring related issue, then proceed with next steps.
 
 ## 2. Version update
 
-The package version is maintained in `pyproject.toml` only. The version is read at runtime via `importlib.metadata`.
-
-On a `release/vX.Y.Z` branch:
+See **[Versioning](versioning.md)** for the full explanation of SemVer rules, commit types, and how `cz bump` works. The commands are summarised below.
 
 **For a stable release** — let `cz bump` derive the next version automatically from conventional commits:
 
@@ -123,21 +121,14 @@ git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z
 ```
 
-## 6. Publish package to PyPI
+## 6. Publish package
 
-The tag push automatically triggers the appropriate workflow in GitHub Actions:
+The tag push automatically triggers the appropriate GitHub Actions workflow — see **[CI/CD](ci_cd.md)** for the full workflow details. In summary:
 
-- Stable tag (`vX.Y.Z`) → `publish-pypi.yml` → publishes to **PyPI** + creates GitHub Release
-- RC tag (`vX.Y.ZrcN`) → `publish-testpypi.yml` → publishes to **TestPyPI** + creates GitHub pre-release
+- Stable tag (`vX.Y.Z`) → `publish-pypi.yml` → PyPI + GitHub Release
+- RC tag (`vX.Y.ZrcN`) → `publish-testpypi.yml` → TestPyPI + GitHub pre-release
 
-Both workflows:
-
-- Build the package (`poetry build`)
-- Validate with `twine check`
-- Publish via **OIDC Trusted Publishing** (no API tokens required)
-- Create a GitHub Release with auto-generated notes
-
-> **Note:** A `pypi-publish` GitHub Environment (for stable) and `testpypi-publish` environment (for RCs) must be configured with tag-based deployment protection rules.
+Both workflows use **OIDC Trusted Publishing** (no API tokens required).
 
 ## 7. GitHub Release
 
