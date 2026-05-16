@@ -83,6 +83,11 @@ root_doc = "index"
 # Usually you set "language" from the command line for these cases.
 language = "en"
 
+# Suppress RemovedInSphinx10Warning from nbsphinx (upstream issue, not ours)
+filterwarnings = [
+    "ignore::sphinx.deprecation.RemovedInSphinx10Warning",
+]
+
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -133,11 +138,10 @@ html_theme_options = {
 # Use the theme's own permalink icon
 html_permalinks_icon = Icons.permalinks_icon
 
-# On API reference pages the page TOC would list every class and every method —
-# hundreds of entries.  Suppress it there; keep it on regular doc pages.
+# On API reference pages suppress the page TOC (would list every class/method).
+# Non-API pages fall back to the theme's default sidebars, so no ** needed.
 html_sidebars = {
     "api/**": ["sidebar_main_nav_links.html"],
-    "**": ["sidebar_main_nav_links.html", "sidebar_toc.html"],
 }
 
 # The name of an image file (relative to this directory) to place at the top
