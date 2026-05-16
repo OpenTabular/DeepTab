@@ -1,43 +1,91 @@
-@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap");
+/*
+ * custom.css — sphinxawesome_theme compatible
+ *
+ * NOTE: This file must NOT use --pst-color-* variables or .bd-* selectors.
+ * Those belong to pydata-sphinx-theme / sphinx-book-theme and do not exist
+ * here. All overrides use standard CSS selectors or sphinxawesome variables.
+ */
 
-:root {
-  font-size: 95%; /* zoom-out: more content per page */
-  --pst-color-primary: #2563eb;
-  --pst-color-secondary: #7c3aed;
-  --pst-color-accent: #06b6d4;
-  --pst-color-link: #2563eb;
-  --pst-font-size-base: 1rem;
-  --code-font:
+@import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap");
+
+/* ── Monospace font for all code ─────────────────────────────────────────── */
+code,
+kbd,
+samp,
+pre,
+.highlight pre,
+tt.literal,
+code.literal {
+  font-family:
     "JetBrains Mono", "Fira Code", "Cascadia Code", "SF Mono", "Consolas",
     monospace;
 }
 
-html[data-theme="dark"] {
-  --pst-color-primary: #38bdf8;
-  --pst-color-secondary: #a78bfa;
-  --pst-color-accent: #22d3ee;
-  --pst-color-link: #38bdf8;
+/* ── Code block sizing and shape ─────────────────────────────────────────── */
+/* Single border lives on pre; div.highlight only clips the radius. */
+div.highlight {
+  border-radius: 8px;
+  overflow: hidden;
 }
 
-/* ── Code blocks: GitHub light (default) + GitHub dark (dark mode) ─────────── */
+.highlight pre {
+  font-size: 0.9rem;
+  line-height: 1.65;
+  border-radius: 8px;
+  border: 1px solid #d0d7de; /* override theme.css's var(--color-border) */
+  margin-top: 0; /* theme adds a large top-margin — reset it */
+  padding: 1rem 1.25rem;
+  font-feature-settings:
+    "liga" 1,
+    "calt" 1;
+}
 
-/* Light mode — GitHub light palette */
+html[data-theme="dark"] .highlight pre {
+  border-color: #30363d;
+}
+
+/* Inline code */
+code.literal,
+p code,
+li code,
+td code {
+  font-family: "JetBrains Mono", "Fira Code", "SF Mono", "Consolas", monospace;
+  font-size: 0.82em;
+  border-radius: 4px;
+  padding: 0.15em 0.4em;
+  background: #f3f4f6;
+  border: 1px solid #e2e4e8;
+  color: #c2185b;
+}
+
+html[data-theme="dark"] code.literal,
+html[data-theme="dark"] p code,
+html[data-theme="dark"] li code,
+html[data-theme="dark"] td code {
+  background: #161b22;
+  border-color: #30363d;
+  color: #ff7b72;
+}
+
+/* ── Syntax highlighting — light palette (GitHub-inspired) ──────────────── */
+/* keywords: blue   │ strings: green  │ fn/class defs: purple               */
+/* comments: gray   │ numbers: blue   │ variable names: neutral (no colour)  */
 div.highlight,
 .highlight pre {
   background: #f6f8fa;
   color: #24292f;
 }
-.highlight pre span {
-  color: #24292f;
-}
+/* def, class, import, from, if, return, for, … → blue */
 .highlight .k,
 .highlight .kn,
 .highlight .kd,
 .highlight .kr,
-.highlight .kc {
-  color: #cf222e;
-  font-weight: 500;
+.highlight .kc,
+.highlight .kw {
+  color: #0550ae;
+  font-weight: 600;
 }
+/* string literals → green */
 .highlight .s,
 .highlight .s1,
 .highlight .s2,
@@ -48,36 +96,44 @@ div.highlight,
 .highlight .se,
 .highlight .si,
 .highlight .sh {
-  color: #0a3069;
+  color: #116329;
 }
+/* numbers → blue */
 .highlight .mi,
 .highlight .mf,
 .highlight .mh,
 .highlight .mo {
   color: #0550ae;
 }
+/* function names in definitions → purple */
 .highlight .nf,
 .highlight .fm {
-  color: #6639ba;
+  color: #8250df;
 }
+/* class names in definitions → purple */
 .highlight .nc {
-  color: #953800;
-  font-weight: 500;
+  color: #8250df;
+  font-weight: 600;
 }
+/* decorators (@property, @staticmethod, …) → purple */
 .highlight .nd {
-  color: #953800;
+  color: #8250df;
 }
+/* builtins (print, len, range, …) → blue */
 .highlight .nb,
 .highlight .bp {
-  color: #0550ae;
+  color: #0969da;
 }
+/* namespace / module names → neutral */
 .highlight .nn {
   color: #24292f;
 }
+/* operators → neutral */
 .highlight .o,
 .highlight .ow {
-  color: #cf222e;
+  color: #24292f;
 }
+/* comments → gray italic */
 .highlight .c,
 .highlight .c1,
 .highlight .cm,
@@ -86,33 +142,32 @@ div.highlight,
   color: #6e7781;
   font-style: italic;
 }
+/* variable / param names → NEUTRAL (no colour; avoid painting everything) */
 .highlight .n,
 .highlight .na,
 .highlight .nv,
-.highlight .py {
-  color: #24292f;
-}
+.highlight .py,
 .highlight .p {
   color: #24292f;
 }
 
-/* Dark mode — GitHub dark palette */
+/* ── Syntax highlighting — dark palette (GitHub Dark) ──────────────────── */
 html[data-theme="dark"] div.highlight,
 html[data-theme="dark"] .highlight pre {
-  background: #0d1117 !important;
-  color: #e6edf3 !important;
-}
-html[data-theme="dark"] .highlight pre span {
+  background: #0d1117;
   color: #e6edf3;
 }
+/* keywords → blue */
 html[data-theme="dark"] .highlight .k,
 html[data-theme="dark"] .highlight .kn,
 html[data-theme="dark"] .highlight .kd,
 html[data-theme="dark"] .highlight .kr,
-html[data-theme="dark"] .highlight .kc {
-  color: #ff7b72;
-  font-weight: 500;
+html[data-theme="dark"] .highlight .kc,
+html[data-theme="dark"] .highlight .kw {
+  color: #79c0ff;
+  font-weight: 600;
 }
+/* strings → green */
 html[data-theme="dark"] .highlight .s,
 html[data-theme="dark"] .highlight .s1,
 html[data-theme="dark"] .highlight .s2,
@@ -120,35 +175,43 @@ html[data-theme="dark"] .highlight .sa,
 html[data-theme="dark"] .highlight .se,
 html[data-theme="dark"] .highlight .si,
 html[data-theme="dark"] .highlight .sh {
-  color: #a5d6ff;
+  color: #7ee787;
 }
+/* numbers → blue */
 html[data-theme="dark"] .highlight .mi,
 html[data-theme="dark"] .highlight .mf,
 html[data-theme="dark"] .highlight .mh {
   color: #79c0ff;
 }
+/* function names → purple */
 html[data-theme="dark"] .highlight .nf,
 html[data-theme="dark"] .highlight .fm {
   color: #d2a8ff;
 }
+/* class names → purple */
 html[data-theme="dark"] .highlight .nc {
-  color: #ffa657;
-  font-weight: 500;
+  color: #d2a8ff;
+  font-weight: 600;
 }
+/* decorators → purple */
 html[data-theme="dark"] .highlight .nd {
-  color: #ffa657;
+  color: #d2a8ff;
 }
+/* builtins → blue */
 html[data-theme="dark"] .highlight .nb,
 html[data-theme="dark"] .highlight .bp {
   color: #79c0ff;
 }
+/* namespace names → neutral */
 html[data-theme="dark"] .highlight .nn {
   color: #e6edf3;
 }
+/* operators → neutral */
 html[data-theme="dark"] .highlight .o,
 html[data-theme="dark"] .highlight .ow {
-  color: #ff7b72;
+  color: #e6edf3;
 }
+/* comments → gray */
 html[data-theme="dark"] .highlight .c,
 html[data-theme="dark"] .highlight .c1,
 html[data-theme="dark"] .highlight .cm,
@@ -156,132 +219,27 @@ html[data-theme="dark"] .highlight .cp {
   color: #8b949e;
   font-style: italic;
 }
+/* variable / param names → NEUTRAL */
 html[data-theme="dark"] .highlight .n,
 html[data-theme="dark"] .highlight .na,
 html[data-theme="dark"] .highlight .nv,
-html[data-theme="dark"] .highlight .py {
-  color: #e6edf3;
-}
+html[data-theme="dark"] .highlight .py,
 html[data-theme="dark"] .highlight .p {
   color: #e6edf3;
 }
 
-.bd-main .bd-content .bd-article-container {
-  max-width: 900px;
+/* ── List item spacing — Tailwind prose adds too much gap ────────────────── */
+/* Scoped to #content so sidebar/nav lists are unaffected */
+#content ul li,
+#content ol li {
+  margin-top: 0.2rem;
+  margin-bottom: 0.2rem;
+  line-height: 1.55;
 }
 
-.bd-sidebar-primary {
-  font-size: 0.92rem;
-}
-
-.sd-card {
-  border-radius: 14px;
-  box-shadow: none;
-  border: 1px solid var(--pst-color-border);
-}
-
-.sd-card:hover {
-  border-color: var(--pst-color-primary);
-  transform: translateY(-1px);
-  transition: all 0.15s ease-in-out;
-}
-
-.highlight pre {
-  border-radius: 12px;
-  font-family: var(--code-font);
-  font-size: 0.875rem;
-  line-height: 1.65;
-  padding: 1.1rem 1.25rem;
-  font-feature-settings:
-    "liga" 1,
-    "calt" 1;
-}
-
-/* Inline code */
-code.literal,
-p code,
-li code,
-td code {
-  font-family: var(--code-font);
-  font-size: 0.85em;
-  background: var(--pst-color-surface);
-  border: 1px solid var(--pst-color-border);
-  border-radius: 5px;
-  padding: 0.1em 0.4em;
-}
-
-/* sphinx-copybutton: align with rounded blocks */
-div.highlight {
-  border-radius: 12px;
-  overflow: hidden;
-}
-
-.bd-header {
-  box-shadow: none;
-  border-bottom: 1px solid var(--pst-color-border);
-}
-
-/* Page title (h1): visually similar to h2 to reduce dominance */
-.bd-article h1 {
-  font-size: 1.75rem;
-  font-weight: 700;
-  line-height: 1.3;
-}
-
-.bd-article h2 {
-  font-size: 1.4rem;
-  font-weight: 600;
-  line-height: 1.35;
-}
-
-.bd-article h3 {
-  font-size: 1.15rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-.bd-article h4 {
-  font-size: 1rem;
-  font-weight: 600;
-  line-height: 1.4;
-}
-
-/* ── Sidebar nav section separators ───────────────────────────────────────── */
-/* Each top-level toctree becomes a <ul class="bd-sidenav"> inside
-   .bd-sidebar-primary .sidebar-primary-items__start nav.
-   We insert a thin rule above each group except the first. */
-.bd-sidebar-primary .bd-toc ul.current > li.toctree-l1:first-child,
-.bd-sidebar-primary nav.bd-sidenav > ul > li {
-  /* no rule needed here */
-}
-
-/* Target the caption elements (section titles like "Getting Started") */
-.bd-sidebar-primary .caption-text {
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--pst-color-text-muted);
-  padding-top: 0.75rem;
-  margin-top: 0.5rem;
-  border-top: 1px solid var(--pst-color-border);
-  display: block;
-}
-
-/* Remove the border-top from the very first caption */
-.bd-sidebar-primary .toctree-wrapper > ul > li:first-child .caption-text,
-.bd-sidebar-primary nav > ul > li.has-children:first-child > .caption-text {
-  border-top: none;
-  padding-top: 0;
-  margin-top: 0;
-}
-
-/* ── Navbar: GitHub icon + text label ─────────────────────────────────────── */
-/* pydata-sphinx-theme hides .icon-link-name by default; reveal it */
-.navbar-icon-link .icon-link-name {
-  display: inline !important;
-  font-size: 0.85rem;
-  font-weight: 500;
-  margin-left: 0.3rem;
-  vertical-align: middle;
+/* Numpydoc field lists (Parameters, Returns, etc.) */
+#content dl > dd > ul li,
+#content dl > dd > ol li {
+  margin-top: 0.1rem;
+  margin-bottom: 0.1rem;
 }
