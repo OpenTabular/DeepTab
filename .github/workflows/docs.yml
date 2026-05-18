@@ -37,7 +37,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
 
       - name: Install Poetry
         run: pipx install poetry
@@ -49,7 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-docs-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+          key: venv-docs-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install package and docs dependencies
         run: poetry install --with docs

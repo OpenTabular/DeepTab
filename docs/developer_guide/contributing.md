@@ -69,28 +69,37 @@ pip install -r docs/requirements_docs.txt
 2. Make your desired changes or additions to the codebase.
 3. Ensure that your code adheres to [PEP8](https://peps.python.org/pep-0008/) coding style guidelines.
 4. Write appropriate tests for your changes and verify they pass:
-   ```bash
-   just test
-   ```
+
+```bash
+just test
+```
+
 5. Update the documentation and examples, if necessary.
 6. Build the HTML documentation and verify it works as expected:
-   ```bash
-   just docs
-   ```
-   Verify the output under `docs/_build/html/`. `index.html` is the entry point.
-7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
-   ```bash
-   just check
-   ```
-   If `ruff-format` modifies any files, commit those changes before pushing:
-   ```bash
-   git add -u
-   git commit -m "style: apply ruff formatting"
-   ```
+
+```bash
+just docs
+```
+
+Verify the output under `docs/_build/html/`. `index.html` is the entry point. 7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
+
+```bash
+just check
+```
+
+If `ruff-format` modifies any files, commit those changes before pushing:
+
+```bash
+git add -u
+git commit -m "style: apply ruff formatting"
+```
+
 8. Commit your changes following the Conventional Commits specification (see below):
-   ```bash
-   just commit
-   ```
+
+```bash
+just commit
+```
+
 9. Submit a pull request from your branch to `main` in the original repository.
 10. Wait for the maintainers to review your pull request. Address any feedback or comments if required.
 11. Once approved, your changes will be merged into the main codebase.
@@ -134,181 +143,24 @@ just typecheck
 
 Fix any reported errors before opening a PR.
 
-## Docs Workflow
+## Documentation
 
-Documentation is built with [Sphinx](https://www.sphinx-doc.org/) and hosted on [Read the Docs](https://readthedocs.org/).
+For a full description of the Sphinx setup, how to add pages, write docstrings, and how the ReadTheDocs deployment works, see the dedicated **[Documentation](documentation.md)** page.
 
-The docs CI is defined in `.github/workflows/docs.yml` and is separate from the main CI workflow.
-
-### How docs are published
-
-| Trigger                                                               | CI (`docs.yml`)                                       | Read the Docs                                                 |
-| --------------------------------------------------------------------- | ----------------------------------------------------- | ------------------------------------------------------------- |
-| PR touching `docs/**`, `deeptab/**`, `README.md`, or `pyproject.toml` | Sphinx build check — PR is blocked if docs are broken | No publish                                                    |
-| Merge to `main`                                                       | Sphinx build check                                    | Publishes **latest** (dev) version                            |
-| Stable tag pushed (`vX.Y.Z`)                                          | Sphinx build check from that exact tagged commit      | Publishes **versioned** snapshot and updates **stable** alias |
-| RC tag pushed (`vX.Y.Zrc1`)                                           | Sphinx build check from that exact tagged commit      | Publishes versioned pre-release snapshot                      |
-
-> **Note:** The docs CI `push` trigger has **no `paths:` filter** — tag pushes always run the full docs build regardless of which files changed in the tagged commit. The `paths:` filter only applies to PRs to keep checks fast.
-
-> **Note:** Versioned and stable docs require **"Build tags"** to be enabled in the Read the Docs project settings under _Admin → Advanced settings_. RTD automatically sets the `stable` alias to the highest non-pre-release tag.
-
-### Tag → versioned docs flow
-
-```
-git tag -a v1.7.0 -m "Release v1.7.0"
-git push origin v1.7.0
-         ↓
-docs.yml triggers on that exact tagged commit
-         ↓
-Sphinx build succeeds (or blocks if broken)
-         ↓
-RTD webhook fires → builds docs from v1.7.0 source
-         ↓
-RTD publishes /en/v1.7.0/ (versioned)
-         ↓
-RTD updates /en/stable/ → points to v1.7.0
-```
-
-RC tags (`vX.Y.Zrc1`) follow the same flow but RTD does **not** update the `stable` alias for pre-release tags.
-
-### Building docs locally
+Quick reference:
 
 ```bash
-# Install system dependency (macOS)
-brew install pandoc
-# or on Ubuntu
-sudo apt-get install pandoc
-
-# Install doc dependencies (if not already done)
-poetry install --with docs
-
-# Build HTML docs (warnings treated as errors)
-sphinx-build -b html docs/ docs/_build/html -W --keep-going
-
-# Open in browser
+just docs          # build HTML locally
 open docs/_build/html/index.html
 ```
 
-### Version resolution
+## Release workflow
 
-The docs version is read at build time from the installed package metadata via `importlib.metadata.version("deeptab")`, which reflects the version in `pyproject.toml`. No separate version file is maintained.
+For the end-to-end release procedure (version bump, tags, PyPI publishing) see:
 
-## Release Workflow
-
-This project uses conventional commits and intentional, maintainer-controlled releases.
-
-### Release Process Overview
-
-```
-1. Make Changes → 2. Conventional Commit → 3. Merge to Main → 4. CI runs
-                                                                     ↓
-                                          (no automatic release — main is not a release trigger)
-
-5. Maintainer opens Release PR → version bump + CHANGELOG update → merge to main
-6. Maintainer creates Git tag → PyPI publish triggered automatically
-```
-
-**Step-by-Step:**
-
-1. **Development Phase**
-   - Create feature branch from `main`
-   - Make your changes
-   - Commit using conventional commits (e.g., `feat:`, `fix:`)
-
-2. **Merge to Main** (CI only — no release)
-   - Create PR to `main`
-   - After review, merge to `main`
-   - GitHub Actions runs tests
-   - **No version bump, no tag, no PyPI publish happens automatically**
-
-3. **Maintainer Release PR** (periodic, intentional)
-   - Maintainer creates a `release/vX.Y.Z` branch
-   - Runs `cz bump` to update `pyproject.toml` and `CHANGELOG.md`
-   - Opens PR to `main`, merges after review
-
-4. **Maintainer Creates Git Tag**
-   - After the release PR is merged:
-     ```bash
-     git checkout main && git pull
-     git tag -a vX.Y.Z -m "Release vX.Y.Z"
-     git push origin vX.Y.Z
-     ```
-   - This tag push triggers `publish-pypi.yml` → builds and publishes to PyPI + creates GitHub Release
-   - For RC tags (`vX.Y.Zrc1`), push triggers `publish-testpypi.yml` → publishes to TestPyPI, then a second `smoke-test-testpypi` job installs the exact RC from TestPyPI in a clean environment and runs an import smoke test to confirm the uploaded package is installable from the index
-
-### Validating a Build Without Publishing
-
-Before cutting a tag or publishing anywhere, you can trigger a full dry-run build via the **Build & Check** workflow:
-
-1. Go to **Actions → Build & Check (dry run)** in the GitHub repository.
-2. Click **Run workflow** and select the branch to validate.
-3. The workflow will:
-   - Build both wheel and sdist with Poetry
-   - Run `twine check` on both artifacts
-   - Install the wheel in a fresh virtual environment and run an import smoke test
-   - Upload the `dist/` folder as a downloadable artifact (retained for 7 days)
-
-This is the recommended step before opening a release PR or pushing an RC tag.
-
-### What Triggers a Release?
-
-| Event                         | Result                                                              |
-| ----------------------------- | ------------------------------------------------------------------- |
-| `workflow_dispatch`           | Dry-run build + twine check + smoke test (no publish)               |
-| Push to `main`                | CI tests only                                                       |
-| Maintainer pushes `v*rc*` tag | TestPyPI publish + GitHub pre-release + TestPyPI install smoke test |
-| Maintainer pushes `v*` tag    | PyPI publish + GitHub Release                                       |
-
-### Commit Types and Their Effect on Version
-
-Commit messages determine the version bump chosen by the maintainer when running `cz bump`:
-
-| Commit Type                                              | Version Bump      |
-| -------------------------------------------------------- | ----------------- |
-| `feat:`                                                  | Minor (1.x.0)     |
-| `fix:`, `perf:`                                          | Patch (1.6.x)     |
-| `feat!:` / `BREAKING CHANGE:`                            | Major (x.0.0)     |
-| `docs:`, `style:`, `refactor:`, `test:`, `chore:`, `ci:` | No release needed |
-
-### Example Scenarios
-
-**Scenario 1: Documentation Update (No Release)**
-
-```bash
-git commit -m "docs: update API reference"
-# Merge to main → CI only, no release
-```
-
-**Scenario 2: Bug Fix (Patch Release)**
-
-```bash
-git commit -m "fix: resolve memory leak in dataloader"
-# Merged to main → later, maintainer runs cz bump → creates v1.6.2 tag → PyPI release
-```
-
-**Scenario 3: New Feature (Minor Release)**
-
-```bash
-git commit -m "feat(models): add TabNet architecture"
-# Merged to main → later, maintainer runs cz bump → creates v1.7.0 tag → PyPI release
-```
-
-**Scenario 4: RC for risky feature**
-
-```bash
-# Maintainer tags manually:
-git tag -a v1.7.0rc1 -m "Release candidate v1.7.0rc1"
-git push origin v1.7.0rc1
-# → PyPI pre-release, GitHub pre-release
-```
-
-### Important Notes
-
-- **Merging to `main` never triggers a PyPI release**
-- **Only a manually pushed `v*` tag triggers publishing**
-- **Never manually edit the version number** in `pyproject.toml` — use `cz bump` on a release branch
-- **PyPI publishing** uses OIDC Trusted Publishing — no API tokens are stored in GitHub secrets
+- **[Release process](release.md)** — step-by-step instructions
+- **[Versioning](versioning.md)** — SemVer rules, commit types, `cz bump`
+- **[CI/CD](ci_cd.md)** — what each GitHub Actions workflow does
 
 ## Submitting Contributions
 
