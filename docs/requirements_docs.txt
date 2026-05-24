@@ -8,7 +8,7 @@ myst-parser>=4.0
 sphinx-togglebutton==0.3.2
 sphinxawesome-theme>=6.0
 readthedocs-sphinx-ext==2.2.5
-lxml-html-clean==0.4.0
+lxml-html-clean==0.4.4
 pydata-sphinx-theme==0.15.2
 sphinx-design
 sphinxcontrib-mermaid
