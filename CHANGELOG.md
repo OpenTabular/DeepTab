@@ -14,7 +14,6 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 ### Feat
 
 - stable/experimental model split, save/load, and bug fixes
-- stable/experimental model split, save/load, and bug fixes
 - **models**: add save/load, fix get_params and LSS family pickling
 - stable and experimental model separation
 
