@@ -1,3 +1,5 @@
+from collections.abc import Callable
+
 import numpy as np
 import torch
 import torch.distributions as dist
@@ -31,7 +33,7 @@ class BaseDistribution(torch.nn.Module):
         self.param_names = param_names
         self.param_count = len(param_names)
         # Predefined transformation functions accessible to all subclasses
-        self.predefined_transforms = {
+        self.predefined_transforms: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
             "positive": torch.nn.functional.softplus,
             "none": lambda x: x,
             "square": lambda x: x**2,
@@ -50,7 +52,9 @@ class BaseDistribution(torch.nn.Module):
     def parameter_count(self):
         return self.param_count
 
-    def get_transform(self, transform_name):
+    def get_transform(
+        self, transform_name: str | Callable[[torch.Tensor], torch.Tensor]
+    ) -> Callable[[torch.Tensor], torch.Tensor]:
         """
         Retrieve a transformation function by name, or return the function if it's custom.
         """
