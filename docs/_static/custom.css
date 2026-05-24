@@ -228,6 +228,20 @@ html[data-theme="dark"] .highlight .p {
   color: #e6edf3;
 }
 
+/* ── Sidebar nav section separators ─────────────────────────────────────── */
+/* All p.caption elements are flat siblings inside a single <nav>.            */
+/* The ~ combinator targets every caption that follows the first one,         */
+/* adding a hairline rule above it without an orphan border at the top.       */
+#left-sidebar nav p.caption ~ p.caption {
+  border-top: 1px solid #d0d7de;
+  padding-top: 0.85rem;
+  margin-top: 0.5rem;
+}
+
+html[data-theme="dark"] #left-sidebar nav p.caption ~ p.caption {
+  border-top-color: #30363d;
+}
+
 /* ── List item spacing — Tailwind prose adds too much gap ────────────────── */
 /* Scoped to #content so sidebar/nav lists are unaffected */
 #content ul li,

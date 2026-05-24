@@ -9,6 +9,31 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ---
 
+## v1.8.0 (2026-05-24)
+
+### Feat
+
+- stable/experimental model split, save/load, and bug fixes
+- **models**: add save/load, fix get_params and LSS family pickling
+- stable and experimental model separation
+
+### Fix
+
+- duplicate entry in docs for model classes
+- test case fixed for windows
+- suppress family hparam warning
+- **tabr**: cast candidate_y to float in regression/LSS label encoder path
+- **tabr**: use regression label encoder for LSS by forwarding lss flag
+- **types**: guard task_model None, use getattr for get_params, annotate test kwargs
+- **lint**: drop unused unpacked variables and dead code
+- **tabtrans**: add dedicated LayerNorm for numerical features instead of reusing encoder norm
+- **ndtf**: correct ensemble aggregation for multi-class and LSS outputs
+- added faiss-cpu
+- add delu dependency for TabR
+- DefaultTabRConfig export
+- import error after experimental namespace changes
+- resolve stale site-packages
+
 ## v1.7.0 (2026-05-14)
 
 ### Documentation
