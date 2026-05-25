@@ -140,7 +140,7 @@ def test_experimental_model_not_in_stable_all(class_name: str):
 
 def test_registry_stable_import_paths():
     """All stable entries in MODEL_REGISTRY have import_path == 'deeptab.models'."""
-    from deeptab.models._registry import MODEL_REGISTRY
+    from deeptab.core.registry import MODEL_REGISTRY
 
     for name, info in MODEL_REGISTRY.items():
         if info.status == "stable":
@@ -151,7 +151,7 @@ def test_registry_stable_import_paths():
 
 def test_registry_experimental_import_paths():
     """All experimental entries have import_path == 'deeptab.models.experimental'."""
-    from deeptab.models._registry import MODEL_REGISTRY
+    from deeptab.core.registry import MODEL_REGISTRY
 
     for name, info in MODEL_REGISTRY.items():
         if info.status == "experimental":
