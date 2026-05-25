@@ -2,10 +2,11 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import torch.nn as nn
+from sklearn.base import BaseEstimator
 
 
 @dataclass
-class BaseConfig:
+class BaseConfig(BaseEstimator):
     """
     Base configuration class with shared hyperparameters for models.
 
