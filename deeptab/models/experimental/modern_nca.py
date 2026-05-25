@@ -1,5 +1,7 @@
 from ...base_models.modern_nca import ModernNCA
-from ...configs.modernnca_config import DefaultModernNCAConfig
+from ...configs.modernnca_config import ModernNCAConfig
+from ...configs.preprocessing_config import PreprocessingConfig
+from ...configs.trainer_config import TrainerConfig
 from ...utils.docstring_generator import generate_docstring
 from ..utils.sklearn_base_classifier import SklearnBaseClassifier
 from ..utils.sklearn_base_lss import SklearnBaseLSS
@@ -8,7 +10,7 @@ from ..utils.sklearn_base_regressor import SklearnBaseRegressor
 
 class ModernNCARegressor(SklearnBaseRegressor):
     __doc__ = generate_docstring(
-        DefaultModernNCAConfig,
+        ModernNCAConfig,
         model_description="""
         Multi-Layer Perceptron regressor. This class extends the SklearnBaseRegressor class and uses the ModernNCA model
         with the default ModernNCA configuration.
@@ -22,13 +24,28 @@ class ModernNCARegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=ModernNCA, config=DefaultModernNCAConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: ModernNCAConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=ModernNCA,
+            config=ModernNCAConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class ModernNCAClassifier(SklearnBaseClassifier):
     __doc__ = generate_docstring(
-        DefaultModernNCAConfig,
+        ModernNCAConfig,
         model_description="""
         Multi-Layer Perceptron classifier This class extends the SklearnBaseClassifier class and uses the ModernNCA model
         with the default ModernNCA configuration.
@@ -42,13 +59,28 @@ class ModernNCAClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=ModernNCA, config=DefaultModernNCAConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: ModernNCAConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=ModernNCA,
+            config=ModernNCAConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class ModernNCALSS(SklearnBaseLSS):
     __doc__ = generate_docstring(
-        DefaultModernNCAConfig,
+        ModernNCAConfig,
         model_description="""
         Multi-Layer Perceptron for distributional regression. This class extends the SklearnBaseLSS class and uses the ModernNCA model
         with the default ModernNCA configuration.
@@ -62,5 +94,20 @@ class ModernNCALSS(SklearnBaseLSS):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=ModernNCA, config=DefaultModernNCAConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: ModernNCAConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=ModernNCA,
+            config=ModernNCAConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
