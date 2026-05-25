@@ -32,7 +32,7 @@ for filename in os.listdir(os.path.dirname(__file__) + "/../deeptab/base_models"
 def get_model_config(model_class):
     """Dynamically load the correct config class for each model."""
     model_name = model_class.__name__  # e.g., "Mambular"
-    config_class_name = f"Default{model_name}Config"  # e.g., "DefaultMambularConfig"
+    config_class_name = f"{model_name}Config"  # e.g., "MambularConfig"
 
     try:
         config_module = importlib.import_module(f"{CONFIG_MODULE_PATH}.{model_name.lower()}_config")
