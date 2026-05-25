@@ -13,7 +13,7 @@ def get_normalization_layer(config):
 
     Parameters:
     -----------
-    config : DefaultMambularConfig
+    config : BaseModelConfig
         Configuration object containing the parameters for the model including normalization.
 
     Returns:
