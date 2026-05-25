@@ -637,7 +637,7 @@ except ImportError:
 class RotaryEmbeddingLayer(nn.Module):
     def __init__(self, dim):
         super().__init__()
-        self.rotary_embedding = RotaryEmbedding(dim=dim)
+        self.rotary_embedding = RotaryEmbedding(dim=dim)  # type: ignore[operator]
 
     def forward(self, q, k):
         q = self.rotary_embedding.rotate_queries_or_keys(q)
