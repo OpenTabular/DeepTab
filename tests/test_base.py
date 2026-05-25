@@ -5,28 +5,25 @@ import os
 import pytest
 import torch
 
-from deeptab.base_models.utils import BaseModel
+from deeptab.core.base_model import BaseModel
 
 # Paths for models and configs
-MODEL_MODULE_PATH = "deeptab.base_models"
+MODEL_MODULE_PATH = "deeptab.architectures"
 CONFIG_MODULE_PATH = "deeptab.configs"
 EXCLUDED_CLASSES = {"TabR"}
 
-# Discover all models
+# Discover all models (stable + experimental)
 model_classes = []
-for filename in os.listdir(os.path.dirname(__file__) + "/../deeptab/base_models"):
-    if filename.endswith(".py") and filename not in [
-        "__init__.py",
-        "basemodel.py",
-        "lightning_wrapper.py",
-        "bayesian_tabm.py",
-    ]:
-        module_name = f"{MODEL_MODULE_PATH}.{filename[:-3]}"
-        module = importlib.import_module(module_name)
-
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if issubclass(obj, BaseModel) and obj is not BaseModel and obj.__name__ not in EXCLUDED_CLASSES:
-                model_classes.append(obj)
+_arch_root = os.path.dirname(__file__) + "/../deeptab/architectures"
+_scan = [(MODEL_MODULE_PATH, _arch_root), (MODEL_MODULE_PATH + ".experimental", _arch_root + "/experimental")]
+for _mod_prefix, _dir in _scan:
+    for filename in os.listdir(_dir):
+        if filename.endswith(".py") and filename != "__init__.py":
+            module_name = f"{_mod_prefix}.{filename[:-3]}"
+            module = importlib.import_module(module_name)
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if issubclass(obj, BaseModel) and obj is not BaseModel and obj.__name__ not in EXCLUDED_CLASSES:
+                    model_classes.append(obj)
 
 
 def get_model_config(model_class):
