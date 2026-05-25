@@ -11,8 +11,7 @@ from skopt import gp_minimize
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from deeptab.configs.preprocessing_config import PreprocessingConfig
-from deeptab.configs.trainer_config import TrainerConfig
+from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.data.datamodule import MambularDataModule
 from deeptab.hpo.mapper import activation_mapper, get_search_space, round_to_nearest_16
 from deeptab.training.lightning_module import TaskModel

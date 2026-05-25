@@ -13,8 +13,7 @@ from sklearn.metrics import accuracy_score, mean_squared_error
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from deeptab.configs.preprocessing_config import PreprocessingConfig
-from deeptab.configs.trainer_config import TrainerConfig
+from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.data.datamodule import MambularDataModule
 from deeptab.distributions.base import (
     BetaDistribution,

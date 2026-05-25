@@ -3,9 +3,8 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.preprocessing_config import PreprocessingConfig
-from ..configs.resnet_config import ResNetConfig
-from ..configs.trainer_config import TrainerConfig
+from ..configs.core import PreprocessingConfig, TrainerConfig
+from ..configs.models.resnet_config import ResNetConfig
 from ._docstring import generate_docstring
 
 
