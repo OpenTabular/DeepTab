@@ -1,5 +1,9 @@
 """Tests for the DeepTab split-config API: TrainerConfig, PreprocessingConfig, and per-model *Config classes."""
 
+# pyright: reportOptionalMemberAccess=false
+# pyright: reportAttributeAccessIssue=false
+# pyright: reportArgumentType=false
+
 import dataclasses
 import dataclasses as _dc
 
