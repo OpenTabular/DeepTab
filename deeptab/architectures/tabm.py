@@ -7,7 +7,7 @@ from deeptab.core.inspection import get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer, LinearBatchEnsembleLayer, SNLinear
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.tabm_config import TabMConfig
+from ..configs.models.tabm_config import TabMConfig
 
 
 class TabM(BaseModel):

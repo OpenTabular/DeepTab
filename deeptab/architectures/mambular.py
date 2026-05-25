@@ -6,7 +6,7 @@ from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mamba import Mamba, MambaOriginal
 from deeptab.nn.blocks.mlp import MLPhead
 
-from ..configs.mambular_config import MambularConfig
+from ..configs.models.mambular_config import MambularConfig
 
 
 class Mambular(BaseModel):

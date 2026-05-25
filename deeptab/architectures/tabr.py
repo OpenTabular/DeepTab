@@ -10,7 +10,7 @@ from deeptab.core.base_model import BaseModel
 from deeptab.core.inspection import get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
-from ..configs.tabr_config import TabRConfig
+from ..configs.models.tabr_config import TabRConfig
 
 
 class TabR(BaseModel):

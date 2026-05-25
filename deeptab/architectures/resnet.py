@@ -7,7 +7,7 @@ from deeptab.core.inspection import get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.resnet import ResidualBlock
 
-from ..configs.resnet_config import ResNetConfig
+from ..configs.models.resnet_config import ResNetConfig
 
 
 class ResNet(BaseModel):

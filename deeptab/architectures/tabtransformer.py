@@ -8,7 +8,7 @@ from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.transformer import CustomTransformerEncoderLayer
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.tabtransformer_config import TabTransformerConfig
+from ..configs.models.tabtransformer_config import TabTransformerConfig
 
 
 class TabTransformer(BaseModel):

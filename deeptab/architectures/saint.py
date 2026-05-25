@@ -6,7 +6,7 @@ from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.transformer import RowColTransformer
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.saint_config import SAINTConfig
+from ..configs.models.saint_config import SAINTConfig
 
 
 class SAINT(BaseModel):

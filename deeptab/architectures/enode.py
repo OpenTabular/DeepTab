@@ -8,7 +8,7 @@ from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.node import ENODEDenseBlock as DenseBlock
 
-from ..configs.enode_config import ENODEConfig
+from ..configs.models.enode_config import ENODEConfig
 
 
 class ENODE(BaseModel):

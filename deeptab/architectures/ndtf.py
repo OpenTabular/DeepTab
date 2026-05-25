@@ -6,7 +6,7 @@ from deeptab.core.base_model import BaseModel
 from deeptab.core.inspection import get_feature_dimensions
 from deeptab.nn.blocks.node import NeuralDecisionTree
 
-from ..configs.ndtf_config import NDTFConfig
+from ..configs.models.ndtf_config import NDTFConfig
 
 
 class NDTF(BaseModel):

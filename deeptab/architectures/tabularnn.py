@@ -8,7 +8,7 @@ from deeptab.nn.blocks.common import ConvRNN, EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.tabularnn_config import TabulaRNNConfig
+from ..configs.models.tabularnn_config import TabulaRNNConfig
 
 
 class TabulaRNN(BaseModel):

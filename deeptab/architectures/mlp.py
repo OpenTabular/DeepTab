@@ -6,7 +6,7 @@ from deeptab.core.base_model import BaseModel
 from deeptab.core.inspection import get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
-from ..configs.mlp_config import MLPConfig
+from ..configs.models.mlp_config import MLPConfig
 
 
 class MLP(BaseModel):

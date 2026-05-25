@@ -7,7 +7,7 @@ from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.node import DenseBlock
 
-from ..configs.node_config import NODEConfig
+from ..configs.models.node_config import NODEConfig
 
 
 class NODE(BaseModel):

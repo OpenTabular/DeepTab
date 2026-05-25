@@ -5,7 +5,7 @@ import torch.nn.init as nn_init
 from deeptab.core.base_model import BaseModel
 from deeptab.nn.blocks.common import EmbeddingLayer
 
-from ..configs.autoint_config import AutoIntConfig
+from ..configs.models.autoint_config import AutoIntConfig
 
 
 class AutoInt(BaseModel):

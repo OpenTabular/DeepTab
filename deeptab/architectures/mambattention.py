@@ -7,7 +7,7 @@ from deeptab.nn.blocks.mamba import MambAttn
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.mambattention_config import MambAttentionConfig
+from ..configs.models.mambattention_config import MambAttentionConfig
 
 
 class MambAttention(BaseModel):

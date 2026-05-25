@@ -7,7 +7,7 @@ from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.transformer import CustomTransformerEncoderLayer
 from deeptab.nn.normalization import get_normalization_layer
 
-from ..configs.fttransformer_config import FTTransformerConfig
+from ..configs.models.fttransformer_config import FTTransformerConfig
 
 
 class FTTransformer(BaseModel):

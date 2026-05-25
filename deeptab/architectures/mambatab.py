@@ -7,7 +7,7 @@ from deeptab.nn.blocks.common import LayerNorm
 from deeptab.nn.blocks.mamba import Mamba, MambaOriginal
 from deeptab.nn.blocks.mlp import MLPhead
 
-from ..configs.mambatab_config import MambaTabConfig
+from ..configs.models.mambatab_config import MambaTabConfig
 
 
 class MambaTab(BaseModel):
