@@ -13,12 +13,53 @@ from tqdm import tqdm
 
 from ...base_models.utils.lightning_wrapper import TaskModel
 from ...base_models.utils.pretraining import pretrain_embeddings
+from ...configs.preprocessing_config import PreprocessingConfig
+from ...configs.trainer_config import TrainerConfig
 from ...data_utils.datamodule import MambularDataModule
 from ...utils.config_mapper import activation_mapper, get_search_space, round_to_nearest_16
 
 
+def _raise_flat_param_error(kwargs: dict, estimator_name: str) -> None:
+    """Raise a helpful TypeError when flat kwargs are passed to a split-config estimator.
+
+    DeepTab 2.0 no longer accepts flat model/training/preprocessing parameters in
+    Classifier and Regressor constructors.  Pass them via the dedicated config objects.
+    """
+    param_list = ", ".join(f"'{k}'" for k in sorted(kwargs))
+    # Infer the model-config class name from the estimator name.
+    # e.g.  MLPClassifier → MLPConfig,  FTTransformerRegressor → FTTransformerConfig
+    config_name = estimator_name
+    for suffix in ("Classifier", "Regressor"):
+        if config_name.endswith(suffix):
+            config_name = config_name[: -len(suffix)] + "Config"
+            break
+    raise TypeError(
+        f"{estimator_name}() received unexpected keyword arguments: {param_list}.\n"
+        f"\n"
+        f"DeepTab 2.0 no longer accepts flat model/training/preprocessing parameters.\n"
+        f"Pass them through the split-config API instead:\n"
+        f"\n"
+        f"  from deeptab.configs import {config_name}, PreprocessingConfig, TrainerConfig\n"
+        f"  model = {estimator_name}(\n"
+        f"      model_config={config_name}(...),\n"
+        f"      preprocessing_config=PreprocessingConfig(...),  # optional\n"
+        f"      trainer_config=TrainerConfig(max_epochs=100, lr=1e-4),\n"
+        f"  )\n"
+    )
+
+
 class SklearnBase(BaseEstimator):
-    def __init__(self, model, config, **kwargs):
+    def __init__(
+        self,
+        model,
+        config,
+        model_config=None,
+        preprocessing_config=None,
+        trainer_config=None,
+        random_state=None,
+        **kwargs,
+    ):
+        self.random_state = random_state
         self.preprocessor_arg_names = [
             "n_bins",
             "feature_preprocessing",
@@ -37,29 +78,77 @@ class SklearnBase(BaseEstimator):
             "spline_implementation",
         ]
 
-        self.config_kwargs = {
-            k: v for k, v in kwargs.items() if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
-        }
-        self.config = config(**self.config_kwargs)
+        if model_config is not None or preprocessing_config is not None or trainer_config is not None:
+            # ---- New split-config path ----
+            self.model_config = model_config
+            self.preprocessing_config = (
+                preprocessing_config if preprocessing_config is not None else PreprocessingConfig()
+            )
+            self.trainer_config = trainer_config if trainer_config is not None else TrainerConfig()
 
-        self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
+            if model_config is not None:
+                self.config_kwargs = model_config.get_params(deep=False)
+                self.config = model_config
+            else:
+                self.config_kwargs = {}
+                self.config = config()
 
-        self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+
+            self.optimizer_type = self.trainer_config.optimizer_type
+            self.optimizer_kwargs = {}
+        else:
+            # ---- Legacy flat-kwargs path (backward compat) ----
+            self.model_config = None
+            self.preprocessing_config = None
+            self.trainer_config = None
+
+            self.config_kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
+            }
+            self.config = config(**self.config_kwargs)
+
+            self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+
+            self.optimizer_type = kwargs.get("optimizer_type", "Adam")
+            self.optimizer_kwargs = {
+                k: v
+                for k, v in kwargs.items()
+                if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
+                and k.startswith("optimizer_")
+            }
+
         self.estimator = model
         self.task_model = None
         self.built = False
 
-        self.optimizer_type = kwargs.get("optimizer_type", "Adam")
-
-        self.optimizer_kwargs = {
-            k: v
-            for k, v in kwargs.items()
-            if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
-            and k.startswith("optimizer_")
-        }
-
     def get_params(self, deep=True):
         """Get parameters for this estimator."""
+        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
+            # New split-config style
+            params = {
+                "model_config": self.model_config,
+                "preprocessing_config": self.preprocessing_config,
+                "trainer_config": self.trainer_config,
+                "random_state": self.random_state,
+            }
+            if deep:
+                if self.model_config is not None:
+                    for k, v in self.model_config.get_params(deep=False).items():
+                        params[f"model_config__{k}"] = v
+                if self.preprocessing_config is not None:
+                    for k, v in self.preprocessing_config.get_params(deep=False).items():
+                        params[f"preprocessing_config__{k}"] = v
+                if self.trainer_config is not None:
+                    for k, v in self.trainer_config.get_params(deep=False).items():
+                        params[f"trainer_config__{k}"] = v
+            return params
+
+        # Legacy flat-kwargs style
         params = {}
         params.update(self.config_kwargs)
         params.update(self.preprocessor_kwargs)
@@ -74,10 +163,58 @@ class SklearnBase(BaseEstimator):
 
     def set_params(self, **parameters):
         """Set the parameters of this estimator."""
+        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
+            # New split-config style
+            direct_params = {}
+            model_config_params = {}
+            preprocessing_config_params = {}
+            trainer_config_params = {}
+
+            for k, v in parameters.items():
+                if k.startswith("model_config__"):
+                    model_config_params[k[len("model_config__") :]] = v
+                elif k.startswith("preprocessing_config__"):
+                    preprocessing_config_params[k[len("preprocessing_config__") :]] = v
+                elif k.startswith("trainer_config__"):
+                    trainer_config_params[k[len("trainer_config__") :]] = v
+                else:
+                    direct_params[k] = v
+
+            for k, v in direct_params.items():
+                if k == "model_config":
+                    self.model_config = v
+                    if v is not None:
+                        self.config = v
+                        self.config_kwargs = v.get_params(deep=False)
+                elif k == "preprocessing_config":
+                    self.preprocessing_config = v
+                    if v is not None:
+                        self.preprocessor_kwargs = v.to_preprocessor_kwargs()
+                        self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+                elif k == "trainer_config":
+                    self.trainer_config = v
+                    if v is not None:
+                        self.optimizer_type = v.optimizer_type
+                elif k == "random_state":
+                    self.random_state = v
+
+            if model_config_params and self.model_config is not None:
+                self.model_config.set_params(**model_config_params)
+                self.config_kwargs = self.model_config.get_params(deep=False)
+            if preprocessing_config_params and self.preprocessing_config is not None:
+                self.preprocessing_config.set_params(**preprocessing_config_params)
+                self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+                self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            if trainer_config_params and self.trainer_config is not None:
+                self.trainer_config.set_params(**trainer_config_params)
+                self.optimizer_type = self.trainer_config.optimizer_type
+
+            return self
+
+        # Legacy flat-kwargs style
         config_params = {k: v for k, v in parameters.items() if k not in self.preprocessor_arg_names}
         preprocessor_params = {k: v for k, v in parameters.items() if k in self.preprocessor_arg_names}
 
-        # Update config and preprocessor parameters correctly
         if config_params:
             self.config_kwargs.update(config_params)
 
@@ -161,6 +298,18 @@ class SklearnBase(BaseEstimator):
         self : object
             The built regressor.
         """
+        # When trainer_config is active, use its values for lr / weight_decay / scheduler
+        if self.trainer_config is not None:
+            tc = self.trainer_config
+            if lr is None:
+                lr = tc.lr
+            if lr_patience is None:
+                lr_patience = tc.lr_patience
+            if lr_factor is None:
+                lr_factor = tc.lr_factor
+            if weight_decay is None:
+                weight_decay = tc.weight_decay
+
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
         if isinstance(y, pd.Series):
@@ -202,10 +351,10 @@ class SklearnBase(BaseEstimator):
                 self.data_module.cat_feature_info,
                 self.data_module.embedding_feature_info,
             ),
-            lr=lr if lr is not None else self.config.lr,
-            lr_patience=(lr_patience if lr_patience is not None else self.config.lr_patience),
-            lr_factor=lr_factor if lr_factor is not None else self.config.lr_factor,
-            weight_decay=(weight_decay if weight_decay is not None else self.config.weight_decay),
+            lr=lr if lr is not None else getattr(self.config, "lr", None),
+            lr_patience=(lr_patience if lr_patience is not None else getattr(self.config, "lr_patience", None)),
+            lr_factor=lr_factor if lr_factor is not None else getattr(self.config, "lr_factor", None),
+            weight_decay=(weight_decay if weight_decay is not None else getattr(self.config, "weight_decay", None)),
             num_classes=num_classes,  # type: ignore[arg-type]
             train_metrics=train_metrics,
             val_metrics=val_metrics,
@@ -330,6 +479,22 @@ class SklearnBase(BaseEstimator):
         self : object
             The fitted regressor.
         """
+        # When trainer_config is active, override all training-loop params from it
+        if self.trainer_config is not None:
+            tc = self.trainer_config
+            max_epochs = tc.max_epochs
+            batch_size = tc.batch_size
+            val_size = tc.val_size
+            shuffle = tc.shuffle
+            patience = tc.patience
+            monitor = tc.monitor
+            mode = tc.mode
+            checkpoint_path = tc.checkpoint_path
+
+        # When random_state was fixed at construction time, honour it
+        if self.random_state is not None:
+            random_state = self.random_state
+
         if rebuild and not self.built:
             self._build_model(
                 X=X,

@@ -4,21 +4,30 @@ from collections.abc import Callable
 import torch
 from sklearn.metrics import mean_squared_error
 
-from .sklearn_parent import SklearnBase
+from .sklearn_parent import SklearnBase, _raise_flat_param_error
 
 
 class SklearnBaseRegressor(SklearnBase):
-    def __init__(self, model, config, **kwargs):
-        super().__init__(model, config, **kwargs)
-        # Raise a warning if task is set to 'classification'
-        preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
-
-        if preprocessor_kwargs.get("task") == "classification":
-            warnings.warn(
-                "The task is set to 'classification'. The Regressor is designed for regression tasks.",
-                UserWarning,
-                stacklevel=2,
-            )
+    def __init__(
+        self,
+        model,
+        config,
+        model_config=None,
+        preprocessing_config=None,
+        trainer_config=None,
+        random_state=None,
+        **kwargs,
+    ):
+        if kwargs:
+            _raise_flat_param_error(kwargs, type(self).__name__)
+        super().__init__(
+            model,
+            config,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+        )
 
     def build_model(
         self,
