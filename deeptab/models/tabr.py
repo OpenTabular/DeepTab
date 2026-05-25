@@ -1,5 +1,7 @@
 from ..base_models.tabr import TabR
-from ..configs.tabr_config import DefaultTabRConfig
+from ..configs.preprocessing_config import PreprocessingConfig
+from ..configs.tabr_config import TabRConfig
+from ..configs.trainer_config import TrainerConfig
 from ..utils.docstring_generator import generate_docstring
 from .utils.sklearn_base_classifier import SklearnBaseClassifier
 from .utils.sklearn_base_lss import SklearnBaseLSS
@@ -8,7 +10,7 @@ from .utils.sklearn_base_regressor import SklearnBaseRegressor
 
 class TabRRegressor(SklearnBaseRegressor):
     __doc__ = generate_docstring(
-        DefaultTabRConfig,
+        TabRConfig,
         model_description="""
         TabR regressor. This class extends the SklearnBaseRegressor class and uses the TabR model
         with the default TabR configuration.
@@ -22,13 +24,28 @@ class TabRRegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: TabRConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=TabR,
+            config=TabRConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class TabRClassifier(SklearnBaseClassifier):
     __doc__ = generate_docstring(
-        DefaultTabRConfig,
+        TabRConfig,
         model_description="""
         TabR classifier. This class extends the SklearnBaseClassifier class and uses the TabR model
         with the default TabR configuration.
@@ -42,13 +59,28 @@ class TabRClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: TabRConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=TabR,
+            config=TabRConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class TabRLSS(SklearnBaseLSS):
     __doc__ = generate_docstring(
-        DefaultTabRConfig,
+        TabRConfig,
         model_description="""
         TabR regressor. This class extends the SklearnBaseLSS class and uses the TabR model
         with the default TabR configuration.
@@ -62,5 +94,20 @@ class TabRLSS(SklearnBaseLSS):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=TabR, config=DefaultTabRConfig, **kwargs)
+    def __init__(
+        self,
+        model_config=None,
+        preprocessing_config=None,
+        trainer_config=None,
+        random_state=None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=TabR,
+            config=TabRConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )

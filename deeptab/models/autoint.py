@@ -1,5 +1,7 @@
 from ..base_models.autoint import AutoInt
-from ..configs.autoint_config import DefaultAutoIntConfig
+from ..configs.autoint_config import AutoIntConfig
+from ..configs.preprocessing_config import PreprocessingConfig
+from ..configs.trainer_config import TrainerConfig
 from ..utils.docstring_generator import generate_docstring
 from .utils.sklearn_base_classifier import SklearnBaseClassifier
 from .utils.sklearn_base_lss import SklearnBaseLSS
@@ -8,7 +10,7 @@ from .utils.sklearn_base_regressor import SklearnBaseRegressor
 
 class AutoIntRegressor(SklearnBaseRegressor):
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         model_description="""
         AutoInt regressor. This class extends the SklearnBaseRegressor
         class and uses the AutoInt model with the default AutoInt
@@ -23,13 +25,28 @@ class AutoIntRegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: AutoIntConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=AutoInt,
+            config=AutoIntConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class AutoIntClassifier(SklearnBaseClassifier):
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         """AutoInt Classifier. This class extends the SklearnBaseClassifier class
         and uses the AutoInt model with the default AutoInt configuration.""",
         examples="""
@@ -41,13 +58,28 @@ class AutoIntClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)
+    def __init__(
+        self,
+        model_config: AutoIntConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=AutoInt,
+            config=AutoIntConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
 
 
 class AutoIntLSS(SklearnBaseLSS):
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         """AutoInt for distributional regression.
         This class extends the SklearnBaseLSS class and uses the
         AutoInt model with the default AutoInt configuration.""",
@@ -60,5 +92,20 @@ class AutoIntLSS(SklearnBaseLSS):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)
+    def __init__(
+        self,
+        model_config=None,
+        preprocessing_config=None,
+        trainer_config=None,
+        random_state=None,
+        **kwargs,
+    ):
+        super().__init__(
+            model=AutoInt,
+            config=AutoIntConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+            **kwargs,
+        )
