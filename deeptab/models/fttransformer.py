@@ -1,11 +1,12 @@
-from ..base_models.ft_transformer import FTTransformer
+from deeptab.architectures.ft_transformer import FTTransformer
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
 from ..configs.fttransformer_config import FTTransformerConfig
 from ..configs.preprocessing_config import PreprocessingConfig
 from ..configs.trainer_config import TrainerConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from ._docstring import generate_docstring
 
 
 class FTTransformerRegressor(SklearnBaseRegressor):
