@@ -42,6 +42,10 @@ class TaskModel(pl.LightningModule):
         optimizer_args: dict | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
+        lr: float | None = None,
+        lr_patience: int | None = None,
+        lr_factor: float | None = None,
+        weight_decay: float | None = None,
         **kwargs,
     ):
         super().__init__()
@@ -79,10 +83,10 @@ class TaskModel(pl.LightningModule):
 
         self.save_hyperparameters(ignore=["model_class", "loss_fn", "family"])
 
-        self.lr = self.hparams.get("lr", config.lr)
-        self.lr_patience = self.hparams.get("lr_patience", config.lr_patience)
-        self.weight_decay = self.hparams.get("weight_decay", config.weight_decay)
-        self.lr_factor = self.hparams.get("lr_factor", config.lr_factor)
+        self.lr = lr if lr is not None else getattr(config, "lr", 1e-4)
+        self.lr_patience = lr_patience if lr_patience is not None else getattr(config, "lr_patience", 10)
+        self.weight_decay = weight_decay if weight_decay is not None else getattr(config, "weight_decay", 1e-6)
+        self.lr_factor = lr_factor if lr_factor is not None else getattr(config, "lr_factor", 0.1)
 
         if family is None and num_classes == 2:
             output_dim = 1
