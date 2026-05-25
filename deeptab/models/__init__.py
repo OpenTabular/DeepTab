@@ -1,6 +1,10 @@
 import importlib
 import warnings
 
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
 from .autoint import AutoIntClassifier, AutoIntLSS, AutoIntRegressor
 from .enode import ENODELSS, ENODEClassifier, ENODERegressor
 from .fttransformer import (
@@ -28,9 +32,6 @@ from .tabtransformer import (
     TabTransformerRegressor,
 )
 from .tabularnn import TabulaRNNClassifier, TabulaRNNLSS, TabulaRNNRegressor
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
 
 __all__ = [
     "ENODELSS",
