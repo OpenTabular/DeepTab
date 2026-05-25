@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 import torch.nn as nn
 
 from ..arch_utils.transformer_utils import ReGLU
-from .base_config import BaseConfig
+from .base_model_config import BaseModelConfig
 
 
 @dataclass
-class DefaultAutoIntConfig(BaseConfig):
-    """Configuration class for the AutoInt model with predefined hyperparameters.
+class AutoIntConfig(BaseModelConfig):
+    """Architecture-only configuration for AutoInt models (DeepTab 2.0 API).
 
     Parameters
     ----------
@@ -23,29 +23,29 @@ class DefaultAutoIntConfig(BaseConfig):
         Dropout rate for the attention mechanism.
     transformer_dim_feedforward : int, default=256
         Dimensionality of the feed-forward layers in the transformer.
-    prenorm : bool, default=False
-        Whether to apply normalization before last layer.
+    fprenorm : bool, default=False
+        Whether to apply pre-normalization in attention layers.
     bias : bool, default=True
         Whether to use bias in linear layers.
-    cat_encoding : str, default="int"
-        Method for encoding categorical features ('int', 'one-hot', or 'linear').
+    use_cls : bool, default=False
+        Whether to use a CLS token for pooling instead of averaging.
     kv_compression : float, default=0.5
         Compression ratio for key-value pairs.
     kv_compression_sharing : str, default='key-value'
-        Sharing strategy for key-value compression ('headwise', or 'key-value').
+        Sharing strategy for key-value compression ('headwise', or 'key-
+        value').
     """
 
-    # Architecture Parameters
+    # Override parent defaults
     d_model: int = 128
+
+    # Transformer-specific architecture
     n_layers: int = 4
     n_heads: int = 8
     attn_dropout: float = 0.2
-    fprenorm: bool = False
     transformer_dim_feedforward: int = 256
+    fprenorm: bool = False
     bias: bool = True
-
     use_cls: bool = False
-    cat_encoding: str = "int"
-
     kv_compression: float = 0.5
     kv_compression_sharing: str = "key-value"

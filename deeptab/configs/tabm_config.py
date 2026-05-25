@@ -4,22 +4,20 @@ from typing import Literal
 
 import torch.nn as nn
 
-from .base_config import BaseConfig
+from .base_model_config import BaseModelConfig
 
 
 @dataclass
-class DefaultTabMConfig(BaseConfig):
-    """Configuration class for the TabM model with batch ensembling and predefined hyperparameters.
+class TabMConfig(BaseModelConfig):
+    """Architecture-only configuration for TabM models (DeepTab 2.0 API).
 
     Parameters
     ----------
-    layer_sizes : list, default=(512, 512, 128)
+    layer_sizes : list, default=[256, 256, 128]
         Sizes of the layers in the model.
-    activation : callable, default=nn.ReLU()
-        Activation function for the model layers.
-    dropout : float, default=0.3
+    dropout : float, default=0.5
         Dropout rate for regularization.
-    norm : str, default=None
+    norm : str | None, default=None
         Normalization method to be used, if any.
     use_glu : bool, default=False
         Whether to use Gated Linear Units (GLU) in the model.
@@ -31,22 +29,22 @@ class DefaultTabMConfig(BaseConfig):
         Whether to use output scaling for each ensemble member.
     ensemble_bias : bool, default=True
         Whether to use a unique bias term for each ensemble member.
-    scaling_init : {"ones", "random-signs", "normal"}, default="normal"
+    scaling_init : Literal['ones', 'random-signs', 'normal'], default='ones'
         Initialization method for scaling weights.
     average_ensembles : bool, default=False
         Whether to average the outputs of the ensembles.
-    model_type : {"mini", "full"}, default="mini"
-        Model type to use ('mini' for reduced version, 'full' for complete model).
+    model_type : Literal['mini', 'full'], default='mini'
+        Model type to use ('mini' for reduced version, 'full' for complete
+        model).
+    average_embeddings : bool, default=True
+        Whether to average per-ensemble-member embeddings before the head.
     """
 
-    # arch params
+    # TabM-specific architecture
     layer_sizes: list = field(default_factory=lambda: [256, 256, 128])
-    activation: Callable = nn.ReLU()  # noqa: RUF009
     dropout: float = 0.5
     norm: str | None = None
     use_glu: bool = False
-
-    # Batch ensembling specific configurations
     ensemble_size: int = 32
     ensemble_scaling_in: bool = True
     ensemble_scaling_out: bool = True

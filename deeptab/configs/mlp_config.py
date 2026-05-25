@@ -3,33 +3,36 @@ from dataclasses import dataclass, field
 
 import torch.nn as nn
 
-from .base_config import BaseConfig
+from .base_model_config import BaseModelConfig
 
 
 @dataclass
-class DefaultMLPConfig(BaseConfig):
-    """Configuration class for the default Multi-Layer Perceptron (MLP) model with predefined hyperparameters.
+class MLPConfig(BaseModelConfig):
+    """Architecture-only configuration for MLP models (DeepTab 2.0 API).
+
+    Contains only structural hyperparameters.  Training parameters (``lr``,
+    ``max_epochs``, …) go in :class:`~deeptab.configs.trainer_config.TrainerConfig`
+    and preprocessing parameters go in
+    :class:`~deeptab.configs.preprocessing_config.PreprocessingConfig`.
 
     Parameters
     ----------
-    layer_sizes : list, default=(256, 128, 32)
-        Sizes of the layers in the MLP.
-    activation : callable, default=nn.ReLU()
+    layer_sizes : list, default=[256, 128, 32]
+        Number of units in each hidden layer.
+    activation : Callable, default=nn.ReLU()
         Activation function for the MLP layers.
     skip_layers : bool, default=False
-        Whether to skip layers in the MLP.
+        Whether to include skip layers.
     dropout : float, default=0.2
-        Dropout rate for regularization.
+        Dropout rate applied after each hidden layer.
     use_glu : bool, default=False
-        Whether to use Gated Linear Units (GLU) in the MLP.
+        Whether to use Gated Linear Units instead of the plain activation.
     skip_connections : bool, default=False
-        Whether to use skip connections in the MLP.
+        Whether to use residual/skip connections between layers.
     """
 
-    # Architecture Parameters
+    # MLP-specific architecture parameters
     layer_sizes: list = field(default_factory=lambda: [256, 128, 32])
-    activation: Callable = nn.ReLU()  # noqa: RUF009
-    skip_layers: bool = False
     dropout: float = 0.2
     use_glu: bool = False
     skip_connections: bool = False

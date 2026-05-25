@@ -4,12 +4,12 @@ from dataclasses import dataclass, field
 import torch.nn as nn
 
 from ..arch_utils.transformer_utils import ReGLU
-from .base_config import BaseConfig
+from .base_model_config import BaseModelConfig
 
 
 @dataclass
-class DefaultTromptConfig(BaseConfig):
-    """Configuration class for the Trompt model with predefined hyperparameters.
+class TromptConfig(BaseModelConfig):
+    """Architecture-only configuration for Trompt models (DeepTab 2.0 API).
 
     Parameters
     ----------
@@ -23,6 +23,7 @@ class DefaultTromptConfig(BaseConfig):
         Number of steps in the Trompt model.
     """
 
+    # Trompt-specific architecture
     d_model: int = 128
     n_cycles: int = 6
     n_cells: int = 4
