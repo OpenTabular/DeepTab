@@ -1,70 +1,103 @@
-Configurations
-===============
+Configurations API
+==================
 
-.. autoclass:: deeptab.configs.DefaultMambularConfig
+.. currentmodule:: deeptab.configs
+
+Base configs
+------------
+
+These three classes form the core of the split-config API and are shared across
+**all** models.
+
+.. autoclass:: deeptab.configs.TrainerConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultFTTransformerConfig
+.. autoclass:: deeptab.configs.PreprocessingConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultResNetConfig
+.. autoclass:: deeptab.configs.BaseModelConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultMLPConfig
+Model architecture configs
+--------------------------
+
+Each class below extends :class:`BaseModelConfig` and adds the hyperparameters
+specific to one model family.
+
+.. autoclass:: deeptab.configs.AutoIntConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultTabTransformerConfig
+.. autoclass:: deeptab.configs.ENODEConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultMambaTabConfig
+.. autoclass:: deeptab.configs.FTTransformerConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultTabulaRNNConfig
+.. autoclass:: deeptab.configs.MambaTabConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultMambAttentionConfig
+.. autoclass:: deeptab.configs.MambAttentionConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultNDTFConfig
+.. autoclass:: deeptab.configs.MambularConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultNODEConfig
+.. autoclass:: deeptab.configs.MLPConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultTabMConfig
+.. autoclass:: deeptab.configs.NDTFConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultSAINTConfig
+.. autoclass:: deeptab.configs.NODEConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultAutoIntConfig
+.. autoclass:: deeptab.configs.ResNetConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultENODEConfig
+.. autoclass:: deeptab.configs.SAINTConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultModernNCAConfig
+.. autoclass:: deeptab.configs.TabMConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultTangosConfig
+.. autoclass:: deeptab.configs.TabRConfig
    :members:
    :undoc-members:
 
-.. autoclass:: deeptab.configs.DefaultTromptConfig
+.. autoclass:: deeptab.configs.TabTransformerConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.TabulaRNNConfig
+   :members:
+   :undoc-members:
+
+Experimental model configs
+--------------------------
+
+.. autoclass:: deeptab.configs.ModernNCAConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.TangosConfig
+   :members:
+   :undoc-members:
+
+.. autoclass:: deeptab.configs.TromptConfig
    :members:
    :undoc-members:
