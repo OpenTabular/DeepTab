@@ -5,7 +5,7 @@ from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mamba_utils.mamba_arch import Mamba
 from ..arch_utils.mamba_utils.mamba_original import MambaOriginal
 from ..arch_utils.mlp_utils import MLPhead
-from ..configs.mambular_config import DefaultMambularConfig
+from ..configs.mambular_config import MambularConfig
 from .utils.basemodel import BaseModel
 
 
@@ -21,9 +21,9 @@ class Mambular(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultMambularConfig, optional
+    config : MambularConfig, optional
         Configuration object with model hyperparameters such as dropout rates, head layer sizes, Mamba version, and
-        other architectural configurations, by default DefaultMambularConfig().
+        other architectural configurations, by default MambularConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -55,7 +55,7 @@ class Mambular(BaseModel):
         self,
         feature_information: tuple,  # Expecting (cat_feature_info, num_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultMambularConfig = DefaultMambularConfig(),  # noqa: B008
+        config: MambularConfig = MambularConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

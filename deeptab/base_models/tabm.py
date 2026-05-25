@@ -6,7 +6,7 @@ from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.batch_ensemble_layer import LinearBatchEnsembleLayer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.layer_utils.sn_linear import SNLinear
-from ..configs.tabm_config import DefaultTabMConfig
+from ..configs.tabm_config import TabMConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -16,7 +16,7 @@ class TabM(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
-        config: DefaultTabMConfig = DefaultTabMConfig(),  # noqa: B008
+        config: TabMConfig = TabMConfig(),  # noqa: B008
         **kwargs,
     ):
         # Pass config to BaseModel

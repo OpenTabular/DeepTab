@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
-from ..configs.mlp_config import DefaultMLPConfig
+from ..configs.mlp_config import MLPConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -20,9 +20,9 @@ class MLP(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultMLPConfig, optional
+    config : MLPConfig, optional
         Configuration object with model hyperparameters such as layer sizes, dropout rates, activation functions,
-        embedding settings, and normalization options, by default DefaultMLPConfig().
+        embedding settings, and normalization options, by default MLPConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -60,7 +60,7 @@ class MLP(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
-        config: DefaultMLPConfig = DefaultMLPConfig(),  # noqa: B008
+        config: MLPConfig = MLPConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from ..arch_utils.neural_decision_tree import NeuralDecisionTree
-from ..configs.ndtf_config import DefaultNDTFConfig
+from ..configs.ndtf_config import NDTFConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -20,10 +20,10 @@ class NDTF(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultNDTFConfig, optional
+    config : NDTFConfig, optional
         Configuration object containing model hyperparameters such as the number of ensembles,
         tree depth, penalty factor,
-        sampling settings, and temperature, by default DefaultNDTFConfig().
+        sampling settings, and temperature, by default NDTFConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -56,7 +56,7 @@ class NDTF(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
-        config: DefaultNDTFConfig = DefaultNDTFConfig(),  # noqa: B008
+        config: NDTFConfig = NDTFConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

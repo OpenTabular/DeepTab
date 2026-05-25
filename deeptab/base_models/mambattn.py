@@ -5,7 +5,7 @@ from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mamba_utils.mambattn_arch import MambAttn
 from ..arch_utils.mlp_utils import MLPhead
-from ..configs.mambattention_config import DefaultMambAttentionConfig
+from ..configs.mambattention_config import MambAttentionConfig
 from .utils.basemodel import BaseModel
 
 
@@ -21,9 +21,9 @@ class MambAttention(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultMambAttentionConfig, optional
+    config : MambAttentionConfig, optional
         Configuration object with model hyperparameters such as dropout rates, head layer sizes, attention settings,
-        and other architectural configurations, by default DefaultMambAttentionConfig().
+        and other architectural configurations, by default MambAttentionConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -55,7 +55,7 @@ class MambAttention(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultMambAttentionConfig = DefaultMambAttentionConfig(),  # noqa: B008
+        config: MambAttentionConfig = MambAttentionConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

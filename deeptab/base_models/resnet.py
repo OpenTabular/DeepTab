@@ -4,7 +4,7 @@ import torch.nn as nn
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.resnet_utils import ResidualBlock
-from ..configs.resnet_config import DefaultResNetConfig
+from ..configs.resnet_config import ResNetConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -21,9 +21,9 @@ class ResNet(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultResNetConfig, optional
+    config : ResNetConfig, optional
         Configuration object containing model hyperparameters such as layer sizes, number of residual blocks,
-        dropout rates, activation functions, and normalization settings, by default DefaultResNetConfig().
+        dropout rates, activation functions, and normalization settings, by default ResNetConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -59,7 +59,7 @@ class ResNet(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
-        config: DefaultResNetConfig = DefaultResNetConfig(),  # noqa: B008
+        config: ResNetConfig = ResNetConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

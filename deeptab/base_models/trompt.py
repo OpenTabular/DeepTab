@@ -5,7 +5,7 @@ import torch.nn as nn
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.trompt_utils import TromptCell, TromptDecoder
-from ..configs.trompt_config import DefaultTromptConfig
+from ..configs.trompt_config import TromptConfig
 from .utils.basemodel import BaseModel
 
 
@@ -14,7 +14,7 @@ class Trompt(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultTromptConfig = DefaultTromptConfig(),  # noqa: B008
+        config: TromptConfig = TromptConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

@@ -4,7 +4,7 @@ from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
 from ..arch_utils.transformer_utils import RowColTransformer
-from ..configs.saint_config import DefaultSAINTConfig
+from ..configs.saint_config import SAINTConfig
 from .utils.basemodel import BaseModel
 
 
@@ -20,9 +20,9 @@ class SAINT(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultSAINTConfig, optional
+    config : SAINTConfig, optional
         Configuration object containing model hyperparameters such as dropout rates, hidden layer sizes,
-        transformer settings, and other architectural configurations, by default DefaultSAINTConfig().
+        transformer settings, and other architectural configurations, by default SAINTConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -54,7 +54,7 @@ class SAINT(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultSAINTConfig = DefaultSAINTConfig(),  # noqa: B008
+        config: SAINTConfig = SAINTConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

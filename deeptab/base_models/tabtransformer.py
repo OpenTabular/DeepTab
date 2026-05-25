@@ -6,7 +6,7 @@ from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
 from ..arch_utils.transformer_utils import CustomTransformerEncoderLayer
-from ..configs.tabtransformer_config import DefaultTabTransformerConfig
+from ..configs.tabtransformer_config import TabTransformerConfig
 from .utils.basemodel import BaseModel
 
 
@@ -21,8 +21,8 @@ class TabTransformer(BaseModel):
         Dictionary containing information about numerical features.
     num_classes : int, optional
         Number of output classes (default is 1).
-    config : DefaultFTTransformerConfig, optional
-        Configuration object containing default hyperparameters for the model (default is DefaultMambularConfig()).
+    config : TabTransformerConfig, optional
+        Configuration object containing default hyperparameters for the model (default is TabTransformerConfig()).
     **kwargs : dict
         Additional keyword arguments.
 
@@ -64,7 +64,7 @@ class TabTransformer(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultTabTransformerConfig = DefaultTabTransformerConfig(),  # noqa: B008
+        config: TabTransformerConfig = TabTransformerConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

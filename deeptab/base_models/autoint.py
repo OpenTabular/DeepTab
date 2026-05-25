@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.init as nn_init
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
-from ..configs.autoint_config import DefaultAutoIntConfig
+from ..configs.autoint_config import AutoIntConfig
 from .utils.basemodel import BaseModel
 
 
@@ -22,7 +22,7 @@ class AutoInt(BaseModel):
         and any additional embeddings. Expected format: `(num_feature_info, cat_feature_info, embedding_feature_info)`.
     num_classes : int, default=1
         Number of output classes. For regression, this should be set to `1`.
-    config : DefaultAutoIntConfig, optional
+    config : AutoIntConfig, optional
         Configuration object containing hyperparameters such as `d_model`, `n_heads`, `n_layers`,
         dropout rates, and compression settings.
     **kwargs : dict
@@ -56,7 +56,7 @@ class AutoInt(BaseModel):
         self,
         feature_information: tuple,  # (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultAutoIntConfig = DefaultAutoIntConfig(),  # noqa: B008
+        config: AutoIntConfig = AutoIntConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

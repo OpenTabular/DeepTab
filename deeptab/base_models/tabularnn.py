@@ -7,7 +7,7 @@ from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
 from ..arch_utils.rnn_utils import ConvRNN
-from ..configs.tabularnn_config import DefaultTabulaRNNConfig
+from ..configs.tabularnn_config import TabulaRNNConfig
 from .utils.basemodel import BaseModel
 
 
@@ -16,7 +16,7 @@ class TabulaRNN(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
-        config: DefaultTabulaRNNConfig = DefaultTabulaRNNConfig(),  # noqa: B008
+        config: TabulaRNNConfig = TabulaRNNConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

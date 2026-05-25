@@ -7,7 +7,7 @@ import torch.nn.functional as F
 from torch import Tensor
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
-from ..configs.tabr_config import DefaultTabRConfig
+from ..configs.tabr_config import TabRConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -22,7 +22,7 @@ class TabR(BaseModel):
         feature_information: tuple,
         num_classes=1,
         lss: bool = False,
-        config: DefaultTabRConfig = DefaultTabRConfig(),  # noqa: B008
+        config: TabRConfig = TabRConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, lss=lss, **kwargs)

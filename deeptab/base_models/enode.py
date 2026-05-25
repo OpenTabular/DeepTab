@@ -5,7 +5,7 @@ import torch.nn as nn
 from ..arch_utils.enode_utils import DenseBlock
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
-from ..configs.enode_config import DefaultENODEConfig
+from ..configs.enode_config import ENODEConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -22,9 +22,9 @@ class ENODE(BaseModel):
         Dictionary containing information about numerical features, including their names and dimensions.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
-    config : DefaultNODEConfig, optional
+    config : ENODEConfig, optional
         Configuration object containing model hyperparameters such as the number of dense layers, layer dimensions,
-        tree depth, embedding settings, and head layer configurations, by default DefaultNODEConfig().
+        tree depth, embedding settings, and head layer configurations, by default ENODEConfig().
     **kwargs : dict
         Additional keyword arguments for the BaseModel class.
 
@@ -56,7 +56,7 @@ class ENODE(BaseModel):
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
-        config: DefaultENODEConfig = DefaultENODEConfig(),  # noqa: B008
+        config: ENODEConfig = ENODEConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

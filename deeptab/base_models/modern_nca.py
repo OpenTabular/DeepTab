@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from ..arch_utils.get_norm_fn import get_normalization_layer
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
 from ..arch_utils.mlp_utils import MLPhead
-from ..configs.modernnca_config import DefaultModernNCAConfig
+from ..configs.modernnca_config import ModernNCAConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -16,7 +16,7 @@ class ModernNCA(BaseModel):
         self,
         feature_information: tuple,
         num_classes=1,
-        config: DefaultModernNCAConfig = DefaultModernNCAConfig(),  # noqa: B008
+        config: ModernNCAConfig = ModernNCAConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)

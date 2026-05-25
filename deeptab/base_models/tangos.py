@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from ..arch_utils.layer_utils.embedding_layer import EmbeddingLayer
-from ..configs.tangos_config import DefaultTangosConfig
+from ..configs.tangos_config import TangosConfig
 from ..utils.get_feature_dimensions import get_feature_dimensions
 from .utils.basemodel import BaseModel
 
@@ -19,7 +19,7 @@ class Tangos(BaseModel):
         A tuple containing feature information for numerical and categorical features.
     num_classes : int, optional (default=1)
         The number of output classes.
-    config : DefaultTangosConfig, optional (default=DefaultTangosConfig())
+    config : TangosConfig, optional (default=TangosConfig())
         Configuration object defining model hyperparameters.
     **kwargs : dict
         Additional arguments for the base model.
@@ -46,7 +46,7 @@ class Tangos(BaseModel):
         self,
         feature_information: tuple,
         num_classes=1,
-        config: DefaultTangosConfig = DefaultTangosConfig(),  # noqa: B008
+        config: TangosConfig = TangosConfig(),  # noqa: B008
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)
