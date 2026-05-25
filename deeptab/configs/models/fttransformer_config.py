@@ -5,7 +5,7 @@ import torch.nn as nn
 
 from deeptab.nn.blocks.transformer import ReGLU
 
-from ..base_model_config import BaseModelConfig
+from ..core import BaseModelConfig
 
 
 @dataclass

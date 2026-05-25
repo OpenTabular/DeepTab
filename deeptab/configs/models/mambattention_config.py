@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 
 import torch.nn as nn
 
-from ..base_model_config import BaseModelConfig
+from ..core import BaseModelConfig
 
 
 @dataclass

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from ..base_model_config import BaseModelConfig
+from ..core import BaseModelConfig
 
 
 @dataclass
