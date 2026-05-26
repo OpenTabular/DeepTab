@@ -7,9 +7,7 @@ This page covers classification-specific concepts, including binary vs multiclas
 Import any model with the `Classifier` suffix:
 
 ```python
-from deeptab.models import Mambul
-
-arClassifier
+from deeptab.models import MambularClassifier
 
 model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=100)
