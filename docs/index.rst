@@ -12,8 +12,7 @@
    :maxdepth: 2
    :hidden:
 
-   overview
-   installation
+   getting_started/index
    key_concepts
 
 .. toctree::
