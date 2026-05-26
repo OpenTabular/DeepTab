@@ -30,7 +30,6 @@ class MambularRegressor(SklearnBaseRegressor):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
-        **kwargs,
     ):
         super().__init__(
             model=Mambular,
@@ -39,7 +38,6 @@ class MambularRegressor(SklearnBaseRegressor):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
-            **kwargs,
         )
 
 
@@ -65,7 +63,6 @@ class MambularClassifier(SklearnBaseClassifier):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
-        **kwargs,
     ):
         super().__init__(
             model=Mambular,
@@ -74,7 +71,6 @@ class MambularClassifier(SklearnBaseClassifier):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
-            **kwargs,
         )
 
 
@@ -100,7 +96,6 @@ class MambularLSS(SklearnBaseLSS):
         preprocessing_config=None,
         trainer_config=None,
         random_state=None,
-        **kwargs,
     ):
         super().__init__(
             model=Mambular,
@@ -109,5 +104,4 @@ class MambularLSS(SklearnBaseLSS):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
-            **kwargs,
         )
