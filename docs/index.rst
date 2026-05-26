@@ -13,7 +13,14 @@
    :hidden:
 
    getting_started/index
-   key_concepts
+
+.. toctree::
+   :name: Core Concepts
+   :caption: Core Concepts
+   :maxdepth: 2
+   :hidden:
+
+   core_concepts/index
 
 .. toctree::
    :name: Examples
