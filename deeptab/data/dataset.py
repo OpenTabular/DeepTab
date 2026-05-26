@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import Dataset
 
+from deeptab.data.schema import TabularBatch
+
 
 class TabularDataset(Dataset):
     """Custom dataset for handling structured tabular data with separate categorical
@@ -20,6 +22,9 @@ class TabularDataset(Dataset):
         A list of tensors representing the embeddings.
     labels : Tensor, optional
         A tensor of labels. If None, the dataset is used for prediction.
+    return_batch_object : bool, default=False
+        If True, returns a TabularBatch object instead of a tuple. For backward
+        compatibility, defaults to False.
     """
 
     def __init__(
@@ -28,6 +33,7 @@ class TabularDataset(Dataset):
         num_features_list,
         embeddings_list=None,
         labels=None,
+        return_batch_object=False,
     ):
         assert cat_features_list or num_features_list  # noqa: S101
 
@@ -35,6 +41,7 @@ class TabularDataset(Dataset):
         self.num_features_list = num_features_list  # Numerical features tensors
         self.embeddings_list = embeddings_list  # Embeddings tensors (optional)
         self.labels = labels  # Labels (optional, None in prediction mode)
+        self.return_batch_object = return_batch_object
 
     def __len__(self):
         _feats = self.num_features_list if self.num_features_list else self.cat_features_list
@@ -50,9 +57,11 @@ class TabularDataset(Dataset):
 
         Returns
         -------
-        tuple
-            A tuple containing lists of tensors for numerical features, categorical features,
-            embeddings (if available), and a label (if available).
+        tuple or TabularBatch
+            If return_batch_object is False (default), returns a tuple containing
+            lists of tensors for numerical features, categorical features, embeddings
+            (if available), and a label (if available).
+            If return_batch_object is True, returns a TabularBatch object.
         """
         cat_features = [feature_tensor[idx] for feature_tensor in self.cat_features_list]
         num_features = [
@@ -68,8 +77,18 @@ class TabularDataset(Dataset):
         else:
             embeddings = None
 
-        if self.labels is not None:
-            label = self.labels[idx]
-            return (num_features, cat_features, embeddings), label
+        label = self.labels[idx] if self.labels is not None else None
+
+        if self.return_batch_object:
+            return TabularBatch(
+                numerical_features=num_features,
+                categorical_features=cat_features,
+                embeddings=embeddings,
+                labels=label,
+            )
         else:
-            return (num_features, cat_features, embeddings)
+            # Legacy tuple format
+            if label is not None:
+                return (num_features, cat_features, embeddings), label
+            else:
+                return (num_features, cat_features, embeddings)
