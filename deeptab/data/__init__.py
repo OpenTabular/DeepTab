@@ -1,13 +1,11 @@
 from .datamodule import TabularDataModule
 from .dataset import TabularDataset
-
-# For backwards compatibility
-MambularDataModule = TabularDataModule
-MambularDataset = TabularDataset
+from .schema import FeatureInfo, FeatureSchema, TabularBatch
 
 __all__ = [
-    "MambularDataModule",  # Deprecated alias
-    "MambularDataset",  # Deprecated alias
+    "FeatureInfo",
+    "FeatureSchema",
+    "TabularBatch",
     "TabularDataModule",
     "TabularDataset",
 ]
