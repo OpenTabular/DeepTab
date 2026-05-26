@@ -1,4 +1,4 @@
-from .core import BaseConfig, BaseModelConfig, PreprocessingConfig, TrainerConfig
+from .core import BaseConfig, BaseModelConfig, PreprocessingConfig, SplitConfig, TrainerConfig
 from .experimental.modernnca_config import ModernNCAConfig
 from .experimental.tangos_config import TangosConfig
 from .experimental.trompt_config import TromptConfig
@@ -34,6 +34,7 @@ __all__ = [
     "PreprocessingConfig",
     "ResNetConfig",
     "SAINTConfig",
+    "SplitConfig",
     "TabMConfig",
     "TabRConfig",
     "TabTransformerConfig",

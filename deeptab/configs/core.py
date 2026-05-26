@@ -278,3 +278,32 @@ class TrainerConfig(BaseEstimator):
     weight_decay: float = 1e-6
     optimizer_type: str = "Adam"
     checkpoint_path: str = "model_checkpoints"
+
+
+@dataclass
+class SplitConfig(BaseEstimator):
+    """Configuration for train/validation data splitting.
+
+    Controls how the training data is split into training and validation sets
+    when no explicit validation set is provided.
+
+    Parameters
+    ----------
+    val_size : float, default=0.2
+        Fraction of the training data held out for validation when no explicit
+        validation set is provided. Must be between 0 and 1.
+    random_state : int, default=101
+        Random seed for reproducibility in data splitting. Controls the
+        shuffling applied before the split.
+    shuffle : bool, default=True
+        Whether to shuffle the data before splitting. If False, the split
+        is deterministic based on order.
+    stratify : bool, default=False
+        Whether to preserve class proportions in classification splits.
+        Only applies to classification tasks.
+    """
+
+    val_size: float = 0.2
+    random_state: int = 101
+    shuffle: bool = True
+    stratify: bool = False
