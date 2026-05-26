@@ -5,11 +5,14 @@ import os
 import pytest
 import torch
 
-from deeptab.core.base_model import BaseModel
+from deeptab.core import BaseModel
 
 # Paths for models and configs
 MODEL_MODULE_PATH = "deeptab.architectures"
-CONFIG_MODULE_PATH = "deeptab.configs"
+_CONFIG_SEARCH_PATHS = [
+    "deeptab.configs.models",
+    "deeptab.configs.experimental",
+]
 EXCLUDED_CLASSES = {"TabR"}
 
 # Discover all models (stable + experimental)
@@ -31,12 +34,15 @@ def get_model_config(model_class):
     model_name = model_class.__name__  # e.g., "Mambular"
     config_class_name = f"{model_name}Config"  # e.g., "MambularConfig"
 
-    try:
-        config_module = importlib.import_module(f"{CONFIG_MODULE_PATH}.{model_name.lower()}_config")
-        config_class = getattr(config_module, config_class_name)
-        return config_class()  # Instantiate config
-    except (ModuleNotFoundError, AttributeError) as e:
-        pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}: {e}")
+    for base_path in _CONFIG_SEARCH_PATHS:
+        try:
+            config_module = importlib.import_module(f"{base_path}.{model_name.lower()}_config")
+            config_class = getattr(config_module, config_class_name)
+            return config_class()
+        except (ModuleNotFoundError, AttributeError):
+            continue
+
+    pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}")
 
 
 @pytest.mark.parametrize("model_class", model_classes)
