@@ -4,8 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
-from deeptab.core.base_model import BaseModel
-from deeptab.core.inspection import get_feature_dimensions
+from deeptab.core import BaseModel, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.normalization import get_normalization_layer

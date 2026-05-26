@@ -3,8 +3,7 @@ import torch
 import torch.nn as nn
 
 from deeptab.configs.experimental.tangos_config import TangosConfig
-from deeptab.core.base_model import BaseModel
-from deeptab.core.inspection import get_feature_dimensions
+from deeptab.core import BaseModel, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 

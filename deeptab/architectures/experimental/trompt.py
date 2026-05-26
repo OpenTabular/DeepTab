@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from deeptab.configs.experimental.trompt_config import TromptConfig
-from deeptab.core.base_model import BaseModel
+from deeptab.core import BaseModel
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.trompt import TromptCell, TromptDecoder
 from deeptab.nn.normalization import get_normalization_layer

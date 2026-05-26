@@ -1,6 +1,6 @@
 import numpy as np
 
-from deeptab.core.base_model import BaseModel
+from deeptab.core import BaseModel
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.transformer import RowColTransformer

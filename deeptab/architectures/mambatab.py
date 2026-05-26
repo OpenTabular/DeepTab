@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 
-from deeptab.core.base_model import BaseModel
-from deeptab.core.inspection import get_feature_dimensions
+from deeptab.core import BaseModel, get_feature_dimensions
 from deeptab.nn.blocks.common import LayerNorm
 from deeptab.nn.blocks.mamba import Mamba, MambaOriginal
 from deeptab.nn.blocks.mlp import MLPhead

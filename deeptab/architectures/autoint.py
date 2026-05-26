@@ -2,7 +2,7 @@ import numpy as np
 import torch.nn as nn
 import torch.nn.init as nn_init
 
-from deeptab.core.base_model import BaseModel
+from deeptab.core import BaseModel
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 from ..configs.models.autoint_config import AutoIntConfig
