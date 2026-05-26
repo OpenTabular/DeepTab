@@ -10,8 +10,8 @@ This module provides class for data preparation input data.
 =======================================    =======================================================================================================
 Modules                                     Description
 =======================================    =======================================================================================================
-:class:`MambularDataset`                    A class for loading and preprocessing the dataset.
-:class:`MambularDataModule`                 A class for preparing the dataset for training and testing etc.
+:class:`TabularDataset`                    A class for loading and preprocessing the dataset.
+:class:`TabularDataModule`                 A class for preparing the dataset for training and testing etc.
 =======================================    =======================================================================================================
 
 .. toctree::
