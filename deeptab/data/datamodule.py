@@ -6,6 +6,7 @@ from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
 from deeptab.data.dataset import TabularDataset
+from deeptab.data.schema import FeatureSchema
 
 
 class TabularDataModule(pl.LightningDataModule):
@@ -123,6 +124,9 @@ class TabularDataModule(pl.LightningDataModule):
         if X_val is None or y_val is None:
             split_data = [X_train, y_train]
 
+            # Determine stratify parameter for classification tasks
+            stratify = y_train if not self.regression else None
+
             if embeddings_train is not None:
                 if not isinstance(embeddings_train, list):
                     embeddings_train = [embeddings_train]
@@ -130,14 +134,16 @@ class TabularDataModule(pl.LightningDataModule):
                     embeddings_val = [embeddings_val]
 
                 split_data += embeddings_train
-                split_result = train_test_split(*split_data, test_size=val_size, random_state=random_state)
+                split_result = train_test_split(
+                    *split_data, test_size=val_size, random_state=random_state, stratify=stratify
+                )
 
                 self.X_train, self.X_val, self.y_train, self.y_val = split_result[:4]
                 self.embeddings_train = split_result[4::2]
                 self.embeddings_val = split_result[5::2]
             else:
                 self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(
-                    *split_data, test_size=val_size, random_state=random_state
+                    *split_data, test_size=val_size, random_state=random_state, stratify=stratify
                 )
                 self.embeddings_train = None
                 self.embeddings_val = None
@@ -351,3 +357,22 @@ class TabularDataModule(pl.LightningDataModule):
             )
         else:
             raise ValueError("No predict dataset provided!")
+
+    @property
+    def schema(self) -> FeatureSchema | None:
+        """Get the feature schema after preprocessing.
+
+        Returns
+        -------
+        FeatureSchema or None
+            Feature schema with metadata about categorical, numerical, and
+            embedding features, or None if preprocessing hasn't been done yet.
+        """
+        if not hasattr(self, "num_feature_info"):
+            return None
+
+        return FeatureSchema.from_preprocessor_info(
+            self.num_feature_info,
+            self.cat_feature_info,
+            self.embedding_feature_info,
+        )
