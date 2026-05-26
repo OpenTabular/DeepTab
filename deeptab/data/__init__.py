@@ -1,7 +1,13 @@
-from .datamodule import MambularDataModule
-from .dataset import MambularDataset
+from .datamodule import TabularDataModule
+from .dataset import TabularDataset
+
+# For backwards compatibility
+MambularDataModule = TabularDataModule
+MambularDataset = TabularDataset
 
 __all__ = [
-    "MambularDataModule",
-    "MambularDataset",
+    "MambularDataModule",  # Deprecated alias
+    "MambularDataset",  # Deprecated alias
+    "TabularDataModule",
+    "TabularDataset",
 ]

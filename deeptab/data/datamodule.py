@@ -5,10 +5,10 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 
-from deeptab.data.dataset import MambularDataset
+from deeptab.data.dataset import TabularDataset
 
 
-class MambularDataModule(pl.LightningDataModule):
+class TabularDataModule(pl.LightningDataModule):
     """A PyTorch Lightning data module for managing training and validation data loaders in a structured way.
 
     This class simplifies the process of batch-wise data loading for training and validation datasets during
@@ -229,22 +229,34 @@ class MambularDataModule(pl.LightningDataModule):
                     if key in val_preprocessed_data:
                         val_emb_tensors.append(torch.tensor(val_preprocessed_data[key], dtype=torch.float32))
 
-            train_labels = torch.tensor(self.y_train, dtype=self.labels_dtype).unsqueeze(dim=1)
-            val_labels = torch.tensor(self.y_val, dtype=self.labels_dtype).unsqueeze(dim=1)
+            # Prepare labels with appropriate shape and dtype based on task
+            if self.regression:
+                # Regression: float32, shape (batch_size, 1)
+                train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
+                val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
+            else:
+                # Classification: determine if binary or multiclass
+                num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
+                if num_classes > 2:
+                    # Multiclass: long dtype, shape (batch_size,) - no unsqueeze
+                    train_labels = torch.tensor(self.y_train, dtype=torch.long).view(-1)
+                    val_labels = torch.tensor(self.y_val, dtype=torch.long).view(-1)
+                else:
+                    # Binary: float32, shape (batch_size, 1)
+                    train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
+                    val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
 
-            self.train_dataset = MambularDataset(
+            self.train_dataset = TabularDataset(
                 train_cat_tensors,
                 train_num_tensors,
                 train_emb_tensors,
                 train_labels,
-                regression=self.regression,
             )
-            self.val_dataset = MambularDataset(
+            self.val_dataset = TabularDataset(
                 val_cat_tensors,
                 val_num_tensors,
                 val_emb_tensors,
                 val_labels,
-                regression=self.regression,
             )
 
     def preprocess_new_data(self, X, embeddings=None):
@@ -279,12 +291,11 @@ class MambularDataModule(pl.LightningDataModule):
                 if key in preprocessed_data:
                     emb_tensors.append(torch.tensor(preprocessed_data[key], dtype=torch.float32))
 
-        return MambularDataset(
+        return TabularDataset(
             cat_tensors,
             num_tensors,
             emb_tensors,
             labels=None,
-            regression=self.regression,
         )
 
     def assign_predict_dataset(self, X, embeddings=None):

@@ -1,19 +1,25 @@
-import numpy as np
 import torch
 from torch.utils.data import Dataset
 
 
-class MambularDataset(Dataset):
-    """Custom dataset for handling structured data with separate categorical and
-    numerical features, tailored for both regression and classification tasks.
+class TabularDataset(Dataset):
+    """Custom dataset for handling structured tabular data with separate categorical
+    and numerical features.
+
+    This dataset is task-agnostic and simply stores and retrieves features and labels
+    without any task-specific preprocessing. Label dtype conversion should be handled
+    externally by the DataModule or training logic.
 
     Parameters
     ----------
-        cat_features_list (list of Tensors): A list of tensors representing the categorical features.
-        num_features_list (list of Tensors): A list of tensors representing the numerical features.
-        embeddings_list (list of Tensors, optional): A list of tensors representing the embeddings.
-        labels (Tensor, optional): A tensor of labels. If None, the dataset is used for prediction.
-        regression (bool, optional): A flag indicating if the dataset is for a regression task. Defaults to True.
+    cat_features_list : list of Tensors
+        A list of tensors representing the categorical features.
+    num_features_list : list of Tensors
+        A list of tensors representing the numerical features.
+    embeddings_list : list of Tensors, optional
+        A list of tensors representing the embeddings.
+    labels : Tensor, optional
+        A tensor of labels. If None, the dataset is used for prediction.
     """
 
     def __init__(
@@ -22,28 +28,13 @@ class MambularDataset(Dataset):
         num_features_list,
         embeddings_list=None,
         labels=None,
-        regression=True,
     ):
         assert cat_features_list or num_features_list  # noqa: S101
 
         self.cat_features_list = cat_features_list  # Categorical features tensors
         self.num_features_list = num_features_list  # Numerical features tensors
         self.embeddings_list = embeddings_list  # Embeddings tensors (optional)
-        self.regression = regression
-
-        if labels is not None:
-            if not self.regression:
-                self.num_classes = len(np.unique(labels))
-                if self.num_classes > 2:
-                    self.labels = labels.view(-1)
-                else:
-                    self.num_classes = 1
-                    self.labels = labels
-            else:
-                self.labels = labels
-                self.num_classes = 1
-        else:
-            self.labels = None  # No labels in prediction mode
+        self.labels = labels  # Labels (optional, None in prediction mode)
 
     def __len__(self):
         _feats = self.num_features_list if self.num_features_list else self.cat_features_list
@@ -54,12 +45,14 @@ class MambularDataset(Dataset):
 
         Parameters
         ----------
-            idx (int): The index of the data point.
+        idx : int
+            The index of the data point.
 
         Returns
         -------
-            tuple: A tuple containing lists of tensors for numerical features, categorical features, embeddings
-            (if available), and a label (if available).
+        tuple
+            A tuple containing lists of tensors for numerical features, categorical features,
+            embeddings (if available), and a label (if available).
         """
         cat_features = [feature_tensor[idx] for feature_tensor in self.cat_features_list]
         num_features = [
@@ -77,13 +70,6 @@ class MambularDataset(Dataset):
 
         if self.labels is not None:
             label = self.labels[idx]
-            if self.regression:
-                label = label.clone().detach().to(torch.float32)
-            elif self.num_classes == 1:
-                label = label.clone().detach().to(torch.float32)
-            else:
-                label = label.clone().detach().to(torch.long)
-
             return (num_features, cat_features, embeddings), label
         else:
             return (num_features, cat_features, embeddings)
