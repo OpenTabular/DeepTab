@@ -37,7 +37,7 @@ from deeptab.distributions.metrics import (
     poisson_deviance,
     student_t_loss,
 )
-from deeptab.training.lightning_module import TaskModel
+from deeptab.training import TaskModel
 
 DISTRIBUTION_CLASSES = {
     "normal": NormalDistribution,

@@ -13,9 +13,8 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.data.datamodule import MambularDataModule
-from deeptab.hpo.mapper import activation_mapper, get_search_space, round_to_nearest_16
-from deeptab.training.lightning_module import TaskModel
-from deeptab.training.pretraining import pretrain_embeddings
+from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
+from deeptab.training import TaskModel, pretrain_embeddings
 
 
 def _raise_flat_param_error(kwargs: dict, estimator_name: str) -> None:
