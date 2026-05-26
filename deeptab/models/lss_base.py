@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
-from deeptab.data.datamodule import MambularDataModule
+from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions.base import (
     BetaDistribution,
     CategoricalDistribution,
@@ -346,7 +346,7 @@ class SklearnBaseLSS(BaseEstimator):
             if isinstance(y_val, pd.Series):
                 y_val = y_val.values
 
-        self.data_module = MambularDataModule(
+        self.data_module = TabularDataModule(
             preprocessor=self.preprocessor,
             batch_size=batch_size,
             shuffle=shuffle,
@@ -867,7 +867,7 @@ class SklearnBaseLSS(BaseEstimator):
             "spline_implementation",
         ]
 
-        obj.data_module = MambularDataModule(
+        obj.data_module = TabularDataModule(
             preprocessor=bundle["preprocessor"],
             batch_size=bundle["batch_size"],
             shuffle=False,
