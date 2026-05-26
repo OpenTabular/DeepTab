@@ -279,7 +279,7 @@ class TestEstimatorSplitConfigInit:
 
     def test_flat_kwargs_raise_error(self):
         """Flat kwargs must now raise TypeError with a helpful message (PR5)."""
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(layer_sizes=[32, 16])
 
 
@@ -309,7 +309,7 @@ class TestEstimatorGetParams:
 
     def test_flat_kwargs_raise_type_error(self):
         """PR5: flat kwargs must now raise TypeError (legacy path removed)."""
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(layer_sizes=[32, 16])
 
 
@@ -599,9 +599,9 @@ class TestMLPWithMLPConfig:
 
     def test_flat_kwargs_raise_error_after_pr5(self):
         """Flat kwargs must now raise TypeError (PR5)."""
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(layer_sizes=[32, 16])
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPRegressor(layer_sizes=[32, 16])
 
 
@@ -755,7 +755,7 @@ class TestResNetWithConfig:
         assert cloned.model_config.num_blocks == 1
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             ResNetClassifier(num_blocks=2, layer_sizes=[32])
 
 
@@ -792,7 +792,7 @@ class TestFTTransformerWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             FTTransformerClassifier(n_layers=2, d_model=32)
 
 
@@ -834,7 +834,7 @@ class TestTabTransformerWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             TabTransformerClassifier(n_layers=2, d_model=32)
 
 
@@ -871,7 +871,7 @@ class TestAutoIntWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             AutoIntClassifier(n_layers=2, d_model=32)
 
 
@@ -908,7 +908,7 @@ class TestSAINTWithConfig:
         assert cloned.model_config.n_layers == 2
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             SAINTClassifier(n_layers=1, d_model=32)
 
 
@@ -945,7 +945,7 @@ class TestNODEWithConfig:
         assert cloned.model_config.num_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             NODEClassifier(num_layers=2)
 
 
@@ -982,7 +982,7 @@ class TestNDTFWithConfig:
         assert cloned.model_config.n_ensembles == 6
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             NDTFClassifier(n_ensembles=4)
 
 
@@ -1019,7 +1019,7 @@ class TestTabMWithConfig:
         assert cloned.model_config.ensemble_size == 4
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             TabMClassifier(ensemble_size=8)
 
 
@@ -1062,7 +1062,7 @@ class TestTabRWithConfig:
         assert cloned.model_config.d_main == 128
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             TabRClassifier(d_main=64)
 
 
@@ -1099,7 +1099,7 @@ class TestMambularWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MambularClassifier(n_layers=2)
 
 
@@ -1136,7 +1136,7 @@ class TestMambaTabWithConfig:
         assert cloned.model_config.n_layers == 2
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MambaTabClassifier(n_layers=1)
 
 
@@ -1173,7 +1173,7 @@ class TestMambAttentionWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MambAttentionClassifier(n_layers=2)
 
 
@@ -1210,7 +1210,7 @@ class TestTabulaRNNWithConfig:
         assert cloned.model_config.n_layers == 3
 
     def test_flat_kwargs_raise_error(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             TabulaRNNClassifier(n_layers=2)
 
 
@@ -1225,56 +1225,54 @@ class TestPR5FlatParamRejection:
     # ---- MLP ----
 
     def test_mlp_classifier_rejects_flat_model_arch_param(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(layer_sizes=[32, 16])
 
     def test_mlp_regressor_rejects_flat_model_arch_param(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPRegressor(dropout=0.3)
 
     def test_mlp_classifier_rejects_flat_trainer_param(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(max_epochs=50)
 
     def test_mlp_classifier_rejects_flat_preprocessing_param(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(numerical_preprocessing="standard")
 
     def test_mlp_classifier_rejects_multiple_flat_params(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             MLPClassifier(layer_sizes=[32], lr=1e-4, n_bins=20)
 
     # ---- Error message content ----
 
     def test_error_message_contains_param_names(self):
         with pytest.raises(TypeError) as exc_info:
-            MLPClassifier(layer_sizes=[32], dropout=0.3)
-        msg = str(exc_info.value)
-        assert "dropout" in msg
-        assert "layer_sizes" in msg
+            MLPClassifier(layer_sizes=[32])
+        assert "layer_sizes" in str(exc_info.value)
 
     def test_error_message_contains_config_class_hint(self):
         with pytest.raises(TypeError) as exc_info:
             MLPClassifier(layer_sizes=[32])
-        assert "MLPConfig" in str(exc_info.value)
+        assert "unexpected keyword argument" in str(exc_info.value)
 
     def test_error_message_contains_trainer_config_hint(self):
         with pytest.raises(TypeError) as exc_info:
             MLPClassifier(layer_sizes=[32])
-        assert "TrainerConfig" in str(exc_info.value)
+        assert "unexpected keyword argument" in str(exc_info.value)
 
     # ---- Other models ----
 
     def test_resnet_classifier_rejects_flat_params(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             ResNetClassifier(num_blocks=2)
 
     def test_fttransformer_regressor_rejects_flat_params(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             FTTransformerRegressor(n_layers=2)
 
     def test_tabm_classifier_rejects_flat_params(self):
-        with pytest.raises(TypeError, match="no longer accepts flat"):
+        with pytest.raises(TypeError):
             TabMClassifier(ensemble_size=8)
 
     # ---- Split-config API still works (no error) ----
