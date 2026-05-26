@@ -113,6 +113,13 @@ show_authors = False
 pygments_style = "github-light"
 pygments_style_dark = "github-dark"
 
+# -- Options for nbsphinx -----------------------------------------------------
+
+# Don't execute notebooks during build
+nbsphinx_execute = "never"
+
+# -- Options for HTML output -------------------------------------------------
+
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
