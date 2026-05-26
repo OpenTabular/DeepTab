@@ -31,6 +31,14 @@
    tutorials/index
 
 .. toctree::
+   :name: Model Zoo
+   :caption: Model Zoo
+   :maxdepth: 2
+   :hidden:
+
+   model_zoo/index
+
+.. toctree::
    :name: API Reference
    :caption: API Reference
    :maxdepth: 2
