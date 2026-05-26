@@ -23,15 +23,12 @@
    core_concepts/index
 
 .. toctree::
-   :name: Examples
-   :caption: Examples
+   :name: Tutorials
+   :caption: Tutorials
    :maxdepth: 2
    :hidden:
 
-   examples/classification
-   examples/regression
-   examples/distributional
-   examples/experimental
+   tutorials/index
 
 .. toctree::
    :name: API Reference
