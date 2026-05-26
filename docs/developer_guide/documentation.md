@@ -25,10 +25,10 @@ docs/
 ├── _static/
 │   └── custom.css           # Theme overrides and syntax highlight palette
 ├── homepage.md              # Landing page content
-├── overview.md
-├── installation.md
-├── key_concepts.md
-├── examples/                # Tutorial pages
+├── getting_started/         # Initial onboarding
+├── core_concepts/           # Deep-dive concept guides
+├── tutorials/               # Hands-on tutorials with notebooks
+├── model_zoo/               # Model documentation and comparisons
 ├── api/                     # Auto-generated API reference
 └── developer_guide/         # This section
 ```

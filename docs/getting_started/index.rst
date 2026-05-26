@@ -43,6 +43,7 @@ Next Steps
 
 After completing this section, explore:
 
-- :doc:`../key_concepts` — Deep dive into the config system and API patterns
-- :doc:`../examples/classification` — Complete end-to-end workflows
+- :doc:`../core_concepts/index` — Deep dive into the config system and API patterns
+- :doc:`../tutorials/index` — Complete end-to-end workflows with interactive notebooks
+- :doc:`../model_zoo/index` — Browse all available models
 - :doc:`../api/models/index` — Full API reference
