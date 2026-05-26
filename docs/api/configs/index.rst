@@ -240,4 +240,4 @@ Available model configs
 .. toctree::
    :maxdepth: 1
 
-   Configurations
+   configs_ref

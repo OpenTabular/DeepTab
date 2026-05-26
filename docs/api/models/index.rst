@@ -5,136 +5,127 @@
 Models
 ======
 
-This module provides classes for the Mambular models that adhere to scikit-learn's `BaseEstimator` interface.
+Scikit-learn compatible estimators for tabular deep learning. All models implement
+the ``BaseEstimator`` interface and come in three task variants:
 
-Mambular
---------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MambularClassifier`                 Multi-class and binary classification tasks with a sequential Mambular Model.
-:class:`MambularRegressor`                  Regression tasks with a sequential Mambular Model.
-:class:`MambularLSS`                        Various statistical distribution families for different types of regression and classification tasks.
-=======================================    =======================================================================================================
+- **Classifier** — Multi-class and binary classification
+- **Regressor** — Standard regression (point estimates)
+- **LSS** — Distributional regression (Location, Scale, Shape)
 
-FTTransformer
+Quick Example
 -------------
+
+.. code-block:: python
+
+    from deeptab.models import MambularClassifier
+
+    # Instantiate
+    model = MambularClassifier()
+
+    # Fit
+    model.fit(X_train, y_train, max_epochs=50)
+
+    # Predict
+    predictions = model.predict(X_test)
+    probabilities = model.predict_proba(X_test)
+
+    # Evaluate
+    metrics = model.evaluate(X_test, y_test)
+
+Model Selection
+---------------
+
+For detailed model comparisons, use cases, and configuration guidance, see the
+:doc:`../../model_zoo/index`.
+
+Quick recommendations:
+
+- **Best overall**: :class:`MambularClassifier`, :class:`MambularRegressor`, :class:`MambularLSS`
+- **Fast baseline**: :class:`ResNetClassifier`, :class:`ResNetRegressor`, :class:`ResNetLSS`
+- **Interpretable**: :class:`NODEClassifier`, :class:`NODERegressor`, :class:`NODELSS`
+- **Categorical-heavy**: :class:`TabTransformerClassifier`, :class:`TabTransformerRegressor`, :class:`TabTransformerLSS`
+
+Stable Models
+-------------
+
+**State Space Models**
+
 =======================================    =======================================================================================================
-Modules                                     Description
+Class                                       Description
 =======================================    =======================================================================================================
-:class:`FTTransformerClassifier`            FT transformer for classification tasks.
-:class:`FTTransformerRegressor`            FT transformer for regression tasks.
-:class:`FTTransformerLSS`                  Various statistical distribution families for different types of regression and classification tasks.
+:class:`MambularClassifier`                 Multi-layer Mamba architecture. Best overall performance. See :doc:`../../model_zoo/stable/mambular`.
+:class:`MambularRegressor`
+:class:`MambularLSS`
+:class:`MambaTabClassifier`                 Single Mamba block. Fast and efficient. See :doc:`../../model_zoo/stable/mambatab`.
+:class:`MambaTabRegressor`
+:class:`MambaTabLSS`
+:class:`MambAttentionClassifier`            Hybrid Mamba + Attention. Complex patterns. See :doc:`../../model_zoo/stable/mambattention`.
+:class:`MambAttentionRegressor`
+:class:`MambAttentionLSS`
 =======================================    =======================================================================================================
 
-MLP Models
-----------
+**Transformer-Based**
+
 =======================================    =======================================================================================================
-Modules                                     Description
+Class                                       Description
 =======================================    =======================================================================================================
-:class:`MLPClassifier`                      Multi-class and binary classification tasks.
-:class:`MLPRegressor`                       MLP for regression tasks.
-:class:`MLPLSS`                             Various statistical distribution families for different types of regression and classification tasks.
+:class:`FTTransformerClassifier`            Feature Tokenizer Transformer. Strong baseline. See :doc:`../../model_zoo/stable/fttransformer`.
+:class:`FTTransformerRegressor`
+:class:`FTTransformerLSS`
+:class:`TabTransformerClassifier`           Specialized for categorical features. See :doc:`../../model_zoo/stable/tabtransformer`.
+:class:`TabTransformerRegressor`
+:class:`TabTransformerLSS`
+:class:`SAINTClassifier`                    Row and column attention. Semi-supervised. See :doc:`../../model_zoo/stable/saint`.
+:class:`SAINTRegressor`
+:class:`SAINTLSS`
 =======================================    =======================================================================================================
 
-TabTransformer
---------------
+**MLP-Based**
+
 =======================================    =======================================================================================================
-Modules                                     Description
+Class                                       Description
 =======================================    =======================================================================================================
-:class:`TabTransformerClassifier`           TabTransformer for classification tasks.
-:class:`TabTransformerRegressor`            TabTransformer for regression tasks.
-:class:`TabTransformerLSS`                  TabTransformer for distributional tasks.
+:class:`ResNetClassifier`                   Residual MLP. Fast and simple. See :doc:`../../model_zoo/stable/resnet`.
+:class:`ResNetRegressor`
+:class:`ResNetLSS`
+:class:`MLPClassifier`                      Standard MLP. Fastest baseline. See :doc:`../../model_zoo/stable/mlp`.
+:class:`MLPRegressor`
+:class:`MLPLSS`
+:class:`TabMClassifier`                     Batch ensembling MLP. See :doc:`../../model_zoo/stable/tabm`.
+:class:`TabMRegressor`
+:class:`TabMLSS`
+:class:`AutoIntClassifier`                  Automatic feature interactions. See :doc:`../../model_zoo/stable/autoint`.
+:class:`AutoIntRegressor`
+:class:`AutoIntLSS`
 =======================================    =======================================================================================================
 
-ResNet
-------
+**Tree-Based**
+
 =======================================    =======================================================================================================
-Modules                                     Description
+Class                                       Description
 =======================================    =======================================================================================================
-:class:`ResNetClassifier`                   Multi-class and binary classification tasks using ResNet.
-:class:`ResNetRegressor`                    Regression tasks using ResNet.
-:class:`ResNetLSS`                          Distributional tasks using ResNet.
+:class:`NODEClassifier`                     Neural Oblivious Decision Ensembles. Interpretable. See :doc:`../../model_zoo/stable/node`.
+:class:`NODERegressor`
+:class:`NODELSS`
+:class:`ENODEClassifier`                    Enhanced NODE. See :doc:`../../model_zoo/stable/enode`.
+:class:`ENODERegressor`
+:class:`ENODELSS`
+:class:`NDTFClassifier`                     Neural Decision Tree Forest. See :doc:`../../model_zoo/stable/ndtf`.
+:class:`NDTFRegressor`
+:class:`NDTFLSS`
 =======================================    =======================================================================================================
 
-MambaTab
---------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MambaTabClassifier`                 Multi-class and binary classification tasks using MambaTab.
-:class:`MambaTabRegressor`                  Regression tasks using MambaTab.
-:class:`MambaTabLSS`                        Distributional tasks using MambaTab.
-=======================================    =======================================================================================================
+**Specialized**
 
-MambaAttention
---------------
 =======================================    =======================================================================================================
-Modules                                     Description
+Class                                       Description
 =======================================    =======================================================================================================
-:class:`MambAttentionClassifier`            Multi-class and binary classification tasks using a Combination between Mamba and Attention layers.
-:class:`MambAttentionRegressor`             Regression tasks using sing a Combination between Mamba and Attention layers.
-:class:`MambAttentionLSS`                   Distributional tasks using sing a Combination between Mamba and Attention layers.
-=======================================    =======================================================================================================
-
-RNN Models Including LSTM and GRU
----------------------------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`TabulaRNNClassifier`                Multi-class and binary classification tasks using a RNN.
-:class:`TabulaRNNRegressor`                 Regression tasks using a RNN.
-:class:`TabulaRNNLSS`                       Distributional tasks using a RNN.
-=======================================    =======================================================================================================
-
-TabM
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`TabMClassifier`                     Multi-class and binary classification tasks using TabM - Batch Ensembling MLP.
-:class:`TabMRegressor`                      Regression tasks using TabM - Batch Ensembling MLP.
-:class:`TabMLSS`                            Distributional tasks using TabM - Batch Ensembling MLP.
-=======================================    =======================================================================================================
-
-NODE
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`NODEClassifier`                     Multi-class and binary classification tasks using Neural Oblivious Decision Ensembles.
-:class:`NODERegressor`                      Regression tasks using Neural Oblivious Decision Ensembles.
-:class:`NODELSS`                            Distributional tasks using Neural Oblivious Decision Ensembles.
-=======================================    =======================================================================================================
-
-NDTF
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`NDTFClassifier`                     Multi-class and binary classification tasks using a Neural Decision Forest.
-:class:`NDTFRegressor`                      Regression tasks using a Neural Decision Forest
-:class:`NDTFLSS`                            Distributional tasks using a Neural Decision Forest.
-=======================================    =======================================================================================================
-
-SAINT
------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`SAINTClassifier`                    Multi-class and binary classification tasks using SAINT.
-:class:`SAINTRegressor`                     Regression tasks using SAINT.
-:class:`SAINTLSS`                           Distributional tasks using SAINT.
-=======================================    =======================================================================================================
-
-Base Classes
-------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`SklearnBaseClassifier`              Base class for classification tasks.
-:class:`SklearnBaseLSS`                     Base class for distributional tasks.
-:class:`SklearnBaseRegressor`               Base class for regression tasks.
+:class:`TabRClassifier`                     Retrieval-augmented model. Large datasets. See :doc:`../../model_zoo/stable/tabr`.
+:class:`TabRRegressor`
+:class:`TabRLSS`
+:class:`TabulaRNNClassifier`                RNN for sequential features. See :doc:`../../model_zoo/stable/tabularnn`.
+:class:`TabulaRNNRegressor`
+:class:`TabulaRNNLSS`
 =======================================    =======================================================================================================
 
 Experimental Models
@@ -143,46 +134,51 @@ Experimental Models
 .. warning::
 
    Experimental models are available from ``deeptab.models.experimental``.
-   Their API may change without a deprecation cycle.
+   Their API may change without a deprecation cycle. Always pin your DeepTab version
+   when using experimental models.
 
 .. currentmodule:: deeptab.models.experimental
 
-=======================================    ===========================================================================
-Modules                                     Description
-=======================================    ===========================================================================
-:class:`ModernNCAClassifier`                ModernNCA for classification tasks.
-:class:`ModernNCARegressor`                 ModernNCA for regression tasks.
-:class:`ModernNCALSS`                       ModernNCA for distributional tasks.
-:class:`TangosClassifier`                   Tangos for classification tasks.
-:class:`TangosRegressor`                    Tangos for regression tasks.
-:class:`TangosLSS`                          Tangos for distributional tasks.
-:class:`TromptClassifier`                   Trompt for classification tasks.
-:class:`TromptRegressor`                    Trompt for regression tasks.
-:class:`TromptLSS`                          Trompt for distributional tasks.
-=======================================    ===========================================================================
+=======================================    =======================================================================================================
+Class                                       Description
+=======================================    =======================================================================================================
+:class:`ModernNCAClassifier`                Modern Neighborhood Component Analysis. See :doc:`../../model_zoo/experimental/modernnca`.
+:class:`ModernNCARegressor`
+:class:`ModernNCALSS`
+:class:`TangosClassifier`                   Tangent-based optimization. See :doc:`../../model_zoo/experimental/tangos`.
+:class:`TangosRegressor`
+:class:`TangosLSS`
+:class:`TromptClassifier`                   Transformer with prompts. See :doc:`../../model_zoo/experimental/trompt`.
+:class:`TromptRegressor`
+:class:`TromptLSS`
+=======================================    =======================================================================================================
+
+Base Classes
+------------
+
+.. currentmodule:: deeptab.models
+
+=======================================    =======================================================================================================
+Class                                       Description
+=======================================    =======================================================================================================
+:class:`SklearnBaseClassifier`              Abstract base class for all classification models.
+:class:`SklearnBaseRegressor`               Abstract base class for all regression models.
+:class:`SklearnBaseLSS`                     Abstract base class for all distributional regression models.
+=======================================    =======================================================================================================
+
+See Also
+--------
+
+- :doc:`../../model_zoo/index` — Detailed model comparisons and selection guide
+- :doc:`../../model_zoo/comparison_tables` — Performance comparisons
+- :doc:`../../model_zoo/recommended_configs` — Hyperparameter recipes
+- :doc:`../../tutorials/index` — Hands-on usage examples
+
+Reference
+---------
 
 .. toctree::
    :maxdepth: 1
-   :caption: Stable Models
-
-   mlp
-   resnet
-   fttransformer
-   tabtransformer
-   saint
-   tabm
-   tabr
-   node
-   ndtf
-   tabularrnn
-   mambular
-   mambatab
-   mambattention
-   enode
-   autoint
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Full API Reference
+   :caption: Model Reference
 
    Models

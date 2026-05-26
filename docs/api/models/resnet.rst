@@ -1,36 +1,21 @@
 ResNet
 ======
 
-A deep residual network adapted for tabular data. Skip connections let gradients
-flow through deeper stacks without vanishing, enabling more representational
-capacity than a plain MLP at the same depth. Each residual block applies two
-linear layers with batch normalisation and a skip connection.
+Deep residual network for tabular data. Fast and simple baseline with skip connections.
 
-When to Use
------------
-
-Choose ResNet when a plain MLP fails to converge well or produces unstable
-training curves, or when you need more depth without gradient issues. A good
-second step after benchmarking MLP.
-
-Limitations
------------
-
-- More hyperparameters than plain MLP (block size, number of blocks).
-- Skip connections add memory overhead.
-- May not outperform MLP on small datasets where depth is not beneficial.
+For detailed usage, configuration examples, and performance notes, see :doc:`../../model_zoo/stable/resnet`.
 
 API Reference
 -------------
 
 .. currentmodule:: deeptab.models
 
-.. autoclass:: ResNetRegressor
+.. autoclass:: ResNetClassifier
    :members:
    :undoc-members:
    :noindex:
 
-.. autoclass:: ResNetClassifier
+.. autoclass:: ResNetRegressor
    :members:
    :undoc-members:
    :noindex:
