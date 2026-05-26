@@ -66,6 +66,7 @@ class TabularDataModule(pl.LightningDataModule):
         self.shuffle = shuffle
         self.cat_feature_info = None
         self.num_feature_info = None
+        self.embedding_feature_info = None
         self.X_val = X_val
         self.y_val = y_val
         self.val_size = val_size
@@ -368,7 +369,7 @@ class TabularDataModule(pl.LightningDataModule):
             Feature schema with metadata about categorical, numerical, and
             embedding features, or None if preprocessing hasn't been done yet.
         """
-        if not hasattr(self, "num_feature_info"):
+        if self.num_feature_info is None or self.cat_feature_info is None:
             return None
 
         return FeatureSchema.from_preprocessor_info(
