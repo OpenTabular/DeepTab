@@ -2,10 +2,9 @@
 default:
 	@just --list --unsorted
 
-# install dependencies, editable package, and set up all pre-commit hooks
+# install dependencies and set up pre-commit hooks
 install:
 	poetry install
-	poetry run pip install -e . --quiet
 	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
 # update dependencies and pre-commit hook revisions
@@ -28,12 +27,12 @@ clean:
 lint:
     poetry run ruff check --fix .
 
-# run docformatter and ruff formatter
+# run ruff formatter
 format:
     poetry run ruff format .
 
 # run pyright type checking
-typecheck:
+types:
     poetry run pyright
 
 # run tests with coverage
@@ -44,12 +43,9 @@ test:
 docs:
     poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
 
-# run all pre-commit hooks on all files (commit + push stage)
-# if ruff-format modifies files, stage and commit them before pushing:
-#   git add -u && git commit -m "style: apply ruff formatting"
+# run all pre-commit hooks on all files including push-stage hooks (ruff, pyright, prettier)
 check:
-    poetry run pre-commit run --all-files
-    poetry run pre-commit run --all-files --hook-stage push
+    poetry run pre-commit run --hook-stage push --all-files
 
 # create a conventional commit using commitizen
 commit:
