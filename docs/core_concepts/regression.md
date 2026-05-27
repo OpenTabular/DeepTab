@@ -1,108 +1,102 @@
 # Regression
 
-Key concepts for regression tasks: continuous predictions, target preprocessing, and evaluation metrics.
-
-```{tip}
-For hands-on examples and complete workflows, see the [Regression Tutorial](../tutorials/regression).
-```
-
-## Continuous Predictions
-
-Regression models predict continuous numerical values:
+DeepTab regressors predict continuous targets with the `*Regressor` estimator variants.
 
 ```python
 from deeptab.models import ResNetRegressor
 
 model = ResNetRegressor()
-model.fit(X_train, y_train, max_epochs=100)
-predictions = model.predict(X_test)  # [12.34, 45.67, -23.45, ...]
+model.fit(X_train, y_train)
+predictions = model.predict(X_test)
 ```
 
-**All stable models are available as regressors** — just use the `*Regressor` suffix.
+## Target Handling
 
-## Target Preprocessing
+DeepTab preprocesses features, not targets. Transform targets manually when their scale or distribution makes optimization difficult.
 
-```{important}
-Unlike features, targets are **not** automatically preprocessed. Apply transformations manually when needed for better performance.
-```
+| Target condition | Common strategy |
+| --- | --- |
+| Strictly positive and skewed | Train on `np.log1p(y)`, inverse with `np.expm1`. |
+| Very large or small magnitude | Standardize target with `StandardScaler`. |
+| Severe outliers | Clip/winsorize target or use robust metrics. |
+| Input-dependent noise | Consider LSS distributional regression. |
 
-**Common transformations:**
-
-| Transform       | Use case                         | Example                 |
-| --------------- | -------------------------------- | ----------------------- |
-| Log transform   | Skewed/positive targets (prices) | `np.log1p(y)`           |
-| Standardization | Very large/small magnitudes      | `StandardScaler()`      |
-| Clip outliers   | Extreme values                   | `np.clip(y, -100, 100)` |
-
-**Log example:**
+Example:
 
 ```python
 import numpy as np
 
-# Transform target
-y_train_log = np.log1p(y_train)  # log(1 + y)
-model.fit(X_train, y_train_log, max_epochs=50)
+y_train_log = np.log1p(y_train)
+model.fit(X_train, y_train_log)
 
-# Inverse transform predictions
-predictions_log = model.predict(X_test)
-predictions = np.expm1(predictions_log)  # exp(y) - 1
+pred_log = model.predict(X_test)
+pred = np.expm1(pred_log)
 ```
 
-```{warning}
-Remember to **inverse transform** predictions to get values in the original scale!
-```
+## Metrics
 
-## Evaluation Metrics
-
-**Default metrics:**
+The current default `evaluate()` metric for regressors is mean squared error:
 
 ```python
-metrics = model.evaluate(X_test, y_test)
-# Returns: {'rmse': 12.34, 'mae': 8.56, 'loss': 152.3}
+model.evaluate(X_test, y_test)
+# {"Mean Squared Error": ...}
 ```
 
-| Metric | Description                    | When to use                             |
-| ------ | ------------------------------ | --------------------------------------- |
-| RMSE   | Root Mean Squared Error        | General-purpose, penalizes large errors |
-| MAE    | Mean Absolute Error            | Less sensitive to outliers              |
-| R²     | Coefficient of determination   | Proportion of variance explained        |
-| MAPE   | Mean Absolute Percentage Error | When relative errors matter             |
-
-**Custom metrics via TrainerConfig:**
+For reporting, pass explicit metrics:
 
 ```python
-from torchmetrics import MeanSquaredError, MeanAbsolutePercentageError
+import numpy as np
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
 
-cfg = TrainerConfig(
-    metrics=[MeanSquaredError(), MeanAbsolutePercentageError()]
+metrics = model.evaluate(
+    X_test,
+    y_test,
+    metrics={
+        "rmse": lambda y, pred: np.sqrt(mean_squared_error(y, pred)),
+        "mae": mean_absolute_error,
+        "r2": r2_score,
+    },
 )
-model = TabRRegressor(trainer_config=cfg)
 ```
 
-## Different Target Distributions
+The current default `score()` is also mean squared error. Use `r2_score` explicitly when you want R2:
 
-| Target type          | Strategy               | Alternative                   |
-| -------------------- | ---------------------- | ----------------------------- |
-| Normally distributed | Default (no transform) | -                             |
-| Positive (prices)    | Log transform          | LSS with gamma family         |
-| Bounded (0 to 1)     | Logit transform        | LSS with beta family          |
-| Count data           | Log transform          | LSS with poisson family       |
-| Heavy outliers       | Quantile preprocessing | Clip outliers                 |
-| Heteroscedastic      | -                      | **Use LSS** for varying noise |
+```python
+from sklearn.metrics import r2_score
 
-```{tip}
-For targets with **varying uncertainty** (heteroscedastic noise), use [Distributional Regression](distributional_regression) instead of standard regression.
+r2 = model.score(X_test, y_test, metric=r2_score)
 ```
 
-## Output Format
+## Residual Diagnostics
 
-| Method       | Returns            | Shape          | Dtype   |
-| ------------ | ------------------ | -------------- | ------- |
-| `predict()`  | Continuous values  | `(n_samples,)` | `float` |
-| `evaluate()` | Metrics dictionary | -              | -       |
+After fitting:
+
+```python
+pred = model.predict(X_test)
+residuals = y_test - pred
+```
+
+Useful checks:
+
+| Check | Why |
+| --- | --- |
+| Residuals vs predictions | Detect nonlinearity or heteroscedasticity. |
+| Residual distribution | Detect skew/heavy tails. |
+| Error by subgroup | Detect feature-dependent failure modes. |
+| Prediction scale | Detect target transform mistakes. |
+
+## Model Choice
+
+| Goal | Models |
+| --- | --- |
+| Fast baseline | `MLPRegressor`, `ResNetRegressor` |
+| Strong neural baseline | `TabMRegressor`, `FTTransformerRegressor` |
+| Retrieval/local similarity | `TabRRegressor` |
+| Differentiable tree bias | `NODERegressor`, `ENODERegressor`, `NDTFRegressor` |
+| Feature-sequence experiments | `MambularRegressor`, `TabulaRNNRegressor` |
 
 ## Next Steps
 
-- [Regression Tutorial](../tutorials/regression) — Complete examples
-- [Distributional Regression](distributional_regression) — For uncertainty quantification
-- [Training and Evaluation](training_and_evaluation) — Training loop details
+- [Regression Tutorial](../tutorials/regression)
+- [Distributional Regression](distributional_regression)
+- [Training and Evaluation](training_and_evaluation)

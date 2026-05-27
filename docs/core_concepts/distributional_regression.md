@@ -1,161 +1,92 @@
 # Distributional Regression
 
-Distributional regression (LSS - Location, Scale, and Shape) predicts **full probability distributions** rather than point estimates, enabling uncertainty quantification and prediction intervals.
-
-```{tip}
-For hands-on examples and complete workflows, see the [Distributional Tutorial](../tutorials/distributional).
-```
-
-## Why Distributional Regression?
-
-**Standard regression** predicts a single value:
-
-```python
-prediction = model.predict(X_test)[0]  # → 42.5
-```
-
-**Distributional regression** predicts distribution parameters:
-
-```python
-params = lss_model.predict(X_test)[0]  # → [mean=42.5, std=5.2]
-```
-
-This provides both **expected value** and **uncertainty**.
-
-```{important}
-**Key use cases:**
-
-- Uncertainty quantification (know when predictions are confident)
-- Prediction intervals (95% confidence bounds)
-- Heteroscedastic noise (varying noise levels across input space)
-- Risk-aware decisions (use full distribution for optimization)
-- Quantile predictions (specific percentiles for business needs)
-```
-
-## Getting Started
-
-All models support LSS via the `*LSS` suffix:
+Distributional regression estimates parameters of a conditional probability distribution instead of a single point prediction. In DeepTab, these estimators use the `*LSS` suffix.
 
 ```python
 from deeptab.models import MambularLSS
 
 model = MambularLSS()
-model.fit(X_train, y_train, family="normal", max_epochs=100)
-params = model.predict(X_test)  # Returns distribution parameters
+model.fit(X_train, y_train, family="normal")
+params = model.predict(X_test)
 ```
 
-## Distribution Families
+## Why Use It?
 
-Choose based on your target's characteristics:
+Use LSS models when the target has meaningful uncertainty:
 
-| Family              | Parameters          | Support | Use case                                |
-| ------------------- | ------------------- | ------- | --------------------------------------- |
-| `normal`            | μ (mean), σ (std)   | ℝ       | Unbounded continuous (default)          |
-| `poisson`           | λ (rate)            | ℕ₀      | Count data                              |
-| `gamma`             | α (shape), β (rate) | ℝ₊      | Positive continuous (prices, durations) |
-| `beta`              | α, β                | (0, 1)  | Proportions, probabilities              |
-| `negative_binomial` | n, p                | ℕ₀      | Overdispersed count data                |
-| `student_t`         | df, μ, σ            | ℝ       | Heavy-tailed distributions              |
-| `exponential`       | λ (rate)            | ℝ₊      | Waiting times, lifetimes                |
-| `laplace`           | μ, b                | ℝ       | L1 loss equivalent                      |
-| `lognormal`         | μ, σ                | ℝ₊      | Multiplicative processes                |
+| Need | Why distributional regression helps |
+| --- | --- |
+| Prediction intervals | Parameters define full predictive distributions. |
+| Heteroscedastic noise | Scale/shape can change with input features. |
+| Risk-aware decisions | Downstream systems can use quantiles or tail probabilities. |
+| Non-Gaussian targets | Choose a family matching target support. |
 
-```{note}
-See the [API reference](../api/distributions/index) for the complete list of supported families.
-```
+## Families
 
-### Example: Normal Distribution
+Choose a family whose support matches the target:
+
+| Family | Typical target |
+| --- | --- |
+| `"normal"` | Continuous unbounded values. |
+| `"poisson"` | Count data. |
+| `"gamma"` | Positive continuous values. |
+| `"beta"` | Values in `(0, 1)`. |
+| `"studentt"` | Heavy-tailed continuous values. |
+| `"negativebinom"` | Overdispersed counts. |
+| `"inversegamma"` | Positive heavy-tailed values. |
+| `"categorical"` | Distributional classification-style outputs. |
+
+The exact parameterization is defined by the distribution classes in `deeptab.distributions`.
+
+## Prediction Intervals
+
+For a normal-family model:
 
 ```python
-from deeptab.models import SAINTLSS
-
-model = SAINTLSS()
-model.fit(X_train, y_train, family="normal", max_epochs=50)
-
-# Returns (n_samples, 2): [mean, std] for each sample
-params = model.predict(X_test)
-
-mean_predictions = params[:, 0]
-std_predictions = params[:, 1]
-
-# 95% prediction intervals
-lower = mean_predictions - 1.96 * std_predictions
-upper = mean_predictions + 1.96 * std_predictions
-```
-
-### Example: Poisson for Count Data
-
-```python
-model = FTTransformerLSS()
-model.fit(X_train, y_train_counts, family="poisson", max_epochs=50)
-
-# Returns (n_samples, 1): [rate] for each sample
-params = model.predict(X_test)
-rate = params[:, 0]
-
-# Expected count
-expected_counts = rate
-```
-
-## When to Use Which Family
-
-| Target characteristics | Recommended family             |
-| ---------------------- | ------------------------------ |
-| Continuous, unbounded  | `normal`                       |
-| Positive continuous    | `gamma`, `lognormal`           |
-| Counts (0, 1, 2, ...)  | `poisson`, `negative_binomial` |
-| Proportions (0 to 1)   | `beta`                         |
-| Heavy outliers         | `student_t`, `laplace`         |
-| Waiting times          | `exponential`                  |
-
-```{warning}
-Choosing the wrong family can lead to poor fits. Match the family's support to your target's range (e.g., don't use `gamma` for negative values).
-```
-
-## Heteroscedastic Noise
-
-A key advantage of LSS: modeling **varying uncertainty**:
-
-```python
-# Standard regression assumes constant noise
-# LSS learns input-dependent noise
+import numpy as np
+from scipy import stats
 
 params = model.predict(X_test)
-uncertainty = params[:, 1]  # Standard deviation varies by input
+mean = params[:, 0]
+variance_or_scale = params[:, 1]
+std = np.sqrt(np.maximum(variance_or_scale, 1e-12))
 
-# Find high-uncertainty predictions
-high_uncertainty_idx = uncertainty > uncertainty.mean() + 2 * uncertainty.std()
+lower = stats.norm.ppf(0.05, loc=mean, scale=std)
+upper = stats.norm.ppf(0.95, loc=mean, scale=std)
 ```
+
+Verify the parameter convention for the chosen family before computing intervals. Some distribution implementations return transformed or constrained parameters.
 
 ## Evaluation
 
-LSS models are evaluated using **negative log-likelihood** (lower is better):
+`evaluate()` uses family-specific default metrics:
 
 ```python
-metrics = model.evaluate(X_test, y_test)
-print(f"Negative log-likelihood: {metrics['loss']:.3f}")
+metrics = model.evaluate(X_test, y_test, distribution_family="normal")
 ```
 
-**Compare to point predictions:**
+For normal, the current defaults include MSE on the mean and CRPS. `score()` computes negative log-likelihood through the fitted family.
 
 ```python
-# Extract point predictions (e.g., mean for normal)
-mean_predictions = model.predict(X_test)[:, 0]
-
-# Use standard regression metrics
-from sklearn.metrics import mean_squared_error
-rmse = np.sqrt(mean_squared_error(y_test, mean_predictions))
+nll = model.score(X_test, y_test)
 ```
 
-## Output Format
+For papers and benchmarks, report both point quality and distribution quality when relevant:
 
-| Method       | Returns                 | Shape                   | Dtype   |
-| ------------ | ----------------------- | ----------------------- | ------- |
-| `predict()`  | Distribution parameters | `(n_samples, n_params)` | `float` |
-| `evaluate()` | Negative log-likelihood | -                       | -       |
+1. RMSE/MAE/R2 on the predictive mean.
+2. NLL or CRPS.
+3. Empirical coverage for prediction intervals.
+4. Calibration curves across multiple interval levels.
+
+## Practical Guidance
+
+1. Start with `family="normal"` for unbounded continuous targets.
+2. Use `gamma` or `lognormal`-style modeling only for strictly positive targets where the family is available and parameterized as expected.
+3. Clip or rescale targets to valid support for `beta` and count families.
+4. Always validate interval coverage on held-out data.
 
 ## Next Steps
 
-- [Distributional Tutorial](../tutorials/distributional) — Complete examples with all families
-- [API: Distributions](../api/distributions/index) — Full list of families and parameters
-- [Regression](regression) — For standard point predictions
+- [Distributional Tutorial](../tutorials/distributional)
+- [Regression](regression)
+- [API: Distributions](../api/distributions/index)
