@@ -459,22 +459,17 @@ model = MambularClassifier(
 ### Force CPU training
 
 ```python
-from deeptab.configs import TrainerConfig
-
-model = MambularClassifier(
-    trainer_config=TrainerConfig(
-        device="cpu",  # Explicitly use CPU
-    )
-)
+model = MambularClassifier()
+model.fit(X_train, y_train, accelerator="cpu")
 ```
 
 ## Next steps
 
 Now that you've run your first models, explore:
 
-- **[Core Concepts](../core_concepts/index)** — Deep dive into the config system, preprocessing, and distributional regression
+- **[Core Concepts](../core_concepts/config_system)** — Deep dive into the config system, preprocessing, and distributional regression
 - **[Tutorials](../tutorials/classification)** — Complete end-to-end workflows for different tasks
-- **[API Reference](../../api/models/index)** — Full documentation of all models and configs
+- **[API Reference](../api/models/index)** — Full documentation of all models and configs
 - **[FAQ](faq)** — Answers to common questions
 
 For questions or issues, check the [FAQ](faq) or open an issue on [GitHub](https://github.com/OpenTabular/DeepTab/issues).
