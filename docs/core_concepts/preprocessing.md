@@ -140,7 +140,7 @@ For multiple embedding sources, pass a list of arrays. Each array should have th
 
 ## Validation and Leakage
 
-`TabularDataModule.preprocess_data()` currently fits the preprocessor on the combined training and validation features after the split is created. This means validation data can influence preprocessing statistics. For benchmark-grade research, prefer explicit preprocessing outside DeepTab when strict train-only preprocessing is required, or document this behavior in the protocol.
+`TabularDataModule.preprocess_data()` creates or accepts the validation split first, then fits the preprocessor on the training split only. Validation and prediction data are transformed with that fitted preprocessing state. This avoids validation leakage from preprocessing statistics and makes explicit validation splits suitable for model comparison.
 
 ## Inspecting Fitted Feature Metadata
 

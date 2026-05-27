@@ -25,8 +25,9 @@ probabilities = model.predict_proba(X_test)
 | Method | Output |
 | --- | --- |
 | `predict()` | Hard class labels. |
-| `predict_proba()` | Class probabilities. |
+| `predict_proba()` | Class probabilities. Binary classifiers return two columns: negative class, then positive class. |
 | `evaluate()` | Metric dictionary. Default is `{"Accuracy": ...}`. |
+| `score()` | Accuracy by default. |
 
 For custom thresholds in binary classification:
 

@@ -151,21 +151,33 @@ classifier.evaluate(
 
 ## Score
 
-`score()` exists for sklearn compatibility, but its defaults are not the same as all sklearn estimators:
+`score()` follows a consistent default per estimator family:
 
 | Estimator | Current default |
 | --- | --- |
-| Classifier | `log_loss` on probabilities |
+| Classifier | accuracy |
 | Regressor | mean squared error |
 | LSS | negative log-likelihood |
 
-Pass a metric explicitly if you need accuracy, F1, R2, or another convention:
+Pass a metric explicitly if you need F1, R2, log loss, or another convention:
 
 ```python
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import log_loss
 
-accuracy = classifier.score(X_test, y_test, metric=(accuracy_score, False))
+loss = classifier.score(X_test, y_test, metric=(log_loss, True))
 ```
+
+## Learned Attributes
+
+After `fit()` or `build_model()`, DeepTab estimators expose common sklearn-style fitted attributes:
+
+| Attribute | Available on | Meaning |
+| --- | --- | --- |
+| `n_features_in_` | Classifier, regressor, LSS | Number of input columns seen during fitting. |
+| `feature_names_in_` | Estimators fitted with string-named DataFrame columns | Feature names and order seen during fitting. |
+| `classes_` | Classifiers and categorical LSS | Class labels seen during fitting. |
+
+Prediction inputs are checked against the fitted feature count. When the model was fitted with named DataFrame columns, prediction DataFrames must use the same feature names in the same order. This catches accidental column drops, additions, and reordering before inference.
 
 ## Save and Load
 

@@ -9,7 +9,8 @@ model.fit(X, y)
   -> create or reuse configs
   -> convert inputs to DataFrames when needed
   -> split train/validation if X_val/y_val are not provided
-  -> fit and apply preprocessing
+  -> fit preprocessing on training data only
+  -> transform train/validation data with fitted preprocessing
   -> build the neural architecture from feature metadata
   -> train with Lightning
   -> save best checkpoint
@@ -159,20 +160,20 @@ metrics = regressor.evaluate(
 
 ## Score Method
 
-`score()` is available for scikit-learn compatibility, but the default metric may not be the one you expect. In the current implementation:
+`score()` is available for scikit-learn compatibility. The default is consistent by estimator family:
 
 | Estimator | Default `score()` |
 | --- | --- |
-| Classifier | `sklearn.metrics.log_loss` on probabilities |
+| Classifier | accuracy |
 | Regressor | `sklearn.metrics.mean_squared_error` |
 | LSS | Negative log-likelihood through the fitted distribution family |
 
-For accuracy or R2, pass an explicit metric or use sklearn metrics on predictions.
+For F1, R2, log loss, or another convention, pass an explicit metric or use sklearn metrics on predictions.
 
 ```python
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import log_loss
 
-accuracy = classifier.score(X_test, y_test, metric=(accuracy_score, False))
+loss = classifier.score(X_test, y_test, metric=(log_loss, True))
 ```
 
 ## Custom Metrics During Training
@@ -202,7 +203,7 @@ loaded = type(model).load("model.pt")
 predictions = loaded.predict(X_test)
 ```
 
-The saved bundle includes the fitted preprocessor, feature metadata, model config, weights, and optimizer/scheduler metadata needed for inference.
+The saved bundle includes the fitted preprocessor, feature schema and column order, task metadata, model config, weights, and version metadata needed for inference and debugging.
 
 ## Troubleshooting
 
