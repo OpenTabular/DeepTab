@@ -13,6 +13,7 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
+from deeptab.core.serialization import build_artifact_metadata, restore_loaded_metadata
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
 from deeptab.training import TaskModel, pretrain_embeddings
@@ -311,6 +312,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
 
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
+        self.input_columns_ = list(X.columns)
         if isinstance(y, pd.Series):
             y = y.values
         if X_val is not None:
@@ -330,6 +332,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             regression=regression,
             **dataloader_kwargs,
         )
+        self.data_module.input_columns_ = self.input_columns_
 
         self.data_module.preprocess_data(
             X,
@@ -651,8 +654,10 @@ class SklearnBase(InspectionMixin, BaseEstimator):
 
         The bundle written by this method can be restored with
         :meth:`load`.  It contains all state required for inference:
-        the config, the fitted preprocessor, feature metadata, and
-        the neural-network weights.
+        the architecture/config, neural-network weights, fitted
+        preprocessing state, feature schema and column order, task
+        metadata, classifier classes when available, and package
+        versions for debugging reloads across environments.
 
         Parameters
         ----------
@@ -668,6 +673,22 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             raise ValueError("Model must be fitted before saving.")
         if self.task_model is None:
             raise RuntimeError("task_model is unexpectedly None after fitting.")
+        task = "regression" if self.data_module.regression else "classification"
+        artifact_metadata = build_artifact_metadata(
+            estimator=self,
+            model_class=type(self.estimator),
+            config=self.config,
+            data_module=self.data_module,
+            preprocessor=self.preprocessor,
+            preprocessor_kwargs=getattr(self, "preprocessor_kwargs", {}),
+            task=task,
+            regression=self.data_module.regression,
+            lss=False,
+            family=None,
+            num_classes=self.task_model.num_classes,
+            classes_=getattr(self, "classes_", None),
+        )
+        feature_schema = artifact_metadata["feature_schema"]
         bundle = {
             "_class": type(self),
             "config": self.config,
@@ -692,6 +713,14 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             "lr_factor": self.task_model.lr_factor,
             "weight_decay": self.task_model.weight_decay,
             "task_model_state_dict": self.task_model.state_dict(),
+            "artifact_metadata": artifact_metadata,
+            "architecture_metadata": artifact_metadata["architecture"],
+            "feature_schema": feature_schema,
+            "input_columns": feature_schema["column_order"],
+            "preprocessing_metadata": artifact_metadata["preprocessing"],
+            "task_info": artifact_metadata["task"],
+            "classes_": getattr(self, "classes_", None),
+            "versions": artifact_metadata["versions"],
         }
         torch.save(bundle, path)
 
@@ -708,7 +737,10 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         -------
         estimator
             A fully reconstructed, ready-to-predict estimator of the
-            same type that was saved.
+            same type that was saved. Newer artifacts also expose
+            ``artifact_metadata_``, ``architecture_metadata_``,
+            ``feature_schema_``, ``input_columns_``, ``task_info_``,
+            ``classes_``, and ``versions_`` attributes after loading.
         """
         bundle = torch.load(path, weights_only=False)
 
@@ -721,6 +753,10 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         obj.optimizer_kwargs = bundle["optimizer_kwargs"]
         obj.built = True
         obj.is_fitted_ = True
+        obj.model_config = None
+        obj.preprocessing_config = None
+        obj.trainer_config = None
+        obj.random_state = None
         obj.preprocessor_arg_names = [
             "n_bins",
             "feature_preprocessing",
@@ -748,6 +784,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         obj.data_module.num_feature_info = bundle["feature_info"]["num"]
         obj.data_module.cat_feature_info = bundle["feature_info"]["cat"]
         obj.data_module.embedding_feature_info = bundle["feature_info"]["emb"]
+        obj.data_module.input_columns_ = bundle.get("input_columns")
 
         obj.task_model = TaskModel(
             model_class=bundle["model_class"],
@@ -777,6 +814,8 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             enable_model_summary=False,
             logger=False,
         )
+        restore_loaded_metadata(obj, bundle)
+        obj.data_module.input_columns_ = obj.input_columns_
 
         return obj
 

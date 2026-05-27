@@ -544,6 +544,20 @@ class TestFeatureSchemaContract:
         assert schema.num_embedding_features == 0
         assert schema.total_embedding_dim == 0
 
+    def test_feature_schema_serialization_round_trip(self):
+        """Test schema metadata can be serialized and restored."""
+        schema = FeatureSchema(
+            numerical_features={"f1": FeatureInfo("f1", "standard", 1, None)},
+            categorical_features={"c1": FeatureInfo("c1", "int", 1, ["A", "B"])},
+            embedding_features={"e1": FeatureInfo("e1", "pretrained", 16, None)},
+        )
+
+        restored = FeatureSchema.from_dict(schema.to_dict())
+
+        assert restored.numerical_features["f1"].preprocessing == "standard"
+        assert restored.categorical_features["c1"].categories == ["A", "B"]
+        assert restored.total_embedding_dim == 16
+
 
 # ============================================================================
 # TabularBatch Contract Tests

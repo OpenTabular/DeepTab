@@ -15,6 +15,7 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
+from deeptab.core.serialization import build_artifact_metadata, restore_loaded_metadata
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions.base import (
     BetaDistribution,
@@ -100,8 +101,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
                 self.config_kwargs = {}
                 self.config = config()
 
-            preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self.preprocessor = Preprocessor(**preprocessor_kwargs)
+            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
 
             self.optimizer_type = self.trainer_config.optimizer_type
             self.optimizer_kwargs = {}
@@ -118,11 +119,11 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             }
             self.config = config(**self.config_kwargs)
 
-            preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
-            self.preprocessor = Preprocessor(**preprocessor_kwargs)
+            self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
 
             # Raise a warning if task is set to 'classification'
-            if preprocessor_kwargs.get("task") == "classification":
+            if self.preprocessor_kwargs.get("task") == "classification":
                 warnings.warn(
                     "The task is set to 'classification'. Be aware of your preferred distribution,that \
                     this might lead to unsatisfactory results.",
@@ -227,8 +228,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
                 elif k == "preprocessing_config":
                     self.preprocessing_config = v
                     if v is not None:
-                        preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self.preprocessor = Preprocessor(**preprocessor_kwargs)
+                        self.preprocessor_kwargs = v.to_preprocessor_kwargs()
+                        self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
                 elif k == "trainer_config":
                     self.trainer_config = v
                     if v is not None:
@@ -241,8 +242,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
                 self.config_kwargs = self.model_config.get_params(deep=False)
             if preprocessing_config_params and self.preprocessing_config is not None:
                 self.preprocessing_config.set_params(**preprocessing_config_params)
-                preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-                self.preprocessor = Preprocessor(**preprocessor_kwargs)
+                self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+                self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
             if trainer_config_params and self.trainer_config is not None:
                 self.trainer_config.set_params(**trainer_config_params)
                 self.optimizer_type = self.trainer_config.optimizer_type
@@ -262,6 +263,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
                 self.config = self.config_class(**self.config_kwargs)  # type: ignore
 
         if preprocessor_params:
+            self.preprocessor_kwargs.update(preprocessor_params)
             self.preprocessor.set_params(**preprocessor_params)  # type: ignore[attr-defined]
 
         return self
@@ -339,6 +341,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
 
         if not isinstance(X, pd.DataFrame):
             X = pd.DataFrame(X)
+        self.input_columns_ = list(X.columns)
+        self.classes_ = np.unique(y) if getattr(self, "family_name", None) == "categorical" else None
         if isinstance(y, pd.Series):
             y = y.values
         if X_val is not None:
@@ -358,6 +362,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             regression=getattr(self, "family_name", None) != "categorical",
             **dataloader_kwargs,
         )
+        self.data_module.input_columns_ = self.input_columns_
 
         self.data_module.preprocess_data(X, y, X_val, y_val, val_size=val_size, random_state=random_state)
 
@@ -784,6 +789,14 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
     def save(self, path: str) -> None:
         """Save the fitted model to *path*.
 
+        The bundle written by this method can be restored with
+        :meth:`load`.  It contains all state required for inference:
+        the architecture/config, neural-network weights, fitted
+        preprocessing state, feature schema and column order, task
+        metadata, distribution family, classifier classes for
+        categorical LSS models, and package versions for debugging
+        reloads across environments.
+
         Parameters
         ----------
         path : str
@@ -798,10 +811,27 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             raise ValueError("Model must be fitted before saving.")
         if self.task_model is None:
             raise RuntimeError("task_model is unexpectedly None after fitting.")
+        task = "classification" if self.family_name == "categorical" else "distributional_regression"
+        artifact_metadata = build_artifact_metadata(
+            estimator=self,
+            model_class=type(self.estimator),
+            config=self.config,
+            data_module=self.data_module,
+            preprocessor=self.preprocessor,
+            preprocessor_kwargs=getattr(self, "preprocessor_kwargs", {}),
+            task=task,
+            regression=self.data_module.regression,
+            lss=True,
+            family=self.family_name,
+            num_classes=self.task_model.num_classes,
+            classes_=getattr(self, "classes_", None),
+        )
+        feature_schema = artifact_metadata["feature_schema"]
         bundle = {
             "_class": type(self),
             "config": self.config,
             "config_kwargs": self.config_kwargs,
+            "preprocessor_kwargs": getattr(self, "preprocessor_kwargs", {}),
             "preprocessor": self.preprocessor,
             "feature_info": {
                 "num": self.data_module.num_feature_info,
@@ -821,6 +851,14 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             "lr_factor": self.task_model.lr_factor,
             "weight_decay": self.task_model.weight_decay,
             "task_model_state_dict": self.task_model.state_dict(),
+            "artifact_metadata": artifact_metadata,
+            "architecture_metadata": artifact_metadata["architecture"],
+            "feature_schema": feature_schema,
+            "input_columns": feature_schema["column_order"],
+            "preprocessing_metadata": artifact_metadata["preprocessing"],
+            "task_info": artifact_metadata["task"],
+            "classes_": getattr(self, "classes_", None),
+            "versions": artifact_metadata["versions"],
         }
         torch.save(bundle, path)
 
@@ -836,18 +874,27 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         Returns
         -------
         estimator
-            A fully reconstructed, ready-to-predict estimator.
+            A fully reconstructed, ready-to-predict estimator. Newer
+            artifacts also expose ``artifact_metadata_``,
+            ``architecture_metadata_``, ``feature_schema_``,
+            ``input_columns_``, ``task_info_``, ``classes_``, and
+            ``versions_`` attributes after loading.
         """
         bundle = torch.load(path, weights_only=False)
 
         obj = bundle["_class"].__new__(bundle["_class"])
         obj.config = bundle["config"]
         obj.config_kwargs = bundle["config_kwargs"]
+        obj.preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
         obj.preprocessor = bundle["preprocessor"]
         obj.optimizer_type = bundle["optimizer_type"]
         obj.optimizer_kwargs = bundle["optimizer_kwargs"]
         obj.built = True
         obj.is_fitted_ = True
+        obj.model_config = None
+        obj.preprocessing_config = None
+        obj.trainer_config = None
+        obj.random_state = None
         obj.family = DISTRIBUTION_CLASSES[bundle["family"]]()
         obj.family_name = bundle["family"]
         obj.preprocessor_arg_names = [
@@ -877,6 +924,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         obj.data_module.num_feature_info = bundle["feature_info"]["num"]
         obj.data_module.cat_feature_info = bundle["feature_info"]["cat"]
         obj.data_module.embedding_feature_info = bundle["feature_info"]["emb"]
+        obj.data_module.input_columns_ = bundle.get("input_columns")
 
         obj.task_model = TaskModel(
             model_class=bundle["model_class"],
@@ -906,6 +954,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             enable_model_summary=False,
             logger=False,
         )
+        restore_loaded_metadata(obj, bundle)
+        obj.data_module.input_columns_ = obj.input_columns_
 
         return obj
 

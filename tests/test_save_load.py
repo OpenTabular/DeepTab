@@ -18,6 +18,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 from sklearn.model_selection import train_test_split
 
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
@@ -105,9 +106,20 @@ def test_classifier_save_load_predictions(classification_data):
         tmp_path = f.name
     try:
         model.save(tmp_path)
+        bundle = torch.load(tmp_path, weights_only=False)
         loaded = MLPClassifier.load(tmp_path)
     finally:
         os.unlink(tmp_path)
+
+    assert bundle["artifact_metadata"]["format_version"] == 2
+    assert bundle["artifact_metadata"]["architecture"]["name"] == "MLP"
+    assert bundle["artifact_metadata"]["feature_schema"]["column_order"] == list(X_train.columns)
+    assert bundle["artifact_metadata"]["task"]["task"] == "classification"
+    assert bundle["artifact_metadata"]["versions"]["packages"]["torch"] is not None
+    np.testing.assert_array_equal(bundle["classes_"], model.classes_)
+    assert loaded.input_columns_ == list(X_train.columns)
+    assert loaded.task_info_["task"] == "classification"
+    np.testing.assert_array_equal(loaded.classes_, model.classes_)
 
     preds_after = loaded.predict(X_test)
     proba_after = loaded.predict_proba(X_test)

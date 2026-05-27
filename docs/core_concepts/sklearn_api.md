@@ -169,6 +169,15 @@ accuracy = classifier.score(X_test, y_test, metric=(accuracy_score, False))
 
 ## Save and Load
 
+DeepTab has two persistence layers:
+
+| Method | Scope | Use case |
+| --- | --- | --- |
+| `model.save(...)` / `Estimator.load(...)` | Full fitted estimator artifact | Reuse a trained classifier, regressor, or LSS model for inference or reproducible experiments. |
+| `BaseModel.save_model(...)` / `load_model(...)` | Raw PyTorch architecture weights only | Low-level architecture work where you already know how to rebuild the model and preprocessing pipeline. |
+
+For normal user workflows, prefer the estimator-level API:
+
 ```python
 model.fit(X_train, y_train)
 model.save("model.pt")
@@ -177,7 +186,29 @@ loaded = type(model).load("model.pt")
 predictions = loaded.predict(X_test)
 ```
 
-The saved bundle includes preprocessing state, model metadata, config, and weights.
+The saved estimator bundle is designed as a fitted inference artifact. It includes:
+
+| Artifact field | Why it matters |
+| --- | --- |
+| Architecture metadata | Stores the model class, module, registry status, config class, and resolved config values. |
+| Trained weights | Restores the fitted `TaskModel` state. |
+| Fitted preprocessing state | Reuses the exact fitted preprocessing object instead of refitting on future data. |
+| Feature schema | Stores column order, numerical/categorical/embedding feature groups, dimensions, and feature preprocessing metadata. |
+| Task metadata | Stores the task type, regression/LSS flags, distribution family for LSS, number of output classes, and `classes_` for classifiers. |
+| Runtime/debug metadata | Stores Python, platform, DeepTab, PyTorch, Lightning, pandas, NumPy, scikit-learn, pretab, and related dependency versions. |
+
+Using pandas DataFrames is recommended because the saved schema can preserve meaningful column names. NumPy inputs are supported, but their inferred column order is positional.
+
+```python
+loaded = MambularClassifier.load("model.pt")
+
+loaded.input_columns_
+loaded.feature_schema_
+loaded.task_info_
+loaded.versions_
+```
+
+`load()` keeps backward compatibility with older DeepTab artifacts that do not contain the richer metadata block, but newer artifacts are easier to audit and debug across environments.
 
 ## Model Inspection
 

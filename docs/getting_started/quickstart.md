@@ -358,7 +358,7 @@ loaded_model = MambularClassifier.load("my_model.pkl")
 predictions = loaded_model.predict(X_test)
 ```
 
-Note: This saves the entire model including architecture, weights, and preprocessing state.
+Note: `save()` writes a fitted estimator artifact, not just neural-network weights. The artifact includes the architecture/config, trained weights, fitted preprocessing state, feature schema and column order, task metadata such as classifier `classes_`, and package versions for debugging reloads across environments.
 
 ## Common patterns
 

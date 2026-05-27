@@ -4,6 +4,8 @@ from argparse import Namespace
 import torch
 import torch.nn as nn
 
+from .serialization import load_state_dict, save_state_dict
+
 
 class BaseModel(nn.Module):
     def __init__(self, config=None, **kwargs):
@@ -48,7 +50,7 @@ class BaseModel(nn.Module):
         path : str
             Path to save the model parameters.
         """
-        torch.save(self.state_dict(), path)
+        save_state_dict(self, path)
         print(f"Model parameters saved to {path}")
 
     def load_model(self, path, device="cpu"):
@@ -61,8 +63,7 @@ class BaseModel(nn.Module):
         device : str, optional
             Device to map the model parameters, by default 'cpu'.
         """
-        self.load_state_dict(torch.load(path, map_location=device))
-        self.to(device)
+        load_state_dict(self, path, device=device)
         print(f"Model parameters loaded from {path}")
 
     def count_parameters(self):

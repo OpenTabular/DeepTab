@@ -95,7 +95,8 @@ class SklearnBaseClassifier(SklearnBase):
             The built classifier.
         """
 
-        num_classes = len(np.unique(y))
+        self.classes_ = np.unique(y)
+        num_classes = len(self.classes_)
 
         return super()._build_model(
             X,
@@ -203,7 +204,8 @@ class SklearnBaseClassifier(SklearnBase):
             The fitted classifier.
         """
 
-        num_classes = len(np.unique(y))
+        self.classes_ = np.unique(y)
+        num_classes = len(self.classes_)
         return super().fit(
             X=X,
             y=y,

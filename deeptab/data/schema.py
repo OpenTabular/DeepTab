@@ -39,6 +39,26 @@ class FeatureInfo:
         """Check if this feature is categorical."""
         return self.categories is not None
 
+    def to_dict(self) -> dict[str, Any]:
+        """Return a serializable representation of the feature metadata."""
+        categories = self.categories.tolist() if hasattr(self.categories, "tolist") else self.categories
+        return {
+            "name": self.name,
+            "preprocessing": self.preprocessing,
+            "dimension": self.dimension,
+            "categories": categories,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FeatureInfo:
+        """Create a FeatureInfo object from serialized metadata."""
+        return cls(
+            name=data["name"],
+            preprocessing=data.get("preprocessing", "unknown"),
+            dimension=data.get("dimension", 1),
+            categories=data.get("categories"),
+        )
+
 
 @dataclass
 class FeatureSchema:
@@ -92,6 +112,44 @@ class FeatureSchema:
         if not self.embedding_features:
             return 0
         return sum(f.dimension for f in self.embedding_features.values())
+
+    def to_dict(self) -> dict[str, Any]:
+        """Return a serializable representation of the feature schema."""
+        return {
+            "numerical_features": {name: info.to_dict() for name, info in self.numerical_features.items()},
+            "categorical_features": {name: info.to_dict() for name, info in self.categorical_features.items()},
+            "embedding_features": (
+                {name: info.to_dict() for name, info in self.embedding_features.items()}
+                if self.embedding_features
+                else None
+            ),
+            "dimensions": {
+                "num_numerical_features": self.num_numerical_features,
+                "num_categorical_features": self.num_categorical_features,
+                "num_embedding_features": self.num_embedding_features,
+                "total_numerical_dim": self.total_numerical_dim,
+                "total_categorical_dim": self.total_categorical_dim,
+                "total_embedding_dim": self.total_embedding_dim,
+            },
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> FeatureSchema:
+        """Create a FeatureSchema object from serialized metadata."""
+        embedding_features = data.get("embedding_features")
+        return cls(
+            numerical_features={
+                name: FeatureInfo.from_dict(info) for name, info in data.get("numerical_features", {}).items()
+            },
+            categorical_features={
+                name: FeatureInfo.from_dict(info) for name, info in data.get("categorical_features", {}).items()
+            },
+            embedding_features=(
+                {name: FeatureInfo.from_dict(info) for name, info in embedding_features.items()}
+                if embedding_features
+                else None
+            ),
+        )
 
     @classmethod
     def from_preprocessor_info(
