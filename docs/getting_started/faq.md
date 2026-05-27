@@ -599,7 +599,7 @@ So while not "faster", it helps you get to a working model more quickly.
 
 If your question isn't answered here:
 
-1. Check the [Core Concepts](../core_concepts/index) guide
+1. Check the [Core Concepts](../core_concepts/config_system) guide
 2. Browse the [Tutorials](../tutorials/classification)
 3. Search [GitHub issues](https://github.com/OpenTabular/DeepTab/issues)
 4. Open a new issue on GitHub

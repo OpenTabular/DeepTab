@@ -8,7 +8,9 @@
 ## 📚 Documentation Navigation
 
 ### 🚀 Getting Started
+
 New to DeepTab? Start here:
+
 - **[Overview](getting_started/overview)** — What is DeepTab?
 - **[Why DeepTab?](getting_started/why_deeptab)** — Key features and advantages
 - **[Installation](getting_started/installation)** — Setup and dependencies
@@ -16,7 +18,9 @@ New to DeepTab? Start here:
 - **[FAQ](getting_started/faq)** — Common questions answered
 
 ### 📖 Core Concepts
+
 Understand DeepTab's design:
+
 - **[sklearn API](core_concepts/sklearn_api)** — Familiar fit/predict/evaluate interface
 - **[Model Tiers](core_concepts/model_tiers)** — Stable vs experimental models
 - **[Config System](core_concepts/config_system)** — Split-config for model, preprocessing, training
@@ -27,19 +31,24 @@ Understand DeepTab's design:
 - **[Training & Evaluation](core_concepts/training_and_evaluation)** — Deep dive into training
 
 ### 🎯 Interactive Tutorials
+
 Hands-on examples with Google Colab:
+
 - **[Classification Tutorial](tutorials/classification)** — Multi-class classification workflow
 - **[Regression Tutorial](tutorials/regression)** — Standard regression with TabR
 - **[Distributional Regression (LSS)](tutorials/distributional)** — Full distribution prediction
 - **[Experimental Models](tutorials/experimental)** — Using cutting-edge architectures
 
 ### 🤖 Model Zoo
+
 Choose the right model for your task:
-- **[Model Selection Guide](model_zoo/index)** — Quick start and decision tree
+
+- **[Model Selection Guide](model_zoo/comparison_tables)** — Quick start and decision tree
 - **[Comparison Tables](model_zoo/comparison_tables)** — Performance across dimensions
 - **[Recommended Configs](model_zoo/recommended_configs)** — Hyperparameter recipes
 
 **Browse by category:**
+
 - [State Space Models](model_zoo/stable/index) — Mambular, MambaTab, MambAttention
 - [Transformer-Based](model_zoo/stable/index) — FTTransformer, TabTransformer, SAINT
 - [MLP-Based](model_zoo/stable/index) — ResNet, MLP, TabM, AutoInt
@@ -48,7 +57,9 @@ Choose the right model for your task:
 - [Experimental](model_zoo/experimental/index) — ModernNCA, Tangos, Trompt
 
 ### 📖 API Reference
+
 Complete API documentation:
+
 - **[Models API](api/models/index)** — All model classes (Classifier, Regressor, LSS)
 - **[Configs API](api/configs/index)** — Configuration dataclasses
 - **[Data API](api/data/index)** — TabularDataset, TabularDataModule, schemas
@@ -56,7 +67,9 @@ Complete API documentation:
 - **[Training API](api/training/index)** — Lightning modules for advanced use
 
 ### 🛠️ Developer Guide
+
 Contributing to DeepTab:
+
 - **[Contributing Guidelines](developer_guide/contributing)** — How to contribute
 - **[Testing](developer_guide/testing)** — Test suite and coverage
 - **[Documentation](developer_guide/documentation)** — Building docs locally
