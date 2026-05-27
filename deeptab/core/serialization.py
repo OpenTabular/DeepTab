@@ -7,6 +7,7 @@ from dataclasses import fields, is_dataclass
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
 
+import numpy as np
 import torch
 
 ARTIFACT_FORMAT_VERSION = 2
@@ -180,10 +181,23 @@ def restore_loaded_metadata(obj: Any, bundle: dict[str, Any]) -> None:
     obj.preprocessing_metadata_ = bundle.get("preprocessing_metadata") or artifact_metadata.get("preprocessing")
     obj.task_info_ = task_info
     obj.versions_ = bundle.get("versions") or artifact_metadata.get("versions")
-    obj.classes_ = bundle.get("classes_", task_info.get("classes_") if isinstance(task_info, dict) else None)
+    classes = bundle.get("classes_", task_info.get("classes_") if isinstance(task_info, dict) else None)
+    obj.classes_ = np.asarray(classes) if classes is not None else None
     obj.input_columns_ = bundle.get("input_columns")
     if obj.input_columns_ is None and isinstance(feature_schema, dict):
         obj.input_columns_ = feature_schema.get("column_order")
+    obj.n_features_in_ = bundle.get("n_features_in_")
+    if obj.n_features_in_ is None and obj.input_columns_ is not None:
+        obj.n_features_in_ = len(obj.input_columns_)
+    feature_names = bundle.get("feature_names_in_")
+    if (
+        feature_names is None
+        and obj.input_columns_ is not None
+        and all(isinstance(column, str) for column in obj.input_columns_)
+    ):
+        feature_names = obj.input_columns_
+    if feature_names is not None:
+        obj.feature_names_in_ = np.asarray(feature_names, dtype=object)
 
 
 def _package_version(distribution_name: str) -> str | None:
