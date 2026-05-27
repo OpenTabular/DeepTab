@@ -1,368 +1,129 @@
 # Classification
 
-This page covers classification-specific concepts, including binary vs multiclass, class imbalance, stratification, and output formats.
+Key concepts for classification tasks: binary vs multiclass, class imbalance, stratification, and probability outputs.
 
-## Creating a classifier
-
-Import any model with the `Classifier` suffix:
-
-```python
-from deeptab.models import MambularClassifier
-
-model = MambularClassifier()
-model.fit(X_train, y_train, max_epochs=100)
-predictions = model.predict(X_test)
+```{tip}
+For hands-on examples and complete workflows, see the [Classification Tutorial](../tutorials/classification).
 ```
 
-All stable models are available as classifiers. See [Model Tiers](model_tiers) for the full list.
+## Binary vs Multiclass
 
-## Binary classification
+| Type       | Classes | Output shape (predict_proba) | Use case                  |
+| ---------- | ------- | ---------------------------- | ------------------------- |
+| Binary     | 2       | `(n_samples, 2)`             | Yes/No, True/False        |
+| Multiclass | N > 2   | `(n_samples, N)`             | Multiple exclusive labels |
 
-Binary classification predicts one of two classes (0 or 1).
+**Label requirements:**
 
-### Labels
+- Must be integers starting from 0: `[0, 1, 2, ...]`
+- Use `sklearn.preprocessing.LabelEncoder` if needed
 
-Labels should be integers (0 or 1) or boolean:
-
-```python
-y = [0, 1, 0, 1, 1, 0]  # ✓ integers
-y = [False, True, False, True]  # ✓ boolean
-y = ["no", "yes", "no", "yes"]  # ✗ strings (convert first)
+```{warning}
+String labels like `["cat", "dog", "bird"]` must be converted to integers `[0, 1, 2]` first.
 ```
 
-### Example
+## Probability Outputs
+
+All classifiers support both hard predictions and probability estimates:
 
 ```python
-from sklearn.datasets import make_classification
-from sklearn.model_selection import train_test_split
-from deeptab.models import MambularClassifier
-
-# Binary classification data
-X, y = make_classification(
-    n_samples=1000,
-    n_features=10,
-    n_classes=2,
-    random_state=42,
-)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-# Train
-model = MambularClassifier()
-model.fit(X_train, y_train, max_epochs=50)
-
-# Predict class labels
-predictions = model.predict(X_test)  # [0, 1, 1, 0, ...]
-
-# Predict probabilities
-probabilities = model.predict_proba(X_test)
-# [[0.9, 0.1],   # 90% class 0
-#  [0.3, 0.7],   # 70% class 1
-#  ...]
+predictions = model.predict(X_test)       # Class labels: [0, 1, 0, ...]
+probabilities = model.predict_proba(X_test)  # [[0.9, 0.1], [0.3, 0.7], ...]
 ```
 
-### Probability outputs
-
-`predict_proba` returns a 2D array with shape `(n_samples, 2)`:
+**Custom decision thresholds:**
 
 ```python
 probs = model.predict_proba(X_test)
-
-# Class 0 probabilities
-p_class_0 = probs[:, 0]
-
-# Class 1 probabilities
-p_class_1 = probs[:, 1]
-
-# They sum to 1
-assert np.allclose(p_class_0 + p_class_1, 1.0)
+predictions = (probs[:, 1] > 0.7).astype(int)  # 70% threshold instead of 50%
 ```
 
-### Decision threshold
+## Automatic Stratification (v2.0+)
 
-By default, predictions use threshold 0.5. For custom thresholds:
-
-```python
-probs = model.predict_proba(X_test)
-custom_predictions = (probs[:, 1] > 0.7).astype(int)  # 70% threshold
+```{important}
+Classification tasks automatically use **stratified train/val splits** to preserve class distributions. This is especially critical for imbalanced datasets.
 ```
-
-## Multiclass classification
-
-Multiclass predicts one of N classes (N > 2).
-
-### Labels
-
-Labels should be integers from 0 to N-1:
-
-```python
-y = [0, 1, 2, 0, 2, 1]  # ✓ 3 classes (0, 1, 2)
-y = [1, 2, 3, 1, 3, 2]  # ✗ Must start from 0 (convert with LabelEncoder)
-```
-
-### Example
-
-```python
-from sklearn.datasets import make_classification
-from deeptab.models import FTTransformerClassifier
-
-# 5-class problem
-X, y = make_classification(
-    n_samples=1000,
-    n_features=20,
-    n_classes=5,
-    n_informative=15,
-    random_state=42,
-)
-
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2)
-
-# Train
-model = FTTransformerClassifier()
-model.fit(X_train, y_train, max_epochs=50)
-
-# Predict
-predictions = model.predict(X_test)  # [0, 2, 4, 1, ...]
-
-# Probabilities
-probabilities = model.predict_proba(X_test)
-# Shape: (n_samples, 5)
-# Each row sums to 1
-```
-
-### Probability outputs
-
-For N classes, `predict_proba` returns shape `(n_samples, N)`:
-
-```python
-probs = model.predict_proba(X_test)  # (200, 5) for 5 classes
-
-# Probability of class 2 for all samples
-p_class_2 = probs[:, 2]
-
-# Most likely class (same as model.predict)
-predicted_classes = np.argmax(probs, axis=1)
-```
-
-### Confidence scores
-
-Get the confidence (max probability) for each prediction:
-
-```python
-probs = model.predict_proba(X_test)
-confidence = np.max(probs, axis=1)
-
-# Samples with low confidence (< 50%)
-uncertain = confidence < 0.5
-print(f"Uncertain predictions: {uncertain.sum()}")
-```
-
-## Class imbalance
-
-Imbalanced datasets have unequal class distributions (e.g., 95% class 0, 5% class 1).
-
-### Stratified splits
-
-Starting in v2.0, DeepTab automatically uses stratified train/val splits for classification, preserving class distributions:
 
 ```python
 # Imbalanced data: 90% class 0, 10% class 1
-X, y = make_classification(
-    n_samples=1000,
-    n_classes=2,
-    weights=[0.9, 0.1],
-    flip_y=0,
-    random_state=42,
-)
-
-# Automatic stratification during fit
-model = MambularClassifier()
-model.fit(X, y, max_epochs=50)
-# Validation set will also have 90/10 split
+model.fit(X_train, y_train, max_epochs=50)
+# Validation set automatically maintains 90/10 ratio
 ```
 
-### Class weights
-
-For severe imbalance, use class weights in the loss function:
+**Override with explicit validation:**
 
 ```python
-from deeptab.configs import TrainerConfig
-
-# Compute class weights (inversely proportional to frequency)
-from sklearn.utils.class_weight import compute_class_weight
-
-class_weights = compute_class_weight(
-    "balanced",
-    classes=np.unique(y_train),
-    y=y_train,
-)
-
-# Pass to trainer config
-cfg = TrainerConfig(class_weights=class_weights)
-model = MambularClassifier(trainer_config=cfg)
-model.fit(X_train, y_train, max_epochs=50)
+model.fit(X_train, y_train, X_val=X_val, y_val=y_val, max_epochs=50)
 ```
 
-### Oversampling/undersampling
+## Handling Class Imbalance
 
-Apply before passing to DeepTab:
+Beyond stratification, use these techniques for severe imbalance:
+
+**Class weights:**
+
+```python
+from sklearn.utils.class_weight import compute_class_weight
+from deeptab.configs import TrainerConfig
+
+weights = compute_class_weight("balanced", classes=np.unique(y), y=y)
+model = FTTransformerClassifier(
+    trainer_config=TrainerConfig(class_weights=weights)
+)
+```
+
+**Resampling (before DeepTab):**
 
 ```python
 from imblearn.over_sampling import SMOTE
 
-# Oversample minority class
-smote = SMOTE(random_state=42)
-X_resampled, y_resampled = smote.fit_resample(X_train, y_train)
-
-# Train on resampled data
-model = MambularClassifier()
+X_resampled, y_resampled = SMOTE().fit_resample(X_train, y_train)
 model.fit(X_resampled, y_resampled, max_epochs=50)
 ```
 
-### Evaluation metrics for imbalanced data
+## Evaluation Metrics
 
-Accuracy can be misleading for imbalanced data. Use other metrics:
-
-```python
-from sklearn.metrics import classification_report, balanced_accuracy_score
-
-predictions = model.predict(X_test)
-
-# Balanced accuracy
-balanced_acc = balanced_accuracy_score(y_test, predictions)
-
-# Full report
-print(classification_report(y_test, predictions))
-```
-
-## Evaluation metrics
-
-### Default: accuracy
+**Default metrics:**
 
 ```python
 metrics = model.evaluate(X_test, y_test)
-print(f"Accuracy: {metrics['accuracy']:.3f}")
-print(f"Loss: {metrics['loss']:.3f}")
+# Returns: {'accuracy': 0.85, 'loss': 0.42}
 ```
 
-### Custom metrics
-
-Specify metrics in `TrainerConfig`:
+**Custom metrics via TrainerConfig:**
 
 ```python
 from torchmetrics import F1Score, Precision, Recall
-from deeptab.configs import TrainerConfig
 
 cfg = TrainerConfig(
-    metrics=[
-        F1Score(task="binary", average="macro"),
-        Precision(task="binary", average="macro"),
-        Recall(task="binary", average="macro"),
-    ]
+    metrics=[F1Score(task="binary"), Precision(task="binary")]
 )
-
-model = MambularClassifier(trainer_config=cfg)
-model.fit(X_train, y_train, max_epochs=50)
-
-# Evaluate with all metrics
-metrics = model.evaluate(X_test, y_test)
-print(metrics)  # Includes accuracy, F1, precision, recall
+model = SAINTClassifier(trainer_config=cfg)
 ```
 
-### scikit-learn metrics
-
-Use after prediction:
-
-```python
-from sklearn.metrics import accuracy_score, f1_score, roc_auc_score
-
-predictions = model.predict(X_test)
-probabilities = model.predict_proba(X_test)
-
-print(f"Accuracy: {accuracy_score(y_test, predictions):.3f}")
-print(f"F1: {f1_score(y_test, predictions, average='macro'):.3f}")
-print(f"ROC-AUC: {roc_auc_score(y_test, probabilities[:, 1]):.3f}")  # Binary
+```{tip}
+For imbalanced data, use balanced metrics (F1, balanced accuracy, ROC-AUC) instead of raw accuracy.
 ```
 
-## Multioutput classification
+## Output Formats
 
-For multiple binary classification tasks, use separate models:
+| Method            | Returns             | Shape                | Dtype   |
+| ----------------- | ------------------- | -------------------- | ------- |
+| `predict()`       | Class labels        | `(n_samples,)`       | `int64` |
+| `predict_proba()` | Class probabilities | `(n_samples, n_cls)` | `float` |
+| `evaluate()`      | Metrics dictionary  | -                    | -       |
 
-```python
-# Multi-label data
-y1 = [0, 1, 0, 1]  # Label 1
-y2 = [1, 1, 0, 0]  # Label 2
+## Next Steps
 
-# Train separate models
-model1 = MambularClassifier()
-model1.fit(X_train, y1_train, max_epochs=50)
-
-model2 = MambularClassifier()
-model2.fit(X_train, y2_train, max_epochs=50)
-
-# Predict
-pred1 = model1.predict(X_test)
-pred2 = model2.predict(X_test)
-```
-
-Or stack predictions:
-
-```python
-preds = np.column_stack([pred1, pred2])
-```
-
-## Output formats
-
-### predict()
-
-Returns class labels as integers:
-
-```python
-predictions = model.predict(X_test)
-# [0, 1, 2, 0, 1, ...]
-print(predictions.dtype)  # int64
-print(predictions.shape)  # (n_samples,)
-```
-
-### predict_proba()
-
-Returns probabilities as floats:
-
-```python
-probabilities = model.predict_proba(X_test)
-# [[0.8, 0.1, 0.1],
-#  [0.2, 0.7, 0.1],
-#  ...]
-print(probabilities.dtype)  # float32
-print(probabilities.shape)  # (n_samples, n_classes)
-```
-
-### evaluate()
-
-Returns dict of metrics:
-
-```python
-metrics = model.evaluate(X_test, y_test)
-# {'accuracy': 0.85, 'loss': 0.42, ...}
-print(type(metrics))  # dict
-```
-
-## Label shapes (v2.0)
-
-DeepTab v2.0 enforces consistent label shapes:
-
-### During training
-
-- **Multiclass**: Shape `(n_samples,)`, dtype `int64`
-- **Binary**: Shape `(n_samples, 1)`, dtype `float32`
-
-```python
-# Multiclass
-y_train = np.array([0, 1, 2, 0, 1])  # Shape: (5,)
+- [Classification Tutorial](../tutorials/classification) — Complete examples
+- [Training and Evaluation](training_and_evaluation) — Training loop details
+- [sklearn API](sklearn_api) — Method signatures and integration
 
 # Binary (automatically reshaped internally if needed)
-y_train = np.array([0, 1, 0, 1])  # Shape: (4,) → internally (4, 1)
-```
+
+y_train = np.array([0, 1, 0, 1]) # Shape: (4,) → internally (4, 1)
+
+````
 
 The high-level estimator API handles this automatically. Only relevant if using `TabularDataModule` directly.
 
@@ -394,7 +155,7 @@ for name, model in models.items():
 # Best model
 best = max(results, key=results.get)
 print(f"Best: {best} ({results[best]:.3f})")
-```
+````
 
 ## Hyperparameter tuning
 

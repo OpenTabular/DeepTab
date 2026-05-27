@@ -2,6 +2,10 @@
 
 This page explains how DeepTab trains models, what happens during `fit()`, and how to evaluate and monitor performance.
 
+```{tip}
+DeepTab uses **PyTorch Lightning** under the hood, providing automatic GPU support, early stopping, checkpointing, and progress bars—all without manual configuration.
+```
+
 ## The training loop
 
 When you call `fit()`, DeepTab executes a multi-epoch training loop powered by PyTorch Lightning:
@@ -13,34 +17,14 @@ model.fit(X_train, y_train, max_epochs=100)
 
 ### What happens during fit()
 
-1. **Preprocessing**
-   - Detect feature types (numerical vs categorical)
-   - Fit transformers on training data
-   - Apply transformations
-   - Split into train/validation if no validation set provided
-
-2. **Dataset creation**
-   - Wrap data in `TabularDataset`
-   - Create PyTorch `DataLoader` instances
-   - Apply batching and shuffling
-
-3. **Model initialization**
-   - Build neural network architecture
-   - Initialize weights
-   - Set up optimizer and loss function
-
-4. **Training epochs**
-   - For each epoch:
-     - Forward pass on training batches
-     - Compute loss
-     - Backward pass (gradients)
-     - Optimizer step (weight update)
-     - Validation pass
-     - Check early stopping
-
-5. **Checkpointing**
-   - Save best model based on validation loss
-   - Restore best weights at end
+```{important}
+**The fit() pipeline:**
+1. **Preprocessing** — Detect types, fit transformers, apply transforms
+2. **Dataset creation** — Wrap in `TabularDataset`, create `DataLoader`
+3. **Model initialization** — Build architecture, initialize weights
+4. **Training epochs** — Forward pass → loss → backward → optimize
+5. **Checkpointing** — Save best model, restore at end
+```
 
 ## Fit parameters
 
@@ -67,6 +51,13 @@ Training features and labels.
 
 Optional validation set. If not provided, DeepTab creates one via train/val split:
 
+```{note}
+**Automatic validation split:**
+- Uses 20% of training data by default (configurable via `TrainerConfig.val_split`)
+- **Stratified** for classification (preserves class distribution)
+- **Random** for regression
+```
+
 ```python
 # Explicit validation set
 model.fit(
@@ -81,12 +72,6 @@ model.fit(
 - More control over the split
 - Can use time-based splits for time series
 - Ensures consistent evaluation across experiments
-
-**Automatic split (if not provided):**
-
-- Uses `val_split` from `TrainerConfig` (default 0.2)
-- Stratified for classification, random for regression
-- Convenient for quick experiments
 
 ### X_embedding
 
@@ -127,6 +112,10 @@ lss_model.fit(X_train, y_train, family="normal", max_epochs=50)
 See [Distributional Regression](distributional_regression) for available families.
 
 ## Early stopping
+
+```{important}
+**Early stopping prevents overfitting** by monitoring validation loss and stopping training when it plateaus. The best model (lowest validation loss) is automatically restored.
+```
 
 Early stopping prevents overfitting by monitoring validation loss and stopping when it stops improving.
 

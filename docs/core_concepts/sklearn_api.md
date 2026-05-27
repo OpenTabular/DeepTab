@@ -1,6 +1,10 @@
 # scikit-learn Compatible API
 
-DeepTab models implement the scikit-learn `BaseEstimator` interface, making them drop-in replacements for traditional machine learning models. If you've used scikit-learn before, you already know how to use DeepTab.
+DeepTab models implement the scikit-learn `BaseEstimator` interface, making them drop-in replacements for traditional machine learning models.
+
+```{tip}
+If you've used scikit-learn before, you already know how to use DeepTab. The API is identical.
+```
 
 ## The four-step workflow
 
@@ -27,6 +31,10 @@ This consistency means you can swap models without changing your workflow.
 ## Accepted input formats
 
 DeepTab accepts the same data formats as scikit-learn:
+
+```{important}
+**Recommended:** Use **pandas DataFrames** for automatic feature type detection (numerical vs categorical). NumPy arrays treat all features as numerical.
+```
 
 ### DataFrames (recommended)
 
@@ -93,10 +101,15 @@ model.fit(X_train, y_train, max_epochs=100)
 
 **Behavior:**
 
-- Applies preprocessing automatically
-- Creates train/validation split if no validation set provided
-- Uses stratification for classification tasks
-- Trains with early stopping based on validation loss
+```{note}
+**Automatic during `fit()`:**
+- ✅ Preprocessing (feature detection, encoding, scaling)
+- ✅ Train/validation split (if no `X_val` provided)
+- ✅ Stratification (for classification)
+- ✅ Early stopping (based on validation loss)
+- ✅ Best model checkpointing
+```
+
 - Returns `self` for method chaining
 
 **Example with validation set:**

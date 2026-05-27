@@ -9,6 +9,10 @@ DeepTab ships models at two tiers with different API stability guarantees. Under
 | **Stable**       | `from deeptab.models import ...`              | Public API frozen under semantic versioning | Production, long-term projects       |
 | **Experimental** | `from deeptab.models.experimental import ...` | May change without deprecation cycle        | Research, prototyping, bleeding edge |
 
+```{important}
+**For production systems, always use stable models.** Experimental models may have breaking API changes between minor versions without deprecation warnings.
+```
+
 ## Stable models
 
 Stable models have a frozen public API that follows [semantic versioning](https://semver.org/):
@@ -41,18 +45,20 @@ model.fit(X_train, y_train, max_epochs=100)
 predictions = model.predict(X_test)
 ```
 
-### What's guaranteed
+```{tip}
+**Stable API guarantees:**
+- ✅ Method signatures (`fit`, `predict`, `predict_proba`, `evaluate`) won't change
+- ✅ Config parameters won't be removed or renamed
+- ✅ Output formats stay consistent
+- ✅ Deprecation warnings appear at least one minor version before removal
+```
 
-- **Method signatures**: `fit`, `predict`, `predict_proba`, `evaluate` won't change
-- **Config parameters**: Existing parameters won't be removed or renamed
-- **Output format**: Return types and shapes remain consistent
-- **Deprecation policy**: If removal is necessary, a deprecation warning will appear for at least one minor version
-
-### What's not guaranteed
-
-- **Internal implementation**: The underlying architecture may improve
-- **Default values**: Defaults may change if they improve out-of-the-box performance
-- **New features**: New parameters may be added with backward-compatible defaults
+```{note}
+**What can still change:**
+- Internal implementation (for performance improvements)
+- Default hyperparameter values (for better out-of-box performance)
+- New parameters (added with backward-compatible defaults)
+```
 
 ### Available stable models
 
@@ -97,6 +103,10 @@ All stable models are available as `*Classifier`, `*Regressor`, and `*LSS` varia
 
 Experimental models are under active development and may change without warning between minor versions.
 
+```{warning}
+**Experimental models are NOT production-ready.** Always pin your DeepTab version (`deeptab==x.y.z`) if using experimental models to avoid unexpected breaking changes.
+```
+
 ### Import path
 
 Always use the explicit experimental import path:
@@ -126,12 +136,13 @@ Models enter experimental status when:
 
 ### Graduation to stable
 
-Models move from experimental to stable when:
-
-1. **Proven performance**: Consistently competitive on benchmarks
-2. **API maturity**: Interface is well-designed and unlikely to change
-3. **Testing coverage**: Comprehensive tests ensure reliability
-4. **Community adoption**: Users report success in real applications
+```{note}
+**Promotion criteria:** Models graduate from experimental to stable when they demonstrate:
+- ✅ Proven performance on diverse benchmarks
+- ✅ Mature, well-designed API
+- ✅ Comprehensive test coverage
+- ✅ Community adoption and success stories
+```
 
 ### Available experimental models
 

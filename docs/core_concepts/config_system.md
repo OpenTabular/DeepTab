@@ -2,6 +2,10 @@
 
 DeepTab separates hyperparameters into three independent config dataclasses. This split-config design makes it easy to tune different aspects of your model independently and enables clean integration with hyperparameter search tools.
 
+```{important}
+**Split-config design:** Architecture, preprocessing, and training are **independently configurable**. This makes hyperparameter tuning more systematic and sharable across models.
+```
+
 ## The three configs
 
 | Config                | Controls            | Example parameters                  |
@@ -10,7 +14,9 @@ DeepTab separates hyperparameters into three independent config dataclasses. Thi
 | `PreprocessingConfig` | Feature engineering | `numerical_preprocessing`, `n_bins` |
 | `TrainerConfig`       | Training loop       | `lr`, `max_epochs`, `batch_size`    |
 
-All three are optional. Omitting a config applies sensible defaults.
+```{tip}
+All three configs are **optional**. Omitting a config applies sensible defaults.
+```
 
 ## Model config
 
@@ -92,6 +98,15 @@ cfg = PreprocessingConfig(
 ```
 
 ### Numerical preprocessing strategies
+
+```{note}
+**Choose based on your data characteristics:**
+- **Standard:** Normal distributions, no outliers
+- **Quantile:** Heavy outliers, skewed distributions
+- **MinMax:** Bounded features (percentages, ratings)
+- **PLE:** Complex non-linear relationships
+- **Binning:** Convert continuous to categorical
+```
 
 | Strategy     | Description                                | When to use                        |
 | ------------ | ------------------------------------------ | ---------------------------------- |

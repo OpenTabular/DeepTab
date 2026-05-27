@@ -1,6 +1,14 @@
 # Preprocessing
 
-DeepTab automatically detects feature types and applies appropriate preprocessing. This page explains how preprocessing works, available strategies, and how to customize them.
+DeepTab automatically detects feature types and applies appropriate preprocessing.
+
+```{important}
+**Automatic preprocessing includes:**
+- ✅ Feature type detection (numerical vs categorical)
+- ✅ Missing value imputation
+- ✅ Encoding and scaling
+- ✅ Embedding generation for categorical features
+```
 
 ## Automatic feature type detection
 
@@ -29,6 +37,10 @@ model.fit(df, y, max_epochs=50)  # Automatic type detection
 
 ### Forcing categorical treatment
 
+```{tip}
+**Numerical IDs should be categorical:** If you have numerical columns that represent categories (user IDs, zip codes, product codes), convert them to categorical dtype.
+```
+
 If you have numerical IDs that should be categorical:
 
 ```python
@@ -36,12 +48,8 @@ df["user_id"] = df["user_id"].astype("category")
 df["zip_code"] = df["zip_code"].astype("str")  # or "object"
 ```
 
-### NumPy arrays
-
-When using NumPy arrays, all features are treated as numerical:
-
-```python
-X = np.random.randn(1000, 10)  # All 10 features are numerical
+```{warning}
+**NumPy arrays:** When using NumPy arrays, all features are treated as **numerical**. Use DataFrames for mixed types.
 ```
 
 ## Numerical preprocessing
@@ -94,6 +102,10 @@ Maps features to a uniform distribution using quantile transformation:
 
 ```python
 cfg = PreprocessingConfig(numerical_preprocessing="quantile")
+```
+
+```{tip}
+**Best for outliers:** Quantile transform is the most **robust to outliers** and works well when features have very different scales or skewed distributions.
 ```
 
 **When to use:**
