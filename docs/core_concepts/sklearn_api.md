@@ -179,6 +179,42 @@ predictions = loaded.predict(X_test)
 
 The saved bundle includes preprocessing state, model metadata, config, and weights.
 
+## Model Inspection
+
+DeepTab estimators expose a small inspection layer for understanding a configured or fitted model.
+
+| Method | Returns | When to use |
+| --- | --- | --- |
+| `describe()` | Dictionary with estimator, architecture, task, feature counts, config classes, and parameter counts when available | Programmatic metadata for reports and experiment tracking |
+| `summary()` | Compact human-readable string | Notebook/log output before or after training |
+| `parameter_table()` | `pandas.DataFrame` with parameter name, module, shape, count, trainability, dtype, and device | Auditing model size and trainable layers |
+| `runtime_info()` | Dictionary with device, dtype, precision, accelerator, strategy, batch size, optimizer, and trainer state | Checking how the model is actually running |
+
+```python
+model.fit(X_train, y_train)
+
+print(model.summary())
+metadata = model.describe()
+params = model.parameter_table()
+runtime = model.runtime_info()
+```
+
+`describe()`, `summary()`, and `runtime_info()` are safe to call before fitting. `parameter_table()` requires a built or fitted model because the PyTorch modules do not exist until DeepTab has seen the feature schema.
+
+```python
+model = MambularClassifier()
+
+print(model.describe()["built"])
+print(model.runtime_info()["batch_size"])
+
+# Raises ValueError until fit() or build_model() has created the network.
+model.parameter_table()
+```
+
+```{tip}
+Use `runtime_info()` in benchmark notebooks and experiment logs. It records the resolved runtime state, which can differ from what you intended if Lightning chooses a different accelerator or if the model was loaded on CPU.
+```
+
 ## scikit-learn Integration
 
 DeepTab implements `get_params` and `set_params`, including nested config parameters:

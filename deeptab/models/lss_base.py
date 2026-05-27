@@ -14,6 +14,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+from deeptab.core.inspection import InspectionMixin
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions.base import (
     BetaDistribution,
@@ -54,7 +55,7 @@ DISTRIBUTION_CLASSES = {
 }
 
 
-class SklearnBaseLSS(BaseEstimator):
+class SklearnBaseLSS(InspectionMixin, BaseEstimator):
     def __init__(
         self,
         model,
@@ -354,7 +355,7 @@ class SklearnBaseLSS(BaseEstimator):
             y_val=y_val,
             val_size=val_size,
             random_state=random_state,
-            regression=False,
+            regression=getattr(self, "family_name", None) != "categorical",
             **dataloader_kwargs,
         )
 

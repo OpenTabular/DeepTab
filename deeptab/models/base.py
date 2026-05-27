@@ -12,6 +12,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+from deeptab.core.inspection import InspectionMixin
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
 from deeptab.training import TaskModel, pretrain_embeddings
@@ -46,7 +47,7 @@ def _raise_flat_param_error(kwargs: dict, estimator_name: str) -> None:
     )
 
 
-class SklearnBase(BaseEstimator):
+class SklearnBase(InspectionMixin, BaseEstimator):
     def __init__(
         self,
         model,
