@@ -8,198 +8,221 @@ Architectural comparison and computational characteristics of DeepTab's model zo
 
 ## Computational Characteristics
 
-**Theoretical complexity and architectural properties:**
+The table below reports dominant forward-pass scaling for a batch. It is a practical guide, not a FLOP-count benchmark.
 
-| Category               | Model          | Parameters (typical) | Inference Complexity | Memory Scaling    | Time Complexity |
-| ---------------------- | -------------- | -------------------- | -------------------- | ----------------- | --------------- |
-| **State Space Models** | Mambular       | 100K-500K            | O(n·d)               | Linear            | O(n·d)          |
-|                        | MambaTab       | 50K-200K             | O(n·d)               | Linear            | O(n·d)          |
-|                        | MambAttention  | 200K-1M              | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
-| **Transformers**       | FTTransformer  | 150K-800K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
-|                        | TabTransformer | 100K-600K            | O(n·f_cat²·d)        | Quadratic (f_cat) | O(n·f_cat²·d)   |
-|                        | SAINT          | 300K-1.5M            | O(n²·f·d)            | Quadratic (n)     | O(n²·f·d)       |
-|                        | AutoInt        | 150K-700K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
-| **Residual Networks**  | ResNet         | 50K-300K             | O(n·d)               | Linear            | O(n·d)          |
-|                        | TabR           | 200K-1M              | O(n·k·d)             | Linear            | O(n·k·d)        |
-| **Tree-Based**         | NODE           | 100K-500K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-|                        | ENODE          | 150K-700K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-|                        | NDTF           | 200K-1M              | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-| **Other**              | MLP            | 30K-200K             | O(n·d)               | Linear            | O(n·d)          |
-|                        | TabM           | 80K-400K             | O(n·d)               | Linear            | O(n·d)          |
-|                        | TabulaRNN      | 100K-600K            | O(n·l·d)             | Linear            | O(n·l·d)        |
+| Category               | Model          | DeepTab Default Shape | Dominant Forward-Time Terms | Memory Driver | Primary References |
+| ---------------------- | -------------- | --------------------- | --------------------------- | ------------- | ------------------ |
+| **State Space Models** | Mambular       | `d_model=64`, `n_layers=4` | Linear in feature sequence: O(B·L·P·D) plus projection constants | O(B·P·D) activations | [Mambular](https://arxiv.org/abs/2408.06291), [Mamba](https://arxiv.org/abs/2312.00752) |
+|                        | MambaTab       | `d_model=64`, `n_layers=1` | Linear in feature sequence: O(B·L·P·D) plus projection constants | O(B·P·D) activations | [MambaTab](https://arxiv.org/abs/2401.08867), [Mamba](https://arxiv.org/abs/2312.00752) |
+|                        | MambAttention  | `d_model=64`, Mamba blocks + attention | Mamba term O(B·L_m·P·D) plus feature attention O(B·L_a·P²·D) | Attention maps O(B·P²) when attention layers are active | [Mambular](https://arxiv.org/abs/2408.06291), [Mamba](https://arxiv.org/abs/2312.00752) |
+| **Transformers**       | FTTransformer  | `d_model=128`, `n_layers=4`, `n_heads=8` | Feature self-attention O(B·L·P²·D) plus feed-forward blocks | O(B·L·P²) attention maps | [Gorishniy et al. 2021](https://arxiv.org/abs/2106.11959) |
+|                        | TabTransformer | `d_model=128`, `n_layers=4`, `n_heads=8` | Categorical-token self-attention O(B·L·P_cat²·D) plus numerical MLP head | O(B·L·P_cat²) attention maps | [Huang et al. 2020](https://arxiv.org/abs/2012.06678) |
+|                        | SAINT          | `d_model=128`, `n_layers=1`, `n_heads=2` | Column attention O(B·P²·D) plus row attention O(B²·P·D) within a batch | O(B·P² + B²) attention maps | [Somepalli et al. 2021](https://arxiv.org/abs/2106.01342) |
+|                        | AutoInt        | `d_model=128`, `n_layers=4`, `n_heads=8` | Feature self-attention O(B·L·P²·D); key-value compression reduces constants | O(B·L·P²) attention maps | [Song et al. 2019](https://arxiv.org/abs/1810.11921) |
+| **Residual Networks**  | ResNet         | `layer_sizes=[256,128,32]`, `num_blocks=3` | Dense layers: O(B·sum layer matrix costs) | Linear in batch and hidden width | [He et al. 2016](https://arxiv.org/abs/1512.03385), [Gorishniy et al. 2021](https://arxiv.org/abs/2106.11959) |
+|                        | TabR           | `d_main=256`, `context_size=96` | Candidate encoding plus exact/FAISS nearest-neighbor search O(B·N_c·D) and context mixing O(B·C·D) | Candidate cache O(N_c·D) | [Gorishniy et al. 2023](https://arxiv.org/abs/2307.14338) |
+| **Tree-Based**         | NODE           | `num_layers=4`, `layer_dim=128`, `depth=6` | Soft oblivious trees evaluate all splits/leaves: O(B·L·T·(P·D_t + D_t·2^D_t)) | Path/leaf activations O(B·T·2^D_t) | [Popov et al. 2019](https://arxiv.org/abs/1909.06312) |
+|                        | ENODE          | `d_model=8`, `num_layers=4`, `layer_dim=64`, `depth=6` | NODE-style soft tree evaluation with learned embeddings | Path/leaf activations O(B·T·2^D_t) | [Popov et al. 2019](https://arxiv.org/abs/1909.06312) |
+|                        | NDTF           | `n_ensembles=12`, random depths 4-16 | Neural decision forest evaluates internal nodes and leaf probabilities for each tree | Leaf probabilities scale with O(B·E·2^D_t) | [Kontschieder et al. 2015](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) |
+| **Other**              | MLP            | `layer_sizes=[256,128,32]` | Dense layers: O(B·sum layer matrix costs) | Linear in batch and hidden width | Standard MLP baseline |
+|                        | TabM           | `layer_sizes=[256,256,128]`, `ensemble_size=32` | MLP-style dense compute with parameter-efficient batch ensembling | Linear in batch, hidden width, and active ensemble outputs | [Gorishniy et al. 2024](https://arxiv.org/abs/2410.24210), [Wen et al. 2020](https://arxiv.org/abs/2002.06715) |
+|                        | TabulaRNN      | `d_model=128`, `n_layers=4` | Recurrent feature-sequence processing O(B·L·P·D²) for standard RNN-style cells | O(B·P·D) activations | [Thielmann & Samiee 2024](https://arxiv.org/abs/2411.17207) |
 
-**Notation:** n=samples, d=hidden_dim, f=features, f_cat=categorical features, k=neighbors, l=sequence length.
+**Notation:** B=batch size, P=feature tokens after preprocessing/embedding, P_cat=categorical tokens, D=hidden dimension, L=layers, L_m=Mamba layers, L_a=attention layers, C=retrieved context size, N_c=candidate rows for retrieval, T=trees per layer, E=forest ensemble size, D_t=tree depth.
 
 ```{important}
-**Parameter count assumptions:** The ranges above assume a **baseline dataset** with:
-- **~10 numerical features** + **~5 categorical features** (with ~10 categories each)
-- **d_model = 64** (hidden dimension)
-- **Default architecture configs** (layers, heads, depth as per model defaults)
+**Parameter count assumptions:** Parameter counts are not listed because they depend strongly on dataset schema and preprocessing:
+- **Input features:** More features increase embedding, tokenizer, and first-layer parameters.
+- **Categorical cardinality:** More categories increase embedding-table parameters.
+- **Hidden width:** Dense projections usually scale with width squared.
+- **Depth and ensembles:** Additional layers, trees, or ensemble members increase parameters and activations.
 
-Parameter counts scale with:
-- **Input features:** More features → larger embedding layers (especially for transformers)
-- **Hidden dimension (d_model):** Larger d → quadratic growth (weight matrices are d×d)
-- **Architecture depth:** More layers → linear growth
-- **Categorical cardinality:** More categories → larger embedding tables
+The "DeepTab Default Shape" column is taken from the current model config defaults in `deeptab/configs/models/`.
 ```
 
 ```{tip}
 **Practical implications:**
-- **Linear O(n·d):** Scales well with data size (MLP, ResNet, Mamba variants, TabM)
-- **Quadratic O(n·f²):** Attention over features, slower with many features (Transformers)
-- **Quadratic O(n²):** Attention over samples, impractical for large datasets (SAINT)
-- **Log-linear O(n·log n):** Tree routing, good middle ground (NODE family)
+- **Linear in feature sequence:** Mamba variants, RNNs, MLPs, ResNets, and TabM avoid feature-attention matrices.
+- **Quadratic in features:** FTTransformer, AutoInt, MambAttention attention layers, and TabTransformer become expensive as the number of feature tokens grows.
+- **Quadratic in batch rows:** SAINT's row-attention term is controlled by mini-batch size, not by the total dataset size directly.
+- **Retrieval-based:** TabR can be strong on larger data, but it needs candidate encoding/search memory and depends on the retrieval index.
+- **Soft tree-based:** NODE-style models are not logarithmic at inference; differentiable trees evaluate soft paths/leaves, so tree depth matters.
 ```
 
 ```{note}
 **Category guide:**
-- **State Space Models:** Linear-time selective SSMs (Mamba architecture family)
-- **Transformers:** Self-attention mechanisms for feature/sample interactions
-- **Residual Networks:** Deep feedforward MLPs with skip connections
-- **Tree-Based:** Differentiable decision trees with gradient optimization
-- **Other:** Standard architectures (MLP, ensembles, RNNs)
+- **State Space Models:** Selective SSM/Mamba-style sequence models adapted to tabular features.
+- **Transformers:** Self-attention mechanisms for feature and/or row interactions.
+- **Residual Networks:** Deep feedforward MLPs with skip connections.
+- **Tree-Based:** Differentiable decision trees with gradient optimization.
+- **Other:** Standard architectures (MLP, parameter-efficient ensembles, RNNs).
 ```
 
 ## Architecture Categories
 
 ### State Space Models (SSMs)
 
-**Linear complexity, efficient long-range dependencies**
+**Feature-sequence models with linear sequence-length scaling in the Mamba blocks**
 
-| Model         | Layers | Hidden Dim | Key Feature              | Best Use Case         |
-| ------------- | ------ | ---------- | ------------------------ | --------------------- |
-| Mambular      | 4-12   | 64-512     | Stacked Mamba blocks     | General-purpose       |
-| MambaTab      | 1      | 64-256     | Single Mamba block       | Small datasets, speed |
-| MambAttention | Hybrid | 128-512    | Mamba + Attention fusion | Complex interactions  |
+| Model         | Default Layers | Default Hidden Dim | Key Feature              | Best Use Case         |
+| ------------- | -------------- | ------------------ | ------------------------ | --------------------- |
+| Mambular      | 4 Mamba layers  | 64                 | Stacked Mamba blocks over feature tokens | General-purpose tabular sequence modeling |
+| MambaTab      | 1 Mamba layer   | 64                 | Lightweight Mamba block  | Small datasets, speed |
+| MambAttention | Hybrid          | 64                 | Mamba blocks plus feature attention | Complex feature interactions |
 
 **References:**
 
-- Gu & Dao (2024). _Mamba: Linear-Time Sequence Modeling_. arXiv:2312.00752
+- Thielmann et al. (2024). _Mambular: A Sequential Model for Tabular Deep Learning_. [arXiv:2408.06291](https://arxiv.org/abs/2408.06291)
+- Ahamed & Cheng (2024). _MambaTab: A Plug-and-Play Model for Learning Tabular Data_. [arXiv:2401.08867](https://arxiv.org/abs/2401.08867)
+- Gu & Dao (2024). _Mamba: Linear-Time Sequence Modeling with Selective State Spaces_. [arXiv:2312.00752](https://arxiv.org/abs/2312.00752)
 
 ### Transformer-Based
 
-**Attention mechanisms for feature interactions**
+**Attention mechanisms for feature and row interactions**
 
-| Model          | Attention | Hidden Dim | Key Feature                | Best Use Case          |
-| -------------- | --------- | ---------- | -------------------------- | ---------------------- |
-| FTTransformer  | Full      | 64-512     | Feature tokenization       | Feature interactions   |
-| TabTransformer | Partial   | 64-256     | Categorical-only attention | Categorical-heavy data |
-| SAINT          | Row+Col   | 128-512    | Intersample attention      | Semi-supervised        |
+| Model          | Attention Scope | Default Hidden Dim | Key Feature                | Best Use Case          |
+| -------------- | --------------- | ------------------ | -------------------------- | ---------------------- |
+| FTTransformer  | All feature tokens | 128              | Feature tokenization       | Feature interactions   |
+| TabTransformer | Categorical tokens | 128             | Contextual categorical embeddings | Categorical-heavy data |
+| SAINT          | Row + column      | 128              | Intersample attention and contrastive pretraining | Semi-supervised or row-context settings |
+| AutoInt        | All feature tokens | 128              | Self-attentive feature interaction learning | Automatic interaction modeling |
 
 **References:**
 
-- Gorishniy et al. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021
-- Huang et al. (2020). _TabTransformer_. arXiv:2012.06678
-- Somepalli et al. (2021). _SAINT_. arXiv:2106.01342
+- Gorishniy et al. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021. [arXiv:2106.11959](https://arxiv.org/abs/2106.11959)
+- Huang et al. (2020). _TabTransformer: Tabular Data Modeling Using Contextual Embeddings_. [arXiv:2012.06678](https://arxiv.org/abs/2012.06678)
+- Somepalli et al. (2021). _SAINT: Improved Neural Networks for Tabular Data via Row Attention and Contrastive Pre-Training_. [arXiv:2106.01342](https://arxiv.org/abs/2106.01342)
+- Song et al. (2019). _AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks_. CIKM 2019. [arXiv:1810.11921](https://arxiv.org/abs/1810.11921)
 
 ### Tree-Inspired
 
-**Neural networks with tree-like structure**
+**Differentiable tree and forest structures**
 
-| Model | Tree Type        | Layers | Key Feature     | Best Use Case       |
-| ----- | ---------------- | ------ | --------------- | ------------------- |
-| NODE  | Oblivious trees  | 6-8    | Soft routing    | Interpretability    |
-| ENODE | Extended routing | 6-10   | Enhanced splits | Better than NODE    |
-| NDTF  | Forest ensemble  | 8-12   | Multiple trees  | Tree ensemble boost |
+| Model | Tree Type        | Default Shape | Key Feature     | Best Use Case       |
+| ----- | ---------------- | ------------- | --------------- | ------------------- |
+| NODE  | Oblivious differentiable trees | 4 layers, 128 trees/layer, depth 6 | Soft routing over oblivious trees | Interpretable tree-inspired modeling |
+| ENODE | Embedded NODE variant | 4 layers, 64 trees/layer, depth 6 | Feature embeddings before NODE-style blocks | Tree-inspired modeling with embeddings |
+| NDTF  | Neural decision tree forest | 12 trees, random depths 4-16 | Multiple neural decision trees | Tree ensemble-style experiments |
 
 **References:**
 
-- Popov et al. (2019). _Neural Oblivious Decision Ensembles_. arXiv:1909.06312
+- Popov et al. (2019). _Neural Oblivious Decision Ensembles for Deep Learning on Tabular Data_. ICLR 2020. [arXiv:1909.06312](https://arxiv.org/abs/1909.06312)
+- Kontschieder et al. (2015). _Deep Neural Decision Forests_. ICCV 2015. [CVF Open Access](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html)
 
 ### Residual Networks
 
-**Deep feedforward with skip connections**
+**Deep feedforward networks with skip connections**
 
-| Model  | Blocks | Hidden Dim | Key Feature     | Best Use Case |
-| ------ | ------ | ---------- | --------------- | ------------- |
-| ResNet | 4-12   | 64-512     | Residual blocks | Fast baseline |
-| TabR   | Hybrid | 128-512    | + Retrieval     | Large data    |
+| Model  | Default Shape | Key Feature     | Best Use Case |
+| ------ | ------------- | --------------- | ------------- |
+| ResNet | 3 residual blocks, `[256, 128, 32]` layer sizes | Residual blocks | Fast baseline |
+| TabR   | `d_main=256`, `context_size=96` | Retrieval-augmented prediction | Larger datasets with useful neighbor structure |
 
 **References:**
 
-- He et al. (2016). _Deep Residual Learning_. CVPR 2016
-- Gorishniy et al. (2023). _TabR_. arXiv:2307.14338
+- He et al. (2016). _Deep Residual Learning for Image Recognition_. CVPR 2016. [arXiv:1512.03385](https://arxiv.org/abs/1512.03385)
+- Gorishniy et al. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021. [arXiv:2106.11959](https://arxiv.org/abs/2106.11959)
+- Gorishniy et al. (2023). _TabR: Tabular Deep Learning Meets Nearest Neighbors in 2023_. [arXiv:2307.14338](https://arxiv.org/abs/2307.14338)
 
 ### Other Architectures
 
-| Model     | Type        | Key Feature           | Best Use Case          |
-| --------- | ----------- | --------------------- | ---------------------- |
-| MLP       | Feedforward | Simple MLP            | Fastest baseline       |
-| TabM      | Ensemble    | Batch ensembling      | Budget ensemble        |
-| TabulaRNN | RNN         | Sequential processing | Sequential features    |
-| AutoInt   | Attention   | Feature interactions  | Automatic interactions |
+| Model     | Type        | Default Shape | Key Feature           | Best Use Case          |
+| --------- | ----------- | ------------- | --------------------- | ---------------------- |
+| MLP       | Feedforward | `[256, 128, 32]` layer sizes | Simple dense baseline | Fastest baseline       |
+| TabM      | Parameter-efficient ensemble | `[256, 256, 128]` layer sizes, 32 ensemble members | Batch ensembling | Strong efficient baseline |
+| TabulaRNN | RNN         | `d_model=128`, 4 recurrent layers | Sequential feature processing | Sequential feature modeling |
+| AutoInt   | Attention   | `d_model=128`, 4 attention layers | Feature interactions | Automatic interactions |
+
+**References:**
+
+- Gorishniy et al. (2024). _TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling_. ICLR 2025. [arXiv:2410.24210](https://arxiv.org/abs/2410.24210)
+- Wen et al. (2020). _BatchEnsemble: An Alternative Approach to Efficient Ensemble and Lifelong Learning_. [arXiv:2002.06715](https://arxiv.org/abs/2002.06715)
+- Thielmann & Samiee (2024). _On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning_. [arXiv:2411.17207](https://arxiv.org/abs/2411.17207)
+- Song et al. (2019). _AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks_. CIKM 2019. [arXiv:1810.11921](https://arxiv.org/abs/1810.11921)
 
 ## Model Selection by Use Case
 
 ```{note}
-**General pattern:** Simpler models (MLP, ResNet) work well on small datasets with proper regularization. More complex models (Transformers, SSMs) excel on medium-to-large datasets where their capacity is justified.
+**General pattern:** Simpler models (MLP, ResNet, TabM) are strong practical baselines and often work well on small or medium datasets with proper regularization. More complex models (Transformers, SSMs, retrieval models) are most useful when their inductive bias matches the data or when the dataset is large enough to justify the extra capacity and compute.
 ```
 
 ### By Dataset Size
 
 | Dataset Size       | Recommended Models                     | Reasoning                           | Key Consideration                   | Avoid                                         |
 | ------------------ | -------------------------------------- | ----------------------------------- | ----------------------------------- | --------------------------------------------- |
-| **<5K samples**    | MambaTab, ResNet, MLP, TabM            | Lower capacity reduces overfitting  | Use high dropout (0.3-0.4)          | Deep Transformers (SAINT, deep FTTransformer) |
-| **5K-50K samples** | Mambular, FTTransformer, MambAttention | Architecture complexity pays off    | Balance capacity vs training time   | Very high capacity if data is simple          |
-| **>50K samples**   | Mambular, TabR, FTTransformer          | Complex patterns benefit from depth | Watch quadratic scaling bottlenecks | SAINT (O(n²) impractical)                     |
+| **<5K samples**    | MambaTab, ResNet, MLP, TabM            | Lower capacity and fast iteration reduce overfitting risk | Use regularization and validation-driven early stopping | Deep Transformers (SAINT, deep FTTransformer) |
+| **5K-50K samples** | Mambular, FTTransformer, TabM, MambAttention | More capacity can pay off when features interact strongly | Balance capacity vs training time   | Very high capacity if data is simple          |
+| **>50K samples**   | Mambular, TabM, TabR, FTTransformer    | Larger data can support complex patterns and retrieval | Watch attention/retrieval bottlenecks | SAINT with large batches unless row attention is needed |
 
-**Alternatives:** MambaTab for speed, NODE/ENODE for interpretability, ResNet for very fast training
+**Alternatives:** MambaTab for speed, NODE/ENODE for tree-inspired interpretability, ResNet/MLP for very fast training.
 
 ### By Feature Type
 
 | Feature Composition  | Best Choice             | Good Alternatives       | Reasoning                                     | Avoid          |
 | -------------------- | ----------------------- | ----------------------- | --------------------------------------------- | -------------- |
-| **>60% categorical** | TabTransformer          | FTTransformer, Mambular | Categorical-only attention optimized for this | -              |
-| **>80% numerical**   | Mambular                | ResNet, NODE            | SSM/dense layers excel on continuous          | TabTransformer |
-| **Balanced mixed**   | Mambular, FTTransformer | MambAttention           | Unified feature processing                    | -              |
+| **>60% categorical** | TabTransformer          | FTTransformer, Mambular | TabTransformer's attention is focused on categorical contextual embeddings | -              |
+| **>80% numerical**   | Mambular, TabM          | ResNet, NODE            | SSM/dense baselines avoid categorical-only assumptions | TabTransformer |
+| **Balanced mixed**   | Mambular, FTTransformer | MambAttention, TabM     | Unified feature processing supports mixed feature interactions | -              |
 
 ### By Computational Constraints
 
 | Constraint                | Recommended Models                    | Reasoning                             | Avoid                                   |
 | ------------------------- | ------------------------------------- | ------------------------------------- | --------------------------------------- |
-| **Memory <8GB GPU**       | MLP, ResNet, MambaTab, Mambular, TabM | O(n·d) linear memory scaling          | FTTransformer, SAINT (quadratic memory) |
-| **Fast training needed**  | MLP (fastest), ResNet, MambaTab, TabM | Simple architectures or single blocks | FTTransformer, TabR, SAINT (slow)       |
-| **Low inference latency** | MLP, ResNet, Mamba variants, TabM     | O(n) complexity per sample            | Transformers (O(n·f²)), SAINT (O(n²))   |
+| **Memory <8GB GPU**       | MLP, ResNet, MambaTab, Mambular, TabM | No full feature-attention matrix in the main path | FTTransformer/AutoInt with many feature tokens, SAINT with large batches |
+| **Fast training needed**  | MLP, ResNet, MambaTab, TabM           | Simple dense or short sequence paths  | FTTransformer, TabR, SAINT if retrieval/row attention dominates |
+| **Low inference latency** | MLP, ResNet, Mamba variants, TabM     | Avoids retrieval search and full attention over many tokens | TabR with large candidate pools, wide Transformers |
 
-**Training speed tiers:** Fastest (MLP, ResNet) → Fast (MambaTab, TabM) → Moderate (Mambular, NODE) → Slow (FTTransformer, TabR, SAINT)
+**Training speed tiers:** Fastest (MLP, ResNet) -> Fast (MambaTab, TabM) -> Moderate (Mambular, NODE) -> Slower or workload-dependent (FTTransformer, TabR, SAINT).
 
 ### By Task Requirements
 
 | Task                     | General Purpose                            | Fast/Efficient   | Interpretable     | Notes                             |
 | ------------------------ | ------------------------------------------ | ---------------- | ----------------- | --------------------------------- |
-| **Classification**       | Mambular, FTTransformer, MambAttention     | MambaTab, ResNet | NODE, ENODE, NDTF | All models support multi-class    |
-| **Regression**           | Mambular, FTTransformer, TabR (large data) | MambaTab, ResNet | NODE              | Tree models resistant to outliers |
+| **Classification**       | Mambular, FTTransformer, MambAttention     | MambaTab, ResNet, TabM | NODE, ENODE, NDTF | All models support multi-class    |
+| **Regression**           | Mambular, FTTransformer, TabR (large data) | MambaTab, ResNet, TabM | NODE              | Tree models can be useful when tree-like splits fit the data |
 | **LSS (Distributional)** | Mambular, FTTransformer, MambAttention     | MambaTab         | ENODE             | All models support LSS mode       |
 
-**Special cases:** For quantile regression, use any model in LSS mode with appropriate distribution family
+**Special cases:** For quantile regression, use any model in LSS mode with an appropriate distribution family.
 
 ## Recommended Decision Tree
 
 ```
 Start Here
-│
-├─ Dataset size <5K? → Use MambaTab or ResNet + high dropout (0.3-0.4)
-│
-├─ Need interpretability? → Use NODE, ENODE, or NDTF
-│
-├─ Memory constrained (<8GB)? → Avoid Transformers, use Mambular or ResNet
-│
-├─ Inference latency critical? → Use O(n) models: MLP, ResNet, Mamba variants
-│
-├─ >60% categorical features? → Consider TabTransformer
-│
-└─ General purpose → **Mambular** (recommended default)
-   └─ Alternative → FTTransformer (if GPU memory available)
+|
+|- Dataset size <5K? -> Use MambaTab, ResNet, MLP, or TabM with regularization
+|
+|- Need tree-inspired interpretability? -> Use NODE, ENODE, or NDTF
+|
+|- Memory constrained (<8GB)? -> Prefer Mambular, MambaTab, MLP, ResNet, or TabM
+|
+|- Inference latency critical? -> Avoid retrieval/large attention; use MLP, ResNet, TabM, or Mamba variants
+|
+|- >60% categorical features? -> Consider TabTransformer
+|
+|- Need retrieval from similar training examples? -> Consider TabR
+|
+`- General purpose -> Mambular or TabM
+   `- Alternative -> FTTransformer when GPU memory and feature count permit
 ```
 
 ## References
 
-Complete citations in individual model pages. Key papers:
+Key papers used for the comparison:
 
-- Gu & Dao (2024). Mamba: Linear-Time Sequence Modeling. arXiv:2312.00752
-- Gorishniy et al. (2021). Revisiting Deep Learning Models for Tabular Data. NeurIPS 2021
-- Popov et al. (2019). Neural Oblivious Decision Ensembles. arXiv:1909.06312
-- Gorishniy et al. (2023). TabR: Tabular Deep Learning with Retrieval. arXiv:2307.14338
+- Ahamed, M. A., & Cheng, Q. (2024). _MambaTab: A Plug-and-Play Model for Learning Tabular Data_. [arXiv:2401.08867](https://arxiv.org/abs/2401.08867), [DOI:10.1109/MIPR62202.2024.00065](https://doi.org/10.1109/MIPR62202.2024.00065)
+- Gorishniy, Y., Rubachev, I., Khrulkov, V., & Babenko, A. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021. [arXiv:2106.11959](https://arxiv.org/abs/2106.11959)
+- Gorishniy, Y., Rubachev, I., Kartashev, N., Shlenskii, D., Kotelnikov, A., & Babenko, A. (2023). _TabR: Tabular Deep Learning Meets Nearest Neighbors in 2023_. [arXiv:2307.14338](https://arxiv.org/abs/2307.14338)
+- Gorishniy, Y., Kotelnikov, A., & Babenko, A. (2024). _TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling_. ICLR 2025. [arXiv:2410.24210](https://arxiv.org/abs/2410.24210)
+- Gu, A., & Dao, T. (2024). _Mamba: Linear-Time Sequence Modeling with Selective State Spaces_. [arXiv:2312.00752](https://arxiv.org/abs/2312.00752)
+- He, K., Zhang, X., Ren, S., & Sun, J. (2016). _Deep Residual Learning for Image Recognition_. CVPR 2016. [arXiv:1512.03385](https://arxiv.org/abs/1512.03385)
+- Huang, X., Khetan, A., Cvitkovic, M., & Karnin, Z. (2020). _TabTransformer: Tabular Data Modeling Using Contextual Embeddings_. [arXiv:2012.06678](https://arxiv.org/abs/2012.06678)
+- Kontschieder, P., Fiterau, M., Criminisi, A., & Rota Bulo, S. (2015). _Deep Neural Decision Forests_. ICCV 2015. [CVF Open Access](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html)
+- Popov, S., Morozov, S., & Babenko, A. (2019). _Neural Oblivious Decision Ensembles for Deep Learning on Tabular Data_. ICLR 2020. [arXiv:1909.06312](https://arxiv.org/abs/1909.06312)
+- Somepalli, G., Goldblum, M., Schwarzschild, A., Bruss, C. B., & Goldstein, T. (2021). _SAINT: Improved Neural Networks for Tabular Data via Row Attention and Contrastive Pre-Training_. [arXiv:2106.01342](https://arxiv.org/abs/2106.01342)
+- Song, W., Shi, C., Xiao, Z., Duan, Z., Xu, Y., Zhang, M., & Tang, J. (2019). _AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks_. CIKM 2019. [arXiv:1810.11921](https://arxiv.org/abs/1810.11921)
+- Thielmann, A. F., Kumar, M., Weisser, C., Reuter, A., Säfken, B., & Samiee, S. (2024). _Mambular: A Sequential Model for Tabular Deep Learning_. [arXiv:2408.06291](https://arxiv.org/abs/2408.06291)
+- Thielmann, A. F., & Samiee, S. (2024). _On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning_. [arXiv:2411.17207](https://arxiv.org/abs/2411.17207)
+- Wen, Y., Tran, D., & Ba, J. (2020). _BatchEnsemble: An Alternative Approach to Efficient Ensemble and Lifelong Learning_. [arXiv:2002.06715](https://arxiv.org/abs/2002.06715)
 
 ## See Also
 

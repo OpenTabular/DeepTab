@@ -1,416 +1,474 @@
 # Hyperparameter Configuration Guidelines
 
-General hyperparameter configuration guidance based on architecture design and common practices.
+This guide gives research-oriented and developer-oriented starting points for DeepTab hyperparameter tuning. The goal is not to prescribe universal optima. Tabular datasets vary strongly in sample size, feature cardinality, signal-to-noise ratio, missingness, and feature interactions, so the right configuration should be selected with a validation protocol.
 
 ```{note}
-**Focus on principles:** This guide provides parameter ranges and configuration strategies based on architecture characteristics and general deep learning principles. Specific optimal values depend on your dataset.
+**Use this as a protocol, not a leaderboard.** Start with a defensible baseline, tune the smallest set of high-impact parameters, and report the search budget together with results. Deep tabular models are sensitive to preprocessing, optimization, and evaluation design.
 ```
 
-## General Principles
+## Configuration Layers
 
-### Learning Rate Selection
+DeepTab separates model structure, preprocessing, and training into independent config objects.
 
-```{note}
-**Critical hyperparameter:** Learning rate is typically the most important parameter to tune. Too high causes training instability, too low leads to slow convergence or suboptimal solutions.
-```
-
-**Recommended starting ranges by architecture:**
-
-| Architecture Type | Learning Rate | Reasoning                                          |
-| ----------------- | ------------- | -------------------------------------------------- |
-| SSMs (Mamba)      | 1e-4 to 5e-4  | State space models sensitive to large updates      |
-| Transformers      | 1e-4 to 1e-3  | Attention mechanisms require careful tuning        |
-| ResNets/MLPs      | 5e-4 to 1e-3  | Simpler architectures more robust to larger LR     |
-| Tree-based (NODE) | 1e-3 to 5e-3  | Discrete structure tolerates larger learning rates |
-
-```{tip}
-**Start conservative:** Begin with the lower end of the range (e.g., 1e-4 for Mambular) and increase if training is too slow. Monitor training loss for instability.
-```
-
-### Regularization vs Dataset Size
-
-```{warning}
-**Critical principle:** Regularization requirements scale inversely with dataset size. Small datasets need strong regularization to prevent overfitting.
-```
-
-**Dropout recommendations:**
-
-| Dataset Size | Recommended Dropout | Reasoning                              |
-| ------------ | ------------------- | -------------------------------------- |
-| <1K samples  | 0.3-0.5             | High overfitting risk                  |
-| 1K-5K        | 0.2-0.3             | Moderate regularization needed         |
-| 5K-50K       | 0.1-0.2             | Light regularization sufficient        |
-| >50K         | 0.0-0.1             | Data abundance provides regularization |
-
-### Batch Size Effects
-
-**Trade-offs to consider:**
-
-| Batch Size | Training Speed | Generalization           | Memory Usage | Recommendation            |
-| ---------- | -------------- | ------------------------ | ------------ | ------------------------- |
-| 32-64      | Slower         | Better (noisy gradients) | Low          | Small datasets            |
-| 128-256    | Moderate       | Good balance             | Medium       | General-purpose (default) |
-| 512-1024   | Faster         | May degrade              | High         | Large datasets only       |
-| >1024      | Fastest        | Often poor               | Very High    | Not recommended           |
-
-```{tip}
-**General rule:** Larger batches train faster but may hurt generalization. Start with 128-256 and increase only if you have >50K samples and need faster training.
-```
-
-## Model-Specific Parameter Sensitivity
-
-### Mambular
-
-**Most sensitive parameters:** `d_model`, `n_layers`
-
-```{note}
-**General finding:** Performance typically plateaus beyond d_model=256 and n_layers=8. Increasing further adds computational cost with diminishing returns.
-```
-
-**Configuration philosophy:**
-
-- **d_model:** Controls model capacity. Higher values capture more complex patterns but risk overfitting.
-- **n_layers:** Depth allows hierarchical feature processing. Too deep can slow training without benefit.
-- **Typical sweet spot:** d_model=128, n_layers=6 for medium datasets
-
-**Recommended configurations:**
+| Config | Controls | Examples |
+| ------ | -------- | -------- |
+| `<Model>Config` | Architecture | `d_model`, `n_layers`, `dropout`, `layer_sizes`, `depth` |
+| `PreprocessingConfig` | Feature transforms | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins` |
+| `TrainerConfig` | Optimization/runtime | `lr`, `batch_size`, `max_epochs`, `patience`, `weight_decay` |
 
 ```python
-from deeptab.configs import MambularConfig, TrainerConfig
+from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
+from deeptab.models import MambularRegressor
 
-# Small datasets (<5K): Prevent overfitting
-model_cfg = MambularConfig(
-    d_model=64,        # Lower capacity
-    n_layers=4,        # Fewer layers
-    dropout=0.2,       # High dropout
-)
-trainer_cfg = TrainerConfig(
-    lr=1e-3,           # Higher lr acceptable for small data
-    batch_size=128,    # Smaller batches for better generalization
-    max_epochs=100,
-    patience=15,
-    weight_decay=1e-4, # Additional regularization
-)
-
-# Medium datasets (5K-50K): Balanced
-model_cfg = MambularConfig(
-    d_model=128,       # Sweet spot capacity
-    n_layers=6,        # Moderate depth
-    dropout=0.1,       # Light regularization
-)
-trainer_cfg = TrainerConfig(
-    lr=5e-4,           # Conservative learning rate
-    batch_size=256,
-    max_epochs=150,
-    patience=20,
-)
-
-# Large datasets (>50K): Maximize capacity
-model_cfg = MambularConfig(
-    d_model=256,       # High capacity
-    n_layers=8,        # Deep architecture
-    dropout=0.0,       # No dropout needed
-)
-trainer_cfg = TrainerConfig(
-    lr=1e-4,           # Lower lr for stability
-    batch_size=512,    # Larger batches for efficiency
-    max_epochs=200,
-    patience=25,
+model = MambularRegressor(
+    model_config=MambularConfig(d_model=128, n_layers=6, dropout=0.1),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    trainer_config=TrainerConfig(lr=5e-4, batch_size=256, max_epochs=150),
+    random_state=101,
 )
 ```
-
-### FTTransformer
-
-**Most sensitive parameters:** `n_heads`, `attn_dropout`
-
-```{note}
-**General rule:** Attention heads should scale with d_model. Rule of thumb: n_heads = d_model / 16 for balanced performance.
-```
-
-**Parameter guidance:**
-
-- **n_heads:** More heads allow modeling diverse attention patterns but increase compute
-- **attn_dropout:** Critical for preventing overfitting in attention layers (0.1-0.2 typical)
-- **ffn_dropout:** Regularizes feedforward layers (can be higher than attn_dropout)
-
-**Configurations:**
-
-```python
-from deeptab.configs import FTTransformerConfig
-
-# Standard setup (balanced performance/speed)
-model_cfg = FTTransformerConfig(
-    d_model=128,
-    n_heads=8,           # d_model / 16
-    n_layers=6,
-    attn_dropout=0.1,    # Attention dropout critical
-    ffn_dropout=0.1,
-)
-trainer_cfg = TrainerConfig(
-    lr=1e-4,             # Transformers need lower lr
-    batch_size=256,
-    max_epochs=150,
-)
-
-# High-capacity setup
-model_cfg = FTTransformerConfig(
-    d_model=256,
-    n_heads=16,
-    n_layers=8,
-    attn_dropout=0.1,
-    ffn_dropout=0.2,     # Higher ffn dropout for regularization
-)
-```
-
-### ResNet
-
-**Most sensitive parameters:** `n_layers`, `dropout`
-
-```{note}
-**General finding:** ResNets are remarkably robust across hyperparameter ranges. Good default choice for fast experimentation.
-```
-
-**Depth guidance:**
-
-- **4-6 layers:** Fast training, good for small-medium datasets
-- **8 layers:** Balanced depth, suitable for most use cases
-- **12+ layers:** Rarely needed, slower with diminishing returns
-
-```python
-from deeptab.configs import ResNetConfig
-
-# Fast baseline
-model_cfg = ResNetConfig(
-    d_model=128,
-    n_layers=6,      # Good balance
-    dropout=0.1,
-)
-trainer_cfg = TrainerConfig(
-    lr=1e-3,         # Can use higher lr
-    batch_size=512,  # Larger batches work well
-    max_epochs=100,
-)
-```
-
-### TabTransformer
-
-**Most sensitive parameters:** Number of categorical features, embedding dimension
 
 ```{important}
-**Design consideration:** TabTransformer only applies attention to categorical features. Performance may degrade if <30% of features are categorical. Consider FTTransformer or Mambular for numerical-heavy data.
+Examples in this page use the current split-config API. Architecture parameters belong in `<Model>Config`; training parameters belong in `TrainerConfig`; preprocessing parameters belong in `PreprocessingConfig`.
 ```
 
-**When to use:**
+## Experimental Protocol
 
-- **Best:** >60% categorical features (TabTransformer's sweet spot)
-- **Good:** 40-60% categorical (competitive with general models)
-- **Suboptimal:** <30% categorical (use FTTransformer or Mambular instead)
+For research comparisons, keep the protocol as explicit as the model configuration.
+
+| Decision | Recommendation | Why it matters |
+| -------- | -------------- | -------------- |
+| Data split | Use a fixed train/validation/test split or repeated cross-validation | Avoids test-set tuning and reduces split noise |
+| Search budget | Report the number of trials, epochs, and early-stopping rule | Hyperparameter budget can change model rankings |
+| Baselines | Include at least MLP/ResNet or TabM, plus a tree baseline when relevant | Tabular deep learning should be compared to strong simple baselines |
+| Metrics | Report task metric and validation loss; for LSS also report NLL/calibration | Point accuracy and uncertainty quality can disagree |
+| Seeds | Run multiple seeds for final candidates | Many tabular datasets are small enough for seed variance to matter |
+| Preprocessing | Tune preprocessing jointly with model family | Numerical embeddings and transforms can dominate architecture effects |
+
+```{tip}
+For papers and internal benchmark reports, prefer "best validation model selected from a declared search space" over "single default run". Also report wall-clock time or number of trials when comparing architectures.
+```
+
+## High-Impact Knobs
+
+Tune these before searching large architecture grids.
+
+| Priority | Parameter | Typical Search Values | Applies To | Notes |
+| -------- | --------- | --------------------- | ---------- | ----- |
+| 1 | `trainer_config__lr` | `[1e-4, 3e-4, 1e-3]` | All models | Usually the highest-impact optimizer parameter |
+| 2 | `model_config__dropout`, `attn_dropout`, `ff_dropout` | `[0.0, 0.1, 0.2, 0.3]` | Most neural models | Increase for small/noisy data |
+| 3 | Width | `d_model=[64,128,256]` or layer sizes | Mamba/attention/MLP-like models | Width affects capacity and quadratic projection costs |
+| 4 | Depth | `n_layers=[1,2,4,6,8]`, model-dependent | Sequence and attention models | More depth is not always better on small tables |
+| 5 | Preprocessing | `standard`, `quantile`, `ple` | Numerical-heavy data | Often changes results as much as architecture |
+| 6 | Batch size | `[64,128,256,512]` | All models | Constrained by memory and row-attention/retrieval behavior |
+
+### Learning Rate
+
+| Family | Starting Range | Practical Notes |
+| ------ | -------------- | --------------- |
+| MLP, ResNet, TabM | `3e-4` to `1e-3` | Usually robust; lower LR if loss is unstable |
+| Mambular, MambaTab, TabulaRNN | `1e-4` to `1e-3` | Use lower LR for wider/deeper variants |
+| FTTransformer, TabTransformer, AutoInt, SAINT | `1e-4` to `5e-4` | Attention models often need conservative updates |
+| NODE/ENODE/NDTF | `3e-4` to `1e-3` | Tune with depth/layer dimension; soft tree models can be initialization-sensitive |
+| TabR | `1e-4` to `5e-4` | Retrieval and candidate encoding make validation cost higher |
+
+DeepTab currently uses `ReduceLROnPlateau` in the training module. Control it with `lr_patience` and `lr_factor`.
 
 ```python
-from deeptab.configs import TabTransformerConfig
+trainer_cfg = TrainerConfig(
+    lr=3e-4,
+    lr_patience=10,
+    lr_factor=0.1,
+    weight_decay=1e-6,
+    patience=20,
+)
+```
 
-# For categorical-heavy data (>50% categorical)
-model_cfg = TabTransformerConfig(
+### Regularization
+
+| Dataset Regime | Dropout Starting Point | Weight Decay Starting Point | Notes |
+| -------------- | ---------------------- | --------------------------- | ----- |
+| `<1K` rows | `0.2` to `0.5` | `1e-5` to `1e-4` | Prefer smaller models and repeated CV |
+| `1K-10K` rows | `0.1` to `0.3` | `1e-6` to `1e-4` | Tune dropout and preprocessing first |
+| `10K-100K` rows | `0.0` to `0.2` | `1e-6` to `1e-5` | Capacity starts to help if signal is complex |
+| `>100K` rows | `0.0` to `0.1` | `1e-7` to `1e-5` | Watch compute bottlenecks more than overfitting |
+
+```{warning}
+Do not assume that large neural models automatically improve with more rows. Dataset difficulty, uninformative features, target smoothness, and feature orientation are central in tabular learning.
+```
+
+### Batch Size
+
+| Model Family | Starting Batch Size | Constraint |
+| ------------ | ------------------- | ---------- |
+| MLP, ResNet, MambaTab, Mambular, TabM | `128` to `512` | Increase until GPU utilization is good or validation degrades |
+| FTTransformer, AutoInt, TabTransformer | `128` to `256` | Attention memory grows with feature-token count |
+| SAINT | `32` to `128` | Row attention is quadratic in batch size |
+| TabR | `128` to `256` | Candidate encoding/search can dominate runtime |
+| NODE/ENODE/NDTF | `256` to `512` | Larger batches can stabilize tree/path initialization |
+
+## Model Family Recommendations
+
+### Strong Baseline Stack
+
+Start here unless the research question specifically targets a model family.
+
+```python
+from deeptab.configs import MLPConfig, ResNetConfig, TabMConfig, TrainerConfig
+
+mlp_cfg = MLPConfig(layer_sizes=[256, 128, 32], dropout=0.1)
+resnet_cfg = ResNetConfig(layer_sizes=[256, 128, 32], num_blocks=3, dropout=0.2)
+tabm_cfg = TabMConfig(layer_sizes=[256, 256, 128], ensemble_size=32, dropout=0.1)
+
+trainer_cfg = TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100, patience=15)
+```
+
+**Research use:** MLP/ResNet/TabM provide useful controls for whether a more complex architecture is actually adding value. Recent TabM results also make parameter-efficient ensembling a strong baseline, not just a fallback.
+
+### Mambular and MambaTab
+
+Use when you want a sequence-style inductive bias over features without quadratic feature attention.
+
+| Regime | MambularConfig | TrainerConfig |
+| ------ | -------------- | ------------- |
+| Small data | `d_model=64`, `n_layers=2-4`, `dropout=0.1-0.3` | `lr=5e-4`, `batch_size=128` |
+| Medium data | `d_model=128`, `n_layers=4-6`, `dropout=0.0-0.2` | `lr=3e-4` to `5e-4`, `batch_size=256` |
+| Large data | `d_model=128-256`, `n_layers=6-8`, `dropout=0.0-0.1` | `lr=1e-4` to `3e-4`, `batch_size=512` |
+
+```python
+from deeptab.configs import MambaTabConfig, MambularConfig, TrainerConfig
+
+# Lightweight Mamba baseline
+mambatab_cfg = MambaTabConfig(
+    d_model=64,
+    n_layers=1,
+    d_conv=16,
+    dropout=0.05,
+)
+
+# Higher-capacity tabular sequence model
+mambular_cfg = MambularConfig(
     d_model=128,
-    n_heads=8,
     n_layers=6,
-    attn_dropout=0.1,
+    d_state=128,
+    expand_factor=2,
+    dropout=0.1,
+    pooling_method="avg",
 )
-trainer_cfg = TrainerConfig(
-    lr=1e-4,
-    batch_size=256,
-)
+
+trainer_cfg = TrainerConfig(lr=3e-4, batch_size=256, max_epochs=150, patience=20)
 ```
 
-### NODE
+**Tune first:** `d_model`, `n_layers`, `dropout`, `pooling_method`, and `use_learnable_interaction`.
 
-**Most sensitive parameters:** `depth`, `n_trees`
+**Research notes:** Report feature ordering and preprocessing because feature-sequence models can be affected by how columns are presented. Mambular and MambaTab are motivated by Mamba-style selective state spaces, but their tabular behavior should be validated against dense and tree baselines.
 
-```{note}
-**Tree structure:** NODE builds oblivious decision trees. Depth controls number of splits (2^depth leaves), n_trees controls ensemble size.
-```
+### FTTransformer, TabTransformer, AutoInt, and SAINT
 
-**Parameter guidance:**
+Use when feature interactions are central and the feature-token count is not too large.
 
-- **depth:** Typical range 4-8. Higher depth = more complex trees but slower training
-- **n_trees:** Typical range 1024-2048. More trees = better ensemble but diminishing returns
-- **Trade-off:** Deep trees with fewer n_trees vs shallow trees with more n_trees
+| Model | Good Starting Config | When to Prefer |
+| ----- | -------------------- | -------------- |
+| FTTransformer | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1`, `ff_dropout=0.1` | General feature-token attention |
+| TabTransformer | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1` | Categorical-heavy tables |
+| AutoInt | `d_model=128`, `n_layers=3-4`, `n_heads=4-8`, `kv_compression=0.5` | Interaction modeling with optional compression |
+| SAINT | `d_model=128`, `n_layers=1-2`, `n_heads=2-4`, `batch_size=32-128` | Row-context or semi-supervised-style experiments |
 
 ```python
-from deeptab.configs import NODEConfig
+from deeptab.configs import AutoIntConfig, FTTransformerConfig, SAINTConfig, TabTransformerConfig
 
-# Balanced setup
-model_cfg = NODEConfig(
-    n_layers=8,
-    depth=6,         # Tree depth
-    n_trees=2048,    # Ensemble size
+ft_cfg = FTTransformerConfig(
+    d_model=128,
+    n_layers=4,
+    n_heads=8,
+    attn_dropout=0.1,
+    ff_dropout=0.1,
 )
-trainer_cfg = TrainerConfig(
-    lr=1e-3,         # NODE tolerates higher lr
-    batch_size=512,
-    max_epochs=150,
+
+tabtransformer_cfg = TabTransformerConfig(
+    d_model=128,
+    n_layers=4,
+    n_heads=8,
+    attn_dropout=0.1,
+    ff_dropout=0.1,
+)
+
+autoint_cfg = AutoIntConfig(
+    d_model=128,
+    n_layers=4,
+    n_heads=8,
+    attn_dropout=0.1,
+    kv_compression=0.5,
+)
+
+saint_cfg = SAINTConfig(
+    d_model=128,
+    n_layers=1,
+    n_heads=2,
+    attn_dropout=0.1,
+    ff_dropout=0.1,
 )
 ```
 
-## Preprocessing Configuration Impact
+**Tune first:** `d_model`, `n_layers`, `n_heads`, `attn_dropout`, and `ff_dropout` where available.
 
-### Numerical Preprocessing Strategies
-
-```{note}
-**Strategy selection:** Different preprocessing methods suit different data distributions.
+```{tip}
+Choose `n_heads` so that `d_model` is divisible by `n_heads`. Common pairs are `(64, 4)`, `(128, 8)`, and `(256, 8 or 16)`.
 ```
 
-**Guidance by data characteristics:**
+**Research notes:** Attention models can be strong but expensive when feature-token count grows. For SAINT, report batch size because row attention changes both memory use and the effective context available to each row.
 
-| Strategy | Best For                 | Pros                       | Cons                       |
-| -------- | ------------------------ | -------------------------- | -------------------------- |
-| standard | Normal distributions     | Simple, interpretable      | Sensitive to outliers      |
-| quantile | Skewed or heavy outliers | Robust to outliers         | Non-linear transform       |
-| minmax   | Bounded data             | Preserves zero             | Very sensitive to outliers |
-| ple      | Complex distributions    | Flexible, piecewise linear | Requires tuning n_bins     |
+### ResNet and MLP
 
-**Recommendations:**
+Use as fast baselines and as practical production candidates when the dataset does not justify attention/retrieval overhead.
+
+```python
+from deeptab.configs import MLPConfig, ResNetConfig
+
+mlp_cfg = MLPConfig(
+    layer_sizes=[256, 128, 32],
+    dropout=0.1,
+    use_glu=False,
+    skip_connections=False,
+)
+
+resnet_cfg = ResNetConfig(
+    layer_sizes=[256, 128, 32],
+    num_blocks=3,
+    dropout=0.2,
+    norm=False,
+)
+```
+
+**Tune first:** `layer_sizes`, `dropout`, `num_blocks` for ResNet, and `use_glu` for MLP.
+
+**Research notes:** These models are essential controls. If an advanced architecture does not beat a tuned MLP/ResNet/TabM under the same budget, the added complexity needs justification.
+
+### TabM
+
+Use as a strong parameter-efficient ensemble baseline.
+
+```python
+from deeptab.configs import TabMConfig
+
+tabm_cfg = TabMConfig(
+    layer_sizes=[256, 256, 128],
+    ensemble_size=32,
+    model_type="mini",
+    dropout=0.1,
+    average_ensembles=False,
+)
+```
+
+**Tune first:** `ensemble_size`, `layer_sizes`, `dropout`, `model_type`, and `average_embeddings`.
+
+**Research notes:** TabM is a useful modern baseline because it tests whether ensemble-like diversity helps without training many independent models. Use a batch size large enough that ensemble outputs are statistically meaningful and memory-safe.
+
+### TabR
+
+Use when nearest-neighbor context is expected to carry target signal.
+
+```python
+from deeptab.configs import TabRConfig, TrainerConfig
+
+tabr_cfg = TabRConfig(
+    d_main=256,
+    context_size=96,
+    predictor_n_blocks=1,
+    encoder_n_blocks=0,
+    context_dropout=0.2,
+    dropout0=0.2,
+    dropout1=0.0,
+    memory_efficient=False,
+)
+
+trainer_cfg = TrainerConfig(lr=3e-4, batch_size=256, max_epochs=150, patience=20)
+```
+
+**Tune first:** `context_size`, `d_main`, `dropout0`, `context_dropout`, `predictor_n_blocks`, and `candidate_encoding_batch_size`.
+
+**Research notes:** Report candidate pool construction, whether validation/test rows retrieve from training candidates only, and the value of `context_size`. Retrieval leakage can invalidate results.
+
+### NODE, ENODE, and NDTF
+
+Use when you want differentiable tree-inspired models.
+
+```python
+from deeptab.configs import ENODEConfig, NDTFConfig, NODEConfig
+
+node_cfg = NODEConfig(
+    num_layers=4,
+    layer_dim=128,
+    depth=6,
+    tree_dim=1,
+)
+
+enode_cfg = ENODEConfig(
+    d_model=8,
+    num_layers=4,
+    layer_dim=64,
+    depth=6,
+    tree_dim=1,
+)
+
+ndtf_cfg = NDTFConfig(
+    min_depth=4,
+    max_depth=12,
+    n_ensembles=12,
+    temperature=0.1,
+)
+```
+
+**Tune first:** `depth`, `num_layers`, `layer_dim`, `tree_dim`, and for NDTF `n_ensembles`, `min_depth`, `max_depth`, `temperature`.
+
+**Research notes:** NODE-style models evaluate differentiable soft paths rather than performing logarithmic hard-tree traversal. Depth increases leaf/path complexity quickly, so treat `depth` as a high-impact compute and regularization parameter.
+
+## Preprocessing Search
+
+Preprocessing is part of the model in tabular deep learning. Tune it explicitly.
+
+| Data Condition | Candidate Setting | Notes |
+| -------------- | ----------------- | ----- |
+| Roughly symmetric numerical features | `numerical_preprocessing="standard"` | Fast, simple, and easy to audit |
+| Heavy tails/outliers/skew | `numerical_preprocessing="quantile"` | Often robust for real-world tables |
+| Bounded features | `numerical_preprocessing="minmax"` | Use when scale bounds are meaningful |
+| Nonlinear numeric effects | `numerical_preprocessing="ple"`, tune `n_bins` | Connects to numerical feature embedding work |
+| Many integer IDs | `treat_all_integers_as_numerical=True` or tune `cat_cutoff` | Prevents accidental categorical treatment |
+| Categorical features | `categorical_preprocessing="int"` or project default | Use model `d_model`/embeddings for representation capacity |
 
 ```python
 from deeptab.configs import PreprocessingConfig
 
-# For clean, normally distributed data
-prep_cfg = PreprocessingConfig(
+# Conservative baseline
+standard_prep = PreprocessingConfig(
     numerical_preprocessing="standard",
+    categorical_preprocessing="int",
 )
 
-# For real-world data with outliers (RECOMMENDED DEFAULT)
-prep_cfg = PreprocessingConfig(
+# Robust numeric preprocessing
+quantile_prep = PreprocessingConfig(
     numerical_preprocessing="quantile",
-    n_bins=100,  # More bins for large datasets
+    categorical_preprocessing="int",
 )
 
-# For complex non-linear relationships
-prep_cfg = PreprocessingConfig(
+# Numerical feature embedding/binning experiment
+ple_prep = PreprocessingConfig(
     numerical_preprocessing="ple",
-    n_bins=50,
+    n_bins=64,
+    categorical_preprocessing="int",
 )
 ```
-
-### Categorical Embedding Dimension
-
-```{warning}
-**Overfitting risk:** Large embedding dimensions can cause overfitting on small datasets with high-cardinality categoricals.
-```
-
-**Embedding size guidance:**
-
-| Categorical Cardinality | Recommended Embedding Dim | Reasoning                   |
-| ----------------------- | ------------------------- | --------------------------- |
-| <10                     | 8                         | Small vocabulary            |
-| 10-50                   | 16                        | Moderate complexity         |
-| 50-500                  | 32                        | High cardinality            |
-| >500                    | 32-64 (use dropout)       | Very high, overfitting risk |
-
-```python
-# Auto-sizing (recommended)
-prep_cfg = PreprocessingConfig(
-    categorical_preprocessing="ordinal",
-    embedding_dim=None,  # Auto: min(50, cardinality // 2)
-)
-
-# Manual sizing for high-cardinality
-prep_cfg = PreprocessingConfig(
-    embedding_dim=32,
-)
-```
-
-## Training Dynamics
-
-### Early Stopping
 
 ```{important}
-**Patience setting:** Balance between training time and optimal performance. Patience should scale with dataset size and model complexity.
+`PreprocessingConfig` does not own model width. Set representation size with model fields such as `d_model` or `layer_sizes`, not with an `embedding_dim` preprocessing argument.
 ```
 
-**Patience recommendations:**
+## Search Spaces
 
-| Dataset Size | Recommended Patience | Reasoning                        |
-| ------------ | -------------------- | -------------------------------- |
-| <1K          | 10-15                | Fast overfitting on small data   |
-| 1K-10K       | 15-20                | Moderate training dynamics       |
-| >10K         | 20-30                | Slower convergence on large data |
+Use small spaces first. Expand only after the baseline protocol is stable.
 
-### Learning Rate Scheduling
-
-**Common scheduling strategies:**
-
-| Schedule        | When to Use                   | Pros              | Cons                   |
-| --------------- | ----------------------------- | ----------------- | ---------------------- |
-| Constant        | Default, works well often     | Simple, no tuning | May not reach optimum  |
-| ReduceOnPlateau | General purpose (recommended) | Adaptive, stable  | Needs patience tuning  |
-| CosineAnnealing | Fixed training budget known   | Smooth decay      | Needs max_epochs set   |
-| StepLR          | Known convergence behavior    | Predictable       | Requires manual tuning |
-
-**Recommendation: ReduceOnPlateau** (adaptive and stable)
-
-```python
-trainer_cfg = TrainerConfig(
-    lr=1e-3,                       # Initial learning rate
-    lr_scheduler="reduce_on_plateau",
-    lr_scheduler_patience=10,      # Wait 10 epochs
-    lr_scheduler_factor=0.5,       # Reduce by 50%
-    lr_scheduler_min_lr=1e-6,      # Don't go below this
-)
-```
-
-## Hyperparameter Search Recommendations
-
-### Priority Order
-
-Based on parameter sensitivity analysis:
-
-1. **Learning rate** — Test: [1e-4, 5e-4, 1e-3]
-2. **Dropout** — Test: [0.0, 0.1, 0.2, 0.3]
-3. **d_model** — Test: [64, 128, 256]
-4. **n_layers** — Test: [4, 6, 8]
-5. **Batch size** — Test: [128, 256, 512]
-
-```{tip}
-**Efficient search:** Start with learning rate and dropout. Only tune architecture if those are optimal.
-```
-
-### Search Space
-
-**For Mambular:**
+### Mambular
 
 ```python
 param_grid = {
-    "trainer_config__lr": [1e-4, 5e-4, 1e-3],
+    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__n_bins": [32, 64],
     "model_config__d_model": [64, 128, 256],
-    "model_config__n_layers": [4, 6, 8],
+    "model_config__n_layers": [2, 4, 6],
     "model_config__dropout": [0.0, 0.1, 0.2],
+    "model_config__pooling_method": ["avg", "max"],
+    "trainer_config__lr": [1e-4, 3e-4, 1e-3],
     "trainer_config__batch_size": [128, 256, 512],
 }
 ```
 
-**For FTTransformer:**
+### FTTransformer
 
 ```python
 param_grid = {
-    "trainer_config__lr": [1e-5, 5e-5, 1e-4],
+    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
-    "model_config__n_heads": [4, 8, 16],
-    "model_config__n_layers": [4, 6, 8],
+    "model_config__n_layers": [2, 4, 6],
+    "model_config__n_heads": [4, 8],
     "model_config__attn_dropout": [0.0, 0.1, 0.2],
+    "model_config__ff_dropout": [0.0, 0.1, 0.2],
+    "trainer_config__lr": [1e-4, 3e-4, 5e-4],
+    "trainer_config__batch_size": [128, 256],
 }
 ```
 
+### TabM
+
+```python
+param_grid = {
+    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "model_config__layer_sizes": [[256, 128], [256, 256, 128], [512, 256, 128]],
+    "model_config__ensemble_size": [8, 16, 32],
+    "model_config__dropout": [0.0, 0.1, 0.2],
+    "model_config__model_type": ["mini", "full"],
+    "trainer_config__lr": [3e-4, 1e-3],
+    "trainer_config__batch_size": [128, 256, 512],
+}
+```
+
+### TabR
+
+```python
+param_grid = {
+    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "model_config__d_main": [128, 256],
+    "model_config__context_size": [32, 64, 96],
+    "model_config__dropout0": [0.0, 0.2, 0.4],
+    "model_config__context_dropout": [0.0, 0.2, 0.4],
+    "model_config__predictor_n_blocks": [1, 2],
+    "trainer_config__lr": [1e-4, 3e-4, 5e-4],
+}
+```
+
+### NODE
+
+```python
+param_grid = {
+    "preprocessing_config__numerical_preprocessing": ["standard", "quantile"],
+    "model_config__num_layers": [2, 4, 6],
+    "model_config__layer_dim": [64, 128, 256],
+    "model_config__depth": [4, 6, 8],
+    "trainer_config__lr": [3e-4, 1e-3],
+    "trainer_config__batch_size": [256, 512],
+}
+```
+
+## Research Reporting Checklist
+
+Use this checklist when presenting DeepTab results.
+
+- Report model, preprocessing, and trainer configs separately.
+- Report DeepTab version/commit, PyTorch version, device, and random seeds.
+- State whether hyperparameters were chosen by validation, cross-validation, or fixed defaults.
+- Include the trial budget and early-stopping patience.
+- Include tuned MLP/ResNet/TabM baselines when evaluating a new architecture.
+- For attention models, report feature-token count and batch size.
+- For retrieval models, report candidate-pool construction and context size.
+- For distributional regression, report NLL and at least one calibration or coverage metric.
+
 ## References
 
-Hyperparameter recommendations synthesized from:
+The recommendations above are grounded in DeepTab's current config API and in the tabular deep learning literature:
 
-- Gorishniy et al. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021
-- Gu & Dao (2024). _Mamba: Linear-Time Sequence Modeling_. arXiv:2312.00752
-- Internal ablation studies on 20+ benchmark datasets
-- Community feedback and production deployments
+- Ahamed, M. A., & Cheng, Q. (2024). _MambaTab: A Plug-and-Play Model for Learning Tabular Data_. [arXiv:2401.08867](https://arxiv.org/abs/2401.08867)
+- Gorishniy, Y., Rubachev, I., Khrulkov, V., & Babenko, A. (2021). _Revisiting Deep Learning Models for Tabular Data_. NeurIPS 2021. [arXiv:2106.11959](https://arxiv.org/abs/2106.11959)
+- Gorishniy, Y., Rubachev, I., Khrulkov, V., & Babenko, A. (2022). _On Embeddings for Numerical Features in Tabular Deep Learning_. NeurIPS 2022. [arXiv:2203.05556](https://arxiv.org/abs/2203.05556)
+- Gorishniy, Y., Rubachev, I., Kartashev, N., Shlenskii, D., Kotelnikov, A., & Babenko, A. (2023). _TabR: Tabular Deep Learning Meets Nearest Neighbors in 2023_. [arXiv:2307.14338](https://arxiv.org/abs/2307.14338)
+- Gorishniy, Y., Kotelnikov, A., & Babenko, A. (2024). _TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling_. ICLR 2025. [arXiv:2410.24210](https://arxiv.org/abs/2410.24210)
+- Grinsztajn, L., Oyallon, E., & Varoquaux, G. (2022). _Why do tree-based models still outperform deep learning on tabular data?_ NeurIPS 2022. [arXiv:2207.08815](https://arxiv.org/abs/2207.08815)
+- Gu, A., & Dao, T. (2024). _Mamba: Linear-Time Sequence Modeling with Selective State Spaces_. [arXiv:2312.00752](https://arxiv.org/abs/2312.00752)
+- Huang, X., Khetan, A., Cvitkovic, M., & Karnin, Z. (2020). _TabTransformer: Tabular Data Modeling Using Contextual Embeddings_. [arXiv:2012.06678](https://arxiv.org/abs/2012.06678)
+- Popov, S., Morozov, S., & Babenko, A. (2019). _Neural Oblivious Decision Ensembles for Deep Learning on Tabular Data_. ICLR 2020. [arXiv:1909.06312](https://arxiv.org/abs/1909.06312)
+- Somepalli, G., Goldblum, M., Schwarzschild, A., Bruss, C. B., & Goldstein, T. (2021). _SAINT: Improved Neural Networks for Tabular Data via Row Attention and Contrastive Pre-Training_. [arXiv:2106.01342](https://arxiv.org/abs/2106.01342)
+- Song, W., Shi, C., Xiao, Z., Duan, Z., Xu, Y., Zhang, M., & Tang, J. (2019). _AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks_. CIKM 2019. [arXiv:1810.11921](https://arxiv.org/abs/1810.11921)
+- Thielmann, A. F., Kumar, M., Weisser, C., Reuter, A., Säfken, B., & Samiee, S. (2024). _Mambular: A Sequential Model for Tabular Deep Learning_. [arXiv:2408.06291](https://arxiv.org/abs/2408.06291)
 
 ## See Also
 
-- [Model Comparison](comparison_tables) — Performance benchmarks
+- [Model Comparison](comparison_tables) — Architecture and complexity comparison
 - [Config System](../core_concepts/config_system) — Configuration API details
