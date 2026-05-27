@@ -175,5 +175,7 @@ docs/_build/html/*
 dev
 dev/*
 
-
+lightning_logs
 lightning_logs/*
+model_checkpoints
+model_checkpoints/*
