@@ -33,12 +33,12 @@
 | **Production use**      | Use with caution  | Pin version, monitor release notes                     |
 | **Research stage**      | Early validation  | Limited benchmarking across datasets                   |
 
-````{important}
+```{important}
 **Version pinning essential:** Always specify exact version in requirements:
-```python
-# requirements.txt
-deeptab==2.0.0  # Exact version, not >=2.0.0
-````
+
+    # requirements.txt
+    deeptab==2.0.0  # Exact version, not >=2.0.0
+```
 
 ## When to Use
 
@@ -199,15 +199,6 @@ deeptab==2.0.0
 5. Set up alerts for new releases
 ```
 
-### Production Deployment Checklist
-
-- [ ] Version pinned in requirements.txt
-- [ ] Tests verify exact version in CI/CD
-- [ ] Monitoring for API deprecation warnings
-- [ ] Fallback plan to stable model documented
-- [ ] Alert system for DeepTab updates configured
-- [ ] Team trained on version pinning importance
-
 ### Evaluation Protocol
 
 ```python
@@ -267,7 +258,7 @@ Provides >2% improvement?
 
 ## Migration to Stable Models
 
-````{important}
+```{important}
 **Exit strategy:** If Tangos doesn't work out or API changes are disruptive:
 
 **Similar stable alternatives:**
@@ -276,15 +267,15 @@ Provides >2% improvement?
 - [MLP](../stable/mlp) — Simplest stable baseline
 
 **Migration is seamless:**
-```python
-# Tangos (experimental)
-from deeptab.models.experimental import TangosClassifier
-model = TangosClassifier()
 
-# → Mambular (stable)
-from deeptab.models import MambularClassifier
-model = MambularClassifier()  # Same API!
-````
+    # Tangos (experimental)
+    from deeptab.models.experimental import TangosClassifier
+    model = TangosClassifier()
+
+    # → Mambular (stable)
+    from deeptab.models import MambularClassifier
+    model = MambularClassifier()  # Same API!
+```
 
 ## API Change Examples
 

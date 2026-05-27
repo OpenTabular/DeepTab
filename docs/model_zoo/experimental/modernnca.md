@@ -32,25 +32,23 @@
 | **Promotion criteria**  | In evaluation     | Needs consistent outperformance + community validation |
 | **Production use**      | Use with caution  | Pin version, monitor release notes                     |
 
-````{important}
+```{important}
 **Version pinning essential:** Always specify exact version in requirements:
-```python
-# requirements.txt
-deeptab==2.0.0  # Exact version, not >=2.0.0
-````
 
-````
+    # requirements.txt
+    deeptab==2.0.0  # Exact version, not >=2.0.0
+```
 
 ## When to Use
 
-| Scenario | Recommendation | Reasoning |
-| -------- | -------------- | --------- |
-| **Research/experimentation** | ✅ Try ModernNCA | Cutting-edge metric learning approach |
-| **Local similarity matters** | ✅ Try ModernNCA | Designed for similarity-based predictions |
-| **Willing to handle API changes** | ✅ Try ModernNCA | Can pin versions and adapt |
-| **Production deployment** | ❌ Use [Mambular](../stable/mambular) | Stable API, proven reliability |
-| **Need stable API** | ❌ Use stable models | Experimental = no guarantees |
-| **Cannot monitor updates** | ❌ Use stable models | API may break silently |
+| Scenario                          | Recommendation                        | Reasoning                                 |
+| --------------------------------- | ------------------------------------- | ----------------------------------------- |
+| **Research/experimentation**      | ✅ Try ModernNCA                      | Cutting-edge metric learning approach     |
+| **Local similarity matters**      | ✅ Try ModernNCA                      | Designed for similarity-based predictions |
+| **Willing to handle API changes** | ✅ Try ModernNCA                      | Can pin versions and adapt                |
+| **Production deployment**         | ❌ Use [Mambular](../stable/mambular) | Stable API, proven reliability            |
+| **Need stable API**               | ❌ Use stable models                  | Experimental = no guarantees              |
+| **Cannot monitor updates**        | ❌ Use stable models                  | API may break silently                    |
 
 ## Configuration
 
@@ -58,7 +56,7 @@ deeptab==2.0.0  # Exact version, not >=2.0.0
 
 ```{warning}
 **Config API may change:** Parameter names, defaults, and valid ranges subject to change in future releases without major version bump.
-````
+```
 
 | Parameter         | Current Default | Description               | Status               |
 | ----------------- | --------------- | ------------------------- | -------------------- |
@@ -187,14 +185,6 @@ deeptab==2.0.0
 3. Test thoroughly after any update
 4. Have migration plan to stable models
 ```
-
-### Production Deployment Checklist
-
-- [ ] Version pinned in requirements.txt
-- [ ] Tests verify exact version in CI/CD
-- [ ] Monitoring for API deprecation warnings
-- [ ] Fallback plan to stable model
-- [ ] Alert system for DeepTab updates
 
 ## Migration to Stable Models
 
