@@ -1,4 +1,3 @@
-import torch
 from torch.utils.data import Dataset
 
 from deeptab.data.schema import TabularBatch
@@ -64,16 +63,10 @@ class TabularDataset(Dataset):
             If return_batch_object is True, returns a TabularBatch object.
         """
         cat_features = [feature_tensor[idx] for feature_tensor in self.cat_features_list]
-        num_features = [
-            torch.as_tensor(feature_tensor[idx]).clone().detach().to(torch.float32)
-            for feature_tensor in self.num_features_list
-        ]
+        num_features = [feature_tensor[idx] for feature_tensor in self.num_features_list]
 
         if self.embeddings_list is not None:
-            embeddings = [
-                torch.as_tensor(embed_tensor[idx]).clone().detach().to(torch.float32)
-                for embed_tensor in self.embeddings_list
-            ]
+            embeddings = [embed_tensor[idx] for embed_tensor in self.embeddings_list]
         else:
             embeddings = None
 

@@ -1,6 +1,5 @@
 import lightning as pl
 import numpy as np
-import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
@@ -165,19 +164,7 @@ class TabularDataModule(pl.LightningDataModule):
                 self.embeddings_train = None
                 self.embeddings_val = None
 
-        # Fit the preprocessor on the combined training and validation data
-        combined_X = pd.concat([self.X_train, self.X_val], axis=0).reset_index(drop=True)  # type: ignore[arg-type]
-        combined_y = np.concatenate((self.y_train, self.y_val), axis=0)
-
-        if self.embeddings_train is not None and self.embeddings_val is not None:
-            combined_embeddings = [
-                np.concatenate((emb_train, emb_val), axis=0)
-                for emb_train, emb_val in zip(self.embeddings_train, self.embeddings_val, strict=False)
-            ]
-        else:
-            combined_embeddings = None
-
-        self.preprocessor.fit(combined_X, combined_y, combined_embeddings)
+        self.preprocessor.fit(self.X_train, self.y_train, self.embeddings_train)
 
         # Update feature info based on the actual processed data
         (
