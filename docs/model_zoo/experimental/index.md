@@ -21,9 +21,11 @@ Experimental models are **cutting-edge architectures** currently under evaluatio
 
 ## Available Experimental Models
 
-- **[ModernNCA](modernnca)** — Neural metric learning approach for tabular data
-- **[Trompt](trompt)** — Transformer with prompt-based learning for tabular data
-- **[Tangos](tangos)** — Graph-based neural architecture with learned feature relationships
+| Model                  | Description                                                        |
+| ---------------------- | ------------------------------------------------------------------ |
+| [ModernNCA](modernnca) | Neural metric learning approach for tabular data                   |
+| [Trompt](trompt)       | Transformer with prompt-based learning for tabular data            |
+| [Tangos](tangos)       | Graph-based neural architecture with learned feature relationships |
 
 ## Usage
 
@@ -68,16 +70,6 @@ For detailed usage examples and tips:
 - **[Experimental Models Tutorial](../../tutorials/experimental)** — Comprehensive guide
 - **[Comparison Tables](../comparison_tables)** — Performance benchmarks
 - **[Recommended Configs](../recommended_configs)** — Configuration guidance
-
-## Complete Model List
-
-```{toctree}
-:maxdepth: 1
-
-modernnca
-trompt
-tangos
-```
 
 ## Contributing
 
