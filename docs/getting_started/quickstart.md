@@ -336,7 +336,7 @@ model.fit(X_train, y_train, max_epochs=50)
 predictions = model.predict(X_test)
 ```
 
-See [Using experimental models](../../examples/experimental) for more details.
+See [Using experimental models](../tutorials/experimental) for more details.
 
 ## Saving and loading models
 
@@ -472,8 +472,8 @@ model = MambularClassifier(
 
 Now that you've run your first models, explore:
 
-- **[Key Concepts](../key_concepts)** — Deep dive into the config system, preprocessing, and distributional regression
-- **[Examples](../../examples/classification)** — Complete end-to-end workflows for different tasks
+- **[Core Concepts](../core_concepts/index)** — Deep dive into the config system, preprocessing, and distributional regression
+- **[Tutorials](../tutorials/classification)** — Complete end-to-end workflows for different tasks
 - **[API Reference](../../api/models/index)** — Full documentation of all models and configs
 - **[FAQ](faq)** — Answers to common questions
 

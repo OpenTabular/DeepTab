@@ -541,4 +541,4 @@ model.fit(X_clean, y_clean, max_epochs=50)
 - **[Distributional Regression](distributional_regression)** — Predict full distributions for uncertainty
 - **[Classification](classification)** — Classification-specific concepts
 - **[Training and Evaluation](training_and_evaluation)** — Training loop details
-- **[Examples: Regression](../../examples/regression)** — Complete workflows
+- **[Tutorials: Regression](../../tutorials/regression)** — Complete workflows

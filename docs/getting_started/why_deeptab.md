@@ -435,5 +435,5 @@ DeepTab may not be the best choice for:
 
 - **[Installation](installation)** — Set up DeepTab in your environment
 - **[Quickstart](quickstart)** — Run your first model in 5 minutes
-- **[Key Concepts](../key_concepts)** — Deep dive into the config system and API patterns
-- **[Examples](../../examples/classification)** — Complete end-to-end workflows
+- **[Core Concepts](../core_concepts/index)** — Deep dive into the config system and API patterns
+- **[Tutorials](../tutorials/classification)** — Complete end-to-end workflows

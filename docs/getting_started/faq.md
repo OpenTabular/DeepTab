@@ -376,7 +376,7 @@ upper = mean + 1.96 * std
 
 ### Can I use my own custom architecture?
 
-Yes, but it requires subclassing `BaseTaskModel`. See [Implement Your Own Model](../developer_guide/custom_models) (if available) or the source code for examples.
+Yes, but it requires subclassing `BaseTaskModel`. See the source code for examples of how to extend the base classes.
 
 ### Do experimental models work the same way as stable models?
 
@@ -547,7 +547,7 @@ So while not "faster", it helps you get to a working model more quickly.
 
 If your question isn't answered here:
 
-1. Check the [Key Concepts](../key_concepts) guide
-2. Browse the [Examples](../../examples/classification)
+1. Check the [Core Concepts](../core_concepts/index) guide
+2. Browse the [Tutorials](../tutorials/classification)
 3. Search [GitHub issues](https://github.com/OpenTabular/DeepTab/issues)
 4. Open a new issue on GitHub

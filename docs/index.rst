@@ -1,54 +1,64 @@
-.. mamba-tabular documentation master file, created by
-   sphinx-quickstart on Mon May  6 16:16:57 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
 .. include:: homepage.md
    :parser: myst_parser.sphinx_
 
 .. toctree::
-   :name: Getting Started
    :caption: Getting Started
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   getting_started/index
+   getting_started/overview
+   getting_started/why_deeptab
+   getting_started/installation
+   getting_started/quickstart
+   getting_started/faq
 
 .. toctree::
-   :name: Core Concepts
    :caption: Core Concepts
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   core_concepts/index
+   core_concepts/sklearn_api
+   core_concepts/model_tiers
+   core_concepts/config_system
+   core_concepts/preprocessing
+   core_concepts/classification
+   core_concepts/regression
+   core_concepts/distributional_regression
+   core_concepts/training_and_evaluation
 
 .. toctree::
-   :name: Tutorials
    :caption: Tutorials
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   tutorials/index
+   tutorials/classification
+   tutorials/regression
+   tutorials/distributional
+   tutorials/experimental
 
 .. toctree::
-   :name: Model Zoo
    :caption: Model Zoo
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   model_zoo/index
+   model_zoo/comparison_tables
+   model_zoo/recommended_configs
+   model_zoo/stable/index
+   model_zoo/experimental/index
 
 .. toctree::
-   :name: API Reference
    :caption: API Reference
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   api/index
-
+   api/models/index
+   api/configs/index
+   api/data/index
+   api/distributions/index
+   api/training/index
 
 .. toctree::
-   :name: Developer Guide
    :caption: Developer Guide
    :maxdepth: 1
    :hidden:

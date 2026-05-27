@@ -518,4 +518,4 @@ predicted_labels = encoder.inverse_transform(predictions)  # ["cat", "dog", ...]
 - **[Regression](regression)** — Regression-specific concepts
 - **[Distributional Regression](distributional_regression)** — Beyond point predictions
 - **[Training and Evaluation](training_and_evaluation)** — Training loop details
-- **[Examples: Classification](../../examples/classification)** — Complete workflows
+- **[Tutorials: Classification](../../tutorials/classification)** — Complete workflows

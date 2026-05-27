@@ -316,7 +316,7 @@ To upgrade to the latest version:
 pip install --upgrade deeptab
 ```
 
-Check the [changelog](../../CHANGELOG.md) for breaking changes when upgrading across major versions.
+Check the changelog for breaking changes when upgrading across major versions.
 
 ## Uninstalling
 
@@ -336,4 +336,4 @@ pip uninstall deeptab torch torchvision lightning pretab
 
 - **[Quickstart](quickstart)** — Run your first model
 - **[FAQ](faq)** — Common questions and solutions
-- **[Key Concepts](../key_concepts)** — Understand the API before diving in
+- **[Core Concepts](../core_concepts/index)** — Understand the API before diving in

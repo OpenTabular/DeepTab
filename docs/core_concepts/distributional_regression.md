@@ -575,5 +575,5 @@ If coverage is too high → model is underconfident (predicted std too large)
 
 - **[Regression](regression)** — Standard point prediction regression
 - **[Training and Evaluation](training_and_evaluation)** — Training loop details
-- **[Examples: Distributional](../../examples/distributional)** — Complete workflows
+- **[Tutorials: Distributional](../../tutorials/distributional)** — Complete workflows
 - **[API Reference](../../api/models/index)** — Full parameter documentation

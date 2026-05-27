@@ -225,7 +225,7 @@ No deprecation warnings. Models may change or be removed in any version.
 
 ## Migration guides
 
-When experimental models graduate to stable or stable models change significantly, migration guides are provided in the [changelog](../../CHANGELOG.md).
+When experimental models graduate to stable or stable models change significantly, migration guides are provided in the changelog.
 
 Example migration:
 
@@ -254,8 +254,6 @@ from your_package.models.experimental import CustomClassifier
 # After validation, promote to stable
 from your_package.models import CustomClassifier
 ```
-
-See [Implementing Custom Models](../../developer_guide/custom_models) for details on extending DeepTab.
 
 ## Checking model tier at runtime
 
@@ -299,4 +297,4 @@ A: v1 is no longer supported after v2.0 release. See the [FAQ](../getting_starte
 
 - **[Config System](config_system)** — Learn about the split-config API
 - **[sklearn API](sklearn_api)** — Understand the scikit-learn interface
-- **[Examples: Experimental](../../examples/experimental)** — See experimental models in action
+- **[Tutorials: Experimental](../../tutorials/experimental)** — See experimental models in action
