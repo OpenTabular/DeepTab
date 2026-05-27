@@ -1,11 +1,18 @@
 # Distributional Regression Tutorial
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/distributional.ipynb)
+<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+  <a href="https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/distributional.ipynb" target="_blank">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+  </a>
+  <a href="https://github.com/basf/DeepTab/blob/main/docs/tutorials/notebooks/distributional.ipynb" target="_blank">
+    <img src="https://img.shields.io/badge/View%20on-GitHub-181717?logo=github&logoColor=white" alt="View on GitHub"/>
+  </a>
+</div>
 
 Distributional regression (LSS models) predicts the full conditional distribution of the target rather than a single point estimate. This enables uncertainty quantification, prediction intervals, and handling of asymmetric or heavy-tailed distributions.
 
 ```{tip}
-Click the badge above to run this tutorial interactively in Google Colab with free GPU access!
+Click the badges above to run this tutorial in Google Colab or view the notebook on GitHub!
 ```
 
 ## What is distributional regression?

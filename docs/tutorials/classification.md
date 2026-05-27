@@ -1,11 +1,18 @@
 # Classification Tutorial
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/classification.ipynb)
+<div style="display: flex; gap: 10px; margin-bottom: 20px;">
+  <a href="https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/classification.ipynb" target="_blank">
+    <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
+  </a>
+  <a href="https://github.com/basf/DeepTab/blob/main/docs/tutorials/notebooks/classification.ipynb" target="_blank">
+    <img src="https://img.shields.io/badge/View%20on-GitHub-181717?logo=github&logoColor=white" alt="View on GitHub"/>
+  </a>
+</div>
 
 This tutorial demonstrates how to train classification models with DeepTab using the sklearn-compatible API.
 
 ```{tip}
-Click the badge above to run this tutorial interactively in Google Colab with free GPU access!
+Click the badges above to run this tutorial in Google Colab or view the notebook on GitHub!
 ```
 
 ## Basic workflow
