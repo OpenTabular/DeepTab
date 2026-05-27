@@ -9,6 +9,10 @@ DeepTab uses a **split-config API**: model hyperparameters are divided across th
 separate dataclasses so that architecture choices, data preprocessing, and training
 settings can be managed, versioned, and shared independently.
 
+.. |br| raw:: html
+
+   <br/>
+
 .. list-table::
    :header-rows: 1
    :widths: 25 30 45
@@ -16,7 +20,7 @@ settings can be managed, versioned, and shared independently.
    * - Config class
      - Controls
      - Typical fields
-   * - :class:`<Model>Config` |br| (e.g. :class:`MLPConfig`)
+   * - :class:`ModelConfig` |br| (e.g. :class:`MLPConfig`)
      - Neural architecture
      - ``d_model``, ``n_layers``, ``dropout``, ``activation``, …
    * - :class:`PreprocessingConfig`
@@ -25,10 +29,6 @@ settings can be managed, versioned, and shared independently.
    * - :class:`TrainerConfig`
      - Training loop
      - ``max_epochs``, ``lr``, ``batch_size``, ``patience``, …
-
-.. |br| raw:: html
-
-   <br/>
 
 ----
 
