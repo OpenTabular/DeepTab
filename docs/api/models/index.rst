@@ -36,7 +36,7 @@ Model Selection
 ---------------
 
 For detailed model comparisons, use cases, and configuration guidance, see the
-:doc:`../../model_zoo/index`.
+:doc:`../../model_zoo/stable/index`.
 
 Quick recommendations:
 
@@ -169,10 +169,10 @@ Class                                       Description
 See Also
 --------
 
-- :doc:`../../model_zoo/index` — Detailed model comparisons and selection guide
+- :doc:`../../model_zoo/stable/index` — Detailed model descriptions and selection guide
 - :doc:`../../model_zoo/comparison_tables` — Performance comparisons
 - :doc:`../../model_zoo/recommended_configs` — Hyperparameter recipes
-- :doc:`../../tutorials/index` — Hands-on usage examples
+- :doc:`../../tutorials/classification` — Hands-on classification example
 
 Reference
 ---------
@@ -182,3 +182,18 @@ Reference
    :caption: Model Reference
 
    Models
+   autoint
+   enode
+   fttransformer
+   mambatab
+   mambattention
+   mambular
+   mlp
+   ndtf
+   node
+   resnet
+   saint
+   tabm
+   tabr
+   tabtransformer
+   tabularrnn

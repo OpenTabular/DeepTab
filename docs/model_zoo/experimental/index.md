@@ -6,6 +6,15 @@
 
 Experimental models are research-facing architectures that are available for evaluation before they graduate to the stable model zoo. They are useful for benchmarking new inductive biases, studying architectural behavior, and contributing empirical evidence back to DeepTab.
 
+```{toctree}
+:hidden:
+:maxdepth: 1
+
+modernnca
+tangos
+trompt
+```
+
 ## Available Models
 
 | Model                  | Core Idea                                                                    | Best Research Use                                          | Main Cost Driver                           |

@@ -2,7 +2,7 @@ deeptab.models
 ==============
 
 Complete API reference for all DeepTab models. For usage examples and configuration guidance,
-see :doc:`../../model_zoo/index`.
+see :doc:`../../model_zoo/stable/index`.
 
 State Space Models
 ------------------
