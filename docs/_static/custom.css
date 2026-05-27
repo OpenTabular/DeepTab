@@ -510,3 +510,80 @@ html[data-theme="dark"] #left-sidebar nav p.caption ~ p.caption {
   margin-top: 0.1rem;
   margin-bottom: 0.1rem;
 }
+
+/* ── Body text and heading contrast ─────────────────────────────────────── */
+/* Ensure body text has good contrast (not too gray) */
+#content {
+  color: #1f2937;
+}
+
+html[data-theme="dark"] #content {
+  color: #e5e7eb;
+}
+
+/* Make headings more prominent with better contrast */
+#content h1,
+#content h2,
+#content h3,
+#content h4 {
+  color: #111827;
+  font-weight: 700;
+}
+
+html[data-theme="dark"] #content h1,
+html[data-theme="dark"] #content h2,
+html[data-theme="dark"] #content h3,
+html[data-theme="dark"] #content h4 {
+  color: #f9fafb;
+}
+
+/* Section headings with emoji get extra spacing */
+#content h2,
+#content h3 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+#content h1 {
+  margin-bottom: 1.5rem;
+}
+
+/* Paragraphs with good line height and spacing */
+#content p {
+  line-height: 1.7;
+  margin-bottom: 1rem;
+  color: #374151;
+}
+
+html[data-theme="dark"] #content p {
+  color: #d1d5db;
+}
+
+/* Strong/bold text more prominent */
+#content strong {
+  font-weight: 700;
+  color: #111827;
+}
+
+html[data-theme="dark"] #content strong {
+  color: #f3f4f6;
+}
+
+/* Links with better visibility */
+#content a {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+html[data-theme="dark"] #content a {
+  color: #60a5fa;
+}
+
+#content a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+html[data-theme="dark"] #content a:hover {
+  color: #93c5fd;
+}
