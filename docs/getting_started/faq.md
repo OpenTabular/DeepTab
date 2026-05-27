@@ -198,13 +198,14 @@ model = MambularClassifier(
     )
 )
 ```
-```
+
+````
 
 ### Training is slow on GPU
 
 ```{note}
 GPUs need larger batch sizes to show speedup over CPU. Small batches or datasets may run faster on CPU.
-```
+````
 
 Ensure you're using GPU:
 
@@ -281,7 +282,7 @@ For custom metrics, use Lightning callbacks (advanced usage—see Lightning docs
 
 ## Errors and troubleshooting
 
-### `CUDA out of memory`
+### CUDA out of memory
 
 ```{warning}
 GPU memory errors usually indicate batch size is too large for your GPU.
@@ -307,7 +308,7 @@ model = MambularClassifier(
 )
 ```
 
-### `ValueError: could not convert string to float`
+### ValueError: could not convert string to float
 
 ```{tip}
 This usually means categorical features weren't properly detected. Explicitly set dtypes.
@@ -321,7 +322,7 @@ df["city"] = df["city"].astype("category")
 
 Or check for unexpected non-numeric values in numerical columns.
 
-### `ImportError: No module named 'deeptab'`
+### ImportError: No module named 'deeptab'
 
 Ensure DeepTab is installed in the active environment:
 
@@ -335,7 +336,7 @@ If not listed:
 pip install deeptab
 ```
 
-### `AttributeError: 'TabularDataModule' object has no attribute 'embedding_feature_info'`
+### AttributeError: 'TabularDataModule' object has no attribute 'embedding_feature_info'
 
 This was a bug in early v2.0 pre-releases. Upgrade to v2.0.0 or later:
 
@@ -369,7 +370,7 @@ model = MambularClassifier(
 )
 ```
 
-### `RuntimeError: Expected all tensors to be on the same device`
+### RuntimeError: Expected all tensors to be on the same device
 
 ```{note}
 The high-level estimator API handles device management automatically. This error typically occurs only with custom training loops.
