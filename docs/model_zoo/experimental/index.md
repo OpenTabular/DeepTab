@@ -6,25 +6,13 @@
 
 Experimental models are research-facing architectures that are available for evaluation before they graduate to the stable model zoo. They are useful for benchmarking new inductive biases, studying architectural behavior, and contributing empirical evidence back to DeepTab.
 
-## Documentation Format
-
-The experimental model pages should stay as MyST Markdown (`.md`) files. These pages mix narrative explanations, mathematical notation, tables, and executable examples, which are easier to maintain in Markdown. The `.rst` files are still appropriate for generated API reference pages under `docs/api/`.
-
-Each model page follows this structure:
-
-1. Overview of the model and when to consider it.
-2. Architectural details and data flow.
-3. Main building blocks from the DeepTab implementation.
-4. Configuration and practical usage guidance.
-5. Research notes, limitations, and references.
-
 ## Available Models
 
-| Model | Core Idea | Best Research Use | Main Cost Driver |
-| ----- | --------- | ----------------- | ---------------- |
-| [ModernNCA](modernnca) | Differentiable nearest-neighbor prediction in a learned representation space | Testing whether local similarity structure helps a dataset | Pairwise distance to candidate rows |
-| [Tangos](tangos) | MLP with gradient-attribution specialization and orthogonalization penalties | Studying regularization of dense tabular networks | Jacobian computation during training |
-| [Trompt](trompt) | Prompt-style recurrent tabular representation cells | Evaluating prompt-inspired tabular architectures | Prompt-feature importance maps over cycles |
+| Model                  | Core Idea                                                                    | Best Research Use                                          | Main Cost Driver                           |
+| ---------------------- | ---------------------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------------ |
+| [ModernNCA](modernnca) | Differentiable nearest-neighbor prediction in a learned representation space | Testing whether local similarity structure helps a dataset | Pairwise distance to candidate rows        |
+| [Tangos](tangos)       | MLP with gradient-attribution specialization and orthogonalization penalties | Studying regularization of dense tabular networks          | Jacobian computation during training       |
+| [Trompt](trompt)       | Prompt-style recurrent tabular representation cells                          | Evaluating prompt-inspired tabular architectures           | Prompt-feature importance maps over cycles |
 
 ## Quick Usage
 
@@ -52,12 +40,12 @@ trompt = TromptClassifier(
 
 ## Selection Guidance
 
-| If your research question is... | Start with | Compare against |
-| ------------------------------- | ---------- | --------------- |
-| Does a learned local-neighbor rule beat parametric prediction? | ModernNCA | TabR, TabM, ResNet |
-| Can attribution-based regularization improve a plain MLP? | Tangos | MLP, ResNet, TabM |
-| Do prompt-style latent records help tabular feature aggregation? | Trompt | FTTransformer, Mambular, TabM |
-| Do I need a reliable model for production today? | Stable model zoo | Mambular, TabM, ResNet, FTTransformer |
+| If your research question is...                                  | Start with       | Compare against                       |
+| ---------------------------------------------------------------- | ---------------- | ------------------------------------- |
+| Does a learned local-neighbor rule beat parametric prediction?   | ModernNCA        | TabR, TabM, ResNet                    |
+| Can attribution-based regularization improve a plain MLP?        | Tangos           | MLP, ResNet, TabM                     |
+| Do prompt-style latent records help tabular feature aggregation? | Trompt           | FTTransformer, Mambular, TabM         |
+| Do I need a reliable model for production today?                 | Stable model zoo | Mambular, TabM, ResNet, FTTransformer |
 
 ```{important}
 When benchmarking an experimental model, include at least one tuned simple baseline such as MLP, ResNet, or TabM. Otherwise it is hard to tell whether the experimental mechanism adds value beyond optimization and preprocessing.
