@@ -1,55 +1,82 @@
 # Stable Models
 
 ```{important}
-**Production-Ready Architectures**
-
-All stable models have frozen APIs covered by semantic versioning. Safe for production use with guaranteed backward compatibility.
+Stable model APIs are intended for production use. The pages in this section describe the model idea, the actual DeepTab implementation, and the configuration settings that matter when selecting a model for experiments.
 ```
 
-DeepTab provides **15 battle-tested deep learning architectures** for tabular data, each optimized for different use cases. All models support:
+DeepTab's stable model zoo contains 15 supervised architectures for classification, regression, and distributional regression. They cover four broad design families:
 
-- **Classification** (binary and multiclass)
-- **Regression** (continuous targets)
-- **Distributional Regression** (uncertainty quantification)
+```{toctree}
+:hidden:
+:maxdepth: 1
 
-## Available Stable Models
+mlp
+resnet
+tabm
+fttransformer
+tabtransformer
+saint
+autoint
+mambular
+mambatab
+mambattention
+tabularnn
+node
+enode
+ndtf
+tabr
+```
 
-| Category               | Model                            | Description                                    |
-| ---------------------- | -------------------------------- | ---------------------------------------------- |
-| **State Space Models** | [Mambular](mambular)             | Sequential processing with Mamba blocks        |
-|                        | [MambaTab](mambatab)             | Joint processing variant                       |
-|                        | [MambAttention](mambattention)   | Hybrid Mamba-Attention architecture            |
-| **Transformers**       | [FTTransformer](fttransformer)   | Feature Tokenizer + Transformer                |
-|                        | [TabTransformer](tabtransformer) | Categorical feature embeddings                 |
-|                        | [SAINT](saint)                   | Self-Attention + Intersample Attention         |
-| **Residual Networks**  | [ResNet](resnet)                 | Classic residual architecture for tabular data |
-|                        | [MLP](mlp)                       | Multi-layer perceptron baseline                |
-| **Tree-Based Neural**  | [NODE](node)                     | Neural Oblivious Decision Ensembles            |
-|                        | [ENODE](enode)                   | Enhanced NODE with feature selection           |
-|                        | [NDTF](ndtf)                     | Neural Decision Tree Forest                    |
-| **Other**              | [TabM](tabm)                     | Efficient architecture for large-scale data    |
-|                        | [TabR](tabr)                     | Retrieval-augmented predictions                |
-|                        | [AutoInt](autoint)               | Automatic feature interaction learning         |
-|                        | [TabulaRNN](tabularnn)           | Recurrent architecture for sequential features |
+| Family | Models | Use when |
+| --- | --- | --- |
+| MLP and residual baselines | [MLP](mlp), [ResNet](resnet), [TabM](tabm) | You need strong, fast baselines or parameter-efficient ensembles. |
+| Transformer and attention models | [FTTransformer](fttransformer), [TabTransformer](tabtransformer), [SAINT](saint), [AutoInt](autoint) | Feature interactions are important and the dataset is large enough to support attention layers. |
+| State-space and recurrent sequence models | [Mambular](mambular), [MambaTab](mambatab), [MambAttention](mambattention), [TabulaRNN](tabularnn) | You want to treat columns as a sequence and compare Mamba/RNN-style inductive biases. |
+| Neural tree and retrieval models | [NODE](node), [ENODE](enode), [NDTF](ndtf), [TabR](tabr) | You want differentiable tree structure, ensemble behavior, or train-set retrieval at prediction time. |
 
-## Quick Start
+## Selection Guide
+
+Start with **TabM**, **MLP**, or **ResNet** when building a baseline suite. These models are fast, robust, and usually easier to tune than attention-heavy models.
+
+Use **FTTransformer** when you want a standard feature-token Transformer that embeds both numerical and categorical columns. Use **TabTransformer** when categorical interactions are central; DeepTab's implementation requires categorical features and concatenates normalized numerical features after the categorical Transformer.
+
+Use **Mambular** or **MambAttention** when you want to evaluate state-space sequence modeling over feature tokens. Use **MambaTab** mainly as a lightweight projected-feature baseline in the current implementation; the model object defines a Mamba block, but the current forward path does not apply it.
+
+Use **TabR** when train-set neighbors are expected to carry useful local signal and you can afford candidate retrieval. Use **NODE**, **ENODE**, or **NDTF** when you want differentiable tree/forest inductive bias inside a neural training loop.
+
+## Common Usage Pattern
 
 ```python
-from deeptab.models import MambularClassifier
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+from deeptab.models import MLPClassifier
 
-# Import any stable model
-model = MambularClassifier()
-model.fit(X_train, y_train, max_epochs=50)
+model = MLPClassifier(
+    model_config=MLPConfig(layer_sizes=[256, 128, 32], dropout=0.2),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
+    random_state=101,
+)
+
+model.fit(X_train, y_train)
 predictions = model.predict(X_test)
 ```
 
-## Choosing a Model
+## Config Layers
 
-```{tip}
-Start with **Mambular** for most tasks. It's our most robust general-purpose model.
-```
+DeepTab 2.x separates model, preprocessing, and training settings:
 
-Not sure which model to use? See:
+| Config object | Contains |
+| --- | --- |
+| `*Config` model configs | Architecture fields such as width, depth, dropout, embeddings, heads, pooling, and ensemble size. |
+| `PreprocessingConfig` | Numerical/categorical preprocessing choices such as standard scaling, quantile transforms, bins, and categorical encoding. |
+| `TrainerConfig` | Optimizer and training-loop settings such as learning rate, batch size, epochs, patience, and weight decay. |
 
-- **[Comparison Tables](../comparison_tables)** — Performance and complexity analysis
-- **[Recommended Configs](../recommended_configs)** — Dataset-specific guidance
+## Research Context
+
+The stable zoo intentionally includes simple baselines and specialized models. This is important for tabular research: several broad evaluations show that plain MLP/ResNet-style models, FT-Transformer, retrieval, and tree-based baselines can trade places depending on dataset size, feature types, preprocessing, and tuning budget.
+
+Useful starting references:
+
+- Gorishniy et al., [Revisiting Deep Learning Models for Tabular Data](https://arxiv.org/abs/2106.11959).
+- Shwartz-Ziv and Armon, [Tabular Data: Deep Learning is Not All You Need](https://arxiv.org/abs/2106.03253).
+- Gorishniy et al., [TabM: Advancing Tabular Deep Learning with Parameter-Efficient Ensembling](https://arxiv.org/abs/2410.24210).
