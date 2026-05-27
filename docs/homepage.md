@@ -38,6 +38,7 @@ Hands-on examples with Google Colab:
 - **[Regression Tutorial](tutorials/regression)** — Standard regression with TabR
 - **[Distributional Regression (LSS)](tutorials/distributional)** — Full distribution prediction
 - **[Experimental Models](tutorials/experimental)** — Using cutting-edge architectures
+- **[Model Efficiency Benchmarking](tutorials/model_efficiency)** — Runtime and memory workflow
 
 ### 🤖 Model Zoo
 
@@ -45,6 +46,7 @@ Choose the right model for your task:
 
 - **[Model Selection Guide](model_zoo/comparison_tables)** — Quick start and decision tree
 - **[Comparison Tables](model_zoo/comparison_tables)** — Performance across dimensions
+- **[Efficiency & Benchmarking](model_zoo/efficiency)** — Runtime and memory benchmarking guidance
 - **[Recommended Configs](model_zoo/recommended_configs)** — Hyperparameter recipes
 
 **Browse by category:**

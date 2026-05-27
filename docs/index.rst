@@ -36,6 +36,7 @@
    tutorials/regression
    tutorials/distributional
    tutorials/experimental
+   tutorials/model_efficiency
 
 .. toctree::
    :caption: Model Zoo
@@ -43,6 +44,7 @@
    :hidden:
 
    model_zoo/comparison_tables
+   model_zoo/efficiency
    model_zoo/recommended_configs
    model_zoo/stable/index
    model_zoo/experimental/index

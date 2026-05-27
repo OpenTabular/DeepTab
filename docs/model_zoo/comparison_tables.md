@@ -6,6 +6,10 @@ Architectural comparison and computational characteristics of DeepTab's model zo
 **Focus on architecture:** This document emphasizes computational complexity, architectural design, and qualitative comparisons. Quantitative performance benchmarks will be added when systematic experiments are completed.
 ```
 
+```{seealso}
+For practical timing and memory measurement guidance, see [Model Efficiency and Benchmarking](efficiency). For a runnable workflow, use the [Model Efficiency Benchmarking tutorial](../tutorials/model_efficiency) and its notebook at `docs/tutorials/notebooks/model_efficiency.ipynb`.
+```
+
 ## Computational Characteristics
 
 The table below reports dominant forward-pass scaling for a batch. It is a practical guide, not a FLOP-count benchmark.
@@ -227,4 +231,5 @@ Key papers used for the comparison:
 ## See Also
 
 - [Recommended Configs](recommended_configs) — Hyperparameter guidelines
+- [Model Efficiency and Benchmarking](efficiency) — Runtime and memory benchmarking protocol
 - [Model Tiers](../core_concepts/model_tiers) — Stable vs experimental

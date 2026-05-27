@@ -446,6 +446,7 @@ Use this checklist when presenting DeepTab results.
 - Report DeepTab version/commit, PyTorch version, device, and random seeds.
 - State whether hyperparameters were chosen by validation, cross-validation, or fixed defaults.
 - Include the trial budget and early-stopping patience.
+- Include runtime or memory measurements when model efficiency is part of the claim.
 - Include tuned MLP/ResNet/TabM baselines when evaluating a new architecture.
 - For attention models, report feature-token count and batch size.
 - For retrieval models, report candidate-pool construction and context size.
@@ -471,4 +472,5 @@ The recommendations above are grounded in DeepTab's current config API and in th
 ## See Also
 
 - [Model Comparison](comparison_tables) — Architecture and complexity comparison
+- [Model Efficiency and Benchmarking](efficiency) — Runtime and memory measurement protocol
 - [Config System](../core_concepts/config_system) — Configuration API details
