@@ -89,6 +89,16 @@ def classification_data():
 
 
 @pytest.fixture(scope="module")
+def binary_classification_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = np.where(y_cont > np.median(y_cont), 1, 0)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
 def regression_data():
     rng = np.random.default_rng(RANDOM_STATE)
     X = rng.standard_normal((N_SAMPLES, N_FEATURES))
@@ -148,6 +158,10 @@ def test_classifier_fit_predict_shape(cls, classification_data):
     model = cls()
     model.fit(X_train, y_train, **FIT_KWARGS)
 
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
+    np.testing.assert_array_equal(model.classes_, np.unique(y_train))
+
     preds = model.predict(X_test)
     assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
     assert set(preds).issubset(set(range(N_CLASSES))), f"{cls.__name__}.predict returned out-of-range labels"
@@ -180,6 +194,30 @@ def test_classifier_evaluate_returns_dict(cls, classification_data):
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
 
 
+def test_classifier_binary_predict_proba_and_score(binary_classification_data):
+    X_train, X_test, y_train, y_test = binary_classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    preds = model.predict(X_test)
+    proba = model.predict_proba(X_test)
+    score = model.score(X_test, y_test)
+
+    assert set(preds).issubset({0, 1})
+    assert proba.shape == (len(X_test), 2)
+    np.testing.assert_allclose(proba.sum(axis=1), np.ones(len(X_test)), atol=1e-5)
+    assert 0.0 <= score <= 1.0
+
+
+def test_predict_validates_feature_names(classification_data):
+    X_train, X_test, y_train, _y_test = classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with pytest.raises(ValueError, match="feature names"):
+        model.predict(X_test[X_test.columns[::-1]])
+
+
 # ---------------------------------------------------------------------------
 # Regressor tests
 # ---------------------------------------------------------------------------
@@ -208,8 +246,11 @@ def test_regressor_fit_predict_shape(cls, regression_data):
     model = cls()
     model.fit(X_train, y_train, **FIT_KWARGS)
 
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
+
     preds = model.predict(X_test)
-    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected shape"
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
     assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
 
 
@@ -251,6 +292,9 @@ def test_lss_fit_predict_shape(cls, regression_data):
     X_train, X_test, y_train, _y_test = regression_data
     model = cls()
     model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
 
     preds = model.predict(X_test)
     # predict returns the location parameter for the normal family

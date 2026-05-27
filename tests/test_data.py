@@ -143,6 +143,17 @@ class TestTabularDatasetContract:
         for feat in num_features:
             assert feat.dtype == torch.float32
 
+    def test_dataset_getitem_reuses_tensor_views(self, simple_tensors):
+        """Test __getitem__ avoids cloning tensors in the hot path."""
+        num_feats, cat_feats, embeddings, labels = simple_tensors
+        dataset = TabularDataset(cat_feats, num_feats, embeddings, labels)
+
+        features, _ = dataset[0]  # type: ignore[misc]
+        num_features, _cat_features, emb_features = features
+
+        assert num_features[0].untyped_storage().data_ptr() == num_feats[0].untyped_storage().data_ptr()
+        assert emb_features[0].untyped_storage().data_ptr() == embeddings[0].untyped_storage().data_ptr()
+
     def test_dataset_embeddings_are_float32(self, simple_tensors):
         """Test embeddings are converted to float32."""
         num_feats, cat_feats, embeddings, labels = simple_tensors
@@ -247,6 +258,37 @@ class TestTabularDataModuleContract:
 
         assert len(datamodule.X_train) == 150  # type: ignore[arg-type]
         assert len(datamodule.X_val) == 50  # type: ignore[arg-type]
+
+    def test_datamodule_fits_preprocessor_on_training_split_only(self, regression_data):
+        """Test validation data is transformed only and not used to fit preprocessing."""
+
+        class RecordingPreprocessor:
+            def fit(self, X, y, embeddings=None):
+                self.fit_rows = len(X)
+                self.fit_index = list(X.index)
+                self.fit_y_rows = len(y)
+                self.fit_embeddings = embeddings
+                return self
+
+            def get_feature_info(self):
+                return {}, {}, None
+
+        X, y = regression_data
+        X_train, X_val = X.iloc[:150], X.iloc[150:]
+        y_train, y_val = y[:150], y[150:]
+        preprocessor = RecordingPreprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=True,
+            regression=True,
+        )
+
+        datamodule.preprocess_data(X_train, y_train, X_val, y_val)
+
+        assert preprocessor.fit_rows == len(X_train)
+        assert preprocessor.fit_y_rows == len(y_train)
+        assert preprocessor.fit_index == list(X_train.index)
 
     def test_datamodule_stratified_split_for_classification(self, classification_data):
         """Test datamodule uses stratified split for classification."""

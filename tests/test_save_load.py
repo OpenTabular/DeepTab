@@ -64,6 +64,7 @@ def test_regressor_save_load_predictions(regression_data):
     model.fit(X_train, y_train, **FIT_KWARGS)
 
     preds_before = model.predict(X_test)
+    assert preds_before.shape == (len(X_test),)
 
     with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
         tmp_path = f.name
@@ -116,8 +117,12 @@ def test_classifier_save_load_predictions(classification_data):
     assert bundle["artifact_metadata"]["feature_schema"]["column_order"] == list(X_train.columns)
     assert bundle["artifact_metadata"]["task"]["task"] == "classification"
     assert bundle["artifact_metadata"]["versions"]["packages"]["torch"] is not None
+    assert bundle["n_features_in_"] == X_train.shape[1]
+    np.testing.assert_array_equal(bundle["feature_names_in_"], np.asarray(X_train.columns, dtype=object))
     np.testing.assert_array_equal(bundle["classes_"], model.classes_)
     assert loaded.input_columns_ == list(X_train.columns)
+    assert loaded.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(loaded.feature_names_in_, np.asarray(X_train.columns, dtype=object))
     assert loaded.task_info_["task"] == "classification"
     np.testing.assert_array_equal(loaded.classes_, model.classes_)
 
