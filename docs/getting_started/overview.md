@@ -18,6 +18,7 @@ DeepTab provides 15 stable neural architectures for tabular data:
 
 ```{important}
 **All models support three tasks:**
+
 - Classification (binary/multiclass)
 - Regression (continuous)
 - Distributional regression (uncertainty quantification)
@@ -52,6 +53,7 @@ search.fit(X, y)
 
 ```{note}
 **Automatic preprocessing:**
+
 - Feature type detection (numerical/categorical)
 - Missing value handling
 - Scaling and encoding
@@ -85,6 +87,7 @@ Built for real-world messiness:
 
 ```{tip}
 **Good fit when you have:**
+
 - Tabular data with mixed feature types
 - 1000+ samples where deep learning excels
 - Complex feature interactions
@@ -94,6 +97,7 @@ Built for real-world messiness:
 
 ```{warning}
 **Consider alternatives for:**
+
 - Very small datasets (<1000 samples) → try simpler models
 - Out-of-core datasets → consider XGBoost/LightGBM
 - Pure categorical data → tree methods may be faster
@@ -104,6 +108,7 @@ Built for real-world messiness:
 
 ```{important}
 **Key improvements:**
+
 - Fully typed data layer with `TabularBatch`, `TabularDataset`, `FeatureSchema`
 - Automatic stratified splits for classification
 - Enhanced preprocessing with `pretab` integration

@@ -16,13 +16,19 @@ Key changes in v2.0:
 - **Consistent label shapes** across tasks
 - Deprecated `MambularDataset`/`MambularDataModule` aliases (use `TabularDataset`/`TabularDataModule`)
 
-> **Note on v1 support**: DeepTab v1 is no longer supported following the v2.0 release. The changes in package structure and API design were substantial enough that maintaining backward compatibility would have compromised the improvements in v2. If you're using v1 in production, we recommend planning a migration to v2. Pin your dependency to `deeptab<2.0` if you need to continue using v1, but be aware that no bug fixes or security updates will be provided for the v1 branch.
+```{important}
+**Note on v1 support**: DeepTab v1 is no longer supported following the v2.0 release. The changes in package structure and API design were substantial enough that maintaining backward compatibility would have compromised the improvements in v2. If you're using v1 in production, we recommend planning a migration to v2. Pin your dependency to `deeptab<2.0` if you need to continue using v1, but be aware that no bug fixes or security updates will be provided for the v1 branch.
+```
 
 See the [Overview](overview) for details on the new data API.
 
 ### Which model should I use?
 
-Start with `MambularClassifier` or `MambularRegressor` as a default. Mambular tends to work well across a variety of tabular problems.
+```{tip}
+When in doubt, start with `MambularClassifier` or `MambularRegressor`.
+```
+
+Mambular tends to work well across a variety of tabular problems.
 
 If you want to experiment:
 
@@ -49,6 +55,10 @@ print(f"CUDA available: {torch.cuda.is_available()}")
 DeepTab will automatically use the first available GPU. If CUDA is available but you're not seeing speedups, ensure you're training on a reasonably large dataset—small batches may not benefit from GPU parallelism.
 
 ### Can I use DeepTab with PyTorch dataloaders?
+
+```{note}
+The high-level API uses `TabularDataModule` internally, but you can access `TabularDataset` directly for custom data loading.
+```
 
 Yes. The internal `TabularDataModule` creates PyTorch `DataLoader` instances. If you need custom data loading logic, you can use `TabularDataset` directly:
 
@@ -78,7 +88,11 @@ DeepTab automatically handles:
 
 ### How do I handle missing values?
 
-DeepTab handles missing values internally during preprocessing. You don't need to impute manually:
+```{tip}
+No manual imputation needed! DeepTab handles missing values automatically.
+```
+
+DeepTab handles missing values internally during preprocessing:
 
 ```python
 # DataFrame with missing values
@@ -162,6 +176,10 @@ model.fit(df, y, max_epochs=50)
 
 ### How do I speed up training?
 
+```{tip}
+Combine GPU acceleration with larger batch sizes and early stopping for fastest training.
+```
+
 Several options:
 
 1. **Use a GPU** — Install CUDA-enabled PyTorch
@@ -180,8 +198,13 @@ model = MambularClassifier(
     )
 )
 ```
+```
 
 ### Training is slow on GPU
+
+```{note}
+GPUs need larger batch sizes to show speedup over CPU. Small batches or datasets may run faster on CPU.
+```
 
 Ensure you're using GPU:
 
@@ -260,6 +283,10 @@ For custom metrics, use Lightning callbacks (advanced usage—see Lightning docs
 
 ### `CUDA out of memory`
 
+```{warning}
+GPU memory errors usually indicate batch size is too large for your GPU.
+```
+
 Reduce batch size:
 
 ```python
@@ -273,10 +300,18 @@ model = MambularClassifier(
 Or force CPU training:
 
 ```python
-trainer_config=TrainerConfig(device="cpu")
+from deeptab.configs import TrainerConfig
+
+model = MambularClassifier(
+    trainer_config=TrainerConfig(device="cpu")
+)
 ```
 
 ### `ValueError: could not convert string to float`
+
+```{tip}
+This usually means categorical features weren't properly detected. Explicitly set dtypes.
+```
 
 This happens when categorical features are not properly encoded. Ensure they have the right dtype:
 
@@ -310,6 +345,10 @@ pip install --upgrade deeptab
 
 ### Training is unstable (loss explodes)
 
+```{warning}
+Exploding gradients indicate learning rate may be too high or data has extreme values.
+```
+
 Try reducing learning rate:
 
 ```python
@@ -320,15 +359,23 @@ model = MambularClassifier(
 )
 ```
 
-Or enable gradient clipping (default is already enabled at 1.0):
+Or enable stronger gradient clipping (default is already enabled at 1.0):
 
 ```python
-trainer_config=TrainerConfig(gradient_clip_val=0.5)
+from deeptab.configs import TrainerConfig
+
+model = MambularClassifier(
+    trainer_config=TrainerConfig(gradient_clip_val=0.5)  # Stronger clipping
+)
 ```
 
 ### `RuntimeError: Expected all tensors to be on the same device`
 
-This usually happens when using custom training loops. Ensure all tensors are on the same device:
+```{note}
+The high-level estimator API handles device management automatically. This error typically occurs only with custom training loops.
+```
+
+Ensure all tensors are on the same device:
 
 ```python
 batch = batch.to("cuda")  # Move entire batch
@@ -348,6 +395,10 @@ Both use Mamba (State Space Model) blocks, but differ in how they process featur
 Mambular tends to work better for datasets where feature order matters or where you want to learn sequential dependencies.
 
 ### When should I use distributional regression (LSS)?
+
+```{tip}
+Use LSS models when you need uncertainty estimates, not just point predictions.
+```
 
 Use `LSS` models when you need:
 

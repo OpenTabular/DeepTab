@@ -89,6 +89,7 @@ clf.fit(X_train, y_train, max_epochs=50)
 
 ```{important}
 DeepTab handles preprocessing automatically:
+
 - Feature type detection (numerical/categorical)
 - Encoding and scaling
 - Missing value handling
@@ -143,6 +144,7 @@ upper = params[:, 0] + 1.96 * params[:, 1]
 
 ```{tip}
 **Use distributional regression when:**
+
 - You need prediction intervals
 - Uncertainty varies across the input space
 - Risk-aware decisions are important
@@ -207,6 +209,7 @@ model = TabulaRNNRegressor(
 
 ```{tip}
 **Great fit:**
+
 - Tabular data with mixed types (numerical + categorical)
 - 1000+ samples where deep learning shines
 - Complex feature interactions
@@ -216,6 +219,7 @@ model = TabulaRNNRegressor(
 
 ```{warning}
 **Consider alternatives:**
+
 - <1000 samples → simpler models
 - Out-of-core datasets → XGBoost/LightGBM
 - Pure categorical → tree methods

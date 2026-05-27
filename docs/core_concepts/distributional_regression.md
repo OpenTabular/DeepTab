@@ -24,6 +24,7 @@ This provides both **expected value** and **uncertainty**.
 
 ```{important}
 **Key use cases:**
+
 - Uncertainty quantification (know when predictions are confident)
 - Prediction intervals (95% confidence bounds)
 - Heteroscedastic noise (varying noise levels across input space)

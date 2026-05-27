@@ -138,6 +138,7 @@ Models enter experimental status when:
 
 ```{note}
 **Promotion criteria:** Models graduate from experimental to stable when they demonstrate:
+
 - ✅ Proven performance on diverse benchmarks
 - ✅ Mature, well-designed API
 - ✅ Comprehensive test coverage
