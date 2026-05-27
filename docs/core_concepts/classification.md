@@ -22,6 +22,18 @@ For hands-on examples and complete workflows, see the [Classification Tutorial](
 String labels like `["cat", "dog", "bird"]` must be converted to integers `[0, 1, 2]` first.
 ```
 
+````{note}
+**Label shape:** Binary labels are automatically reshaped internally if needed:
+```python
+# Both work - automatically handled
+y_train = np.array([0, 1, 0, 1])  # Shape: (4,) → internally (4, 1)
+y_train = np.array([[0], [1], [0], [1]])  # Shape: (4, 1)
+````
+
+This is only relevant if using `TabularDataModule` directly—the high-level estimator API handles it automatically.
+
+````
+
 ## Probability Outputs
 
 All classifiers support both hard predictions and probability estimates:
@@ -29,7 +41,7 @@ All classifiers support both hard predictions and probability estimates:
 ```python
 predictions = model.predict(X_test)       # Class labels: [0, 1, 0, ...]
 probabilities = model.predict_proba(X_test)  # [[0.9, 0.1], [0.3, 0.7], ...]
-```
+````
 
 **Custom decision thresholds:**
 
@@ -119,14 +131,6 @@ For imbalanced data, use balanced metrics (F1, balanced accuracy, ROC-AUC) inste
 - [Training and Evaluation](training_and_evaluation) — Training loop details
 - [sklearn API](sklearn_api) — Method signatures and integration
 
-# Binary (automatically reshaped internally if needed)
-
-y_train = np.array([0, 1, 0, 1]) # Shape: (4,) → internally (4, 1)
-
-````
-
-The high-level estimator API handles this automatically. Only relevant if using `TabularDataModule` directly.
-
 ## Comparing architectures
 
 Try different models on the same data:
@@ -155,7 +159,7 @@ for name, model in models.items():
 # Best model
 best = max(results, key=results.get)
 print(f"Best: {best} ({results[best]:.3f})")
-````
+```
 
 ## Hyperparameter tuning
 

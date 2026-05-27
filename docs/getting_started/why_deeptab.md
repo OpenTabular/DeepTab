@@ -81,7 +81,7 @@ lss = MambularLSS()
 clf.fit(X_train, y_train, max_epochs=50)
 ```
 
-```{note stable architectures support all three tasks.** Switch models by changing one import—from MLP to FTTransformer to Mambular—the API stays the same
+```{note}
 **All 15+ architectures support all three tasks.** Try different models by changing one import.
 ```
 

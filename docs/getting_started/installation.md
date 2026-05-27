@@ -15,10 +15,11 @@ This installs DeepTab with all dependencies including PyTorch, Lightning, and pr
 
 ````{note}
 Verify installation:
-\```python
+```python
 import deeptab
 print(deeptab.__version__)  # e.g., "2.0.0"
-\```
+````
+
 ````
 
 ## GPU Support
@@ -30,22 +31,24 @@ DeepTab automatically detects and uses your GPU—no configuration needed.
 ```python
 import torch
 print(f"GPU available: {torch.cuda.is_available()}")
-```
+````
 
 ````{warning}
 If you have a GPU but CUDA isn't detected, install PyTorch with CUDA support first:
-\```bash
+```bash
 pip install torch --index-url https://download.pytorch.org/whl/cu118
 pip install deeptab
-\```
+````
+
 See [PyTorch installation guide](https://pytorch.org/get-started/locally/) for your CUDA version.
+
 ````
 
 **Multiple GPUs:**
 
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1  # Use specific GPUs
-```
+````
 
 ## Development Installation
 
