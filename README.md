@@ -122,19 +122,19 @@ All models come in three variants:
 
 **Basic installation:**
 
-````bash
+```bash
 pip install deeptab
-```recommended for best performance):**
+```
+
+**With Mamba SSM (recommended for best performance):**
 
 ```bash
 pip install deeptab[mamba]
-````
+```
 
 > **💻 Requirements:** Python 3.10+, PyTorch 2.0+, Lightning 2.3.3+
 
-> **🚀 GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup
-
-See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for GPU setup and troubleshooting.
+> **🚀 GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
 ## 🚀 Usage
 
@@ -142,10 +142,6 @@ See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_starte
 
 ```python
 from deeptab.models import MambularClassifier
-
-# 1. Initialize with configuration
-model = MambularClassifier(
-    model_config={"d_model": 64, "n_layers": 6},
 from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 # 1. Initialize with configuration (optional - defaults work well!)
@@ -167,6 +163,17 @@ predictions = model.predict(X_test)
 probabilities = model.predict_proba(X_test)
 
 # 4. Evaluate
+metrics = model.evaluate(X_test, y_test)
+```
+
+> **💡 Tip:** Start with defaults (`MambularClassifier()`) and tune only if needed. See [Recommended Configs](https://deeptab.readthedocs.io/en/latest/model_zoo/recommended_configs.html) for guidance.
+
+### Hyperparameter Tuning
+
+DeepTab models are sklearn-compatible, so you can use `GridSearchCV`:
+
+```python
+from sklearn.model_selection import GridSearchCV
 from deeptab.models import MambularClassifier
 
 param_grid = {
@@ -186,21 +193,18 @@ print(f"Best params: {search.best_params_}")
 print(f"Best score: {search.best_score_}")
 ```
 
-> **🔍 Built-in HPO:** DeepTab also supports Optuna for Bayesian optimization. See [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).nt(search.best*params*)
-
-````
-
-Or use built-in Bayesian optimization:
-
-```python
-best_params = model.optimize_hparams(X_train, y_train)
-````
+> **🔍 Built-in HPO:** DeepTab also supports Optuna for Bayesian optimization. See [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
 
 ### Distributional Regression (LSS)
 
 Predict full distributions instead of point estimates:
 
-```python, max_epochs=50)
+```python
+from deeptab.models import MambularLSS
+
+# Fit with a distribution family
+model = MambularLSS()
+model.fit(X_train, y_train, family="normal", max_epochs=50)
 
 # Predict distribution parameters
 params = model.predict(X_test)  # Returns dict with "loc", "scale", etc.
@@ -216,20 +220,12 @@ intervals = model.predict_quantiles(X_test, quantiles=[0.025, 0.975])
 
 > **📖 Learn more:** [Distributional Regression Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/distributional.html)
 
-````
-
-**Available distributions:** normal, gamma, poisson, beta, studentt, negativebinom, dirichlet, quantile, and more.
-
-See [Distributional Regression Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/distributional.html) for details.
-
 ## 🔧 Advanced Features
 
 ### Preprocessing
 
 DeepTab includes comprehensive preprocessing powered by [PreTab](https://github.com/OpenTabular/PreTab):
 
-- **Automatic detection**: Feature types detected automatically
-- **Feature-specific**: Different preprocessing per feature
 ```python
 from deeptab.configs import PreprocessingConfig
 from deeptab.models import MambularClassifier
@@ -242,7 +238,7 @@ prep_config = PreprocessingConfig(
 
 model = MambularClassifier(preprocessing_config=prep_config)
 model.fit(X_train, y_train, max_epochs=50)
-````
+```
 
 > **✨ Features:**
 >
@@ -251,17 +247,26 @@ model.fit(X_train, y_train, max_epochs=50)
 > - **Methods:** PLE, quantile transform, spline encoding, polynomial features
 > - **Pre-trained encodings:** Transfer learning for categorical features
 
-> **📖 Learn more:** [Preprocessing Guide](https://deeptab.readthedocs.io/en/latest/core_concepts/preprocessing.html) Custom Models
-> import torch.nn as nn
+> **📖 Learn more:** [Preprocessing Guide](https://deeptab.readthedocs.io/en/latest/core_concepts/preprocessing.html)
+
+### Custom Models
+
+Implement your own architecture with DeepTab's base classes:
+
+```python
+from deeptab.base_models import BaseModel
+from deeptab.models import SklearnBaseRegressor
+import torch.nn as nn
 
 class MyCustomModel(BaseModel):
-def **init**(self, feature_schema, num_classes, config, **kwargs):
-super().**init**(**kwargs) # Define your architecture
-self.encoder = nn.Sequential(
-nn.Linear(config.d_model, config.d_model),
-nn.ReLU(),
-nn.Linear(config.d_model, num_classes)
-)
+    def __init__(self, feature_schema, num_classes, config, **kwargs):
+        super().__init__(**kwargs)
+        # Define your architecture
+        self.encoder = nn.Sequential(
+            nn.Linear(config.d_model, config.d_model),
+            nn.ReLU(),
+            nn.Linear(config.d_model, num_classes)
+        )
 
     def forward(self, batch):
         # Define forward pass
@@ -269,23 +274,15 @@ nn.Linear(config.d_model, num_classes)
         return self.encoder(x)
 
 class MyRegressor(SklearnBaseRegressor):
-def **init**(self, **kwargs):
-super().**init**(model=MyCustomModel, **kwargs)
-
-# Use like any other DeepTab model
-
-model = MyRegressor()
-model.fit(X_train, y_train, max_epochs=50)
-
-```
-
-> **🛠️ Developer Guide:** See [Contributing](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for architecture guideline
-class MyRegressor(SklearnBaseRegressor):
     def __init__(self, **kwargs):
         super().__init__(model=MyCustomModel, **kwargs)
+
+# Use like any other DeepTab model
+model = MyRegressor()
+model.fit(X_train, y_train, max_epochs=50)
 ```
 
-See [Developer Guide](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for details.
+> **🛠️ Developer Guide:** See [Contributing](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for architecture guidelines.
 
 <!-- END SHARED CONTENT -->
 
@@ -298,6 +295,13 @@ If you use DeepTab in your research, please cite:
   title={Mambular: A Sequential Model for Tabular Deep Learning},
   author={Thielmann, Anton and Weisser, Christoph and Kre{\ss}in, Arik and Reuter, Fabio and Kruse, Julius and Ben Amor, Farnoosh and Jungbluth, Tobias and dos Anjos, Antonia and Salkuti, Bhavya and S{\"a}fken, Benjamin},
   journal={arXiv preprint arXiv:2408.06291},
+  year={2024}
+}
+
+@article{thielmann2024efficiency,
+  title={On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning},
+  author={Thielmann, Anton Frederik and Samiee, Soheila},
+  journal={arXiv preprint arXiv:2411.17207},
   year={2024}
 }
 ```
