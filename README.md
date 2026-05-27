@@ -254,28 +254,56 @@ model.fit(X_train, y_train, max_epochs=50)
 Implement your own architecture with DeepTab's base classes:
 
 ```python
-from deeptab.base_models import BaseModel
-from deeptab.models import SklearnBaseRegressor
 import torch.nn as nn
+from deeptab.core import BaseModel
+from deeptab.models import SklearnBaseRegressor
+from deeptab.configs import PreprocessingConfig, TrainerConfig
+
+class MyCustomConfig:
+    def __init__(self, d_model=64, dropout=0.1):
+        self.d_model = d_model
+        self.dropout = dropout
 
 class MyCustomModel(BaseModel):
-    def __init__(self, feature_schema, num_classes, config, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(
+        self,
+        feature_information: tuple,
+        num_classes: int = 1,
+        config: MyCustomConfig = MyCustomConfig(),
+        **kwargs
+    ):
+        super().__init__(config=config, **kwargs)
+        # feature_information = (num_feature_info, cat_feature_info, embedding_feature_info)
+
         # Define your architecture
         self.encoder = nn.Sequential(
             nn.Linear(config.d_model, config.d_model),
             nn.ReLU(),
+            nn.Dropout(config.dropout),
             nn.Linear(config.d_model, num_classes)
         )
 
-    def forward(self, batch):
-        # Define forward pass
-        x = batch["num_features"]  # or batch["cat_features"]
+    def forward(self, num_features, cat_features):
+        # Implement forward pass
+        x = num_features  # Process features as needed
         return self.encoder(x)
 
 class MyRegressor(SklearnBaseRegressor):
-    def __init__(self, **kwargs):
-        super().__init__(model=MyCustomModel, **kwargs)
+    def __init__(
+        self,
+        model_config: MyCustomConfig | None = None,
+        preprocessing_config: PreprocessingConfig | None = None,
+        trainer_config: TrainerConfig | None = None,
+        random_state: int | None = None,
+    ):
+        super().__init__(
+            model=MyCustomModel,
+            config=MyCustomConfig,
+            model_config=model_config,
+            preprocessing_config=preprocessing_config,
+            trainer_config=trainer_config,
+            random_state=random_state,
+        )
 
 # Use like any other DeepTab model
 model = MyRegressor()
