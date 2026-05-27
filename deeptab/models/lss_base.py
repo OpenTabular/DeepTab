@@ -3,7 +3,6 @@ from collections.abc import Callable
 
 import lightning as pl
 import numpy as np
-import pandas as pd
 import properscoring as ps
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
@@ -16,6 +15,7 @@ from tqdm import tqdm
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
 from deeptab.core.serialization import build_artifact_metadata, restore_loaded_metadata
+from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions.base import (
     BetaDistribution,
@@ -339,16 +339,14 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             if weight_decay is None:
                 weight_decay = tc.weight_decay
 
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        self.input_columns_ = list(X.columns)
+        X = ensure_dataframe(X)
+        set_input_feature_attributes(self, X)
         self.classes_ = np.unique(y) if getattr(self, "family_name", None) == "categorical" else None
-        if isinstance(y, pd.Series):
+        if hasattr(y, "values"):
             y = y.values
         if X_val is not None:
-            if not isinstance(X_val, pd.DataFrame):
-                X_val = pd.DataFrame(X_val)
-            if isinstance(y_val, pd.Series):
+            X_val = ensure_dataframe(X_val)
+            if hasattr(y_val, "values"):
                 y_val = y_val.values
 
         self.data_module = TabularDataModule(
@@ -617,9 +615,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
             The predicted target values.
         """
-        # Ensure model and data module are initialized
-        if self.task_model is None or self.data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
+        X = self._validate_predict_input(X)
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X)
@@ -689,6 +685,11 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             scores[metric_name] = metric_func(y_true, predictions)
 
         return scores
+
+    def _validate_predict_input(self, X):
+        if self.task_model is None or self.data_module is None:
+            raise ValueError("The model or data module has not been fitted yet.")
+        return validate_input_features(self, X)
 
     def get_default_metrics(self, distribution_family):
         """Provides default metrics based on the distribution family.
@@ -858,6 +859,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             "preprocessing_metadata": artifact_metadata["preprocessing"],
             "task_info": artifact_metadata["task"],
             "classes_": getattr(self, "classes_", None),
+            "n_features_in_": getattr(self, "n_features_in_", None),
+            "feature_names_in_": getattr(self, "feature_names_in_", None),
             "versions": artifact_metadata["versions"],
         }
         torch.save(bundle, path)

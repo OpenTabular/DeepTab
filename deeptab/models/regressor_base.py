@@ -242,9 +242,7 @@ class SklearnBaseRegressor(SklearnBase):
         predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
             The predicted target values.
         """
-        # Ensure model and data module are initialized
-        if self.task_model is None or self.data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
+        X = self._validate_predict_input(X)
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
@@ -264,7 +262,10 @@ class SklearnBaseRegressor(SklearnBase):
 
         # Convert predictions to NumPy array and return
 
-        return predictions.cpu().numpy()
+        predictions = predictions.cpu().numpy()
+        if predictions.ndim == 2 and predictions.shape[1] == 1:
+            predictions = predictions.ravel()
+        return predictions
 
     def evaluate(self, X, y_true, embeddings=None, metrics=None):
         """Evaluate the model on the given data using specified metrics.

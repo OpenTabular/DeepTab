@@ -2,7 +2,6 @@ import warnings
 from collections.abc import Callable
 
 import numpy as np
-import pandas as pd
 import torch
 from sklearn.metrics import accuracy_score, log_loss
 
@@ -248,9 +247,7 @@ class SklearnBaseClassifier(SklearnBase):
         predictions : ndarray, shape (n_samples,)
             The predicted class labels.
         """
-        # Ensure model and data module are initialized
-        if self.task_model is None or self.data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
+        X = self._validate_predict_input(X)
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
@@ -274,14 +271,18 @@ class SklearnBaseClassifier(SklearnBase):
         if logits.shape[1] == 1:
             # Binary classification
             probabilities = torch.sigmoid(logits)
-            predictions = (probabilities > 0.5).long().squeeze()
+            predictions = (probabilities > 0.5).long().view(-1)
         else:
             # Multi-class classification
             probabilities = torch.softmax(logits, dim=1)
             predictions = torch.argmax(probabilities, dim=1)
 
         # Convert predictions to NumPy array and return
-        return predictions.cpu().numpy()
+        predicted_indices = predictions.cpu().numpy()
+        classes = getattr(self, "classes_", None)
+        if classes is not None and len(classes) > 0:
+            return classes[predicted_indices]
+        return predicted_indices
 
     def predict_proba(self, X, embeddings=None, device=None):
         """Predicts class probabilities for the given input samples.
@@ -296,9 +297,7 @@ class SklearnBaseClassifier(SklearnBase):
         probabilities : ndarray, shape (n_samples, n_classes)
             The predicted class probabilities.
         """
-        # Ensure model and data module are initialized
-        if self.task_model is None or self.data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
+        X = self._validate_predict_input(X)
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
@@ -322,7 +321,8 @@ class SklearnBaseClassifier(SklearnBase):
         if logits.shape[1] > 1:
             probabilities = torch.softmax(logits, dim=1)  # Multi-class classification
         else:
-            probabilities = torch.sigmoid(logits)  # Binary classification
+            positive = torch.sigmoid(logits).view(-1, 1)
+            probabilities = torch.cat([1.0 - positive, positive], dim=1)
 
         # Convert probabilities to NumPy array and return
         return probabilities.cpu().numpy()
@@ -357,9 +357,6 @@ class SklearnBaseClassifier(SklearnBase):
         if metrics is None:
             metrics = {"Accuracy": (accuracy_score, False)}
 
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-
         # Initialize dictionary to store results
         scores = {}
 
@@ -380,7 +377,7 @@ class SklearnBaseClassifier(SklearnBase):
 
         return scores
 
-    def score(self, X, y, embeddings=None, metric=(log_loss, True)):
+    def score(self, X, y, embeddings=None, metric=None):
         """Calculate the score of the model using the specified metric.
 
         Parameters
@@ -389,19 +386,23 @@ class SklearnBaseClassifier(SklearnBase):
             The input samples to predict.
         y : array-like of shape (n_samples,)
             The true class labels against which to evaluate the predictions.
-        metric : tuple, default=(log_loss, True)
+        metric : tuple or callable, optional
             A tuple containing the metric function and a boolean indicating whether
             the metric requires probability scores (True) or class labels (False).
+            If omitted, accuracy is used to match scikit-learn classifier behavior.
 
         Returns
         -------
         score : float
             The score calculated using the specified metric.
         """
-        metric_func, use_proba = metric
+        if metric is None:
+            return accuracy_score(y, self.predict(X, embeddings))
 
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
+        if isinstance(metric, tuple):
+            metric_func, use_proba = metric
+        else:
+            metric_func, use_proba = metric, False
 
         if use_proba:
             probabilities = self.predict_proba(X, embeddings)
