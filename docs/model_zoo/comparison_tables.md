@@ -10,25 +10,38 @@ Architectural comparison and computational characteristics of DeepTab's model zo
 
 **Theoretical complexity and architectural properties:**
 
-| Model          | Parameters (typical) | Inference Complexity | Memory Scaling    | Time Complexity |
-| -------------- | -------------------- | -------------------- | ----------------- | --------------- |
-| Mambular       | 100K-500K            | O(n·d)               | Linear            | O(n·d)          |
-| FTTransformer  | 150K-800K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
-| ResNet         | 50K-300K             | O(n·d)               | Linear            | O(n·d)          |
-| MambaTab       | 50K-200K             | O(n·d)               | Linear            | O(n·d)          |
-| MambAttention  | 200K-1M              | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
-| TabTransformer | 100K-600K            | O(n·f_cat²·d)        | Quadratic (f_cat) | O(n·f_cat²·d)   |
-| SAINT          | 300K-1.5M            | O(n²·f·d)            | Quadratic (n)     | O(n²·f·d)       |
-| TabM           | 80K-400K             | O(n·d)               | Linear            | O(n·d)          |
-| TabR           | 200K-1M              | O(n·k·d)             | Linear            | O(n·k·d)        |
-| MLP            | 30K-200K             | O(n·d)               | Linear            | O(n·d)          |
-| NODE           | 100K-500K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-| ENODE          | 150K-700K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-| NDTF           | 200K-1M              | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
-| TabulaRNN      | 100K-600K            | O(n·l·d)             | Linear            | O(n·l·d)        |
-| AutoInt        | 150K-700K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
+| Category               | Model          | Parameters (typical) | Inference Complexity | Memory Scaling    | Time Complexity |
+| ---------------------- | -------------- | -------------------- | -------------------- | ----------------- | --------------- |
+| **State Space Models** | Mambular       | 100K-500K            | O(n·d)               | Linear            | O(n·d)          |
+|                        | MambaTab       | 50K-200K             | O(n·d)               | Linear            | O(n·d)          |
+|                        | MambAttention  | 200K-1M              | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
+| **Transformers**       | FTTransformer  | 150K-800K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
+|                        | TabTransformer | 100K-600K            | O(n·f_cat²·d)        | Quadratic (f_cat) | O(n·f_cat²·d)   |
+|                        | SAINT          | 300K-1.5M            | O(n²·f·d)            | Quadratic (n)     | O(n²·f·d)       |
+|                        | AutoInt        | 150K-700K            | O(n·f²·d)            | Quadratic (f)     | O(n·f²·d)       |
+| **Residual Networks**  | ResNet         | 50K-300K             | O(n·d)               | Linear            | O(n·d)          |
+|                        | TabR           | 200K-1M              | O(n·k·d)             | Linear            | O(n·k·d)        |
+| **Tree-Based**         | NODE           | 100K-500K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
+|                        | ENODE          | 150K-700K            | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
+|                        | NDTF           | 200K-1M              | O(n·d·log n)         | Log-linear        | O(n·d·log n)    |
+| **Other**              | MLP            | 30K-200K             | O(n·d)               | Linear            | O(n·d)          |
+|                        | TabM           | 80K-400K             | O(n·d)               | Linear            | O(n·d)          |
+|                        | TabulaRNN      | 100K-600K            | O(n·l·d)             | Linear            | O(n·l·d)        |
 
 **Notation:** n=samples, d=hidden_dim, f=features, f_cat=categorical features, k=neighbors, l=sequence length.
+
+```{important}
+**Parameter count assumptions:** The ranges above assume a **baseline dataset** with:
+- **~10 numerical features** + **~5 categorical features** (with ~10 categories each)
+- **d_model = 64** (hidden dimension)
+- **Default architecture configs** (layers, heads, depth as per model defaults)
+
+Parameter counts scale with:
+- **Input features:** More features → larger embedding layers (especially for transformers)
+- **Hidden dimension (d_model):** Larger d → quadratic growth (weight matrices are d×d)
+- **Architecture depth:** More layers → linear growth
+- **Categorical cardinality:** More categories → larger embedding tables
+```
 
 ```{tip}
 **Practical implications:**
@@ -36,6 +49,15 @@ Architectural comparison and computational characteristics of DeepTab's model zo
 - **Quadratic O(n·f²):** Attention over features, slower with many features (Transformers)
 - **Quadratic O(n²):** Attention over samples, impractical for large datasets (SAINT)
 - **Log-linear O(n·log n):** Tree routing, good middle ground (NODE family)
+```
+
+```{note}
+**Category guide:**
+- **State Space Models:** Linear-time selective SSMs (Mamba architecture family)
+- **Transformers:** Self-attention mechanisms for feature/sample interactions
+- **Residual Networks:** Deep feedforward MLPs with skip connections
+- **Tree-Based:** Differentiable decision trees with gradient optimization
+- **Other:** Standard architectures (MLP, ensembles, RNNs)
 ```
 
 ## Architecture Categories
