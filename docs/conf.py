@@ -177,3 +177,33 @@ autosummary_generate = True
 # see https://github.com/numpy/numpydoc/issues/69
 
 numpydoc_show_class_members = False
+
+# -- Options for MyST parser --------------------------------------------------
+
+myst_enable_extensions = [
+    "colon_fence",  # Enable ```{note}, ```{tip}, etc.
+    "deflist",  # Definition lists
+    "dollarmath",  # LaTeX math with $...$
+    "fieldlist",  # Field lists
+    "html_admonition",  # HTML admonitions
+    "html_image",  # HTML images
+    "replacements",  # Text replacements
+    "smartquotes",  # Smart quotes
+    "strikethrough",  # ~~strikethrough~~
+    "substitution",  # Variable substitution
+    "tasklist",  # Task lists [ ]
+]
+
+# Use sphinx-design for admonitions (better styling with icons)
+myst_fence_as_directive = [
+    "note",
+    "warning",
+    "tip",
+    "important",
+    "caution",
+    "attention",
+    "danger",
+    "error",
+    "hint",
+    "seealso",
+]
