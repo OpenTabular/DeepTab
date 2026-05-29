@@ -248,6 +248,8 @@ class SklearnBaseClassifier(SklearnBase):
             The predicted class labels.
         """
         X = self._validate_predict_input(X)
+        if self.task_model is None:
+            raise RuntimeError("The model must be fitted before calling predict.")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
@@ -298,6 +300,8 @@ class SklearnBaseClassifier(SklearnBase):
             The predicted class probabilities.
         """
         X = self._validate_predict_input(X)
+        if self.task_model is None:
+            raise RuntimeError("The model must be fitted before calling predict_proba.")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)

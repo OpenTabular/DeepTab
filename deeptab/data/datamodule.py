@@ -77,6 +77,7 @@ class TabularDataModule(pl.LightningDataModule):
             self.labels_dtype = torch.long
 
         # Initialize placeholders for data
+        self.input_columns_: list[str] | None = None
         self.X_train = None
         self.y_train = None
         self.embeddings_train = None

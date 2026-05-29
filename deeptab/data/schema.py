@@ -41,7 +41,7 @@ class FeatureInfo:
 
     def to_dict(self) -> dict[str, Any]:
         """Return a serializable representation of the feature metadata."""
-        categories = self.categories.tolist() if hasattr(self.categories, "tolist") else self.categories
+        categories = self.categories.tolist() if hasattr(self.categories, "tolist") else self.categories  # type: ignore[union-attr]
         return {
             "name": self.name,
             "preprocessing": self.preprocessing,

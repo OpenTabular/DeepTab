@@ -243,6 +243,8 @@ class SklearnBaseRegressor(SklearnBase):
             The predicted target values.
         """
         X = self._validate_predict_input(X)
+        if self.task_model is None:
+            raise RuntimeError("The model must be fitted before calling predict.")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)

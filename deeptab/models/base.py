@@ -125,6 +125,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         self.estimator = model
         self.task_model = None
         self.built = False
+        self.input_columns_: list[str] | None = None
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""
@@ -316,7 +317,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             y = y.values
         if X_val is not None:
             X_val = ensure_dataframe(X_val)
-            if hasattr(y_val, "values"):
+            if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
         self.data_module = TabularDataModule(

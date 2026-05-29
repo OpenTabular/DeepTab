@@ -10,7 +10,7 @@ def _classification_data(n_samples=64, n_features=4):
     rng = np.random.default_rng(7)
     X_arr = rng.standard_normal((n_samples, n_features))
     y = (X_arr[:, 0] + X_arr[:, 1] > 0).astype(int)
-    X = pd.DataFrame(X_arr, columns=[f"f{i}" for i in range(n_features)])
+    X = pd.DataFrame(X_arr, columns=[f"f{i}" for i in range(n_features)])  # type: ignore[call-overload]
     return X, y
 
 
@@ -18,7 +18,7 @@ def _regression_data(n_samples=64, n_features=4):
     rng = np.random.default_rng(11)
     X_arr = rng.standard_normal((n_samples, n_features))
     y = X_arr @ rng.standard_normal(n_features) + rng.standard_normal(n_samples) * 0.1
-    X = pd.DataFrame(X_arr, columns=[f"f{i}" for i in range(n_features)])
+    X = pd.DataFrame(X_arr, columns=[f"f{i}" for i in range(n_features)])  # type: ignore[call-overload]
     return X, y
 
 
@@ -74,7 +74,7 @@ def test_inspection_methods_after_classifier_fit():
     assert not table.empty
     assert {"name", "module", "shape", "num_params", "trainable", "dtype", "device"}.issubset(table.columns)
     assert int(table["num_params"].sum()) == model.get_number_of_params(requires_grad=False)
-    assert trainable_table["trainable"].all()
+    assert trainable_table["trainable"].all()  # type: ignore
 
     assert runtime["built"] is True
     assert runtime["fitted"] is True

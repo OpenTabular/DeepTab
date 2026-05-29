@@ -143,6 +143,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         self.task_model = None
         self.estimator = model
         self.built = False
+        self.input_columns_: list[str] | None = None
 
     def get_params(self, deep=True):
         """Get parameters for this estimator.
@@ -346,7 +347,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             y = y.values
         if X_val is not None:
             X_val = ensure_dataframe(X_val)
-            if hasattr(y_val, "values"):
+            if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
         self.data_module = TabularDataModule(
@@ -616,6 +617,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             The predicted target values.
         """
         X = self._validate_predict_input(X)
+        if self.task_model is None:
+            raise RuntimeError("The model must be fitted before calling predict.")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X)

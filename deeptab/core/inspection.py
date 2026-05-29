@@ -34,7 +34,6 @@ class ImportanceGetter(nn.Module):  # Figure 3 part 1
         return torch.softmax(dense_out @ ecolumn.transpose(1, 2), dim=-1)
 
 
-# === Migrated from deeptab.utils.get_feature_dimensions ===
 def get_feature_dimensions(num_feature_info, cat_feature_info, embedding_info):
     input_dim = 0
     for _, feature_info in num_feature_info.items():
@@ -64,12 +63,13 @@ def _first_parameter(module: nn.Module | None):
 def _config_to_dict(config: Any) -> dict[str, Any]:
     if config is None:
         return {}
-    if is_dataclass(config):
+    if is_dataclass(config) and not isinstance(config, type):
         return asdict(config)
     get_params = getattr(config, "get_params", None)
     if callable(get_params):
-        return get_params(deep=False)
-    return {key: value for key, value in vars(config).items() if not key.startswith("_") and not callable(value)}
+        return get_params(deep=False)  # type: ignore[return-value]
+    config_vars: dict[str, Any] = getattr(config, "__dict__", {})
+    return {key: value for key, value in config_vars.items() if not key.startswith("_") and not callable(value)}
 
 
 class InspectionMixin:
@@ -198,6 +198,8 @@ class InspectionMixin:
         """
         self._require_built_for_inspection()
         task_model = self.task_model
+        if task_model is None:
+            raise RuntimeError("The model must be built before calling parameter_table.")
 
         rows = []
         for name, param in task_model.named_parameters():
@@ -218,7 +220,7 @@ class InspectionMixin:
 
         return pd.DataFrame(
             rows,
-            columns=["name", "module", "shape", "num_params", "trainable", "dtype", "device"],
+            columns=["name", "module", "shape", "num_params", "trainable", "dtype", "device"],  # type: ignore[call-overload]
         )
 
     def runtime_info(self) -> dict[str, Any]:

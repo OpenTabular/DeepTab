@@ -152,7 +152,7 @@ class TestTabularDatasetContract:
         num_features, _cat_features, emb_features = features
 
         assert num_features[0].untyped_storage().data_ptr() == num_feats[0].untyped_storage().data_ptr()
-        assert emb_features[0].untyped_storage().data_ptr() == embeddings[0].untyped_storage().data_ptr()
+        assert emb_features[0].untyped_storage().data_ptr() == embeddings[0].untyped_storage().data_ptr()  # type: ignore[index]
 
     def test_dataset_embeddings_are_float32(self, simple_tensors):
         """Test embeddings are converted to float32."""
