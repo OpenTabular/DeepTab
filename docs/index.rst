@@ -21,11 +21,8 @@
    core_concepts/sklearn_api
    core_concepts/model_tiers
    core_concepts/config_system
-   core_concepts/preprocessing
-   core_concepts/classification
-   core_concepts/regression
-   core_concepts/distributional_regression
    core_concepts/training_and_evaluation
+   core_concepts/model_operations
 
 .. toctree::
    :caption: Tutorials
