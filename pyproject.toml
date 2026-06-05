@@ -80,6 +80,9 @@ norecursedirs = [
   "model_checkpoints",
   ".venv",
 ]
+markers = [
+  "smoke: fast sanity-check tests that should pass in under 60 s (selected in the CI smoke job)",
+]
 filterwarnings = [
   # Lightning trainer noise (dataloader workers, log interval, checkpoint dir, tensorboard)
   "ignore::UserWarning:lightning",
