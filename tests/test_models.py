@@ -266,6 +266,16 @@ def test_regressor_evaluate_returns_dict(cls, regression_data):
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
 
 
+def test_regressor_score_returns_r2(regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), "score() should return a float"
+    assert score <= 1.0, "R² score should be at most 1.0"
+
+
 # ---------------------------------------------------------------------------
 # LSS (distributional regression) tests
 # ---------------------------------------------------------------------------

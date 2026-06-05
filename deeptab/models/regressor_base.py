@@ -1,8 +1,7 @@
-import warnings
 from collections.abc import Callable
 
 import torch
-from sklearn.metrics import mean_squared_error
+from sklearn.metrics import mean_squared_error, r2_score
 
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
 
@@ -306,7 +305,7 @@ class SklearnBaseRegressor(SklearnBase):
 
         return scores
 
-    def score(self, X, y, embeddings=None, metric=mean_squared_error):
+    def score(self, X, y, embeddings=None, metric=r2_score):
         """Calculate the score of the model using the specified metric.
 
         Parameters
@@ -315,13 +314,22 @@ class SklearnBaseRegressor(SklearnBase):
             The input samples to predict.
         y : array-like of shape (n_samples,) or (n_samples, n_outputs)
             The true target values against which to evaluate the predictions.
-        metric : callable, default=mean_squared_error
-            The metric function to use for evaluation. Must be a callable with the signature `metric(y_true, y_pred)`.
+        metric : callable, default=r2_score
+            The metric function to use for evaluation. Must be a callable with the
+            signature ``metric(y_true, y_pred)``. Defaults to ``r2_score`` to match
+            scikit-learn's ``RegressorMixin`` convention (higher is better).
 
         Returns
         -------
         score : float
             The score calculated using the specified metric.
+
+        Examples
+        --------
+        >>> from sklearn.metrics import mean_squared_error, mean_absolute_error
+        >>> model.score(X_test, y_test)                             # R² (default)
+        >>> model.score(X_test, y_test, metric=mean_squared_error)  # MSE
+        >>> model.score(X_test, y_test, metric=mean_absolute_error) # MAE
         """
         score = super()._score(X, y, embeddings, metric)
         return score
