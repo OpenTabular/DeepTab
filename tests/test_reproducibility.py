@@ -78,6 +78,7 @@ def _make_regressor(seed: int) -> MLPRegressor:
 class TestSetSeedPrimitives:
     """set_seed correctly seeds each individual RNG layer."""
 
+    @pytest.mark.smoke
     def test_torch_cpu(self):
         """Same seed → identical CPU tensors."""
         set_seed(SEED)
@@ -112,6 +113,7 @@ class TestSetSeedPrimitives:
         t2 = torch.randn(20)
         assert not torch.equal(t1, t2), "Different seeds should yield different tensors"
 
+    @pytest.mark.smoke
     def test_invalid_seed_raises(self):
         """Negative seeds raise ValueError."""
         with pytest.raises(ValueError, match="non-negative integer"):

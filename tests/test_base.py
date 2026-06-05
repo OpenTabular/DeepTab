@@ -45,6 +45,7 @@ def get_model_config(model_class):
     pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}")
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("model_class", model_classes)
 def test_model_inherits_base_model(model_class):
     """Test that each model correctly inherits from BaseModel."""

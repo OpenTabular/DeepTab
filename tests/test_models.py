@@ -195,6 +195,7 @@ def test_classifier_evaluate_returns_dict(cls, classification_data):
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
 
 
+@pytest.mark.smoke
 def test_classifier_binary_predict_proba_and_score(binary_classification_data):
     X_train, X_test, y_train, y_test = binary_classification_data
     model = MLPClassifier()
@@ -210,6 +211,7 @@ def test_classifier_binary_predict_proba_and_score(binary_classification_data):
     assert 0.0 <= score <= 1.0
 
 
+@pytest.mark.smoke
 def test_predict_validates_feature_names(classification_data):
     X_train, X_test, y_train, _y_test = classification_data
     model = MLPClassifier()
@@ -266,6 +268,7 @@ def test_regressor_evaluate_returns_dict(cls, regression_data):
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
 
 
+@pytest.mark.smoke
 def test_regressor_score_returns_r2(regression_data):
     X_train, X_test, y_train, y_test = regression_data
     model = MLPRegressor()
@@ -274,6 +277,30 @@ def test_regressor_score_returns_r2(regression_data):
     score = model.score(X_test, y_test)
     assert isinstance(score, float), "score() should return a float"
     assert score <= 1.0, "R² score should be at most 1.0"
+
+
+@pytest.mark.parametrize("cls", CLASSIFIERS)
+def test_classifier_score_returns_float_in_unit_interval(cls, classification_data):
+    """score() returns a float in [0, 1] for every classifier."""
+    X_train, X_test, y_train, y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), f"{cls.__name__}.score() should return a float"
+    assert 0.0 <= score <= 1.0, f"{cls.__name__}.score()={score} is outside [0, 1]"
+
+
+@pytest.mark.parametrize("cls", REGRESSORS)
+def test_regressor_score_returns_r2_all(cls, regression_data):
+    """score() returns an R² float ≤ 1.0 for every regressor."""
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), f"{cls.__name__}.score() should return a float"
+    assert score <= 1.0, f"{cls.__name__}.score()={score} exceeds 1.0"
 
 
 # ---------------------------------------------------------------------------
