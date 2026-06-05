@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
-from deeptab.core.serialization import build_artifact_metadata, restore_loaded_metadata
+from deeptab.core.serialization import build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
@@ -663,6 +663,10 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         metadata, classifier classes when available, and package
         versions for debugging reloads across environments.
 
+        The bundle is built by :func:`~deeptab.core.serialization.build_save_bundle`,
+        which is the single source of truth for artifact structure across all
+        model variants.
+
         Parameters
         ----------
         path : str
@@ -672,62 +676,16 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         ------
         ValueError
             If the model has not been fitted yet.
+
+        Examples
+        --------
+        >>> model = MLPClassifier()
+        >>> model.fit(X_train, y_train)
+        >>> model.save("my_model.pt")
+        >>> loaded = MLPClassifier.load("my_model.pt")
+        >>> predictions = loaded.predict(X_test)
         """
-        if not getattr(self, "is_fitted_", False):
-            raise ValueError("Model must be fitted before saving.")
-        if self.task_model is None:
-            raise RuntimeError("task_model is unexpectedly None after fitting.")
-        task = "regression" if self.data_module.regression else "classification"
-        artifact_metadata = build_artifact_metadata(
-            estimator=self,
-            model_class=type(self.estimator),
-            config=self.config,
-            data_module=self.data_module,
-            preprocessor=self.preprocessor,
-            preprocessor_kwargs=getattr(self, "preprocessor_kwargs", {}),
-            task=task,
-            regression=self.data_module.regression,
-            lss=False,
-            family=None,
-            num_classes=self.task_model.num_classes,
-            classes_=getattr(self, "classes_", None),
-        )
-        feature_schema = artifact_metadata["feature_schema"]
-        bundle = {
-            "_class": type(self),
-            "config": self.config,
-            "config_kwargs": self.config_kwargs,
-            "preprocessor_kwargs": getattr(self, "preprocessor_kwargs", {}),
-            "preprocessor": self.preprocessor,
-            "feature_info": {
-                "num": self.data_module.num_feature_info,
-                "cat": self.data_module.cat_feature_info,
-                "emb": self.data_module.embedding_feature_info,
-            },
-            "batch_size": self.data_module.batch_size,
-            "regression": self.data_module.regression,
-            "model_class": type(self.estimator),
-            "num_classes": self.task_model.num_classes,
-            "lss": False,
-            "family": None,
-            "optimizer_type": self.optimizer_type,
-            "optimizer_kwargs": self.optimizer_kwargs,
-            "lr": self.task_model.lr,
-            "lr_patience": self.task_model.lr_patience,
-            "lr_factor": self.task_model.lr_factor,
-            "weight_decay": self.task_model.weight_decay,
-            "task_model_state_dict": self.task_model.state_dict(),
-            "artifact_metadata": artifact_metadata,
-            "architecture_metadata": artifact_metadata["architecture"],
-            "feature_schema": feature_schema,
-            "input_columns": feature_schema["column_order"],
-            "preprocessing_metadata": artifact_metadata["preprocessing"],
-            "task_info": artifact_metadata["task"],
-            "classes_": getattr(self, "classes_", None),
-            "n_features_in_": getattr(self, "n_features_in_", None),
-            "feature_names_in_": getattr(self, "feature_names_in_", None),
-            "versions": artifact_metadata["versions"],
-        }
+        bundle = build_save_bundle(self, lss=False, family=None)
         torch.save(bundle, path)
 
     @classmethod
@@ -743,43 +701,24 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         -------
         estimator
             A fully reconstructed, ready-to-predict estimator of the
-            same type that was saved. Newer artifacts also expose
-            ``artifact_metadata_``, ``architecture_metadata_``,
-            ``feature_schema_``, ``input_columns_``, ``task_info_``,
-            ``classes_``, and ``versions_`` attributes after loading.
+            same type that was saved. Exposes ``artifact_metadata_``,
+            ``architecture_metadata_``, ``feature_schema_``,
+            ``input_columns_``, ``task_info_``, ``classes_``, and
+            ``versions_`` attributes after loading.
+
+        Examples
+        --------
+        >>> loaded = MLPClassifier.load("my_model.pt")
+        >>> predictions = loaded.predict(X_test)
+        >>> print(loaded.task_info_["task"])
+        'classification'
+        >>> print(loaded.n_features_in_)
+        6
         """
         bundle = torch.load(path, weights_only=False)
 
         obj = bundle["_class"].__new__(bundle["_class"])
-        obj.config = bundle["config"]
-        obj.config_kwargs = bundle["config_kwargs"]
-        obj.preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
-        obj.preprocessor = bundle["preprocessor"]
-        obj.optimizer_type = bundle["optimizer_type"]
-        obj.optimizer_kwargs = bundle["optimizer_kwargs"]
-        obj.built = True
-        obj.is_fitted_ = True
-        obj.model_config = None
-        obj.preprocessing_config = None
-        obj.trainer_config = None
-        obj.random_state = None
-        obj.preprocessor_arg_names = [
-            "n_bins",
-            "feature_preprocessing",
-            "numerical_preprocessing",
-            "categorical_preprocessing",
-            "use_decision_tree_bins",
-            "binning_strategy",
-            "task",
-            "cat_cutoff",
-            "treat_all_integers_as_numerical",
-            "degree",
-            "scaling_strategy",
-            "n_knots",
-            "use_decision_tree_knots",
-            "knots_strategy",
-            "spline_implementation",
-        ]
+        restore_base_state(obj, bundle)
 
         obj.data_module = TabularDataModule(
             preprocessor=bundle["preprocessor"],
