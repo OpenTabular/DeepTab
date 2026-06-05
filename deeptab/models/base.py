@@ -496,6 +496,13 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         if self.random_state is not None:
             random_state = self.random_state
 
+        # Seed all RNGs so that weight init, dropout masks, and DataLoader
+        # shuffling are all deterministic when a random_state is provided.
+        if random_state is not None:
+            from deeptab.core.reproducibility import set_seed
+
+            set_seed(random_state)
+
         if rebuild:
             self._build_model(
                 X=X,

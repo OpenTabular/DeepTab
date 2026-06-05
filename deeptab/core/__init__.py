@@ -1,6 +1,7 @@
 from .base_model import BaseModel
 from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
 from .registry import MODEL_REGISTRY, ModelInfo
+from .reproducibility import seed_context, set_seed
 from .serialization import (
     ARTIFACT_FORMAT_VERSION,
     build_artifact_metadata,
@@ -29,6 +30,8 @@ __all__ = [
     "make_random_batches",
     "restore_loaded_metadata",
     "save_state_dict",
+    "seed_context",
     "set_input_feature_attributes",
+    "set_seed",
     "validate_input_features",
 ]
