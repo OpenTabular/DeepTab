@@ -179,7 +179,12 @@ class TaskModel(pl.LightningModule):
                 )
 
         if getattr(self.estimator, "returns_ensemble", False):  # Ensemble case
-            if self.loss_fct.__class__.__name__ == "CrossEntropyLoss" and predictions.dim() == 3:
+            expects_class_indices = getattr(
+                self.loss_fct,
+                "expects_class_indices",
+                self.loss_fct.__class__.__name__ == "CrossEntropyLoss",
+            )
+            if expects_class_indices and predictions.dim() == 3:
                 # Classification case with ensemble: predictions (N, E, k), y_true (N,)
                 _, E, _ = predictions.shape
                 loss = 0.0

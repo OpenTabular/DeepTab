@@ -6,6 +6,30 @@ import torch
 from sklearn.metrics import accuracy_score, log_loss
 
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
+from deeptab.training.losses import build_classification_loss, compute_class_weights
+
+
+def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes):
+    """Translate the imbalance-handling arguments into a ``(loss_fct, sampler)`` pair.
+
+    * ``loss_fct`` — an ``nn.Module``, a registered loss name (e.g. ``"focal"``),
+      or ``None``. Combined with ``class_weight`` via
+      :func:`deeptab.training.losses.build_classification_loss`.
+    * ``sampler`` — ``sample_weight`` (explicit per-row weights) takes precedence,
+      otherwise ``"balanced"`` when ``balanced_sampler`` is set, otherwise ``None``.
+    """
+    class_weights = None
+    if class_weight is not None:
+        class_weights = compute_class_weights(class_weight, y, classes=classes)
+    resolved_loss = build_classification_loss(loss_fct, num_classes=num_classes, class_weights=class_weights)
+
+    if sample_weight is not None:
+        sampler = sample_weight
+    elif balanced_sampler:
+        sampler = "balanced"
+    else:
+        sampler = None
+    return resolved_loss, sampler
 
 
 class SklearnBaseClassifier(SklearnBase):
@@ -49,6 +73,10 @@ class SklearnBaseClassifier(SklearnBase):
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         dataloader_kwargs={},
+        class_weight: str | dict | list | np.ndarray | None = None,
+        loss_fct=None,
+        balanced_sampler: bool = False,
+        sample_weight=None,
     ):
         """Builds the model using the provided training data.
 
@@ -86,7 +114,24 @@ class SklearnBaseClassifier(SklearnBase):
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
 
-
+        class_weight : {"balanced"}, dict, array-like, or None, default=None
+            Weights associated with classes for imbalanced data. ``"balanced"``
+            mirrors scikit-learn and uses ``n_samples / (n_classes * bincount(y))``.
+            A mapping ``{class_label: weight}`` or an array (ordered like
+            ``np.unique(y)``) sets weights explicitly. Ignored when ``loss_fct``
+            is an ``nn.Module``.
+        loss_fct : nn.Module, str, or None, default=None
+            Custom loss. An ``nn.Module`` is used as-is; a registered loss name
+            (e.g. ``"focal"``, ``"bce"``, ``"cross_entropy"``) is built and
+            combined with ``class_weight``. ``None`` falls back to the default
+            (weighted) task loss.
+        balanced_sampler : bool, default=False
+            If ``True``, draw class-balanced mini-batches with a
+            ``WeightedRandomSampler`` (oversamples minority classes).
+        sample_weight : array-like, optional
+            Explicit per-row sampling weights (length matches ``X``). Takes
+            precedence over ``balanced_sampler`` and drives the
+            ``WeightedRandomSampler``.
 
         Returns
         -------
@@ -96,6 +141,10 @@ class SklearnBaseClassifier(SklearnBase):
 
         self.classes_ = np.unique(y)
         num_classes = len(self.classes_)
+
+        loss_fct, sampler = _resolve_loss_and_sampler(
+            loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
+        )
 
         return super()._build_model(
             X,
@@ -117,6 +166,8 @@ class SklearnBaseClassifier(SklearnBase):
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             dataloader_kwargs=dataloader_kwargs,
+            loss_fct=loss_fct,
+            sampler=sampler,
         )
 
     def fit(
@@ -144,6 +195,10 @@ class SklearnBaseClassifier(SklearnBase):
         val_metrics: dict[str, Callable] | None = None,
         dataloader_kwargs={},
         rebuild=True,
+        class_weight: str | dict | list | np.ndarray | None = None,
+        loss_fct=None,
+        balanced_sampler: bool = False,
+        sample_weight=None,
         **trainer_kwargs,
     ):
         """Trains the classification model using the provided training data. Optionally, a separate validation set can
@@ -194,6 +249,30 @@ class SklearnBaseClassifier(SklearnBase):
             The kwargs for the pytorch dataloader class.
         rebuild: bool, default=True
             Whether to rebuild the model when it already was built.
+        class_weight : {"balanced"}, dict, array-like, or None, default=None
+            Weights associated with classes for imbalanced data. ``"balanced"``
+            mirrors scikit-learn and uses ``n_samples / (n_classes * bincount(y))``
+            so under-represented classes contribute more to the loss. A mapping
+            ``{class_label: weight}`` or an array (ordered like ``np.unique(y)``)
+            sets weights explicitly. For binary targets the weights are converted
+            to a ``pos_weight`` for ``BCEWithLogitsLoss``; for multiclass they
+            become the ``weight`` of ``CrossEntropyLoss``. Ignored when
+            ``loss_fct`` is an ``nn.Module``.
+        loss_fct : nn.Module, str, or None, default=None
+            Custom loss. An ``nn.Module`` is used as-is; a registered loss name
+            (e.g. ``"focal"``, ``"bce"``, ``"cross_entropy"``) is built and
+            combined with ``class_weight`` (see
+            :func:`deeptab.training.losses.build_classification_loss`). ``None``
+            falls back to the default (weighted) task loss.
+        balanced_sampler : bool, default=False
+            If ``True``, draw class-balanced mini-batches with a
+            ``WeightedRandomSampler`` (oversamples minority classes). This
+            rebalances the data instead of (or in addition to) reweighting the
+            loss.
+        sample_weight : array-like, optional
+            Explicit per-row sampling weights (length matches ``X``). Takes
+            precedence over ``balanced_sampler``; rows are drawn into batches in
+            proportion to their weight.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -205,6 +284,11 @@ class SklearnBaseClassifier(SklearnBase):
 
         self.classes_ = np.unique(y)
         num_classes = len(self.classes_)
+
+        loss_fct, sampler = _resolve_loss_and_sampler(
+            loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
+        )
+
         return super().fit(
             X=X,
             y=y,
@@ -231,6 +315,8 @@ class SklearnBaseClassifier(SklearnBase):
             val_metrics=val_metrics,
             rebuild=rebuild,
             num_classes=num_classes,
+            loss_fct=loss_fct,
+            sampler=sampler,
             **trainer_kwargs,
         )
 

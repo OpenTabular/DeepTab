@@ -255,6 +255,8 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         dataloader_kwargs={},
+        loss_fct: Callable | None = None,
+        sampler=None,
     ):
         """Builds the model using the provided training data.
 
@@ -292,14 +294,21 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
 
-
+        loss_fct : Callable, optional
+            Custom loss function to use during training. When ``None`` the
+            default loss is chosen based on the task (``BCEWithLogitsLoss`` for
+            binary, ``CrossEntropyLoss`` for multiclass, ``MSELoss`` for
+            regression).
+        sampler : {"balanced", True}, array-like, or None, optional
+            Weighted-sampling specification forwarded to the data module.
+            ``"balanced"``/``True`` oversamples minority classes; an array sets
+            explicit per-row sampling weights.
 
         Returns
         -------
         self : object
             The built regressor.
-        """
-        # When trainer_config is active, use its values for lr / weight_decay / scheduler
+        """  # When trainer_config is active, use its values for lr / weight_decay / scheduler
         if self.trainer_config is not None:
             tc = self.trainer_config
             if lr is None:
@@ -329,6 +338,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             val_size=val_size,
             random_state=random_state,
             regression=regression,
+            sampler=sampler,
             **dataloader_kwargs,
         )
         self.data_module.input_columns_ = self.input_columns_
@@ -361,6 +371,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             val_metrics=val_metrics,
             optimizer_type=self.optimizer_type,
             optimizer_args=self.optimizer_kwargs,
+            loss_fct=loss_fct,
         )
 
         self.built = True
@@ -422,6 +433,8 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         rebuild=True,
+        loss_fct: Callable | None = None,
+        sampler=None,
         **trainer_kwargs,
     ):
         """Trains the regression model using the provided training data. Optionally, a separate validation set can be
@@ -472,6 +485,12 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             torch.metrics dict to be logged during validation.
         rebuild: bool, default=True
             Whether to rebuild the model when it already was built.
+        loss_fct : Callable, optional
+            Custom loss function to use during training. Overrides the
+            task-default loss when provided.
+        sampler : {"balanced", True}, array-like, or None, optional
+            Weighted-sampling specification. ``"balanced"``/``True`` oversamples
+            minority classes; an array sets explicit per-row sampling weights.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -524,6 +543,8 @@ class SklearnBase(InspectionMixin, BaseEstimator):
                 dataloader_kwargs=dataloader_kwargs,
                 train_metrics=train_metrics,
                 val_metrics=val_metrics,
+                loss_fct=loss_fct,
+                sampler=sampler,
             )
 
         else:

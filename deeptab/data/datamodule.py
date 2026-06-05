@@ -2,7 +2,7 @@ import lightning as pl
 import numpy as np
 import torch
 from sklearn.model_selection import train_test_split
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader, WeightedRandomSampler
 
 from deeptab.data.dataset import TabularDataset
 from deeptab.data.schema import FeatureSchema
@@ -43,6 +43,7 @@ class TabularDataModule(pl.LightningDataModule):
         y_val=None,
         val_size=0.2,
         random_state=101,
+        sampler=None,
         **dataloader_kwargs,
     ):
         """Initialize the data module with the specified preprocessor, batch size, shuffle option, and optional
@@ -71,6 +72,8 @@ class TabularDataModule(pl.LightningDataModule):
         self.val_size = val_size
         self.random_state = random_state
         self.regression = regression
+        self.sampler = sampler
+        self._train_sample_weights = None
         if self.regression:
             self.labels_dtype = torch.float32
         else:
@@ -167,12 +170,46 @@ class TabularDataModule(pl.LightningDataModule):
 
         self.preprocessor.fit(self.X_train, self.y_train, self.embeddings_train)
 
+        # Align explicit per-row sampling weights with the (possibly auto-split) train set.
+        self._train_sample_weights = self._resolve_train_sample_weights(
+            y_train if (X_val is None or y_val is None) else None,
+            val_size=val_size,
+            random_state=random_state,
+        )
+
         # Update feature info based on the actual processed data
         (
             self.num_feature_info,
             self.cat_feature_info,
             self.embedding_feature_info,
         ) = self.preprocessor.get_feature_info()
+
+    def _resolve_train_sample_weights(self, y_full, val_size, random_state):
+        """Resolve explicit per-row sampling weights, splitting them to match the train set.
+
+        Returns the per-row weights aligned with ``self.y_train`` when ``self.sampler``
+        is an explicit array of weights, otherwise ``None`` (the ``"balanced"`` case is
+        computed lazily from the training labels in :meth:`train_dataloader`).
+        """
+        sampler = self.sampler
+        if sampler is None or isinstance(sampler, bool | str):
+            return None
+
+        weights = np.asarray(sampler, dtype=np.float64)
+        if y_full is None:
+            # Explicit validation set was provided -> no split, weights map 1:1 onto X_train.
+            if len(weights) != len(self.y_train):  # type: ignore[arg-type]
+                raise ValueError(
+                    f"sample_weight has length {len(weights)} but the training set has {len(self.y_train)} rows."  # type: ignore[arg-type]
+                )
+            return weights
+
+        if len(weights) != len(y_full):
+            raise ValueError(f"sample_weight has length {len(weights)} but X has {len(y_full)} rows.")
+        # Same random_state + stratify + test_size reproduce the X/y partition exactly.
+        stratify = y_full if not self.regression else None
+        train_weights, _ = train_test_split(weights, test_size=val_size, random_state=random_state, stratify=stratify)
+        return train_weights
 
     def setup(self, stage: str):
         """Transform the data and create DataLoaders."""
@@ -299,6 +336,34 @@ class TabularDataModule(pl.LightningDataModule):
     def assign_test_dataset(self, X, embeddings=None):
         self.test_dataset = self.preprocess_new_data(X, embeddings)
 
+    def _build_train_sampler(self):
+        """Build a :class:`WeightedRandomSampler` for the training set, if requested.
+
+        Returns ``None`` when no weighted sampling is configured, in which case the
+        DataLoader falls back to plain ``shuffle``.
+        """
+        spec = self.sampler
+        if spec is None or spec is False:
+            return None
+
+        if self._train_sample_weights is not None:
+            weights = np.asarray(self._train_sample_weights, dtype=np.float64)
+        elif spec is True or spec == "balanced":
+            y = np.asarray(self.y_train)
+            classes, counts = np.unique(y, return_counts=True)
+            inv_freq = {cls: 1.0 / count for cls, count in zip(classes, counts, strict=False)}
+            weights = np.array([inv_freq[label] for label in y], dtype=np.float64)
+        elif isinstance(spec, str):
+            raise ValueError(f"Unsupported sampler {spec!r}; expected 'balanced', True, or an array of weights.")
+        else:
+            return None
+
+        return WeightedRandomSampler(
+            weights=torch.as_tensor(weights, dtype=torch.double),  # type: ignore[arg-type]
+            num_samples=len(weights),
+            replacement=True,
+        )
+
     def train_dataloader(self):
         """Returns the training dataloader.
 
@@ -306,6 +371,15 @@ class TabularDataModule(pl.LightningDataModule):
             DataLoader: DataLoader instance for the training dataset.
         """
         if hasattr(self, "train_dataset"):
+            sampler = self._build_train_sampler()
+            if sampler is not None:
+                # A sampler and shuffle are mutually exclusive; the sampler randomises order.
+                return DataLoader(
+                    self.train_dataset,
+                    batch_size=self.batch_size,
+                    sampler=sampler,
+                    **self.dataloader_kwargs,
+                )
             return DataLoader(
                 self.train_dataset,
                 batch_size=self.batch_size,
