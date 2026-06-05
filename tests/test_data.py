@@ -827,3 +827,166 @@ class TestDataAPIIntegration:
         # Test tuple conversion
         batch_tuple = batch.to_tuple()
         assert isinstance(batch_tuple, tuple)
+
+
+# ============================================================================
+# Validation Leakage Regression Tests
+#
+# These tests serve as a permanent regression guard: they must fail if any
+# code change allows validation-set data to influence the preprocessing fit.
+# ============================================================================
+
+
+class TestValidationLeakage:
+    """Regression tests that guard against data leakage from val into train preprocessing."""
+
+    # ------------------------------------------------------------------
+    # 1. Index disjointness after automatic split
+    # ------------------------------------------------------------------
+
+    def test_auto_split_train_val_indices_are_disjoint(self, regression_data):
+        """Rows in the auto-generated train split must not appear in val."""
+        from pretab.preprocessor import Preprocessor
+
+        X, y = regression_data
+        preprocessor = Preprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=False,
+            regression=True,
+            val_size=0.2,
+            random_state=0,
+        )
+        datamodule.preprocess_data(X, y)
+
+        train_idx = set(datamodule.X_train.index.tolist())  # type: ignore[union-attr]
+        val_idx = set(datamodule.X_val.index.tolist())  # type: ignore[union-attr]
+
+        assert train_idx.isdisjoint(val_idx), "Leakage detected: some row indices appear in both train and val splits."
+        assert len(train_idx) + len(val_idx) == len(X), "Train + val sizes must equal the full dataset size."
+
+    # ------------------------------------------------------------------
+    # 2. Explicit val set is never fed to the preprocessor fit
+    # ------------------------------------------------------------------
+
+    def test_explicit_val_set_not_used_in_preprocessor_fit(self, regression_data):
+        """When X_val/y_val are passed explicitly, the preprocessor must only see training rows."""
+
+        fit_index_seen: list[list] = []
+
+        class IndexTrackingPreprocessor:
+            def fit(self, X, y, embeddings=None):
+                fit_index_seen.append(list(X.index))
+                return self
+
+            def get_feature_info(self):
+                return {}, {}, None
+
+        X, y = regression_data
+        X_train, X_val = X.iloc[:160], X.iloc[160:]
+        y_train, y_val = y[:160], y[160:]
+
+        preprocessor = IndexTrackingPreprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=False,
+            regression=True,
+        )
+        datamodule.preprocess_data(X_train, y_train, X_val=X_val, y_val=y_val)
+
+        assert len(fit_index_seen) == 1, "Preprocessor.fit should be called exactly once."
+        assert fit_index_seen[0] == list(X_train.index), (
+            "Preprocessor was fit on rows other than the training set — validation leakage detected."
+        )
+        val_idx = set(X_val.index.tolist())
+        assert val_idx.isdisjoint(set(fit_index_seen[0])), "Validation row indices were seen during preprocessor fit."
+
+    # ------------------------------------------------------------------
+    # 3. Preprocessing fit called exactly once (no re-fit on val)
+    # ------------------------------------------------------------------
+
+    def test_preprocessor_fit_called_exactly_once(self, regression_data):
+        """Preprocessor.fit must be called exactly once regardless of whether val is explicit."""
+        fit_call_count = [0]
+
+        class CountingPreprocessor:
+            def fit(self, X, y, embeddings=None):
+                fit_call_count[0] += 1
+                return self
+
+            def get_feature_info(self):
+                return {}, {}, None
+
+        X, y = regression_data
+        X_train, X_val = X.iloc[:160], X.iloc[160:]
+        y_train, y_val = y[:160], y[160:]
+
+        preprocessor = CountingPreprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=False,
+            regression=True,
+        )
+        datamodule.preprocess_data(X_train, y_train, X_val=X_val, y_val=y_val)
+
+        assert fit_call_count[0] == 1, f"Preprocessor.fit was called {fit_call_count[0]} times; expected exactly 1."
+
+    # ------------------------------------------------------------------
+    # 4. Val split size respects requested val_size
+    # ------------------------------------------------------------------
+
+    @pytest.mark.parametrize("val_size", [0.1, 0.2, 0.3])
+    def test_val_split_size_is_correct(self, regression_data, val_size):
+        """The validation split must contain approximately N * val_size rows."""
+        import math
+
+        from pretab.preprocessor import Preprocessor
+
+        X, y = regression_data
+        n = len(X)
+        preprocessor = Preprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=False,
+            regression=True,
+        )
+        datamodule.preprocess_data(X, y, val_size=val_size, random_state=0)
+
+        expected_val = math.ceil(n * val_size)
+        actual_val = len(datamodule.X_val)  # type: ignore[arg-type]
+        # Allow ±1 row for rounding differences across sklearn versions
+        assert abs(actual_val - expected_val) <= 1, (
+            f"val_size={val_size}: expected ~{expected_val} val rows, got {actual_val}."
+        )
+
+    # ------------------------------------------------------------------
+    # 5. Explicit val set passed through unchanged (no extra rows)
+    # ------------------------------------------------------------------
+
+    def test_explicit_val_set_size_preserved(self, regression_data):
+        """When X_val is supplied, the datamodule must not modify its length."""
+        from pretab.preprocessor import Preprocessor
+
+        X, y = regression_data
+        X_train, X_val = X.iloc[:150], X.iloc[150:]
+        y_train, y_val = y[:150], y[150:]
+
+        preprocessor = Preprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=False,
+            regression=True,
+        )
+        datamodule.preprocess_data(X_train, y_train, X_val=X_val, y_val=y_val)
+
+        assert len(datamodule.X_val) == len(X_val), (  # type: ignore[arg-type]
+            "Explicit val set size was changed during preprocessing — unexpected re-split."
+        )
+        assert len(datamodule.X_train) == len(X_train), (  # type: ignore[arg-type]
+            "Training set size was changed when an explicit val set was provided."
+        )
