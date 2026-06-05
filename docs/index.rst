@@ -32,7 +32,7 @@
    :maxdepth: 1
    :hidden:
 
-   tutorials/classification
+   tutorials/imbalance_classification
    tutorials/regression
    tutorials/distributional
    tutorials/experimental

@@ -468,7 +468,7 @@ model.fit(X_train, y_train, accelerator="cpu")
 Now that you've run your first models, explore:
 
 - **[Core Concepts](../core_concepts/config_system)** — Deep dive into the config system, preprocessing, and distributional regression
-- **[Tutorials](../tutorials/classification)** — Complete end-to-end workflows for different tasks
+- **[Tutorials](../tutorials/imbalance_classification)** — Complete end-to-end workflows for different tasks
 - **[API Reference](../api/models/index)** — Full documentation of all models and configs
 - **[FAQ](faq)** — Answers to common questions
 

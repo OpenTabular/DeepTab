@@ -230,4 +230,4 @@ model = TabulaRNNRegressor(
 
 - [Installation](installation) — Get started in 2 minutes
 - [Quickstart](quickstart) — First model in 5 minutes
-- [Tutorials](../tutorials/classification) — End-to-end workflows
+- [Tutorials](../tutorials/imbalance_classification) — End-to-end workflows
