@@ -43,11 +43,11 @@
    :maxdepth: 1
    :hidden:
 
+   model_zoo/stable/index
+   model_zoo/experimental/index
    model_zoo/comparison_tables
    model_zoo/efficiency
    model_zoo/recommended_configs
-   model_zoo/stable/index
-   model_zoo/experimental/index
 
 .. toctree::
    :caption: API Reference
