@@ -533,7 +533,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
                 embeddings=embeddings,
                 embeddings_val=embeddings_val,
                 num_classes=num_classes,
-                random_state=random_state,
+                random_state=random_state,  # type: ignore[arg-type]
                 batch_size=batch_size,
                 shuffle=shuffle,
                 lr=lr,

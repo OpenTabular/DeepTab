@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import os
 import platform
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -45,7 +46,7 @@ SEED = 42
 ALT_SEED = 99
 N_SAMPLES = 120
 N_FEATURES = 5
-_FIT_KWARGS = {"max_epochs": 3, "batch_size": 32}
+_FIT_KWARGS: dict[str, Any] = {"max_epochs": 3, "batch_size": 32}
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -58,7 +59,7 @@ def regression_data():
     rng = np.random.default_rng(0)
     X = rng.standard_normal((N_SAMPLES, N_FEATURES))
     y = X @ rng.standard_normal(N_FEATURES) + 0.1 * rng.standard_normal(N_SAMPLES)
-    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(N_FEATURES)])
+    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(N_FEATURES)])  # type: ignore[call-overload]
     return df, y
 
 

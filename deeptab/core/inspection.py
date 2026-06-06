@@ -199,7 +199,7 @@ class InspectionMixin:
             If True, include only parameters with ``requires_grad=True``.
         """
         self._require_built_for_inspection()
-        task_model = self.task_model  # pyright: ignore[reportAttributeAccessIssue]
+        task_model: nn.Module | None = self.task_model  # pyright: ignore[reportAttributeAccessIssue]
         if task_model is None:
             raise RuntimeError("The model must be built before calling parameter_table.")
 
