@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import platform
+import warnings
 from dataclasses import fields, is_dataclass
 from importlib.metadata import PackageNotFoundError, version
 from typing import Any
@@ -10,7 +11,30 @@ from typing import Any
 import numpy as np
 import torch
 
+RECOMMENDED_EXTENSION = ".deeptab"
 ARTIFACT_FORMAT_VERSION = 2
+
+
+def _warn_extension(path: str) -> None:
+    """Emit a warning when *path* does not use the recommended ``.deeptab`` extension.
+
+    This is a soft advisory only — any path is still accepted.
+
+    Parameters
+    ----------
+    path : str
+        The file path passed to :meth:`save` or :meth:`load`.
+    """
+    if not str(path).endswith(RECOMMENDED_EXTENSION):
+        warnings.warn(
+            f"DeepTab artifacts should use the '{RECOMMENDED_EXTENSION}' extension "
+            f"(e.g. 'model.deeptab'). "
+            f"Got: '{path}'. "
+            f"The file will still be saved/loaded correctly, but using '{RECOMMENDED_EXTENSION}' "
+            "makes the artifact type unambiguous and future-proof.",
+            UserWarning,
+            stacklevel=3,
+        )
 
 
 def save_state_dict(model: torch.nn.Module, path: str) -> None:

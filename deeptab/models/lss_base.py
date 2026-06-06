@@ -14,7 +14,7 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
-from deeptab.core.serialization import build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions.base import (
@@ -819,10 +819,11 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         --------
         >>> model = MLPLSS()
         >>> model.fit(X_train, y_train, family="normal")
-        >>> model.save("my_lss_model.pt")
-        >>> loaded = MLPLSS.load("my_lss_model.pt")
+        >>> model.save("my_lss_model.deeptab")
+        >>> loaded = MLPLSS.load("my_lss_model.deeptab")
         >>> predictions = loaded.predict(X_test)
         """
+        _warn_extension(path)
         bundle = build_save_bundle(self, lss=True, family=self.family_name)
         torch.save(bundle, path)
 
@@ -845,11 +846,12 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
 
         Examples
         --------
-        >>> loaded = MLPLSS.load("my_lss_model.pt")
+        >>> loaded = MLPLSS.load("my_lss_model.deeptab")
         >>> predictions = loaded.predict(X_test)
         >>> print(loaded.task_info_[\"family\"])
         'normal'
         """
+        _warn_extension(path)
         bundle = torch.load(path, weights_only=False)
 
         obj = bundle["_class"].__new__(bundle["_class"])

@@ -12,7 +12,7 @@ from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.inspection import InspectionMixin
-from deeptab.core.serialization import build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
@@ -709,10 +709,11 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         --------
         >>> model = MLPClassifier()
         >>> model.fit(X_train, y_train)
-        >>> model.save("my_model.pt")
-        >>> loaded = MLPClassifier.load("my_model.pt")
+        >>> model.save("my_model.deeptab")
+        >>> loaded = MLPClassifier.load("my_model.deeptab")
         >>> predictions = loaded.predict(X_test)
         """
+        _warn_extension(path)
         bundle = build_save_bundle(self, lss=False, family=None)
         torch.save(bundle, path)
 
@@ -736,13 +737,14 @@ class SklearnBase(InspectionMixin, BaseEstimator):
 
         Examples
         --------
-        >>> loaded = MLPClassifier.load("my_model.pt")
+        >>> loaded = MLPClassifier.load("my_model.deeptab")
         >>> predictions = loaded.predict(X_test)
         >>> print(loaded.task_info_["task"])
         'classification'
         >>> print(loaded.n_features_in_)
         6
         """
+        _warn_extension(path)
         bundle = torch.load(path, weights_only=False)
 
         obj = bundle["_class"].__new__(bundle["_class"])
