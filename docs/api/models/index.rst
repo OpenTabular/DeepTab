@@ -172,7 +172,7 @@ See Also
 - :doc:`../../model_zoo/stable/index` — Detailed model descriptions and selection guide
 - :doc:`../../model_zoo/comparison_tables` — Performance comparisons
 - :doc:`../../model_zoo/recommended_configs` — Hyperparameter recipes
-- :doc:`../../tutorials/classification` — Hands-on classification example
+- :doc:`../../tutorials/imbalance_classification` — Hands-on classification example
 
 Reference
 ---------

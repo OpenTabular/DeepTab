@@ -127,9 +127,9 @@ Key Design Principles
 See Also
 --------
 
-- :doc:`../../core_concepts/preprocessing` — How preprocessing works under the hood
+- :doc:`../../core_concepts/training_and_evaluation` — How preprocessing works under the hood
 - :doc:`../../core_concepts/sklearn_api` — Standard sklearn interface (recommended for most users)
-- :doc:`../../tutorials/classification` — End-to-end workflow example
+- :doc:`../../tutorials/imbalance_classification` — End-to-end workflow example
 
 .. toctree::
    :maxdepth: 1

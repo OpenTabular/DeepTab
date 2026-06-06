@@ -24,17 +24,14 @@ Understand DeepTab's design:
 - **[sklearn API](core_concepts/sklearn_api)** — Familiar fit/predict/evaluate interface
 - **[Model Tiers](core_concepts/model_tiers)** — Stable vs experimental models
 - **[Config System](core_concepts/config_system)** — Split-config for model, preprocessing, training
-- **[Preprocessing](core_concepts/preprocessing)** — Automatic feature handling
-- **[Classification](core_concepts/classification)** — Binary and multi-class classification
-- **[Regression](core_concepts/regression)** — Point estimation regression
-- **[Distributional Regression](core_concepts/distributional_regression)** — Full distribution prediction (LSS)
-- **[Training & Evaluation](core_concepts/training_and_evaluation)** — Deep dive into training
+- **[Training & Evaluation](core_concepts/training_and_evaluation)** — Fit pipeline, preprocessing, reproducibility, evaluation
+- **[Model Operations](core_concepts/model_operations)** — Serialisation and model inspection
 
 ### 🎯 Interactive Tutorials
 
 Hands-on examples with Google Colab:
 
-- **[Classification Tutorial](tutorials/classification)** — Multi-class classification workflow
+- **[Classification Tutorial](tutorials/imbalance_classification)** — Multi-class classification workflow
 - **[Regression Tutorial](tutorials/regression)** — Standard regression with TabR
 - **[Distributional Regression (LSS)](tutorials/distributional)** — Full distribution prediction
 - **[Experimental Models](tutorials/experimental)** — Using cutting-edge architectures
