@@ -23,6 +23,7 @@
    core_concepts/config_system
    core_concepts/training_and_evaluation
    core_concepts/model_operations
+   core_concepts/inference
 
 .. toctree::
    :caption: Tutorials
