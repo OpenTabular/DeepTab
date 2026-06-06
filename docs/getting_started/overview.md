@@ -6,13 +6,15 @@ DeepTab brings modern deep learning to tabular data with a clean scikit-learn in
 
 DeepTab provides 15 stable neural architectures for tabular data:
 
-- **State Space Models** — Mambular, MambaTab, MambAttention (flagship models)
-- **Transformers** — FTTransformer, TabTransformer, SAINT
-- **Tree-inspired** — NODE, ENODE, NDTF
-- **Residual networks** — ResNet, TabR
-- **Sequential** — TabulaRNN, TabM
-- **Attention-based** — AutoInt
-- **Baseline** — MLP
+| Family                 | Models                               | Notes                                                    |
+| ---------------------- | ------------------------------------ | -------------------------------------------------------- |
+| **State Space Models** | Mambular, MambaTab, MambAttention    | Flagship models; linear feature-sequence scaling         |
+| **Transformers**       | FTTransformer, TabTransformer, SAINT | Full feature or row attention                            |
+| **Tree-inspired**      | NODE, ENODE, NDTF                    | Differentiable soft-tree structures                      |
+| **Residual networks**  | ResNet, TabR                         | Skip-connection MLP and retrieval-augmented              |
+| **Sequential**         | TabulaRNN, TabM                      | RNN feature processing and parameter-efficient ensembles |
+| **Attention-based**    | AutoInt                              | Automatic feature interaction learning                   |
+| **Baseline**           | MLP                                  | Fast dense baseline                                      |
 
 **Plus 3 experimental models:** ModernNCA, Trompt, Tangos
 

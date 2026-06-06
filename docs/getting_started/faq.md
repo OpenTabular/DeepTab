@@ -28,20 +28,26 @@ See the [Overview](overview) for details on the new data API.
 When in doubt, start with `MambularClassifier` or `MambularRegressor`.
 ```
 
-Mambular tends to work well across a variety of tabular problems.
+Mambular tends to work well across a variety of tabular problems. For a full selection guide by dataset size, feature type, and compute constraints, see the [Model Comparison](../model_zoo/comparison_tables) page.
 
-If you want to experiment:
+Quick pointers:
 
-- **Large datasets** → Try `TabM` or `FTTransformer` for efficiency
-- **Many categorical features** → Try `TabTransformer` which focuses on categorical embeddings
-- **Simple baseline** → Try `MLP` or `ResNet` for comparison
-- **Interpretability** → Try `NODE` or `NDTF` (tree-based neural models)
-
-Use [GridSearchCV](quickstart) to compare multiple architectures systematically.
+- **Strong general-purpose baseline** → `TabM` or `Mambular`
+- **Many categorical features** → `TabTransformer`
+- **Fastest baseline** → `MLP` or `ResNet`
+- **Uncertainty estimates** → any `LSS` variant
+- **Interpretability** → `NODE` or `NDTF`
 
 ### Do I need a GPU?
 
-No, but it helps. DeepTab works on CPU, but training will be significantly faster on a GPU for larger datasets. For small datasets (< 10K samples), CPU training is usually acceptable.
+No, but it helps significantly for larger datasets and more complex architectures. The short answer:
+
+- **MLP, ResNet, TabM, MambaTab** — train comfortably on CPU up to ~100K–500K rows.
+- **Mambular, TabulaRNN, TabTransformer, NODE** — CPU is fine up to ~10K–20K rows; GPU recommended beyond that.
+- **FTTransformer, AutoInt, MambAttention, ENODE, NDTF, TabR** — GPU recommended above ~5K–10K rows.
+- **SAINT** — GPU strongly recommended above ~2K rows (row attention makes every batch expensive).
+
+For a full per-model breakdown including the cost driver for each architecture, see the [Hardware Requirements table](../model_zoo/comparison_tables#hardware-requirements-by-model) in the Model Zoo.
 
 ### How do I know if my GPU is being used?
 
@@ -246,19 +252,19 @@ model.fit(
 
 ### How do I save a trained model?
 
-```python
-# Train and save
-model = MambularClassifier()
-model.fit(X_train, y_train, max_epochs=50)
-model.save("my_model.pkl")
+Use the `.deeptab` extension — DeepTab warns when a different extension is used.
 
-# Load later
+```python
+# Save
+model.save("my_model.deeptab")
+
+# Load
 from deeptab.models import MambularClassifier
-loaded_model = MambularClassifier.load("my_model.pkl")
-predictions = loaded_model.predict(X_test)
+loaded = MambularClassifier.load("my_model.deeptab")
+predictions = loaded.predict(X_test)
 ```
 
-This saves the entire model including weights and preprocessing state.
+The artifact includes weights, fitted preprocessor, feature schema, and task metadata.
 
 ### Can I resume training from a checkpoint?
 
@@ -483,36 +489,35 @@ Note: Set `n_jobs=1` in GridSearchCV if using GPU, as each model will try to use
 
 ### Can I deploy DeepTab models?
 
-Yes. Save the model and load it in your deployment environment:
+Yes. For deployment, use `InferenceModel` — it validates the input schema and exposes only the inference surface, preventing accidental retraining in production:
 
 ```python
-# Training
-model.save("model.pkl")
+# Training environment
+model.save("model.deeptab")
 
-# Deployment
-from deeptab.models import MambularClassifier
-model = MambularClassifier.load("model.pkl")
-predictions = model.predict(X_new)
+# Deployment environment
+from deeptab import InferenceModel
+model = InferenceModel.from_path("model.deeptab")
+
+X_clean = model.validate_input(X_new)  # raises on schema mismatch
+predictions = model.predict(X_clean)
 ```
 
-Ensure the deployment environment has the same dependencies (PyTorch, DeepTab, etc.).
+See the [Inference Model](../core_concepts/inference) guide for the full deployment workflow.
 
 ## Advanced usage
 
 ### How do I access the underlying PyTorch model?
 
-The PyTorch model is stored in `model.model`:
+The Lightning module is stored in `model.task_model`:
 
 ```python
 model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
-# Access PyTorch model
-pytorch_model = model.model
-print(pytorch_model)
+task_model = model.task_model   # Lightning TaskModel
+architecture = model.estimator  # raw nn.Module architecture
 ```
-
-This is a `TaskModel` instance (Lightning module) containing the architecture.
 
 ### Can I use custom loss functions?
 
