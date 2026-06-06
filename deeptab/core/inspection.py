@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import time
 from dataclasses import asdict, is_dataclass
 from typing import Any
 
+import numpy as np
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -266,3 +268,209 @@ class InspectionMixin:
             "logger": _safe_class_name(logger),
             "deterministic": getattr(trainer, "deterministic", None),
         }
+
+    def profile(
+        self,
+        X,
+        y,
+        dry_run: bool = True,
+        n_forward_passes: int = 3,
+        batch_size: int | None = None,
+        random_state: int = 0,
+    ) -> dict[str, Any]:
+        """Build the model on a small data sample and run a dry forward pass.
+
+        Combines :meth:`describe`, :meth:`runtime_info`, and a timed forward
+        pass to give a complete pre-training picture without running any
+        gradient updates.
+
+        Parameters
+        ----------
+        X : DataFrame or array-like
+            Feature matrix. The first ``min(256, len(X))`` rows are used for
+            the dry-run build.
+        y : array-like
+            Target vector aligned with *X*.
+        dry_run : bool, default=True
+            When ``True`` the temporary model is discarded after profiling so
+            the estimator's state is left unchanged (unless the model was
+            already built, in which case the existing model is used directly).
+        n_forward_passes : int, default=3
+            Number of forward passes used to estimate per-batch runtime. The
+            median is reported to reduce noise.
+        batch_size : int or None, default=None
+            Override the batch size used for timing. Defaults to the value in
+            ``trainer_config`` or 64.
+        random_state : int, default=0
+            Seed passed to the dry-run build for reproducibility.
+
+        Returns
+        -------
+        dict
+            Keys:
+
+            ``builds``
+                ``True`` if the model constructed without error.
+            ``error``
+                Exception message when ``builds`` is ``False``, else ``None``.
+            ``device``
+                Device string (e.g. ``"cpu"``, ``"mps:0"``, ``"cuda:0"``).
+            ``dtype``
+                Parameter dtype string (e.g. ``"float32"``).
+            ``total_params``
+                Total number of model parameters.
+            ``trainable_params``
+                Number of trainable parameters.
+            ``memory_mb``
+                Estimated parameter memory in megabytes.
+            ``batch_shape``
+                Shape of the first dummy batch drawn from the data module.
+            ``output_shape``
+                Shape of the model output for that dummy batch (``None`` on error).
+            ``loss_fct``
+                Class name of the loss function.
+            ``forward_ms_median``
+                Median forward-pass wall time in milliseconds (``None`` on error).
+            ``forward_ms_min``
+                Minimum forward-pass wall time in milliseconds (``None`` on error).
+            ``describe``
+                Full :meth:`describe` dict (populated after build).
+            ``runtime``
+                Full :meth:`runtime_info` dict (populated after build).
+        """
+        was_already_built = bool(getattr(self, "built", False))
+
+        result: dict[str, Any] = {
+            "builds": False,
+            "error": None,
+            "device": None,
+            "dtype": None,
+            "total_params": None,
+            "trainable_params": None,
+            "memory_mb": None,
+            "batch_shape": None,
+            "output_shape": None,
+            "loss_fct": None,
+            "forward_ms_median": None,
+            "forward_ms_min": None,
+            "describe": None,
+            "runtime": None,
+        }
+
+        try:
+            # ── 1. Build on a small sample if not already built ──────────────
+            if not was_already_built:
+                n_sample = min(256, len(y))
+                idx = np.random.default_rng(random_state).choice(len(y), size=n_sample, replace=False)
+                X_sample = X.iloc[idx] if hasattr(X, "iloc") else X[idx]
+                y_sample = y[idx] if isinstance(y, np.ndarray) else np.asarray(y)[idx]
+
+                # Determine task type from class hierarchy — used by build_fn
+                # internally; we only need to detect it for build dispatch.
+                build_fn = getattr(self, "build_model", None)
+                if build_fn is None:
+                    raise RuntimeError("Estimator does not expose a build_model() method.")
+
+                tc = getattr(self, "trainer_config", None)
+                _bs = batch_size or (tc.batch_size if tc is not None else 64)
+
+                build_fn(
+                    X_sample,
+                    y_sample,
+                    val_size=0.2,
+                    batch_size=_bs,
+                    random_state=random_state,
+                )
+            else:
+                tc = getattr(self, "trainer_config", None)
+                _bs = batch_size or (tc.batch_size if tc is not None else 64)
+
+            result["builds"] = True
+
+            # ── 2. Parameter counts & memory ─────────────────────────────────
+            task_model = getattr(self, "task_model", None)
+            counts = self._parameter_counts()
+            result["total_params"] = counts["total"]
+            result["trainable_params"] = counts["trainable"]
+
+            first_param = _first_parameter(task_model)
+            if first_param is not None:
+                result["device"] = str(first_param.device)
+                dtype_str = str(first_param.dtype).replace("torch.", "")
+                result["dtype"] = dtype_str
+                _bytes_per_elem = {"float32": 4, "float16": 2, "bfloat16": 2, "float64": 8}.get(dtype_str, 4)
+                result["memory_mb"] = round(counts["total"] * _bytes_per_elem / (1024**2), 3)
+
+            # ── 3. Loss function info ─────────────────────────────────────────
+            if task_model is not None:
+                result["loss_fct"] = _safe_class_name(getattr(task_model, "loss_fct", None))
+
+            # ── 4. Dummy forward pass — shape + timing ────────────────────────
+            data_module = getattr(self, "data_module", None)
+            if task_model is not None and data_module is not None:
+                try:
+                    data_module.setup("fit")
+                    train_loader = data_module.train_dataloader()
+                    raw_batch = next(iter(train_loader))
+
+                    # Batch format: ((num_feats, cat_feats, embeddings), labels)
+                    feat_tuple, _labels = raw_batch
+                    num_feats, cat_feats, embeddings = feat_tuple
+
+                    result["batch_shape"] = {
+                        "num_features": [list(t.shape) for t in num_feats] if num_feats else [],
+                        "cat_features": [list(t.shape) for t in cat_feats] if cat_feats else [],
+                        "labels": list(_labels.shape),
+                    }
+
+                    task_model.eval()
+                    device = first_param.device if first_param is not None else torch.device("cpu")
+
+                    num_feats_dev = [t.to(device) for t in num_feats] if num_feats else []
+                    cat_feats_dev = [t.to(device) for t in cat_feats] if cat_feats else []
+                    # Embeddings: pass through as-is (may be None or [None, ...]);
+                    # the estimator handles both just as training_step does.
+                    emb_dev = (
+                        [t.to(device) for t in embeddings]
+                        if embeddings and all(t is not None for t in embeddings)
+                        else embeddings
+                    )
+
+                    timings: list[float] = []
+                    with torch.no_grad():
+                        for _ in range(n_forward_passes):
+                            t0 = time.perf_counter()
+                            task_model.estimator(num_feats_dev, cat_feats_dev, emb_dev)
+                            if device.type == "cuda":
+                                torch.cuda.synchronize()
+                            timings.append((time.perf_counter() - t0) * 1000)
+
+                    # Capture output shape from a final pass
+                    with torch.no_grad():
+                        out = task_model.estimator(num_feats_dev, cat_feats_dev, emb_dev)
+                    result["output_shape"] = list(out.shape) if isinstance(out, torch.Tensor) else type(out).__name__
+                    result["forward_ms_median"] = round(float(np.median(timings)), 3)
+                    result["forward_ms_min"] = round(float(np.min(timings)), 3)
+                except Exception as fwd_err:
+                    result["output_shape"] = None
+                    result["error"] = f"forward pass failed: {fwd_err}"
+
+            # ── 5. Attach describe / runtime snapshots ────────────────────────
+            result["describe"] = self.describe()
+            result["runtime"] = self.runtime_info()
+
+        except Exception as build_err:
+            result["builds"] = False
+            result["error"] = str(build_err)
+
+        finally:
+            # Tear down the temporary build so the estimator is left unfitted
+            if dry_run and not was_already_built:
+                self.task_model = None
+                self.built = False
+                if hasattr(self, "data_module"):
+                    self.data_module = None  # type: ignore[assignment]
+                if hasattr(self, "is_fitted_"):
+                    self.is_fitted_ = False
+
+        return result
