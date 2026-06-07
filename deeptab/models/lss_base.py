@@ -17,19 +17,7 @@ from deeptab.core.inspection import InspectionMixin
 from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
-from deeptab.distributions.base import (
-    BetaDistribution,
-    CategoricalDistribution,
-    DirichletDistribution,
-    GammaDistribution,
-    InverseGammaDistribution,
-    JohnsonSuDistribution,
-    NegativeBinomialDistribution,
-    NormalDistribution,
-    PoissonDistribution,
-    Quantile,
-    StudentTDistribution,
-)
+from deeptab.distributions import get_distribution
 from deeptab.distributions.metrics import (
     beta_brier_score,
     dirichlet_error,
@@ -40,20 +28,6 @@ from deeptab.distributions.metrics import (
     student_t_loss,
 )
 from deeptab.training import TaskModel
-
-DISTRIBUTION_CLASSES = {
-    "normal": NormalDistribution,
-    "poisson": PoissonDistribution,
-    "gamma": GammaDistribution,
-    "beta": BetaDistribution,
-    "dirichlet": DirichletDistribution,
-    "studentt": StudentTDistribution,
-    "negativebinom": NegativeBinomialDistribution,
-    "inversegamma": InverseGammaDistribution,
-    "categorical": CategoricalDistribution,
-    "quantile": Quantile,
-    "johnsonsu": JohnsonSuDistribution,
-}
 
 
 class SklearnBaseLSS(InspectionMixin, BaseEstimator):
@@ -520,28 +494,11 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         if self.random_state is not None:
             random_state = self.random_state
 
-        distribution_classes = {
-            "normal": NormalDistribution,
-            "poisson": PoissonDistribution,
-            "gamma": GammaDistribution,
-            "beta": BetaDistribution,
-            "dirichlet": DirichletDistribution,
-            "studentt": StudentTDistribution,
-            "negativebinom": NegativeBinomialDistribution,
-            "inversegamma": InverseGammaDistribution,
-            "categorical": CategoricalDistribution,
-            "quantile": Quantile,
-            "johnsonsu": JohnsonSuDistribution,
-        }
-
         if distributional_kwargs is None:
             distributional_kwargs = {}
 
-        if family in distribution_classes:
-            self.family = distribution_classes[family](**distributional_kwargs)
-            self.family_name = family
-        else:
-            raise ValueError(f"Unsupported family: {family}")
+        self.family = get_distribution(family, **distributional_kwargs)
+        self.family_name = family
 
         if rebuild:
             self.build_model(
@@ -856,7 +813,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
 
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
-        obj.family = DISTRIBUTION_CLASSES[bundle["family"]]()
+        obj.family = get_distribution(bundle["family"])
         obj.family_name = bundle["family"]
 
         obj.data_module = TabularDataModule(
