@@ -1,4 +1,4 @@
-"""Categorical distribution and Quantile regression for multi-class / distribution-free LSS models."""
+"""Categorical, Quantile, and Multinomial distributions for multi-class / distribution-free LSS models."""
 
 import torch
 import torch.distributions as dist
@@ -78,3 +78,45 @@ class Quantile(BaseDistribution):
 
         loss = torch.mean(torch.stack(losses, dim=1).sum(dim=1))
         return loss
+
+
+class MultinomialDistribution(BaseDistribution):
+    """
+    Represents a Multinomial distribution for modelling count vectors that sum to a
+    known total (e.g. word counts per document, allele frequencies, multi-label counts
+    where total responses per sample is fixed).
+
+    The neural network outputs ``num_classes`` logits which are converted to probabilities
+    via softmax.  ``total_count`` is a fixed constructor argument, not a predicted
+    parameter.
+
+    Parameters
+    ----------
+        name (str): Defaults to ``"Multinomial"``.
+        num_classes (int): Number of categories K.  Sets ``param_count = K``.
+            Defaults to ``2``.
+        total_count (int): Total number of trials n (e.g. 1 makes this equivalent
+            to Categorical).  Defaults to ``1``.
+        prob_transform (str or callable): Transform for the class logits.
+            Defaults to ``"probabilities"`` (softmax).
+    """
+
+    def __init__(
+        self,
+        name="Multinomial",
+        num_classes=2,
+        total_count=1,
+        prob_transform="probabilities",
+    ):
+        param_names = [f"p_{k}" for k in range(num_classes)]
+        super().__init__(name, param_names)
+
+        self.total_count = total_count
+        self.probs_transform = self.get_transform(prob_transform)
+
+    def compute_loss(self, predictions, y_true):
+        probs = self.probs_transform(predictions)
+
+        multinomial_dist = dist.Multinomial(total_count=self.total_count, probs=probs)
+        nll = -multinomial_dist.log_prob(y_true).mean()
+        return nll

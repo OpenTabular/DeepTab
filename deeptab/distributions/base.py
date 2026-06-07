@@ -39,6 +39,7 @@ class BaseDistribution(torch.nn.Module):
             "square": lambda x: x**2,
             "exp": torch.exp,
             "sqrt": torch.sqrt,
+            "sigmoid": torch.sigmoid,
             "probabilities": lambda x: torch.softmax(x, dim=-1),
             # Adding a small constant for numerical stability
             "log": lambda x: torch.log(x + 1e-6),

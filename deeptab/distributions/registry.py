@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from .base import BaseDistribution
 from .beta import BetaDistribution, DirichletDistribution
-from .categorical import CategoricalDistribution, Quantile
+from .categorical import CategoricalDistribution, MultinomialDistribution, Quantile
 from .gamma import GammaDistribution, InverseGammaDistribution
+from .mixture import MixtureOfGaussiansDistribution
 from .negative_binomial import NegativeBinomialDistribution
-from .normal import NormalDistribution
-from .poisson import PoissonDistribution
+from .normal import LogNormalDistribution, NormalDistribution
+from .poisson import PoissonDistribution, ZeroInflatedPoissonDistribution
 from .student_t import JohnsonSuDistribution, StudentTDistribution
+from .tweedie import TweedieDistribution
 
 DISTRIBUTION_REGISTRY: dict[str, type[BaseDistribution]] = {
     "normal": NormalDistribution,
+    "lognormal": LogNormalDistribution,
     "poisson": PoissonDistribution,
+    "zip": ZeroInflatedPoissonDistribution,
     "gamma": GammaDistribution,
     "inversegamma": InverseGammaDistribution,
     "beta": BetaDistribution,
@@ -22,7 +26,10 @@ DISTRIBUTION_REGISTRY: dict[str, type[BaseDistribution]] = {
     "johnsonsu": JohnsonSuDistribution,
     "negativebinom": NegativeBinomialDistribution,
     "categorical": CategoricalDistribution,
+    "multinomial": MultinomialDistribution,
     "quantile": Quantile,
+    "tweedie": TweedieDistribution,
+    "mog": MixtureOfGaussiansDistribution,
 }
 
 
