@@ -1,4 +1,5 @@
 from .base_model import BaseModel
+from .inference import InferenceModel
 from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
 from .registry import MODEL_REGISTRY, ModelInfo
 from .reproducibility import seed_context, set_seed
@@ -18,6 +19,7 @@ __all__ = [
     "MODEL_REGISTRY",
     "BaseModel",
     "ImportanceGetter",
+    "InferenceModel",
     "InspectionMixin",
     "MLP_Block",
     "ModelInfo",
