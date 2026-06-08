@@ -24,11 +24,13 @@ Continuous Distributions
 Distribution                                Use Case
 =======================================    =======================================================================================================
 :class:`NormalDistribution`                General continuous targets, default choice.
-:class:`StudentTDistribution`              Robust to outliers, heavy-tailed data.
+:class:`LogNormalDistribution`             Strictly positive targets with multiplicative noise (e.g. prices, incomes).
+:class:`StudentTDistribution`              Robust to outliers; heavy-tailed data.
 :class:`GammaDistribution`                 Positive continuous targets (durations, amounts).
 :class:`InverseGammaDistribution`          Positive targets with right skew.
 :class:`BetaDistribution`                  Bounded targets in (0, 1) interval (proportions, rates).
-:class:`JohnsonSuDistribution`             Flexible shape, can model skewness and kurtosis.
+:class:`JohnsonSuDistribution`             Flexible shape; can model skewness and kurtosis.
+:class:`TweedieDistribution`               Zero-inflated positive targets (insurance claims, rainfall).
 =======================================    =======================================================================================================
 
 Discrete Distributions
@@ -38,18 +40,29 @@ Discrete Distributions
 Distribution                                Use Case
 =======================================    =======================================================================================================
 :class:`PoissonDistribution`               Count data (non-negative integers).
+:class:`ZeroInflatedPoissonDistribution`   Count data with excess zeros.
 :class:`NegativeBinomialDistribution`      Overdispersed count data.
 :class:`CategoricalDistribution`           Multiclass classification with uncertainty.
 =======================================    =======================================================================================================
 
-Multivariate Distributions
-~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Multivariate / Compositional Distributions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 =======================================    =======================================================================================================
 Distribution                                Use Case
 =======================================    =======================================================================================================
 :class:`DirichletDistribution`             Compositional data (proportions that sum to 1).
-:class:`Quantile`                          Quantile regression (predict percentiles).
+:class:`MultinomialDistribution`           Multi-category count targets.
+:class:`MixtureOfGaussiansDistribution`    Multimodal continuous targets (e.g. bimodal price distributions).
+=======================================    =======================================================================================================
+
+Quantile Regression
+~~~~~~~~~~~~~~~~~~~
+
+=======================================    =======================================================================================================
+Distribution                                Use Case
+=======================================    =======================================================================================================
+:class:`Quantile`                          Predict arbitrary percentiles; distribution-free.
 =======================================    =======================================================================================================
 
 Quick Example
@@ -79,17 +92,25 @@ Choosing a Distribution
 
 - Start with ``normal`` (default)
 - Use ``studentt`` if you have outliers
+- Use ``lognormal`` for strictly positive targets with multiplicative noise
 - Use ``gamma`` if targets are strictly positive
 - Use ``beta`` if targets are in (0, 1)
+- Use ``tweedie`` for zero-inflated positive targets (e.g. insurance claims)
 
 **For count data:**
 
 - Use ``poisson`` for counts without overdispersion
-- Use ``negativebinomial`` for overdispersed counts
+- Use ``zip`` for counts with excess zeros
+- Use ``negativebinom`` for overdispersed counts
 
 **For compositional data:**
 
 - Use ``dirichlet`` for proportions that sum to 1
+- Use ``multinomial`` for multi-category count targets
+
+**For multimodal data:**
+
+- Use ``mog`` (Mixture of Gaussians) for targets with multiple peaks
 
 See Also
 --------
@@ -98,11 +119,10 @@ See Also
 - :doc:`../../tutorials/distributional` — Complete LSS examples
 - :class:`deeptab.models.MambularLSS` — LSS model reference
 
-Reference
----------
+API Reference
+-------------
 
 .. toctree::
    :maxdepth: 1
-   :hidden:
 
    distributions_ref

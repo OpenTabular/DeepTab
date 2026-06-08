@@ -1,38 +1,94 @@
 deeptab.distributions
 =====================
 
-.. autoclass:: deeptab.distributions.BaseDistribution
-   :members:
+.. currentmodule:: deeptab.distributions
 
-.. autoclass:: deeptab.distributions.NormalDistribution
-   :members:
+Base Class
+----------
 
-.. autoclass:: deeptab.distributions.StudentTDistribution
+.. autoclass:: BaseDistribution
    :members:
+   :undoc-members:
 
-.. autoclass:: deeptab.distributions.GammaDistribution
-   :members:
+Registry
+--------
 
-.. autoclass:: deeptab.distributions.InverseGammaDistribution
-   :members:
+.. autodata:: DISTRIBUTION_REGISTRY
 
-.. autoclass:: deeptab.distributions.BetaDistribution
-   :members:
+.. autofunction:: get_distribution
 
-.. autoclass:: deeptab.distributions.JohnsonSuDistribution
-   :members:
+Continuous Distributions
+-------------------------
 
-.. autoclass:: deeptab.distributions.PoissonDistribution
+.. autoclass:: NormalDistribution
    :members:
+   :undoc-members:
 
-.. autoclass:: deeptab.distributions.NegativeBinomialDistribution
+.. autoclass:: LogNormalDistribution
    :members:
+   :undoc-members:
 
-.. autoclass:: deeptab.distributions.CategoricalDistribution
+.. autoclass:: StudentTDistribution
    :members:
+   :undoc-members:
 
-.. autoclass:: deeptab.distributions.DirichletDistribution
+.. autoclass:: GammaDistribution
    :members:
+   :undoc-members:
 
-.. autoclass:: deeptab.distributions.Quantile
+.. autoclass:: InverseGammaDistribution
    :members:
+   :undoc-members:
+
+.. autoclass:: BetaDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: JohnsonSuDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: TweedieDistribution
+   :members:
+   :undoc-members:
+
+Discrete Distributions
+-----------------------
+
+.. autoclass:: PoissonDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: ZeroInflatedPoissonDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: NegativeBinomialDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: CategoricalDistribution
+   :members:
+   :undoc-members:
+
+Multivariate / Compositional Distributions
+-------------------------------------------
+
+.. autoclass:: DirichletDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: MultinomialDistribution
+   :members:
+   :undoc-members:
+
+.. autoclass:: MixtureOfGaussiansDistribution
+   :members:
+   :undoc-members:
+
+Quantile Regression
+--------------------
+
+.. autoclass:: Quantile
+   :members:
+   :undoc-members:
