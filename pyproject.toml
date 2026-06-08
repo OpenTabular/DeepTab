@@ -120,6 +120,7 @@ reportPrivateImportUsage = false
 reportUnknownMemberType = false
 reportUnknownArgumentType = false
 reportUnknownVariableType = false
+reportUnsupportedDunderAll = false
 
 # Configure code linting
 [tool.ruff]
