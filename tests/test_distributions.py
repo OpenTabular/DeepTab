@@ -138,9 +138,10 @@ def test_registry_contains_all_families():
 
 
 def test_get_distribution_unknown_raises():
+    from deeptab.core.exceptions import InvalidParamError
     from deeptab.distributions import get_distribution
 
-    with pytest.raises(ValueError, match="Unknown distribution family"):
+    with pytest.raises(InvalidParamError):
         get_distribution("not_a_family")
 
 

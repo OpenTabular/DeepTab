@@ -217,7 +217,9 @@ def test_predict_validates_feature_names(classification_data):
     model = MLPClassifier()
     model.fit(X_train, y_train, **FIT_KWARGS)
 
-    with pytest.raises(ValueError, match="feature names"):
+    from deeptab.core.exceptions import ColumnNameError
+
+    with pytest.raises(ColumnNameError):
         model.predict(X_test[X_test.columns[::-1]])
 
 

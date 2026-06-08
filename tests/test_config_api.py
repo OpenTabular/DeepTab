@@ -287,7 +287,7 @@ class TestEstimatorGetParams:
     def test_get_params_returns_config_objects(self):
         mc = MLPConfig(layer_sizes=[32, 16])
         tc = TrainerConfig(max_epochs=1)
-        pc = PreprocessingConfig(numerical_preprocessing="standard")
+        pc = PreprocessingConfig(numerical_preprocessing="standardization")
         model = MLPClassifier(model_config=mc, trainer_config=tc, preprocessing_config=pc)
 
         params = model.get_params(deep=False)
