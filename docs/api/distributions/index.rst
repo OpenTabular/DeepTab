@@ -20,50 +20,74 @@ Available Distributions
 Continuous Distributions
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-=======================================    =======================================================================================================
-Distribution                                Use Case
-=======================================    =======================================================================================================
-:class:`NormalDistribution`                General continuous targets, default choice.
-:class:`LogNormalDistribution`             Strictly positive targets with multiplicative noise (e.g. prices, incomes).
-:class:`StudentTDistribution`              Robust to outliers; heavy-tailed data.
-:class:`GammaDistribution`                 Positive continuous targets (durations, amounts).
-:class:`InverseGammaDistribution`          Positive targets with right skew.
-:class:`BetaDistribution`                  Bounded targets in (0, 1) interval (proportions, rates).
-:class:`JohnsonSuDistribution`             Flexible shape; can model skewness and kurtosis.
-:class:`TweedieDistribution`               Zero-inflated positive targets (insurance claims, rainfall).
-=======================================    =======================================================================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Distribution
+     - Use Case
+   * - :class:`NormalDistribution`
+     - General continuous targets; default choice.
+   * - :class:`LogNormalDistribution`
+     - Strictly positive targets with multiplicative noise (prices, incomes).
+   * - :class:`StudentTDistribution`
+     - Robust to outliers; heavy-tailed data.
+   * - :class:`GammaDistribution`
+     - Positive continuous targets (durations, amounts).
+   * - :class:`InverseGammaDistribution`
+     - Positive targets with right skew.
+   * - :class:`BetaDistribution`
+     - Bounded targets in (0, 1) interval (proportions, rates).
+   * - :class:`JohnsonSuDistribution`
+     - Flexible shape; can model skewness and kurtosis.
+   * - :class:`TweedieDistribution`
+     - Zero-inflated positive targets (insurance claims, rainfall).
 
 Discrete Distributions
 ~~~~~~~~~~~~~~~~~~~~~~
 
-=======================================    =======================================================================================================
-Distribution                                Use Case
-=======================================    =======================================================================================================
-:class:`PoissonDistribution`               Count data (non-negative integers).
-:class:`ZeroInflatedPoissonDistribution`   Count data with excess zeros.
-:class:`NegativeBinomialDistribution`      Overdispersed count data.
-:class:`CategoricalDistribution`           Multiclass classification with uncertainty.
-=======================================    =======================================================================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Distribution
+     - Use Case
+   * - :class:`PoissonDistribution`
+     - Count data (non-negative integers).
+   * - :class:`ZeroInflatedPoissonDistribution`
+     - Count data with excess zeros.
+   * - :class:`NegativeBinomialDistribution`
+     - Overdispersed count data.
+   * - :class:`CategoricalDistribution`
+     - Multiclass classification with uncertainty.
 
 Multivariate / Compositional Distributions
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-=======================================    =======================================================================================================
-Distribution                                Use Case
-=======================================    =======================================================================================================
-:class:`DirichletDistribution`             Compositional data (proportions that sum to 1).
-:class:`MultinomialDistribution`           Multi-category count targets.
-:class:`MixtureOfGaussiansDistribution`    Multimodal continuous targets (e.g. bimodal price distributions).
-=======================================    =======================================================================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Distribution
+     - Use Case
+   * - :class:`DirichletDistribution`
+     - Compositional data (proportions that sum to 1).
+   * - :class:`MultinomialDistribution`
+     - Multi-category count targets.
+   * - :class:`MixtureOfGaussiansDistribution`
+     - Multimodal continuous targets (bimodal price distributions etc.).
 
 Quantile Regression
 ~~~~~~~~~~~~~~~~~~~
 
-=======================================    =======================================================================================================
-Distribution                                Use Case
-=======================================    =======================================================================================================
-:class:`Quantile`                          Predict arbitrary percentiles; distribution-free.
-=======================================    =======================================================================================================
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Distribution
+     - Use Case
+   * - :class:`Quantile`
+     - Predict arbitrary percentiles; distribution-free.
 
 Quick Example
 -------------
@@ -88,34 +112,65 @@ Quick Example
 Choosing a Distribution
 ------------------------
 
-**For regression (continuous targets):**
+.. list-table::
+   :header-rows: 1
+   :widths: 20 20 60
 
-- Start with ``normal`` (default)
-- Use ``studentt`` if you have outliers
-- Use ``lognormal`` for strictly positive targets with multiplicative noise
-- Use ``gamma`` if targets are strictly positive
-- Use ``beta`` if targets are in (0, 1)
-- Use ``tweedie`` for zero-inflated positive targets (e.g. insurance claims)
-
-**For count data:**
-
-- Use ``poisson`` for counts without overdispersion
-- Use ``zip`` for counts with excess zeros
-- Use ``negativebinom`` for overdispersed counts
-
-**For compositional data:**
-
-- Use ``dirichlet`` for proportions that sum to 1
-- Use ``multinomial`` for multi-category count targets
-
-**For multimodal data:**
-
-- Use ``mog`` (Mixture of Gaussians) for targets with multiple peaks
+   * - ``family=``
+     - Target type
+     - Use when
+   * - ``"normal"``
+     - Continuous
+     - Default starting point; symmetric noise around a mean.
+   * - ``"studentt"``
+     - Continuous
+     - Outliers are present; need heavier tails than Normal.
+   * - ``"lognormal"``
+     - Positive continuous
+     - Multiplicative noise; targets span multiple orders of magnitude (prices, incomes).
+   * - ``"gamma"``
+     - Positive continuous
+     - Strictly positive targets with right skew (durations, rainfall amounts).
+   * - ``"inversegamma"``
+     - Positive continuous
+     - Positive targets with a longer right tail than Gamma.
+   * - ``"beta"``
+     - (0, 1) bounded
+     - Proportions, rates, probabilities that must stay in (0, 1).
+   * - ``"johnsonsu"``
+     - Continuous
+     - Need to model both skewness and excess kurtosis simultaneously.
+   * - ``"tweedie"``
+     - Zero-inflated positive
+     - Mix of exact zeros and positive values (insurance claims, rainfall).
+   * - ``"poisson"``
+     - Count
+     - Non-negative integer counts with mean ≈ variance.
+   * - ``"zip"``
+     - Count
+     - Count data with more zeros than Poisson predicts.
+   * - ``"negativebinom"``
+     - Count
+     - Overdispersed counts (variance > mean).
+   * - ``"categorical"``
+     - Multiclass
+     - Classification with calibrated class probabilities.
+   * - ``"dirichlet"``
+     - Compositional
+     - Vectors of proportions that must sum to 1.
+   * - ``"multinomial"``
+     - Multi-category count
+     - Integer-valued compositional targets.
+   * - ``"mog"``
+     - Continuous multimodal
+     - Targets with multiple distinct peaks (mixture of regimes).
+   * - ``"quantile"``
+     - Distribution-free
+     - Predict specific percentiles without assuming a parametric family.
 
 See Also
 --------
 
-- :doc:`../../core_concepts/distributional_regression` — LSS regression guide
 - :doc:`../../tutorials/distributional` — Complete LSS examples
 - :class:`deeptab.models.MambularLSS` — LSS model reference
 

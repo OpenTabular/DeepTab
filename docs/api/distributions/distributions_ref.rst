@@ -92,3 +92,4 @@ Quantile Regression
 .. autoclass:: Quantile
    :members:
    :undoc-members:
+   :no-index:
