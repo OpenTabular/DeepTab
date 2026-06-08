@@ -3,6 +3,7 @@ from collections.abc import Callable
 import torch
 from sklearn.metrics import r2_score
 
+from deeptab.core.exceptions import not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
 
@@ -244,7 +245,7 @@ class SklearnBaseRegressor(SklearnBase):
         """
         X = self._validate_predict_input(X)
         if self.task_model is None:
-            raise RuntimeError("The model must be fitted before calling predict.")
+            raise not_fitted_error(type(self).__name__, "predict")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)

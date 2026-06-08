@@ -2,6 +2,7 @@ import warnings
 from collections.abc import Callable
 
 import lightning as pl
+import numpy as np
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 from pretab.preprocessor import Preprocessor
@@ -11,12 +12,60 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+from deeptab.core.exceptions import DataError, target_nan_error, target_range_error, warn_data, xy_length_mismatch_error
 from deeptab.core.inspection import InspectionMixin
 from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
 from deeptab.training import TaskModel, pretrain_embeddings
+
+
+def _validate_fit_inputs(
+    X,
+    y,
+    regression: bool,
+    family: str | None = None,
+) -> None:
+    """Validate X and y before any preprocessing or model building.
+
+    Raises
+    ------
+    EmptyDataError
+        If X is empty (caught later by ensure_dataframe).
+    DataError
+        If len(X) != len(y), y contains NaN, or y violates the distribution
+        family's range constraint.
+    """
+    n_X = len(X)
+    n_y = len(y)
+    if n_X != n_y:
+        raise xy_length_mismatch_error(n_X, n_y)
+
+    y_arr = np.asarray(y)
+    if y_arr.ndim <= 2 and np.issubdtype(y_arr.dtype, np.floating) and np.isnan(y_arr).any():
+        raise target_nan_error()
+
+    # Distribution family range constraints
+    if family is not None:
+        family_lower = family.lower()
+        if family_lower in {"poisson", "negativebinom"} and (y_arr < 0).any():
+            raise target_range_error(family, "non-negative")
+        if family_lower in {"gamma", "inversegaussian"} and (y_arr <= 0).any():
+            raise target_range_error(family, "strictly positive")
+        if family_lower == "binomial" and not np.all((y_arr == 0) | (y_arr == 1)):
+            raise target_range_error(family, "binary (0 or 1)")
+
+    # Warn about high-NaN columns
+    if hasattr(X, "isna"):
+        nan_rate = X.isna().mean()
+        high_nan = nan_rate[nan_rate > 0.5].index.tolist()
+        if high_nan:
+            warn_data(
+                f"Columns with >50% missing values: {[str(c) for c in high_nan]}. "
+                "Consider dropping or imputing them before calling fit().",
+                stacklevel=5,
+            )
 
 
 def _raise_flat_param_error(kwargs: dict, estimator_name: str) -> None:
@@ -510,6 +559,9 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             monitor = tc.monitor
             mode = tc.mode
             checkpoint_path = tc.checkpoint_path
+
+        # Validate inputs before any preprocessing or model construction
+        _validate_fit_inputs(X, y, regression=regression)
 
         # When random_state was fixed at construction time, honour it
         if self.random_state is not None:

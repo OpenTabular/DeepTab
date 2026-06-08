@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, log_loss
 
+from deeptab.core.exceptions import NotFittedError, not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
 from deeptab.training.losses import build_classification_loss, compute_class_weights
@@ -338,7 +339,7 @@ class SklearnBaseClassifier(SklearnBase):
         """
         X = self._validate_predict_input(X)
         if self.task_model is None:
-            raise RuntimeError("The model must be fitted before calling predict.")
+            raise not_fitted_error(type(self).__name__, "predict")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
@@ -390,7 +391,7 @@ class SklearnBaseClassifier(SklearnBase):
         """
         X = self._validate_predict_input(X)
         if self.task_model is None:
-            raise RuntimeError("The model must be fitted before calling predict_proba.")
+            raise not_fitted_error(type(self).__name__, "predict_proba")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)

@@ -11,12 +11,14 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+from deeptab.core.exceptions import not_fitted_error
 from deeptab.core.inspection import InspectionMixin
 from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
 from deeptab.metrics import get_default_metrics_dict
+from deeptab.models.base import _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
@@ -480,6 +482,9 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             mode = tc.mode
             checkpoint_path = tc.checkpoint_path
 
+        # Validate inputs before any preprocessing or model construction
+        _validate_fit_inputs(X, y, regression=True, family=family)
+
         # When random_state was fixed at construction time, honour it
         if self.random_state is not None:
             random_state = self.random_state
@@ -565,7 +570,7 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         """
         X = self._validate_predict_input(X)
         if self.task_model is None:
-            raise RuntimeError("The model must be fitted before calling predict.")
+            raise not_fitted_error(type(self).__name__, "predict")
 
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X)

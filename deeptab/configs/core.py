@@ -1,8 +1,46 @@
+from __future__ import annotations
+
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
 import torch.nn as nn
 from sklearn.base import BaseEstimator
+
+from deeptab.core.exceptions import (
+    ConfigWarning,
+    IncompatibleParamsError,
+    InvalidParamError,
+    incompatible_params_error,
+    invalid_param_error,
+    warn_config,
+)
+
+# Valid choices for PreprocessingConfig fields (mirrors pretab.Preprocessor)
+_VALID_NUMERICAL_PREPROCESSING: frozenset[str | None] = frozenset(
+    {
+        "ple",
+        "quantile",
+        "splines",
+        "standardization",
+        "minmax",
+        "robust",
+        "box-cox",
+        "yeo-johnson",
+        None,
+    }
+)
+_VALID_SCALING_STRATEGY: frozenset[str | None] = frozenset({"minmax", "standardization", "robust", None})
+_VALID_BINNING_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile", "kmeans", None})
+_VALID_CAT_ENCODING: frozenset[str] = frozenset({"int", "one-hot", "linear"})
+_VALID_MONITOR_MODE: frozenset[str] = frozenset({"min", "max"})
+
+__all__ = [
+    "BaseConfig",
+    "BaseModelConfig",
+    "PreprocessingConfig",
+    "SplitConfig",
+    "TrainerConfig",
+]
 
 
 @dataclass
@@ -149,6 +187,43 @@ class BaseModelConfig(BaseEstimator):
     activation: Callable = nn.ReLU()  # noqa: RUF009
     cat_encoding: str = "int"
 
+    def __post_init__(self) -> None:  # type: ignore[override]
+        if self.d_model < 1:
+            raise invalid_param_error(type(self).__name__, "d_model", self.d_model, "must be >= 1")
+        if self.cat_encoding not in _VALID_CAT_ENCODING:
+            raise invalid_param_error(
+                type(self).__name__,
+                "cat_encoding",
+                self.cat_encoding,
+                "must be one of the known encoding strategies",
+                sorted(_VALID_CAT_ENCODING),
+            )
+        # --- Common optional fields present on many model configs ---
+        cls_name = type(self).__name__
+        n_layers = getattr(self, "n_layers", None)
+        if n_layers is not None and n_layers < 1:
+            raise invalid_param_error(cls_name, "n_layers", n_layers, "must be >= 1")
+
+        n_heads = getattr(self, "n_heads", None)
+        if n_heads is not None:
+            if n_heads < 1:
+                raise invalid_param_error(cls_name, "n_heads", n_heads, "must be >= 1")
+            if self.d_model % n_heads != 0:
+                raise incompatible_params_error(
+                    cls_name,
+                    f"d_model ({self.d_model}) must be divisible by n_heads ({n_heads}).",
+                )
+
+        for dropout_field in ("dropout", "attn_dropout", "ff_dropout", "head_dropout"):
+            val = getattr(self, dropout_field, None)
+            if val is not None and not (0.0 <= val < 1.0):
+                raise invalid_param_error(
+                    cls_name,
+                    dropout_field,
+                    val,
+                    "must be in [0, 1)",
+                )
+
 
 @dataclass
 class PreprocessingConfig(BaseEstimator):
@@ -210,6 +285,45 @@ class PreprocessingConfig(BaseEstimator):
     use_decision_tree_knots: bool | None = None
     knots_strategy: str | None = None
     spline_implementation: str | None = None
+
+    def __post_init__(self) -> None:  # type: ignore[override]
+        if self.numerical_preprocessing not in _VALID_NUMERICAL_PREPROCESSING:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "numerical_preprocessing",
+                self.numerical_preprocessing,
+                "must be one of the known preprocessing methods",
+                sorted(x for x in _VALID_NUMERICAL_PREPROCESSING if x is not None),
+            )
+        if self.n_bins is not None and self.n_bins < 2:
+            raise invalid_param_error("PreprocessingConfig", "n_bins", self.n_bins, "must be >= 2")
+        if self.n_knots is not None and self.n_knots < 2:
+            raise invalid_param_error("PreprocessingConfig", "n_knots", self.n_knots, "must be >= 2")
+        if self.scaling_strategy not in _VALID_SCALING_STRATEGY:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "scaling_strategy",
+                self.scaling_strategy,
+                "must be one of the known scaling strategies",
+                sorted(x for x in _VALID_SCALING_STRATEGY if x is not None),
+            )
+        if self.binning_strategy not in _VALID_BINNING_STRATEGY:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "binning_strategy",
+                self.binning_strategy,
+                "must be one of the known binning strategies",
+                sorted(x for x in _VALID_BINNING_STRATEGY if x is not None),
+            )
+        if self.cat_cutoff is not None and not (0.0 < self.cat_cutoff < 1.0):
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "cat_cutoff",
+                self.cat_cutoff,
+                "must be in the open interval (0, 1)",
+            )
+        if self.degree is not None and self.degree < 1:
+            raise invalid_param_error("PreprocessingConfig", "degree", self.degree, "must be >= 1")
 
     def to_preprocessor_kwargs(self) -> dict:
         """Return a dict of non-None fields suitable for passing to ``Preprocessor(**...)``.
@@ -278,6 +392,39 @@ class TrainerConfig(BaseEstimator):
     weight_decay: float = 1e-6
     optimizer_type: str = "Adam"
     checkpoint_path: str = "model_checkpoints"
+
+    def __post_init__(self) -> None:  # type: ignore[override]
+        if self.max_epochs < 1:
+            raise invalid_param_error("TrainerConfig", "max_epochs", self.max_epochs, "must be >= 1")
+        if self.batch_size < 1:
+            raise invalid_param_error("TrainerConfig", "batch_size", self.batch_size, "must be >= 1")
+        if self.lr <= 0:
+            raise invalid_param_error("TrainerConfig", "lr", self.lr, "must be > 0")
+        if self.weight_decay < 0:
+            raise invalid_param_error("TrainerConfig", "weight_decay", self.weight_decay, "must be >= 0")
+        if not (0.0 < self.val_size < 1.0):
+            raise invalid_param_error(
+                "TrainerConfig",
+                "val_size",
+                self.val_size,
+                "must be in the open interval (0, 1)",
+            )
+        if self.mode not in _VALID_MONITOR_MODE:
+            raise invalid_param_error(
+                "TrainerConfig",
+                "mode",
+                self.mode,
+                "must be 'min' or 'max'",
+                ["min", "max"],
+            )
+        if self.patience >= self.max_epochs:
+            warn_config(
+                f"TrainerConfig: patience={self.patience} >= "
+                f"max_epochs={self.max_epochs}. "
+                "Early stopping will never trigger before training ends. "
+                "Consider reducing patience or increasing max_epochs.",
+                stacklevel=3,
+            )
 
 
 @dataclass
