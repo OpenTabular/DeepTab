@@ -134,13 +134,13 @@ Match the family to the target support:
 Wrong support is a modeling error, not just a tuning issue. Do not use a positive-only family for negative targets or a count family for continuous targets.
 ```
 
-| Target | Candidate family |
-| --- | --- |
-| Continuous unbounded | `"normal"` |
-| Count data | `"poisson"` or `"negativebinom"` |
-| Positive continuous | `"gamma"` |
-| Proportions in `(0, 1)` | `"beta"` |
-| Heavy-tailed continuous | `"studentt"` |
+| Target                  | Candidate family                 |
+| ----------------------- | -------------------------------- |
+| Continuous unbounded    | `"normal"`                       |
+| Count data              | `"poisson"` or `"negativebinom"` |
+| Positive continuous     | `"gamma"`                        |
+| Proportions in `(0, 1)` | `"beta"`                         |
+| Heavy-tailed continuous | `"studentt"`                     |
 
 Example for counts:
 
@@ -160,6 +160,5 @@ loaded_params = loaded.predict(X_test)
 
 ## Next Steps
 
-- [Distributional regression concept](../core_concepts/distributional_regression)
 - [Regression tutorial](regression)
 - [Distribution API](../api/distributions/index)

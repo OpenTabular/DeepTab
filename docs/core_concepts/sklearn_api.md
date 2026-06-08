@@ -23,11 +23,11 @@ metrics = model.evaluate(X_test, y_test)
 
 Most architectures expose three task variants:
 
-| Suffix | Task | Example |
-| --- | --- | --- |
+| Suffix       | Task                                | Example              |
+| ------------ | ----------------------------------- | -------------------- |
 | `Classifier` | Binary or multiclass classification | `MambularClassifier` |
-| `Regressor` | Point-estimate regression | `MambularRegressor` |
-| `LSS` | Distributional regression | `MambularLSS` |
+| `Regressor`  | Point-estimate regression           | `MambularRegressor`  |
+| `LSS`        | Distributional regression           | `MambularLSS`        |
 
 Stable models are imported from `deeptab.models`. Experimental models are imported from `deeptab.models.experimental`.
 
@@ -84,14 +84,14 @@ model.fit(
 
 Useful fit arguments:
 
-| Argument | Use |
-| --- | --- |
-| `X`, `y` | Training features and targets. |
-| `X_val`, `y_val` | Explicit validation set. If omitted, DeepTab creates one. |
-| `embeddings`, `embeddings_val` | Optional external embeddings for train/validation data. |
+| Argument                                     | Use                                                                         |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| `X`, `y`                                     | Training features and targets.                                              |
+| `X_val`, `y_val`                             | Explicit validation set. If omitted, DeepTab creates one.                   |
+| `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                     |
 | `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments. |
-| `train_metrics`, `val_metrics` | Optional Lightning metrics logged during training. |
-| `**trainer_kwargs` | Additional Lightning trainer keyword arguments. |
+| `train_metrics`, `val_metrics`               | Optional Lightning metrics logged during training.                          |
+| `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                             |
 
 For LSS models, `family` is required:
 
@@ -153,11 +153,11 @@ classifier.evaluate(
 
 `score()` follows a consistent default per estimator family:
 
-| Estimator | Current default |
-| --- | --- |
-| Classifier | accuracy |
-| Regressor | mean squared error |
-| LSS | negative log-likelihood |
+| Estimator  | Current default         |
+| ---------- | ----------------------- |
+| Classifier | accuracy                |
+| Regressor  | mean squared error      |
+| LSS        | negative log-likelihood |
 
 Pass a metric explicitly if you need F1, R2, log loss, or another convention:
 
@@ -171,11 +171,11 @@ loss = classifier.score(X_test, y_test, metric=(log_loss, True))
 
 After `fit()` or `build_model()`, DeepTab estimators expose common sklearn-style fitted attributes:
 
-| Attribute | Available on | Meaning |
-| --- | --- | --- |
-| `n_features_in_` | Classifier, regressor, LSS | Number of input columns seen during fitting. |
+| Attribute           | Available on                                          | Meaning                                      |
+| ------------------- | ----------------------------------------------------- | -------------------------------------------- |
+| `n_features_in_`    | Classifier, regressor, LSS                            | Number of input columns seen during fitting. |
 | `feature_names_in_` | Estimators fitted with string-named DataFrame columns | Feature names and order seen during fitting. |
-| `classes_` | Classifiers and categorical LSS | Class labels seen during fitting. |
+| `classes_`          | Classifiers and categorical LSS                       | Class labels seen during fitting.            |
 
 Prediction inputs are checked against the fitted feature count. When the model was fitted with named DataFrame columns, prediction DataFrames must use the same feature names in the same order. This catches accidental column drops, additions, and reordering before inference.
 
@@ -183,9 +183,9 @@ Prediction inputs are checked against the fitted feature count. When the model w
 
 DeepTab has two persistence layers:
 
-| Method | Scope | Use case |
-| --- | --- | --- |
-| `model.save(...)` / `Estimator.load(...)` | Full fitted estimator artifact | Reuse a trained classifier, regressor, or LSS model for inference or reproducible experiments. |
+| Method                                          | Scope                                 | Use case                                                                                                |
+| ----------------------------------------------- | ------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| `model.save(...)` / `Estimator.load(...)`       | Full fitted estimator artifact        | Reuse a trained classifier, regressor, or LSS model for inference or reproducible experiments.          |
 | `BaseModel.save_model(...)` / `load_model(...)` | Raw PyTorch architecture weights only | Low-level architecture work where you already know how to rebuild the model and preprocessing pipeline. |
 
 For normal user workflows, prefer the estimator-level API:
@@ -200,14 +200,14 @@ predictions = loaded.predict(X_test)
 
 The saved estimator bundle is designed as a fitted inference artifact. It includes:
 
-| Artifact field | Why it matters |
-| --- | --- |
-| Architecture metadata | Stores the model class, module, registry status, config class, and resolved config values. |
-| Trained weights | Restores the fitted `TaskModel` state. |
-| Fitted preprocessing state | Reuses the exact fitted preprocessing object instead of refitting on future data. |
-| Feature schema | Stores column order, numerical/categorical/embedding feature groups, dimensions, and feature preprocessing metadata. |
-| Task metadata | Stores the task type, regression/LSS flags, distribution family for LSS, number of output classes, and `classes_` for classifiers. |
-| Runtime/debug metadata | Stores Python, platform, DeepTab, PyTorch, Lightning, pandas, NumPy, scikit-learn, pretab, and related dependency versions. |
+| Artifact field             | Why it matters                                                                                                                     |
+| -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Architecture metadata      | Stores the model class, module, registry status, config class, and resolved config values.                                         |
+| Trained weights            | Restores the fitted `TaskModel` state.                                                                                             |
+| Fitted preprocessing state | Reuses the exact fitted preprocessing object instead of refitting on future data.                                                  |
+| Feature schema             | Stores column order, numerical/categorical/embedding feature groups, dimensions, and feature preprocessing metadata.               |
+| Task metadata              | Stores the task type, regression/LSS flags, distribution family for LSS, number of output classes, and `classes_` for classifiers. |
+| Runtime/debug metadata     | Stores Python, platform, DeepTab, PyTorch, Lightning, pandas, NumPy, scikit-learn, pretab, and related dependency versions.        |
 
 Using pandas DataFrames is recommended because the saved schema can preserve meaningful column names. NumPy inputs are supported, but their inferred column order is positional.
 
@@ -226,12 +226,12 @@ loaded.versions_
 
 DeepTab estimators expose a small inspection layer for understanding a configured or fitted model.
 
-| Method | Returns | When to use |
-| --- | --- | --- |
-| `describe()` | Dictionary with estimator, architecture, task, feature counts, config classes, and parameter counts when available | Programmatic metadata for reports and experiment tracking |
-| `summary()` | Compact human-readable string | Notebook/log output before or after training |
-| `parameter_table()` | `pandas.DataFrame` with parameter name, module, shape, count, trainability, dtype, and device | Auditing model size and trainable layers |
-| `runtime_info()` | Dictionary with device, dtype, precision, accelerator, strategy, batch size, optimizer, and trainer state | Checking how the model is actually running |
+| Method              | Returns                                                                                                            | When to use                                               |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------- |
+| `describe()`        | Dictionary with estimator, architecture, task, feature counts, config classes, and parameter counts when available | Programmatic metadata for reports and experiment tracking |
+| `summary()`         | Compact human-readable string                                                                                      | Notebook/log output before or after training              |
+| `parameter_table()` | `pandas.DataFrame` with parameter name, module, shape, count, trainability, dtype, and device                      | Auditing model size and trainable layers                  |
+| `runtime_info()`    | Dictionary with device, dtype, precision, accelerator, strategy, batch size, optimizer, and trainer state          | Checking how the model is actually running                |
 
 ```python
 model.fit(X_train, y_train)
@@ -309,5 +309,4 @@ For reproducible research:
 ## Next Steps
 
 - [Config System](config_system)
-- [Preprocessing](preprocessing)
 - [Training and Evaluation](training_and_evaluation)

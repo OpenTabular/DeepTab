@@ -149,6 +149,5 @@ print(r2_score(y_test, loaded_pred))
 
 ## Next Steps
 
-- [Regression concept](../core_concepts/regression)
 - [Distributional regression](distributional)
 - [Recommended configs](../model_zoo/recommended_configs)

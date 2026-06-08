@@ -8,11 +8,11 @@ The model constructor accepts `model_config`, `preprocessing_config`, and `train
 
 ## The Three Config Layers
 
-| Config | Scope | Examples |
-| --- | --- | --- |
-| `<Model>Config` | Neural architecture | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes` |
+| Config                | Scope                                     | Examples                                                                             |
+| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `<Model>Config`       | Neural architecture                       | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes`                           |
 | `PreprocessingConfig` | Arguments passed to `pretab.Preprocessor` | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins`, `scaling_strategy` |
-| `TrainerConfig` | Training loop and optimizer | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type` |
+| `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`                       |
 
 All three are optional. If omitted, DeepTab creates default config objects internally.
 
@@ -53,17 +53,17 @@ preprocessing_config = PreprocessingConfig(
 
 Valid fields:
 
-| Field | Purpose |
-| --- | --- |
-| `numerical_preprocessing` | Main numerical transform, for example `"standard"`, `"quantile"`, `"ple"`, or binning-style strategies supported by `pretab`. |
-| `categorical_preprocessing` | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported. |
-| `n_bins` | Number of bins for binned/PLE-style numerical transforms. |
-| `feature_preprocessing` | General feature-level preprocessing override. |
-| `use_decision_tree_bins`, `binning_strategy` | Controls bin edge construction. |
-| `task` | Optional task hint passed to the preprocessor. |
-| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference. |
-| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls. |
-| `scaling_strategy` | Post-transform scaling strategy. |
+| Field                                                                                     | Purpose                                                                                                                       |
+| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_preprocessing`                                                                 | Main numerical transform, for example `"standard"`, `"quantile"`, `"ple"`, or binning-style strategies supported by `pretab`. |
+| `categorical_preprocessing`                                                               | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported.                             |
+| `n_bins`                                                                                  | Number of bins for binned/PLE-style numerical transforms.                                                                     |
+| `feature_preprocessing`                                                                   | General feature-level preprocessing override.                                                                                 |
+| `use_decision_tree_bins`, `binning_strategy`                                              | Controls bin edge construction.                                                                                               |
+| `task`                                                                                    | Optional task hint passed to the preprocessor.                                                                                |
+| `cat_cutoff`, `treat_all_integers_as_numerical`                                           | Controls integer-column type inference.                                                                                       |
+| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls.                                                                                      |
+| `scaling_strategy`                                                                        | Post-transform scaling strategy.                                                                                              |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
@@ -90,17 +90,17 @@ trainer_config = TrainerConfig(
 
 Valid fields:
 
-| Field | Meaning |
-| --- | --- |
-| `max_epochs` | Maximum Lightning training epochs. |
-| `batch_size` | Batch size for train/validation/prediction loaders. |
-| `val_size` | Fraction held out when no explicit validation set is passed. |
-| `shuffle` | Whether to shuffle the training dataloader. |
-| `patience`, `monitor`, `mode` | Early-stopping settings. |
-| `lr`, `lr_patience`, `lr_factor` | Learning rate and ReduceLROnPlateau scheduler settings. |
-| `weight_decay` | Optimizer weight decay. |
-| `optimizer_type` | Name of a `torch.optim` optimizer class, such as `"Adam"` or `"AdamW"`. |
-| `checkpoint_path` | Directory for the best-model checkpoint. |
+| Field                            | Meaning                                                                 |
+| -------------------------------- | ----------------------------------------------------------------------- |
+| `max_epochs`                     | Maximum Lightning training epochs.                                      |
+| `batch_size`                     | Batch size for train/validation/prediction loaders.                     |
+| `val_size`                       | Fraction held out when no explicit validation set is passed.            |
+| `shuffle`                        | Whether to shuffle the training dataloader.                             |
+| `patience`, `monitor`, `mode`    | Early-stopping settings.                                                |
+| `lr`, `lr_patience`, `lr_factor` | Learning rate and ReduceLROnPlateau scheduler settings.                 |
+| `weight_decay`                   | Optimizer weight decay.                                                 |
+| `optimizer_type`                 | Name of a `torch.optim` optimizer class, such as `"Adam"` or `"AdamW"`. |
+| `checkpoint_path`                | Directory for the best-model checkpoint.                                |
 
 Runtime options such as `accelerator`, `devices`, `precision`, `gradient_clip_val`, and logger/callback settings are Lightning trainer keyword arguments, not `TrainerConfig` fields. Pass them to `fit(...)` when needed.
 
@@ -182,6 +182,5 @@ Start with a small model and explicit trainer settings. Add preprocessing and ar
 
 ## Next Steps
 
-- [Preprocessing](preprocessing)
 - [Training and Evaluation](training_and_evaluation)
 - [Model Zoo](../model_zoo/stable/index)

@@ -47,7 +47,7 @@ No, but it helps significantly for larger datasets and more complex architecture
 - **FTTransformer, AutoInt, MambAttention, ENODE, NDTF, TabR** — GPU recommended above ~5K–10K rows.
 - **SAINT** — GPU strongly recommended above ~2K rows (row attention makes every batch expensive).
 
-For a full per-model breakdown including the cost driver for each architecture, see the [Hardware Requirements table](../model_zoo/comparison_tables#hardware-requirements-by-model) in the Model Zoo.
+For a full per-model breakdown including the cost driver for each architecture, see the [Model Zoo Comparison Tables](../model_zoo/comparison_tables) in the Model Zoo.
 
 ### How do I know if my GPU is being used?
 
