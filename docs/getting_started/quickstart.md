@@ -39,6 +39,7 @@ model.fit(X_train, y_train, max_epochs=50)
 
 # Evaluate on test set
 metrics = model.evaluate(X_test, y_test)
+# Returns e.g. {"accuracy": 0.91, "auroc": 0.96, "log_loss": 0.28}
 print(f"Test accuracy: {metrics['accuracy']:.3f}")
 
 # Make predictions
@@ -86,7 +87,7 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = FTTransformerRegressor()
 model.fit(X_train, y_train, max_epochs=50)
 
-# Evaluate (returns RMSE, MAE, etc. for regression)
+# Evaluate (returns RMSE, MAE, R² for regression)
 metrics = model.evaluate(X_test, y_test)
 print(f"Test RMSE: {metrics['rmse']:.3f}")
 
@@ -218,15 +219,23 @@ print(f"Prediction intervals: [{lower_bound[0]:.2f}, {upper_bound[0]:.2f}]")
 
 ### Supported distributions
 
-| Family      | Use case                       |
-| ----------- | ------------------------------ |
-| `normal`    | Continuous unbounded values    |
-| `poisson`   | Count data                     |
-| `gamma`     | Positive continuous values     |
-| `beta`      | Values in (0, 1)               |
-| `student_t` | Heavy-tailed continuous values |
+| Family          | Use case                          | Primary metric   |
+| --------------- | --------------------------------- | ---------------- |
+| `normal`        | Continuous unbounded values       | CRPS             |
+| `lognormal`     | Strictly positive, multiplicative | Log-Normal NLL   |
+| `studentt`      | Heavy-tailed continuous values    | CRPS             |
+| `gamma`         | Positive continuous values        | Gamma deviance   |
+| `beta`          | Values in (0, 1)                  | Beta Brier score |
+| `tweedie`       | Zero-inflated positive values     | Tweedie deviance |
+| `poisson`       | Count data                        | Poisson deviance |
+| `zip`           | Count data with excess zeros      | Poisson deviance |
+| `negativebinom` | Overdispersed counts              | NB deviance      |
+| `dirichlet`     | Compositional (sum-to-1) vectors  | Dirichlet error  |
+| `mog`           | Multimodal continuous values      | CRPS             |
+| `quantile`      | Distribution-free percentiles     | Pinball loss     |
 
-See the [API reference](../../api/models/index) for the complete list.
+Each family automatically selects appropriate evaluation metrics via `model.evaluate()`.
+See the [distributions reference](../../api/distributions/index) and [metrics reference](../../api/metrics/index) for the full API.
 
 ## Comparing models
 

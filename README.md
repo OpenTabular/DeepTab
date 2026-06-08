@@ -29,6 +29,7 @@
 ## ⚡ What's New in v2.0
 
 - **New Documentation**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), [Tutorials with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)
+- **Metrics Module**: Unified `deeptab.metrics` with 25+ metric classes for regression, classification, and distributional models; auto-selected per task via registry
 - **Typed Data Layer**: `TabularDataset`, `TabularDataModule`, `FeatureSchema`
 - **Split-Config API**: Separate configs for model, preprocessing, and training
 - **Enhanced Preprocessing**: Feature-specific transformations, PLE, pre-trained encodings
@@ -164,6 +165,9 @@ probabilities = model.predict_proba(X_test)
 
 # 4. Evaluate
 metrics = model.evaluate(X_test, y_test)
+# Regression:      {"rmse": …, "mae": …, "r2": …}
+# Classification:  {"accuracy": …, "auroc": …, "log_loss": …}
+# LSS (normal):    {"crps": …, "rmse": …, "mae": …}
 ```
 
 > **💡 Tip:** Start with defaults (`MambularClassifier()`) and tune only if needed. See [Recommended Configs](https://deeptab.readthedocs.io/en/latest/model_zoo/recommended_configs.html) for guidance.
@@ -216,7 +220,7 @@ samples = model.sample(X_test, n_samples=1000)
 intervals = model.predict_quantiles(X_test, quantiles=[0.025, 0.975])
 ```
 
-> **📊 Available families:** `normal`, `gamma`, `poisson`, `beta`, `studentt`, `negativebinom`, `dirichlet`, `quantile`, and more.
+> **📊 Available families:** `normal`, `lognormal`, `studentt`, `gamma`, `beta`, `tweedie`, `poisson`, `zip`, `negativebinom`, `dirichlet`, `mog`, `quantile`, and more. Each family auto-selects appropriate evaluation metrics (CRPS, deviances, NLL).
 
 > **📖 Learn more:** [Distributional Regression Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/distributional.html)
 
