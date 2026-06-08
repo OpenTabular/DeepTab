@@ -3,12 +3,10 @@ from collections.abc import Callable
 
 import lightning as pl
 import numpy as np
-import properscoring as ps
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
-from sklearn.metrics import accuracy_score, mean_squared_error
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -18,15 +16,7 @@ from deeptab.core.serialization import _warn_extension, build_save_bundle, resto
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
-from deeptab.distributions.metrics import (
-    beta_brier_score,
-    dirichlet_error,
-    gamma_deviance,
-    inverse_gamma_loss,
-    negative_binomial_deviance,
-    poisson_deviance,
-    student_t_loss,
-)
+from deeptab.metrics import get_default_metrics_dict
 from deeptab.training import TaskModel
 
 
@@ -607,24 +597,23 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
         y_true : array-like of shape (n_samples,)
-            The true class labels against which to evaluate the predictions.
-        metrics : dict
-            A dictionary where keys are metric names and values are tuples containing the metric function
-            and a boolean indicating whether the metric requires probability scores (True) or class labels (False).
+            The true target values.
+        metrics : dict, optional
+            A ``{name: callable}`` dictionary of metric functions with signature
+            ``metric(y_true, y_pred) -> float``.  Each callable may be a
+            :class:`~deeptab.metrics.DeepTabMetric` instance or any plain
+            callable.  When a metric has ``needs_raw=True``, raw model logits
+            are passed instead of transformed distribution parameters.
+            If ``None``, the default metrics for the distribution family are
+            used (see :func:`deeptab.metrics.get_default_metrics`).
         distribution_family : str, optional
-            Specifies the distribution family the model is predicting for. If None, it will attempt to infer based
-            on the model's settings.
-
+            Distribution family key (e.g. ``"normal"``, ``"gamma"``).  Inferred
+            from the fitted model when ``None``.
 
         Returns
         -------
         scores : dict
-            A dictionary with metric names as keys and their corresponding scores as values.
-
-
-        Notes
-        -----
-        This method uses either the `predict` or `predict_proba` method depending on the metric requirements.
+            ``{metric_name: score}`` dictionary.
         """
         # Infer distribution family from model settings if not provided
         if distribution_family is None:
@@ -634,15 +623,21 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         if metrics is None:
             metrics = self.get_default_metrics(distribution_family)
 
-        # Make predictions
-        predictions = self.predict(X, raw=False)
+        # Obtain both transformed and raw predictions up-front only when needed
+        needs_any_raw = any(getattr(fn, "needs_raw", False) for fn in metrics.values())
+        predictions_transformed = self.predict(X, raw=False)
+        predictions_raw = self.predict(X, raw=True) if needs_any_raw else None
 
-        # Initialize dictionary to store results
+        y_true = np.asarray(y_true)
         scores = {}
-
-        # Compute each metric
         for metric_name, metric_func in metrics.items():
-            scores[metric_name] = metric_func(y_true, predictions)
+            _needs_raw = getattr(metric_func, "needs_raw", False)
+            preds = predictions_raw if (_needs_raw and predictions_raw is not None) else predictions_transformed
+            try:
+                scores[metric_name] = metric_func(y_true, preds)
+            except Exception as exc:
+                warnings.warn(f"Metric '{metric_name}' failed: {exc}", RuntimeWarning, stacklevel=2)
+                scores[metric_name] = float("nan")
 
         return scores
 
@@ -652,36 +647,23 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         return validate_input_features(self, X)
 
     def get_default_metrics(self, distribution_family):
-        """Provides default metrics based on the distribution family.
+        """Return default evaluation metrics for the given distribution family.
+
+        Delegates to :func:`deeptab.metrics.get_default_metrics_dict`, which
+        returns a ``{name: DeepTabMetric}`` dictionary covering all supported
+        distribution families.
 
         Parameters
         ----------
         distribution_family : str
-            The distribution family for which to provide default metrics.
-
+            Distribution family key, e.g. ``"normal"``, ``"gamma"``.
 
         Returns
         -------
-        metrics : dict
-            A dictionary of default metric functions.
+        dict
+            ``{metric_name: callable}`` dictionary of metric functions.
         """
-        default_metrics = {
-            "normal": {
-                "MSE": lambda y, pred: mean_squared_error(y, pred[:, 0]),
-                "CRPS": lambda y, pred: np.mean(
-                    [ps.crps_gaussian(y[i], mu=pred[i, 0], sig=np.sqrt(pred[i, 1])) for i in range(len(y))]
-                ),
-            },
-            "poisson": {"Poisson Deviance": poisson_deviance},
-            "gamma": {"Gamma Deviance": gamma_deviance},
-            "beta": {"Brier Score": beta_brier_score},
-            "dirichlet": {"Dirichlet Error": dirichlet_error},
-            "studentt": {"Student-T Loss": student_t_loss},
-            "negativebinom": {"Negative Binomial Deviance": negative_binomial_deviance},
-            "inversegamma": {"Inverse Gamma Loss": inverse_gamma_loss},
-            "categorical": {"Accuracy": accuracy_score},
-        }
-        return default_metrics.get(distribution_family, {})
+        return get_default_metrics_dict("lss", family=distribution_family)
 
     def score(self, X, y, metric="NLL"):
         """Calculate the score of the model using the specified metric.

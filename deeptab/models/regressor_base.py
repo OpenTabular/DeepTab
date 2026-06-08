@@ -1,8 +1,9 @@
 from collections.abc import Callable
 
 import torch
-from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.metrics import r2_score
 
+from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
 
 
@@ -291,7 +292,7 @@ class SklearnBaseRegressor(SklearnBase):
             A dictionary with metric names as keys and their corresponding scores as values.
         """
         if metrics is None:
-            metrics = {"Mean Squared Error": mean_squared_error}
+            metrics = get_default_metrics_dict("regression")
 
         # Generate predictions using the trained model
         predictions = self.predict(X, embeddings=embeddings)

@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from sklearn.metrics import accuracy_score, log_loss
 
+from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase, _raise_flat_param_error
 from deeptab.training.losses import build_classification_loss, compute_class_weights
 
@@ -427,45 +428,57 @@ class SklearnBaseClassifier(SklearnBase):
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
         y_true : array-like of shape (n_samples,)
-            The true class labels against which to evaluate the predictions.
-        embneddings : array-like or list of shape(n_samples, dimension)
-            List or array with embeddings for unstructured data inputs
-        metrics : dict
-            A dictionary where keys are metric names and values are tuples containing the metric function
-            and a boolean indicating whether the metric requires probability scores (True) or class labels (False).
+            The true class labels.
+        embeddings : array-like or list, optional
+            Embeddings for unstructured data inputs.
+        metrics : dict, optional
+            A ``{name: callable}`` dictionary where each callable has the
+            signature ``metric(y_true, y_pred) -> float``.  Each callable may
+            be a :class:`~deeptab.metrics.DeepTabMetric` instance or any plain
+            callable.  Metrics that need probability scores (e.g. AUROC, LogLoss)
+            should accept the 2-D ``predict_proba`` output as ``y_pred``;
+            metrics that need class labels (e.g. Accuracy, F1) should accept
+            the 1-D ``predict`` output.
 
+            For :class:`~deeptab.metrics.DeepTabMetric` instances, the method
+            inspects the ``name`` attribute to decide which prediction format
+            to supply: probability-based metrics (``auroc``, ``auprc``,
+            ``log_loss``, ``brier``, ``ece``) receive ``predict_proba`` output;
+            all others receive ``predict`` output.
+
+            If ``None``, defaults to the registry defaults for
+            ``"classification"`` (Accuracy, AUROC, LogLoss).
 
         Returns
         -------
         scores : dict
-            A dictionary with metric names as keys and their corresponding scores as values.
-
-
-        Notes
-        -----
-        This method uses either the `predict` or `predict_proba` method depending on the metric requirements.
+            ``{metric_name: score}`` dictionary.
         """
-        # Ensure input is in the correct format
         if metrics is None:
-            metrics = {"Accuracy": (accuracy_score, False)}
+            metrics = get_default_metrics_dict("classification")
 
-        # Initialize dictionary to store results
+        # Metric names that work on probability scores
+        _PROBA_NAMES = {"auroc", "auprc", "log_loss", "brier", "ece"}
+
+        # Determine which prediction types are actually needed
+        needs_proba = any((getattr(fn, "name", None) in _PROBA_NAMES) for fn in metrics.values())
+        needs_labels = any((getattr(fn, "name", None) not in _PROBA_NAMES) for fn in metrics.values())
+
+        probabilities = self.predict_proba(X, embeddings) if needs_proba else None
+        predictions = self.predict(X, embeddings) if needs_labels else None
+
         scores = {}
-
-        # Generate class probabilities if any metric requires them
-        if any(use_proba for _, use_proba in metrics.values()):
-            probabilities = self.predict_proba(X, embeddings)
-
-        # Generate class labels if any metric requires them
-        if any(not use_proba for _, use_proba in metrics.values()):
-            predictions = self.predict(X, embeddings)
-
-        # Compute each metric
-        for metric_name, (metric_func, use_proba) in metrics.items():
-            if use_proba:
-                scores[metric_name] = metric_func(y_true, probabilities)  # type: ignore
-            else:
-                scores[metric_name] = metric_func(y_true, predictions)  # type: ignore
+        for metric_name, metric_func in metrics.items():
+            use_proba = getattr(metric_func, "name", None) in _PROBA_NAMES
+            preds = probabilities if use_proba else predictions
+            if preds is None:
+                scores[metric_name] = float("nan")
+                continue
+            try:
+                scores[metric_name] = metric_func(y_true, preds)
+            except Exception as exc:
+                warnings.warn(f"Metric '{metric_name}' failed: {exc}", RuntimeWarning, stacklevel=2)
+                scores[metric_name] = float("nan")
 
         return scores
 
