@@ -3,6 +3,7 @@ import torch
 import torch.nn as nn
 
 from deeptab.core import BaseModel
+from deeptab.core.exceptions import architecture_requirement_error
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.transformer import CustomTransformerEncoderLayer
@@ -72,9 +73,11 @@ class TabTransformer(BaseModel):
         self.save_hyperparameters(ignore=["feature_information"])
         num_feature_info, cat_feature_info, emb_feature_info = feature_information
         if cat_feature_info == {}:
-            raise ValueError(
-                "You are trying to fit a TabTransformer with no categorical features. \
-                    Try using a different model that is better suited for tasks without categorical features."
+            raise architecture_requirement_error(
+                "TabTransformer",
+                "requires at least one categorical feature column, but the dataset contains only numerical features.",
+                "Use a model suited for purely numerical data, such as "
+                "MambularClassifier, FTTransformerClassifier, ResNetClassifier, or MLPClassifier.",
             )
 
         self.returns_ensemble = False

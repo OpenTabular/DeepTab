@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from deeptab.core.exceptions import InvalidParamError, invalid_param_error
+
 from .base import BaseDistribution
 from .beta import BetaDistribution, DirichletDistribution
 from .categorical import CategoricalDistribution, MultinomialDistribution, Quantile
@@ -51,10 +53,16 @@ def get_distribution(family: str, **kwargs: object) -> BaseDistribution:
 
     Raises
     ------
-    ValueError
+    InvalidParamError
         If *family* is not a registered key.
     """
     if family not in DISTRIBUTION_REGISTRY:
         available = sorted(DISTRIBUTION_REGISTRY)
-        raise ValueError(f"Unknown distribution family '{family}'. Available families: {available}")
+        raise invalid_param_error(
+            "MambularLSS / LSS model",
+            "family",
+            family,
+            "must be a registered distribution family name",
+            available,
+        )
     return DISTRIBUTION_REGISTRY[family](**kwargs)  # type: ignore[call-arg]
