@@ -56,6 +56,7 @@
    api/configs/index
    api/data/index
    api/distributions/index
+   api/metrics/index
    api/training/index
 
 .. toctree::
