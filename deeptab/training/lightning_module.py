@@ -247,16 +247,24 @@ class TaskModel(pl.LightningModule):
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
 
         # Log custom training metrics
-        for metric_name, metric_fn in self.train_metrics.items():
-            metric_value = metric_fn(preds, labels)
-            self.log(
-                f"train_{metric_name}",
-                metric_value,
-                on_step=True,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
+        if self.train_metrics:
+            # Apply distribution transforms so metrics receive meaningful parameters,
+            # not raw logits.  Metrics with needs_raw=True still receive raw preds.
+            if self.lss and self.family is not None:
+                preds_transformed = self.family(preds)
+            else:
+                preds_transformed = preds
+            for metric_name, metric_fn in self.train_metrics.items():
+                needs_raw = getattr(metric_fn, "needs_raw", False)
+                metric_value = metric_fn(preds if needs_raw else preds_transformed, labels)
+                self.log(
+                    f"train_{metric_name}",
+                    metric_value,
+                    on_step=True,
+                    on_epoch=True,
+                    prog_bar=True,
+                    logger=True,
+                )
 
         return loss
 
@@ -295,16 +303,24 @@ class TaskModel(pl.LightningModule):
         )
 
         # Log custom validation metrics
-        for metric_name, metric_fn in self.val_metrics.items():
-            metric_value = metric_fn(preds, labels)
-            self.log(
-                f"val_{metric_name}",
-                metric_value,
-                on_step=False,
-                on_epoch=True,
-                prog_bar=True,
-                logger=True,
-            )
+        if self.val_metrics:
+            # Apply distribution transforms so metrics receive meaningful parameters,
+            # not raw logits.  Metrics with needs_raw=True still receive raw preds.
+            if self.lss and self.family is not None:
+                preds_transformed = self.family(preds)
+            else:
+                preds_transformed = preds
+            for metric_name, metric_fn in self.val_metrics.items():
+                needs_raw = getattr(metric_fn, "needs_raw", False)
+                metric_value = metric_fn(preds if needs_raw else preds_transformed, labels)
+                self.log(
+                    f"val_{metric_name}",
+                    metric_value,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                    logger=True,
+                )
 
         return val_loss
 
