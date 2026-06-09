@@ -306,6 +306,13 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             if weight_decay is None:
                 weight_decay = tc.weight_decay
 
+        # Re-sync preprocessor from current preprocessing_config state so that
+        # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
+        # honoured on the next fit(), consistent with set_params() behaviour.
+        if self.preprocessing_config is not None:
+            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
         self.classes_ = np.unique(y) if getattr(self, "family_name", None) == "categorical" else None
@@ -348,8 +355,14 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
             lss=True,
             train_metrics=train_metrics,
             val_metrics=val_metrics,
-            optimizer_type=self.optimizer_type,
-            optimizer_args=self.optimizer_kwargs,
+            optimizer_type=(
+                self.trainer_config.optimizer_type if self.trainer_config is not None else self.optimizer_type
+            ),
+            optimizer_args=(
+                getattr(self.trainer_config, "optimizer_kwargs", None) or self.optimizer_kwargs
+                if self.trainer_config is not None
+                else self.optimizer_kwargs
+            ),
         )
 
         self.built = True

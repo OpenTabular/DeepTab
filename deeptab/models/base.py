@@ -381,6 +381,13 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         _no_wd_bn = getattr(_tc, "no_weight_decay_for_bias_and_norm", False) if _tc is not None else False
         _optimizer_kwargs = getattr(_tc, "optimizer_kwargs", None) if _tc is not None else None
 
+        # Re-sync preprocessor from current preprocessing_config state so that
+        # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
+        # honoured on the next fit(), consistent with set_params() behaviour.
+        if self.preprocessing_config is not None:
+            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
         if hasattr(y, "values"):
@@ -430,7 +437,9 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             num_classes=num_classes,  # type: ignore[arg-type]
             train_metrics=train_metrics,
             val_metrics=val_metrics,
-            optimizer_type=self.optimizer_type,
+            optimizer_type=(
+                self.trainer_config.optimizer_type if self.trainer_config is not None else self.optimizer_type
+            ),
             optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self.optimizer_kwargs,
             scheduler_type=_scheduler_type,
             scheduler_kwargs=_scheduler_kwargs,
