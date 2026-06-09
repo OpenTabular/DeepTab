@@ -7,6 +7,7 @@
  */
 
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
 /* ── Admonition blocks with icons ───────────────────────────────────────── */
 /* Base styling for all admonitions */
@@ -515,6 +516,12 @@ html[data-theme="dark"] #left-sidebar nav p.caption ~ p.caption {
 /* Ensure body text has good contrast (not too gray) */
 #content {
   color: #1f2937;
+  max-width: 860px;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
 }
 
 html[data-theme="dark"] #content {
@@ -586,4 +593,29 @@ html[data-theme="dark"] #content a {
 
 html[data-theme="dark"] #content a:hover {
   color: #93c5fd;
+}
+
+/* ── Autosummary table styling ───────────────────────────────────────────── */
+table.autosummary {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.autosummary td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+html[data-theme="dark"] table.autosummary td {
+  border-bottom-color: #30363d;
+}
+
+table.autosummary td:first-child code {
+  font-weight: 600;
+  color: #8250df;
+}
+
+html[data-theme="dark"] table.autosummary td:first-child code {
+  color: #d2a8ff;
 }

@@ -35,7 +35,6 @@ extensions = [
     "sphinx.ext.duration",
     "sphinx.ext.doctest",
     "sphinx.ext.viewcode",
-    "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
     "sphinx.ext.todo",
     "sphinx.ext.coverage",
@@ -51,6 +50,7 @@ extensions = [
     # "pydata_sphinx_theme",
     "sphinx_autodoc_typehints",
     "sphinx_design",
+    "sphinxext.opengraph",
 ]
 autodoc_mock_imports = [
     "properscoring",
@@ -78,6 +78,24 @@ language = "en"
 # Suppress RemovedInSphinx10Warning from nbsphinx (upstream issue, not ours)
 filterwarnings = [
     "ignore::sphinx.deprecation.RemovedInSphinx10Warning",
+]
+
+# Suppress unresolvable cross-references in third-party docstrings.
+# sklearn's get_metadata_routing / RequestMethod.__get__ docstrings contain
+# :ref:`metadata_routing` which only resolves in sklearn's own Sphinx build.
+# sphinx-autodoc-typehints 3.x still attempts to format signatures for
+# dataclass __init__ methods even with typehints_use_signature=False, and
+# crashes on nn.Module defaults like activation=nn.ReLU().
+suppress_warnings = [
+    "autodoc",  # nn.ReLU() default value signature crash
+    "intersphinx.fetch_inventory",  # SSL/network failures when building offline
+]
+
+# Suppress unresolvable cross-references in third-party docstrings.
+# sklearn's get_metadata_routing / RequestMethod.__get__ docstrings contain
+# :ref:`metadata_routing` which only resolves in sklearn's own Sphinx build.
+nitpick_ignore_regex = [
+    ("ref.ref", r"metadata_routing"),
 ]
 
 
@@ -137,7 +155,7 @@ html_theme_options = {
     "show_prev_next": True,
     "show_scrolltop": True,
     "awesome_headerlinks": True,
-    "awesome_external_links": True,
+    "awesome_external_links": False,
     "main_nav_links": {
         "GitHub": "https://github.com/OpenTabular/DeepTab",
         "PyPI": "https://pypi.org/project/deeptab/",
@@ -155,12 +173,15 @@ html_permalinks_icon = Icons.permalinks_icon
 
 # The name of an image file (relative to this directory) to place at the top
 # of the sidebar.
-html_logo = "images/logo/deeptab-v1.png"
+html_logo = "images/logo/deeptab-favicon.png"
+html_favicon = "images/logo/deeptab-favicon.png"
 
 # Override the Sphinx default title that appends `documentation`
 html_title = "DeepTab"
 # Format of the last updated section in the footer
 html_last_updated_fmt = "%Y-%m-%d"
+# Hide [source] links in API docs
+html_show_sourcelink = False
 
 # -- Options for autodoc ------------------------------------------------------
 
@@ -169,6 +190,13 @@ autodoc_default_options = {
     "inherited-members": True,
     "exclude-members": "set_output",
 }
+
+# -- Options for sphinxext-opengraph ------------------------------------------
+
+ogp_site_url = "https://deeptab.readthedocs.io/"
+ogp_image = "https://deeptab.readthedocs.io/en/latest/_images/deeptab-v1.png"
+ogp_description_length = 200
+ogp_type = "website"
 
 # generate autosummary even if no references
 autosummary_generate = True

@@ -12,3 +12,5 @@ lxml-html-clean==0.4.0
 pydata-sphinx-theme==0.15.2
 sphinx-design
 sphinxcontrib-mermaid
+sphinx-copybutton
+sphinxext-opengraph
