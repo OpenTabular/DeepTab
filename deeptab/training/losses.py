@@ -44,6 +44,7 @@ __all__ = [
     "WeightedBCEWithLogitsLoss",
     "WeightedCrossEntropyLoss",
     "build_classification_loss",
+    "build_default_task_loss",
     "build_weighted_classification_loss",
     "compute_class_weights",
     "get_loss",
@@ -414,3 +415,83 @@ def build_classification_loss(
     if isinstance(loss, str):
         return get_loss(loss).from_class_weights(class_weights, num_classes, **loss_kwargs)
     raise TypeError(f"loss must be None, a registered name, or an nn.Module, got {type(loss).__name__}.")
+
+
+def build_default_task_loss(num_classes: int, lss: bool = False) -> nn.Module | None:
+    """Return the default loss function for a given task type.
+
+    Centralises the implicit loss-selection logic that was previously
+    duplicated across ``TaskModel.__init__`` and various model subclasses.
+    Keeping it here makes the logic trivially testable and reusable in
+    custom training loops without constructing a full ``TaskModel``.
+
+    The selection table is:
+
+    ============  =====================================  ==========================
+    num_classes   Task                                   Loss
+    ============  =====================================  ==========================
+    any           LSS / distributional  (``lss=True``)  ``None`` (Family handles it)
+    1             Regression                             ``nn.MSELoss``
+    2             Binary classification                  ``nn.BCEWithLogitsLoss``
+    > 2           Multi-class classification             ``nn.CrossEntropyLoss``
+    ============  =====================================  ==========================
+
+    Parameters
+    ----------
+    num_classes : int
+        Number of output targets or classes.
+
+        * ``1``  — single-target regression.
+        * ``2``  — binary classification; the model is expected to output a
+          single raw logit (not a probability).
+        * ``>2`` — multi-class classification; the model outputs one logit
+          per class and ``CrossEntropyLoss`` applies ``log_softmax``
+          internally.
+
+    lss : bool, default=False
+        When ``True``, the task is a distributional / LSS regression and
+        the loss is managed by the ``Family`` object attached to
+        ``TaskModel``.  ``None`` is returned to signal this.
+
+    Returns
+    -------
+    nn.Module or None
+        A ready-to-use loss module, or ``None`` for LSS tasks.
+
+    Examples
+    --------
+    >>> from deeptab.training.losses import build_default_task_loss
+    >>> import torch.nn as nn
+
+    >>> isinstance(build_default_task_loss(1), nn.MSELoss)
+    True
+    >>> isinstance(build_default_task_loss(2), nn.BCEWithLogitsLoss)
+    True
+    >>> isinstance(build_default_task_loss(5), nn.CrossEntropyLoss)
+    True
+    >>> build_default_task_loss(1, lss=True) is None
+    True
+
+    Notes
+    -----
+    The returned loss instances are freshly constructed on each call and are
+    not cached.  Pass a *loss_fct* argument directly to
+    :class:`~deeptab.training.TaskModel` if you need a custom loss (e.g.
+    class-weighted BCE via :func:`build_classification_loss`).
+
+    See Also
+    --------
+    :func:`build_classification_loss` : Resolve a loss spec (name, module,
+        or ``None``) with optional class-weight support.
+    :func:`build_weighted_classification_loss` : Construct a class-weighted
+        BCE or CE loss from a per-class weight vector.
+    :class:`~deeptab.training.TaskModel` : Uses this function in
+        ``__init__`` to set ``self.loss_fct`` when *loss_fct* is ``None``.
+    """
+    if lss:
+        return None
+    if num_classes == 2:
+        return nn.BCEWithLogitsLoss()
+    if num_classes > 2:
+        return nn.CrossEntropyLoss()
+    return nn.MSELoss()

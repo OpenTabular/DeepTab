@@ -5,26 +5,163 @@ import torch
 import torch.nn as nn
 from tqdm import tqdm
 
+from deeptab.training.optimizers import build_optimizer, normalize_optimizer_kwargs
+from deeptab.training.schedulers import build_scheduler
+
 
 class TaskModel(pl.LightningModule):
-    """PyTorch Lightning Module for training and evaluating a model.
+    """PyTorch Lightning module that wraps any DeepTab estimator for training.
+
+    ``TaskModel`` is the bridge between a DeepTab architecture (an
+    ``nn.Module`` subclass) and PyTorch Lightning's training loop.  It is
+    constructed automatically by :meth:`~deeptab.models.base.SklearnBase._build_model`
+    and is not normally instantiated directly by end-users.
+
+    Responsibilities
+    ----------------
+    * Instantiates the model (``self.estimator``) from *model_class* and
+      *config*.
+    * Selects the default loss function based on *num_classes* / *lss* when
+      no *loss_fct* is supplied.
+    * Runs training, validation, test, and prediction steps with per-step
+      metric logging.
+    * Wires the optimizer via :func:`~deeptab.training.optimizers.build_optimizer`
+      and the LR scheduler via
+      :func:`~deeptab.training.schedulers.build_scheduler`, both of which
+      are registry-backed and fully extensible.
+    * Supports early-pruning of Optuna trials via *early_pruning_threshold*.
 
     Parameters
     ----------
-    model_class : Type[nn.Module]
-        The model class to be instantiated and trained.
+    model_class : type[nn.Module]
+        Architecture class to instantiate (e.g. ``ResNetModel``).
     config : dataclass
-        Configuration dataclass containing model hyperparameters.
-    loss_fn : callable
-        Loss function to be used during training and evaluation.
-    lr : float, optional
-        Learning rate for the optimizer (default is 1e-3).
-    num_classes : int, optional
-        Number of classes for classification tasks (default is 1).
-    lss : bool, optional
-        Custom flag for additional loss configuration (default is False).
-    **kwargs : dict
-        Additional keyword arguments.
+        Architecture configuration dataclass (e.g. ``ResNetConfig``).
+    feature_information : tuple
+        Three-tuple ``(num_feature_info, cat_feature_info,
+        embedding_feature_info)`` produced by
+        :class:`~deeptab.data.TabularDataModule`.
+    num_classes : int, default=1
+        Number of output targets.
+
+        * ``1``  — regression (``MSELoss``).
+        * ``2``  — binary classification (``BCEWithLogitsLoss``; model outputs
+          a single logit).
+        * ``>2`` — multi-class classification (``CrossEntropyLoss``).
+    lss : bool, default=False
+        When ``True``, the task is distributional (LSS / ``Family``-based)
+        and the loss is managed by the *family* object rather than
+        ``loss_fct``.
+    family : Family or None, default=None
+        Distributional family for LSS regression.  Only used when
+        *lss* is ``True``.
+    loss_fct : callable or None, default=None
+        Custom loss function overriding the automatic selection.  Must
+        accept ``(predictions, targets)`` and return a scalar tensor.
+    early_pruning_threshold : float or None, default=None
+        If set, training is stopped once ``val_loss`` exceeds this value
+        after *pruning_epoch* epochs (used by Optuna pruners).
+    pruning_epoch : int, default=5
+        Epoch after which early-pruning logic is applied.
+    optimizer_type : str, default="Adam"
+        Registered optimizer name.  See
+        :func:`~deeptab.training.optimizers.available_optimizers`.
+    optimizer_args : dict or None, default=None
+        Legacy optimizer kwargs with optional ``"optimizer_"`` prefix
+        (e.g. ``{"optimizer_betas": (0.9, 0.95)}``).  Normalised
+        automatically via
+        :func:`~deeptab.training.optimizers.normalize_optimizer_kwargs`.
+    train_metrics : dict[str, Callable] or None, default=None
+        Extra metrics to log during training steps.  Keys become the log
+        names (prefixed with ``"train_"``).
+    val_metrics : dict[str, Callable] or None, default=None
+        Extra metrics to log during validation steps (prefixed with
+        ``"val_"``).
+    lr : float or None, default=None
+        Learning rate.  Falls back to ``config.lr`` when ``None``.
+    lr_patience : int or None, default=None
+        Epochs without improvement before the LR is reduced (used by
+        ``ReduceLROnPlateau``).  Falls back to ``config.lr_patience``.
+    lr_factor : float or None, default=None
+        Multiplicative LR reduction factor.  Falls back to
+        ``config.lr_factor``.
+    weight_decay : float or None, default=None
+        L2 regularisation coefficient.  Falls back to
+        ``config.weight_decay``.
+    scheduler_type : str or None, default="ReduceLROnPlateau"
+        Registered scheduler name or ``None`` to disable.  See
+        :func:`~deeptab.training.schedulers.available_schedulers`.
+    scheduler_kwargs : dict or None, default=None
+        Extra kwargs forwarded to the scheduler constructor.  For
+        ``ReduceLROnPlateau``, ``"factor"`` and ``"patience"`` are
+        synthesised from *lr_factor* / *lr_patience* when absent.
+    monitor : str, default="val_loss"
+        Metric monitored by the scheduler (and passed to Lightning so that
+        ``ReduceLROnPlateau`` receives the correct value).  Should match
+        ``TrainerConfig.monitor``.
+    mode : str, default="min"
+        ``"min"`` or ``"max"``.  Forwarded to ``ReduceLROnPlateau`` so
+        the scheduler and early stopping always track the same direction.
+    scheduler_interval : str, default="epoch"
+        Lightning scheduling granularity: ``"epoch"`` or ``"step"``.
+    scheduler_frequency : int, default=1
+        How often to step the scheduler at the given interval.
+    no_weight_decay_for_bias_and_norm : bool, default=False
+        When ``True``, bias and normalisation-layer parameters receive
+        zero weight decay.  Recommended for transformer-style models.
+    **kwargs
+        Forwarded to *model_class* constructor.
+
+    Attributes
+    ----------
+    estimator : nn.Module
+        The instantiated model architecture.
+    val_losses : list of float
+        Validation loss recorded at the end of each epoch.
+
+    Examples
+    --------
+    ``TaskModel`` is normally created via the sklearn-compatible API::
+
+        from deeptab.models import MLP
+        from deeptab.configs import TrainerConfig
+
+        model = MLP(trainer_config=TrainerConfig(optimizer_type="AdamW", lr=3e-4))
+        model.fit(X_train, y_train)
+
+    For advanced use (e.g. custom Lightning ``Trainer``)::
+
+        from deeptab.training import TaskModel
+        from deeptab.architectures import ResNetModel
+        from deeptab.configs import ResNetConfig
+
+        task_model = TaskModel(
+            model_class=ResNetModel,
+            config=ResNetConfig(d_model=64),
+            feature_information=(num_info, cat_info, emb_info),
+            num_classes=1,
+            optimizer_type="AdamW",
+            lr=1e-3,
+            weight_decay=1e-2,
+            no_weight_decay_for_bias_and_norm=True,
+            scheduler_type="CosineAnnealingLR",
+            scheduler_kwargs={"T_max": 100},
+        )
+
+    Notes
+    -----
+    ``configure_optimizers`` returns either a bare optimizer (when
+    *scheduler_type* is ``None``) or the dict
+    ``{"optimizer": ..., "lr_scheduler": ...}`` expected by Lightning.
+
+    See Also
+    --------
+    :class:`~deeptab.configs.TrainerConfig` : All training hyper-parameters
+        that feed into ``TaskModel``.
+    :func:`~deeptab.training.optimizers.build_optimizer` : Optimizer factory.
+    :func:`~deeptab.training.schedulers.build_scheduler` : Scheduler factory.
+    :func:`~deeptab.training.losses.build_default_task_loss` : Default loss
+        selection logic.
     """
 
     def __init__(
@@ -46,6 +183,13 @@ class TaskModel(pl.LightningModule):
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
+        scheduler_type: str | None = "ReduceLROnPlateau",
+        scheduler_kwargs: dict | None = None,
+        monitor: str = "val_loss",
+        mode: str = "min",
+        scheduler_interval: str = "epoch",
+        scheduler_frequency: int = 1,
+        no_weight_decay_for_bias_and_norm: bool = False,
         **kwargs,
     ):
         super().__init__()
@@ -62,11 +206,17 @@ class TaskModel(pl.LightningModule):
         self.train_metrics = train_metrics or {}
         self.val_metrics = val_metrics or {}
 
-        self.optimizer_params = {
-            k.replace("optimizer_", ""): v
-            for k, v in optimizer_args.items()  # type: ignore
-            if k.startswith("optimizer_")
-        }
+        # Scheduler / monitoring config
+        self.scheduler_type = scheduler_type
+        self.scheduler_kwargs = scheduler_kwargs
+        self.monitor = monitor
+        self.mode = mode
+        self.scheduler_interval = scheduler_interval
+        self.scheduler_frequency = scheduler_frequency
+        self.no_weight_decay_for_bias_and_norm = no_weight_decay_for_bias_and_norm
+
+        # Normalize legacy optimizer kwargs (strips "optimizer_" prefix; handles None)
+        self.optimizer_params = normalize_optimizer_kwargs(optimizer_args)
 
         if lss:
             pass
@@ -81,7 +231,7 @@ class TaskModel(pl.LightningModule):
             else:
                 self.loss_fct = nn.MSELoss()
 
-        self.save_hyperparameters(ignore=["model_class", "loss_fn", "family"])
+        self.save_hyperparameters(ignore=["model_class", "loss_fct", "family"])
 
         self.lr = lr if lr is not None else getattr(config, "lr", 1e-4)
         self.lr_patience = lr_patience if lr_patience is not None else getattr(config, "lr_patience", 10)
@@ -457,35 +607,42 @@ class TaskModel(pl.LightningModule):
             return float("inf")
 
     def configure_optimizers(self):  # type: ignore
-        """Sets up the model's optimizer and learning rate scheduler based on the configurations provided.
+        """Sets up the model's optimizer and learning rate scheduler.
 
-        The optimizer type can be chosen by the user (Adam, SGD, etc.).
+        Uses the :mod:`deeptab.training.optimizers` and
+        :mod:`deeptab.training.schedulers` registries so that:
+
+        - Unknown optimizer / scheduler names raise :class:`~deeptab.core.exceptions.InvalidParamError`
+          immediately with a helpful list of alternatives.
+        - ``monitor`` and ``mode`` are passed through to ``ReduceLROnPlateau``
+          so it follows the same metric and direction as early stopping.
+        - ``no_weight_decay_for_bias_and_norm`` selectively exempts bias and
+          normalisation parameters from weight decay.
         """
-        # Dynamically choose the optimizer based on the passed optimizer_type
-        optimizer_class = getattr(torch.optim, self.optimizer_type)
-
-        # Initialize the optimizer with the chosen class and parameters
-        optimizer = optimizer_class(
-            self.estimator.parameters(),
+        optimizer = build_optimizer(
+            self.estimator,
+            optimizer_type=self.optimizer_type,
             lr=self.lr,
             weight_decay=self.weight_decay,
-            **self.optimizer_params,  # Pass any additional optimizer-specific parameters
+            optimizer_kwargs=self.optimizer_params,
+            no_weight_decay_for_bias_and_norm=self.no_weight_decay_for_bias_and_norm,
         )
 
-        # Define learning rate scheduler
-        scheduler = {
-            "scheduler": torch.optim.lr_scheduler.ReduceLROnPlateau(
-                optimizer,
-                mode="min",
-                factor=self.lr_factor,
-                patience=self.lr_patience,
-            ),
-            "monitor": "val_loss",
-            "interval": "epoch",
-            "frequency": 1,
-        }
+        scheduler_cfg = build_scheduler(
+            optimizer,
+            scheduler_type=self.scheduler_type,
+            scheduler_kwargs=self.scheduler_kwargs,
+            lr_factor=self.lr_factor,
+            lr_patience=self.lr_patience,
+            monitor=self.monitor,
+            mode=self.mode,
+            interval=self.scheduler_interval,
+            frequency=self.scheduler_frequency,
+        )
 
-        return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        if scheduler_cfg is None:
+            return optimizer
+        return {"optimizer": optimizer, "lr_scheduler": scheduler_cfg}
 
     def pretrain_embeddings(
         self,
