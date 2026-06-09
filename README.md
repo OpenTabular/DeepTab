@@ -33,6 +33,8 @@
 - **Typed Data Layer**: `TabularDataset`, `TabularDataModule`, `FeatureSchema`
 - **Split-Config API**: Separate configs for model, preprocessing, and training
 - **Enhanced Preprocessing**: Feature-specific transformations, PLE, pre-trained encodings
+- **Optimizer & Scheduler Registry**: All `torch.optim` classes available by name through `TrainerConfig`; custom optimizers and schedulers registerable at runtime
+- **`InferenceModel`**: Deployment-only wrapper with schema validation, read-only prediction surface, and task-type enforcement
 - **New Models**: AutoInt, ENODE, TabR
 - **Experimental Models**: Tangos, Trompt, ModernNCA
 

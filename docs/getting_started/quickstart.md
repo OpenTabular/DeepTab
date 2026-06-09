@@ -114,7 +114,7 @@ model = MambularClassifier(
     ),
     # Preprocessing strategy
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="quantile",  # Options: standard, quantile, minmax, ple
+        numerical_preprocessing="quantile",  # Options: standardization, quantile, minmax, ple
         n_bins=50,                           # For binning strategies
     ),
     # Training loop parameters
@@ -122,7 +122,12 @@ model = MambularClassifier(
         max_epochs=100,     # Number of epochs (default: 100)
         lr=1e-3,            # Learning rate (default: 1e-4)
         batch_size=256,     # Batch size (default: 128)
-        patience=15,        # Early stopping patience (default: 10)
+        patience=15,        # Early stopping patience (default: 15)
+        optimizer_type="AdamW",   # Any torch.optim class name (default: "Adam")
+        weight_decay=1e-2,        # L2 regularisation (default: 1e-6)
+        scheduler_type="ReduceLROnPlateau",  # LR scheduler (default)
+        lr_patience=5,      # Epochs without improvement before LR is reduced
+        lr_factor=0.5,      # LR reduction factor (default: 0.1)
     ),
 )
 
@@ -401,7 +406,9 @@ from deeptab.models import MambularClassifier
 # Provide explicit validation set
 model = MambularClassifier(
     trainer_config=TrainerConfig(
-        patience=10,  # Stop if no improvement for 10 epochs
+        patience=10,    # Stop if monitored metric doesn't improve for 10 epochs
+        monitor="val_loss",  # Metric to watch (default: "val_loss")
+        mode="min",          # "min" to minimise, "max" to maximise
     )
 )
 
@@ -411,6 +418,80 @@ model.fit(
     max_epochs=100,
 )
 ```
+
+```{tip}
+`monitor` and `mode` apply to **both** early stopping and the LR scheduler.
+Setting `monitor="val_auroc"` and `mode="max"` keeps them perfectly aligned —
+previously the scheduler always watched `val_loss` in the wrong direction.
+```
+
+### Optimizer and LR scheduler
+
+Switch to a different optimizer or scheduler without subclassing anything:
+
+```python
+from deeptab.configs import TrainerConfig
+from deeptab.models import FTTransformerClassifier
+
+# AdamW with custom betas — good default for transformer models
+model = FTTransformerClassifier(
+    trainer_config=TrainerConfig(
+        optimizer_type="AdamW",
+        lr=3e-4,
+        weight_decay=1e-2,
+        optimizer_kwargs={"betas": (0.9, 0.95)},
+        # Bias and LayerNorm parameters get weight_decay=0
+        no_weight_decay_for_bias_and_norm=True,
+    )
+)
+```
+
+Switch the LR schedule independently:
+
+```python
+# Cosine annealing — no plateau needed
+model = FTTransformerClassifier(
+    trainer_config=TrainerConfig(
+        optimizer_type="AdamW",
+        lr=3e-4,
+        scheduler_type="CosineAnnealingLR",
+        scheduler_kwargs={"T_max": 100, "eta_min": 1e-6},
+    )
+)
+
+# Disable the scheduler entirely
+model = FTTransformerClassifier(
+    trainer_config=TrainerConfig(scheduler_type=None)
+)
+```
+
+Inspect all available optimizers and schedulers:
+
+```python
+from deeptab.training.optimizers import available_optimizers
+from deeptab.training.schedulers import available_schedulers
+
+print(available_optimizers())
+# ['adadelta', 'adagrad', 'adam', 'adamax', 'adamw', 'asgd', ...]
+
+print(available_schedulers())
+# ['constantlr', 'cosineannealinglr', 'cosineannealingwarmrestarts', ...]
+```
+
+Register a custom optimizer from a third-party library:
+
+```python
+from deeptab.training.optimizers import register_optimizer
+from deeptab.configs import TrainerConfig
+
+register_optimizer("muon", MyMuonOptimizer)
+
+model = FTTransformerClassifier(
+    trainer_config=TrainerConfig(optimizer_type="muon", lr=1e-3)
+)
+```
+
+````
 
 ### Custom preprocessing for specific features
 
@@ -426,7 +507,7 @@ config = PreprocessingConfig(
 
 model = MambularClassifier(preprocessing_config=config)
 model.fit(X_train, y_train, max_epochs=50)
-```
+````
 
 ## Debugging tips
 

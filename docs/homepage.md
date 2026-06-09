@@ -26,6 +26,7 @@ Understand DeepTab's design:
 - **[Config System](core_concepts/config_system)** — Split-config for model, preprocessing, training
 - **[Training & Evaluation](core_concepts/training_and_evaluation)** — Fit pipeline, preprocessing, reproducibility, evaluation
 - **[Model Operations](core_concepts/model_operations)** — Serialisation and model inspection
+- **[Inference](core_concepts/inference)** — `InferenceModel`: schema validation and deployment-safe prediction
 
 ### 🎯 Interactive Tutorials
 
@@ -36,6 +37,7 @@ Hands-on examples with Google Colab:
 - **[Distributional Regression (LSS)](tutorials/distributional)** — Full distribution prediction
 - **[Experimental Models](tutorials/experimental)** — Using cutting-edge architectures
 - **[Model Efficiency Benchmarking](tutorials/model_efficiency)** — Runtime and memory workflow
+- **[Advanced Training & Inference](tutorials/advanced_training)** — Optimizer/scheduler registry, custom extensions, `InferenceModel` in production
 
 ### 🤖 Model Zoo
 

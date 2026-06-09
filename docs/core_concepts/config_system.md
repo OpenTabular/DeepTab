@@ -47,23 +47,23 @@ preprocessing_config = PreprocessingConfig(
     numerical_preprocessing="quantile",
     categorical_preprocessing="int",
     n_bins=50,
-    scaling_strategy="standard",
+    scaling_strategy="minmax",
 )
 ```
 
 Valid fields:
 
-| Field                                                                                     | Purpose                                                                                                                       |
-| ----------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_preprocessing`                                                                 | Main numerical transform, for example `"standard"`, `"quantile"`, `"ple"`, or binning-style strategies supported by `pretab`. |
-| `categorical_preprocessing`                                                               | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported.                             |
-| `n_bins`                                                                                  | Number of bins for binned/PLE-style numerical transforms.                                                                     |
-| `feature_preprocessing`                                                                   | General feature-level preprocessing override.                                                                                 |
-| `use_decision_tree_bins`, `binning_strategy`                                              | Controls bin edge construction.                                                                                               |
-| `task`                                                                                    | Optional task hint passed to the preprocessor.                                                                                |
-| `cat_cutoff`, `treat_all_integers_as_numerical`                                           | Controls integer-column type inference.                                                                                       |
-| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls.                                                                                      |
-| `scaling_strategy`                                                                        | Post-transform scaling strategy.                                                                                              |
+| Field                                                                                     | Purpose                                                                                                                                                        |
+| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_preprocessing`                                                                 | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform. |
+| `categorical_preprocessing`                                                               | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported.                                                              |
+| `n_bins`                                                                                  | Number of bins for binned/PLE-style numerical transforms.                                                                                                      |
+| `feature_preprocessing`                                                                   | General feature-level preprocessing override.                                                                                                                  |
+| `use_decision_tree_bins`, `binning_strategy`                                              | Controls bin edge construction.                                                                                                                                |
+| `task`                                                                                    | Optional task hint passed to the preprocessor.                                                                                                                 |
+| `cat_cutoff`, `treat_all_integers_as_numerical`                                           | Controls integer-column type inference.                                                                                                                        |
+| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls.                                                                                                                       |
+| `scaling_strategy`                                                                        | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
@@ -79,6 +79,8 @@ trainer_config = TrainerConfig(
     batch_size=128,
     val_size=0.2,
     patience=15,
+    monitor="val_loss",
+    mode="min",
     lr=1e-4,
     lr_patience=10,
     lr_factor=0.1,
@@ -90,19 +92,69 @@ trainer_config = TrainerConfig(
 
 Valid fields:
 
-| Field                            | Meaning                                                                 |
-| -------------------------------- | ----------------------------------------------------------------------- |
-| `max_epochs`                     | Maximum Lightning training epochs.                                      |
-| `batch_size`                     | Batch size for train/validation/prediction loaders.                     |
-| `val_size`                       | Fraction held out when no explicit validation set is passed.            |
-| `shuffle`                        | Whether to shuffle the training dataloader.                             |
-| `patience`, `monitor`, `mode`    | Early-stopping settings.                                                |
-| `lr`, `lr_patience`, `lr_factor` | Learning rate and ReduceLROnPlateau scheduler settings.                 |
-| `weight_decay`                   | Optimizer weight decay.                                                 |
-| `optimizer_type`                 | Name of a `torch.optim` optimizer class, such as `"Adam"` or `"AdamW"`. |
-| `checkpoint_path`                | Directory for the best-model checkpoint.                                |
+| Field                               | Meaning                                                                                                                                                               |
+| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_epochs`                        | Maximum Lightning training epochs.                                                                                                                                    |
+| `batch_size`                        | Batch size for train/validation/prediction loaders.                                                                                                                   |
+| `val_size`                          | Fraction held out when no explicit validation set is passed.                                                                                                          |
+| `shuffle`                           | Whether to shuffle the training dataloader.                                                                                                                           |
+| `patience`, `monitor`, `mode`       | Early-stopping settings. `monitor` and `mode` also apply to the LR scheduler.                                                                                         |
+| `lr`, `lr_patience`, `lr_factor`    | Learning rate and `ReduceLROnPlateau` scheduler defaults.                                                                                                             |
+| `weight_decay`                      | Optimizer weight decay (L2 penalty).                                                                                                                                  |
+| `optimizer_type`                    | Case-insensitive name of a registered optimizer (e.g. `"Adam"`, `"AdamW"`).                                                                                           |
+| `optimizer_kwargs`                  | Extra kwargs forwarded to the optimizer constructor (e.g. `{"betas": (0.9, 0.95)}`).                                                                                  |
+| `scheduler_type`                    | Case-insensitive name of a registered LR scheduler, or `None` to disable. Default: `"ReduceLROnPlateau"`.                                                             |
+| `scheduler_kwargs`                  | Extra kwargs forwarded to the scheduler constructor. For `ReduceLROnPlateau`, `"factor"` and `"patience"` are synthesised from `lr_factor`/`lr_patience` when absent. |
+| `scheduler_monitor`                 | Override the metric watched by the scheduler (defaults to `monitor`).                                                                                                 |
+| `scheduler_interval`                | `"epoch"` (default) or `"step"` — Lightning scheduling granularity.                                                                                                   |
+| `scheduler_frequency`               | How many intervals to wait between scheduler steps (default `1`).                                                                                                     |
+| `no_weight_decay_for_bias_and_norm` | When `True`, bias and normalisation-layer parameters receive zero weight decay. Recommended for transformer-style architectures.                                      |
+| `checkpoint_path`                   | Directory for the best-model checkpoint.                                                                                                                              |
 
 Runtime options such as `accelerator`, `devices`, `precision`, `gradient_clip_val`, and logger/callback settings are Lightning trainer keyword arguments, not `TrainerConfig` fields. Pass them to `fit(...)` when needed.
+
+### Optimizer registry
+
+`optimizer_type` resolves through a registry, so any name that is not a built-in `torch.optim` class (or previously registered) raises
+`InvalidParamError` immediately with a list of valid options.
+
+```python
+from deeptab.training.optimizers import available_optimizers, register_optimizer
+
+print(available_optimizers())
+# ['adadelta', 'adagrad', 'adam', 'adamax', 'adamw', 'asgd', ...]
+
+# Register a third-party optimizer
+register_optimizer("muon", MyMuonOptimizer)
+tc = TrainerConfig(optimizer_type="muon", lr=1e-3)
+```
+
+### Scheduler registry
+
+`scheduler_type` resolves through a parallel registry.
+
+```python
+from deeptab.training.schedulers import available_schedulers, register_scheduler
+
+print(available_schedulers())
+# ['constantlr', 'cosineannealinglr', 'cosineannealingwarmrestarts', ...]
+
+# Switch to cosine annealing
+tc = TrainerConfig(
+    scheduler_type="CosineAnnealingLR",
+    scheduler_kwargs={"T_max": 100, "eta_min": 1e-6},
+)
+
+# Disable the scheduler entirely
+tc = TrainerConfig(scheduler_type=None)
+```
+
+```{important}
+`monitor` and `mode` are forwarded to **both** early stopping and the LR
+scheduler, so they are always aligned.  Previously `ReduceLROnPlateau` always
+watched `val_loss` in `min` mode regardless of what early stopping was
+configured to use.
+```
 
 ## Using Configs Together
 
@@ -141,7 +193,7 @@ param_grid = {
     "model_config__d_model": [32, 64, 128],
     "model_config__n_layers": [2, 4],
     "trainer_config__lr": [1e-3, 3e-4],
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
 }
 
 search = GridSearchCV(estimator, param_grid=param_grid, cv=3, n_jobs=1)

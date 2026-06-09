@@ -66,10 +66,10 @@ search.fit(X, y)
 **Configure when needed:**
 
 ```python
-from deeptab.configs import ModelConfig, PreprocessingConfig, TrainerConfig
+from deeptab.configs import ResNetConfig, PreprocessingConfig, TrainerConfig
 
 model = ResNetClassifier(
-    model_config=ModelConfig(d_model=128, n_layers=8),
+    model_config=ResNetConfig(d_model=128),
     preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256)
 )
@@ -115,12 +115,65 @@ Built for real-world messiness:
 - Automatic stratified splits for classification
 - Enhanced preprocessing with `pretab` integration
 - Better type safety and IDE support
+- Structured exception hierarchy with descriptive error messages
+- Registry-backed optimizer and LR-scheduler system (see below)
+```
+
+### Training system upgrades
+
+`TrainerConfig` now exposes the full optimizer and scheduler surface without
+requiring you to subclass `TaskModel`:
+
+```python
+from deeptab.configs import TrainerConfig
+
+# Switch to AdamW with custom beta values
+tc = TrainerConfig(
+    optimizer_type="AdamW",
+    optimizer_kwargs={"betas": (0.9, 0.95)},
+    weight_decay=1e-2,
+)
+
+# Cosine annealing instead of ReduceLROnPlateau
+tc = TrainerConfig(
+    scheduler_type="CosineAnnealingLR",
+    scheduler_kwargs={"T_max": 100},
+)
+
+# Align early stopping AND scheduler to the same metric/direction
+tc = TrainerConfig(
+    monitor="val_auroc",
+    mode="max",          # Both early stopping and ReduceLROnPlateau now maximise
+)
+
+# Disable the scheduler entirely
+tc = TrainerConfig(scheduler_type=None)
+
+# Exempt bias and LayerNorm weights from weight decay (recommended for transformers)
+tc = TrainerConfig(
+    optimizer_type="AdamW",
+    weight_decay=1e-2,
+    no_weight_decay_for_bias_and_norm=True,
+)
+```
+
+You can also inspect and extend the registries directly:
+
+```python
+from deeptab.training.optimizers import available_optimizers, register_optimizer
+from deeptab.training.schedulers import available_schedulers, register_scheduler
+
+print(available_optimizers())   # ['adadelta', 'adagrad', 'adam', 'adamw', ...]
+print(available_schedulers())   # ['constantlr', 'cosineannealinglr', ...]
+
+# Plug in a third-party optimizer
+register_optimizer("muon", MyMuonOptimizer)
 ```
 
 For advanced use cases (custom training loops, model integration), v2.0 exposes low-level components:
 
-- **TabularDataset** — PyTorch Dataset with batch object support
-- **TabularDataModule** — Lightning DataModule with preprocessing
+- **TabularDataset** - PyTorch Dataset with batch object support
+- **TabularDataModule** - Lightning DataModule with preprocessing
 - **FeatureSchema** — Typed feature metadata container
 - **TabularBatch** — Strongly typed batch with device management
 

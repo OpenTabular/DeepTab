@@ -58,23 +58,23 @@ cfg = PreprocessingConfig(
 )
 ```
 
-| Field                                        | Purpose                                                       |
-| -------------------------------------------- | ------------------------------------------------------------- |
-| `numerical_preprocessing`                    | Transform strategy: `"standard"`, `"quantile"`, `"ple"`, etc. |
-| `categorical_preprocessing`                  | Encoding strategy: `"int"`, `"one-hot"`, etc.                 |
-| `n_bins`                                     | Bins for binned / PLE-style transforms.                       |
-| `scaling_strategy`                           | Optional post-transform scaling.                              |
-| `binning_strategy`, `use_decision_tree_bins` | How bin edges are built.                                      |
-| `n_knots`, `degree`, `spline_implementation` | Spline preprocessing controls.                                |
+| Field                                        | Purpose                                                                                                                          |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_preprocessing`                    | Transform strategy: `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`, or `None`. |
+| `categorical_preprocessing`                  | Encoding strategy: `"int"`, `"one-hot"`, etc.                                                                                    |
+| `n_bins`                                     | Bins for binned / PLE-style transforms.                                                                                          |
+| `scaling_strategy`                           | Optional post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                         |
+| `binning_strategy`, `use_decision_tree_bins` | How bin edges are built.                                                                                                         |
+| `n_knots`, `degree`, `spline_implementation` | Spline preprocessing controls.                                                                                                   |
 
 Practical starting points:
 
-| Data condition                      | Config                                                          |
-| ----------------------------------- | --------------------------------------------------------------- |
-| Clean continuous features           | `PreprocessingConfig(numerical_preprocessing="standard")`       |
-| Skewed / heavy-tailed columns       | `PreprocessingConfig(numerical_preprocessing="quantile")`       |
-| Nonlinear numeric effects           | `PreprocessingConfig(numerical_preprocessing="ple", n_bins=50)` |
-| Integer IDs alongside true numerics | Convert ID columns to pandas `category` before fitting.         |
+| Data condition                      | Config                                                           |
+| ----------------------------------- | ---------------------------------------------------------------- |
+| Clean continuous features           | `PreprocessingConfig(numerical_preprocessing="standardization")` |
+| Skewed / heavy-tailed columns       | `PreprocessingConfig(numerical_preprocessing="quantile")`        |
+| Nonlinear numeric effects           | `PreprocessingConfig(numerical_preprocessing="ple", n_bins=50)`  |
+| Integer IDs alongside true numerics | Convert ID columns to pandas `category` before fitting.          |
 
 ### Validation and leakage
 
@@ -126,7 +126,14 @@ trainer_config = TrainerConfig(
     lr_patience=10,
     lr_factor=0.1,
     weight_decay=1e-6,
-    optimizer_type="Adam",
+    optimizer_type="Adam",           # any registered optimizer name
+    optimizer_kwargs=None,           # extra kwargs forwarded to the constructor
+    scheduler_type="ReduceLROnPlateau",  # any registered scheduler name, or None
+    scheduler_kwargs=None,           # extra kwargs for the scheduler
+    scheduler_monitor=None,          # defaults to `monitor` when None
+    scheduler_interval="epoch",      # "epoch" or "step"
+    scheduler_frequency=1,
+    no_weight_decay_for_bias_and_norm=False,
     checkpoint_path="model_checkpoints",
 )
 ```
@@ -151,16 +158,96 @@ Early stopping monitors `TrainerConfig.monitor` (default `"val_loss"`). The best
 
 ### Optimizer and scheduler
 
-The optimizer is selected by name. `TaskModel` automatically attaches a `ReduceLROnPlateau` scheduler:
+The optimizer and LR scheduler are both registry-backed. Any registered name is
+accepted; unknown names raise
+`InvalidParamError` immediately with a list of
+valid options.
+
+**Default behaviour** (backward-compatible):
+
+```python
+from deeptab.configs import TrainerConfig
+
+trainer_config = TrainerConfig(
+    optimizer_type="Adam",          # default
+    scheduler_type="ReduceLROnPlateau",  # default
+    lr=1e-4,
+    lr_patience=10,
+    lr_factor=0.1,
+    weight_decay=1e-6,
+)
+```
+
+**Switch optimizer and pass extra kwargs:**
 
 ```python
 TrainerConfig(
     optimizer_type="AdamW",
     lr=3e-4,
-    weight_decay=1e-4,
-    lr_patience=5,
-    lr_factor=0.5,
+    weight_decay=1e-2,
+    optimizer_kwargs={"betas": (0.9, 0.95)},
 )
+```
+
+**Selective weight decay** (recommended for transformer models — bias and `LayerNorm` / `BatchNorm` parameters are excluded):
+
+```python
+TrainerConfig(
+    optimizer_type="AdamW",
+    weight_decay=1e-2,
+    no_weight_decay_for_bias_and_norm=True,
+)
+```
+
+**Switch the scheduler:**
+
+```python
+# Cosine annealing
+TrainerConfig(
+    scheduler_type="CosineAnnealingLR",
+    scheduler_kwargs={"T_max": 100, "eta_min": 1e-6},
+)
+
+# Disable entirely
+TrainerConfig(scheduler_type=None)
+```
+
+**Align early stopping and scheduler to the same metric:**
+
+```python
+# Both early stopping AND ReduceLROnPlateau now track val_auroc in max mode
+TrainerConfig(
+    monitor="val_auroc",
+    mode="max",
+)
+```
+
+```{important}
+Prior to v2.0 the scheduler always watched `val_loss` in `min` mode
+regardless of `monitor` / `mode`.  This caused the LR scheduler and early
+stopping to track different metrics when using a maximise-mode metric such as
+`val_auroc`.  Both are now correctly aligned.
+```
+
+**Inspect and extend the registries:**
+
+```python
+from deeptab.training.optimizers import available_optimizers, register_optimizer
+from deeptab.training.schedulers import available_schedulers, register_scheduler
+
+print(available_optimizers())
+# ['adadelta', 'adagrad', 'adam', 'adamax', 'adamw', 'asgd', ...]
+
+print(available_schedulers())
+# ['constantlr', 'cosineannealinglr', 'cosineannealingwarmrestarts', ...]
+
+# Register a third-party optimizer
+register_optimizer("muon", MyMuonOptimizer)
+tc = TrainerConfig(optimizer_type="muon", lr=1e-3)
+
+# Register a custom scheduler
+register_scheduler("warmup_cosine", MyWarmupCosineScheduler)
+tc = TrainerConfig(scheduler_type="warmup_cosine")
 ```
 
 ---
