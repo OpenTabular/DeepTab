@@ -1,4 +1,4 @@
-from .core import BaseConfig, BaseModelConfig, PreprocessingConfig, SplitConfig, TrainerConfig
+from .core import BaseModelConfig, PreprocessingConfig, SplitConfig, TrainerConfig
 from .experimental.modernnca_config import ModernNCAConfig
 from .experimental.tangos_config import TangosConfig
 from .experimental.trompt_config import TromptConfig
@@ -20,7 +20,6 @@ from .models.tabularnn_config import TabulaRNNConfig
 
 __all__ = [
     "AutoIntConfig",
-    "BaseConfig",
     "BaseModelConfig",
     "ENODEConfig",
     "FTTransformerConfig",
