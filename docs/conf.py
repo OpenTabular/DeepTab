@@ -53,19 +53,11 @@ extensions = [
     "sphinx_design",
 ]
 autodoc_mock_imports = [
-    "lightning",
-    "torch",
-    "torchmetrics",
-    "pytorch_lightning",
-    "numpy",
-    "pandas",
-    "sklearn",
     "properscoring",
     "tqdm",
     "einops",
     "accelerate",
     "scikit-optimize",
-    "scipy",
     "skopt",
 ]
 # Add any paths that contain templates here, relative to this directory.
@@ -104,6 +96,16 @@ add_function_parentheses = True
 # If true, the current module name will be prepended to all description
 # unit titles (such as .. function::).
 add_module_names = True
+
+# Move type hints into the parameter description body rather than the
+# function signature. This avoids "list assignment index out of range"
+# errors from sphinx-autodoc-typehints when a default value is an
+# nn.Module instance (e.g. activation=nn.ReLU()).
+autodoc_typehints = "description"
+autodoc_typehints_description_target = "documented"
+# Do NOT rewrite signatures — that is the step that crashes on nn.Module defaults.
+typehints_use_signature = False
+typehints_use_signature_return = False
 
 # If true, sectionauthor and moduleauthor directives will be shown in the
 # output. They are ignored by default.

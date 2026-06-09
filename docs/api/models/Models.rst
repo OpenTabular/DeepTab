@@ -300,18 +300,3 @@ Trompt
 .. autoclass:: deeptab.models.experimental.TromptLSS
     :members:
     :inherited-members:
-
-Base Classes
-------------
-
-.. autoclass:: deeptab.models.SklearnBaseClassifier
-    :members:
-    :inherited-members:
-
-.. autoclass:: deeptab.models.SklearnBaseRegressor
-    :members:
-    :inherited-members:
-
-.. autoclass:: deeptab.models.SklearnBaseLSS
-    :members:
-    :inherited-members:

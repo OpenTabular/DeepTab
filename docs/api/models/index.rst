@@ -153,19 +153,6 @@ Class                                       Description
 :class:`TromptLSS`
 =======================================    =======================================================================================================
 
-Base Classes
-------------
-
-.. currentmodule:: deeptab.models
-
-=======================================    =======================================================================================================
-Class                                       Description
-=======================================    =======================================================================================================
-:class:`SklearnBaseClassifier`              Abstract base class for all classification models.
-:class:`SklearnBaseRegressor`               Abstract base class for all regression models.
-:class:`SklearnBaseLSS`                     Abstract base class for all distributional regression models.
-=======================================    =======================================================================================================
-
 See Also
 --------
 
