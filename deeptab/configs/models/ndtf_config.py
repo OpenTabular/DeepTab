@@ -1,3 +1,4 @@
+from collections.abc import Callable  # inherited by sphinx-autodoc-typehints
 from dataclasses import dataclass
 
 from ..core import BaseModelConfig

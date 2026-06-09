@@ -369,6 +369,18 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             if weight_decay is None:
                 weight_decay = tc.weight_decay
 
+        # Collect new scheduler/optimizer fields from TrainerConfig
+        _tc = self.trainer_config
+        _scheduler_type = (
+            getattr(_tc, "scheduler_type", "ReduceLROnPlateau") if _tc is not None else "ReduceLROnPlateau"
+        )
+        _scheduler_kwargs = getattr(_tc, "scheduler_kwargs", None) if _tc is not None else None
+        _scheduler_monitor = getattr(_tc, "scheduler_monitor", None) if _tc is not None else None
+        _scheduler_interval = getattr(_tc, "scheduler_interval", "epoch") if _tc is not None else "epoch"
+        _scheduler_frequency = getattr(_tc, "scheduler_frequency", 1) if _tc is not None else 1
+        _no_wd_bn = getattr(_tc, "no_weight_decay_for_bias_and_norm", False) if _tc is not None else False
+        _optimizer_kwargs = getattr(_tc, "optimizer_kwargs", None) if _tc is not None else None
+
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
         if hasattr(y, "values"):
@@ -419,7 +431,18 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             optimizer_type=self.optimizer_type,
-            optimizer_args=self.optimizer_kwargs,
+            optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self.optimizer_kwargs,
+            scheduler_type=_scheduler_type,
+            scheduler_kwargs=_scheduler_kwargs,
+            monitor=_scheduler_monitor
+            if _scheduler_monitor is not None
+            else (
+                getattr(self.trainer_config, "monitor", "val_loss") if self.trainer_config is not None else "val_loss"
+            ),
+            mode=getattr(self.trainer_config, "mode", "min") if self.trainer_config is not None else "min",
+            scheduler_interval=_scheduler_interval,
+            scheduler_frequency=_scheduler_frequency,
+            no_weight_decay_for_bias_and_norm=_no_wd_bn,
             loss_fct=loss_fct,
         )
 

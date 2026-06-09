@@ -375,6 +375,26 @@ class TrainerConfig(BaseEstimator):
     optimizer_type : str, default="Adam"
         Optimizer class name.  Must be a valid ``torch.optim`` class name or a
         name registered in the project's optimizer registry.
+    optimizer_kwargs : dict or None, default=None
+        Extra keyword arguments forwarded to the optimizer constructor.
+    scheduler_type : str or None, default="ReduceLROnPlateau"
+        LR-scheduler class name (case-insensitive), or ``None`` / ``"none"`` to
+        disable the scheduler entirely.
+    scheduler_kwargs : dict or None, default=None
+        Extra keyword arguments forwarded to the scheduler constructor.
+        ``factor`` and ``patience`` are synthesised from ``lr_factor`` and
+        ``lr_patience`` for ``ReduceLROnPlateau`` when absent here.
+    scheduler_monitor : str or None, default=None
+        Metric name for the scheduler to monitor.  Falls back to the value of
+        ``monitor`` when ``None``.
+    scheduler_interval : str, default="epoch"
+        Lightning scheduling granularity: ``"epoch"`` or ``"step"``.
+    scheduler_frequency : int, default=1
+        How often the scheduler steps at the given interval.
+    no_weight_decay_for_bias_and_norm : bool, default=False
+        When ``True``, bias vectors and normalisation-layer scale/shift
+        parameters receive zero weight decay.  Recommended for transformer-
+        style models with ``LayerNorm``.
     checkpoint_path : str, default="model_checkpoints"
         Directory where PyTorch Lightning model checkpoints are saved.
     """
@@ -391,6 +411,13 @@ class TrainerConfig(BaseEstimator):
     lr_factor: float = 0.1
     weight_decay: float = 1e-6
     optimizer_type: str = "Adam"
+    optimizer_kwargs: dict | None = None
+    scheduler_type: str | None = "ReduceLROnPlateau"
+    scheduler_kwargs: dict | None = None
+    scheduler_monitor: str | None = None
+    scheduler_interval: str = "epoch"
+    scheduler_frequency: int = 1
+    no_weight_decay_for_bias_and_norm: bool = False
     checkpoint_path: str = "model_checkpoints"
 
     def __post_init__(self) -> None:  # type: ignore[override]
@@ -424,6 +451,21 @@ class TrainerConfig(BaseEstimator):
                 "Early stopping will never trigger before training ends. "
                 "Consider reducing patience or increasing max_epochs.",
                 stacklevel=3,
+            )
+        if self.scheduler_interval not in {"epoch", "step"}:
+            raise invalid_param_error(
+                "TrainerConfig",
+                "scheduler_interval",
+                self.scheduler_interval,
+                "must be 'epoch' or 'step'",
+                ["epoch", "step"],
+            )
+        if self.scheduler_frequency < 1:
+            raise invalid_param_error(
+                "TrainerConfig",
+                "scheduler_frequency",
+                self.scheduler_frequency,
+                "must be >= 1",
             )
 
 
