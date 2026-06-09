@@ -64,7 +64,7 @@ X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, r
 ```python
 lss_model = MambularLSS(
     model_config=MambularConfig(d_model=64, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(max_epochs=60, batch_size=128, lr=3e-4, patience=10),
     random_state=101,
 )
@@ -158,7 +158,39 @@ loaded = MambularLSS.load("lss_model.pt")
 loaded_params = loaded.predict(X_test)
 ```
 
+## Production Inference with `InferenceModel`
+
+For deployment use `InferenceModel`, which exposes a narrow prediction-only
+surface and validates the column schema automatically.
+
+```python
+from deeptab import InferenceModel
+
+# Load once
+model = InferenceModel.from_path("lss_model.pt")
+
+print(model.task)          # "distributional_regression"
+print(model.n_features)    # 6
+
+# Validate and predict distribution parameters
+X_clean = model.validate_input(X_test)
+params   = model.predict_params(X_clean, raw=False)
+mean     = params[:, 0]
+```
+
+`predict_proba()` raises `TypeError` on LSS models — only `predict()` and
+`predict_params()` are available:
+
+```python
+model.predict_proba(X_clean)
+# TypeError: predict_proba() is only available for classification models,
+# but this model's task is 'distributional_regression'.
+```
+
+See [Inference Model](../core_concepts/inference) for the full production API.
+
 ## Next Steps
 
 - [Regression tutorial](regression)
+- [Advanced training](advanced_training)
 - [Distribution API](../api/distributions/index)

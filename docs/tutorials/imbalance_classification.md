@@ -467,19 +467,15 @@ the majority class for every example achieves 91 % accuracy on this dataset.
 Use recall and F1 to see whether the minority class is being learned.
 ```
 
-## Serialisation
+## Serialisation and Deployment
 
-Save the best model and verify that:
-
-1. The file is created.
-2. Predictions are bit-identical after reload.
-3. The loss type and its weights are preserved.
+Save the best model and verify predictions are bit-identical after reload.
 
 ```python
 # Save
 clf_combined.save("imbalanced_clf.pt")
 
-# Load
+# Load via estimator API (research / retraining use case)
 loaded = MambularClassifier.load("imbalanced_clf.pt")
 
 # Verify predictions
@@ -499,6 +495,42 @@ orig_loss   = clf_combined.task_model.loss_fct
 loaded_loss = loaded.task_model.loss_fct
 print(f"Original loss : {type(orig_loss).__name__}")
 print(f"Loaded loss   : {type(loaded_loss).__name__}")
+```
+
+### Production inference with `InferenceModel`
+
+For a service or batch job use `InferenceModel` instead. It prevents training
+methods from being called and handles column schema mismatches cleanly.
+
+```python
+from deeptab import InferenceModel
+
+# Load once at service startup
+model = InferenceModel.from_path("imbalanced_clf.pt")
+
+print(model)
+# InferenceModel(task='classification', estimator='MambularClassifier',
+#                n_features=10, features=['num_0', ...], n_classes=2)
+
+# Per-request inference
+def score_request(payload: dict) -> dict:
+    X = pd.DataFrame([payload])
+    X_clean = model.validate_input(X, allow_extra_columns=True)
+    proba   = model.predict_proba(X_clean)
+    label   = model.predict(X_clean)
+    return {
+        "probability_positive": float(proba[0, 1]),
+        "label": int(label[0]),
+    }
+```
+
+Common deployment error caught automatically:
+
+```python
+# Upstream pipeline drops a feature column
+X_bad = X_test.drop(columns=["num_3"])
+model.validate_input(X_bad)
+# ValueError: Input is missing 1 column(s) that were present during training: ['num_3'].
 ```
 
 ## Decision Guide
@@ -546,5 +578,6 @@ how much gradient each of those examples contributes.
 
 ## Next Steps
 
+- [Advanced training](advanced_training)
 - [Config system](../core_concepts/config_system)
 - [Stable model zoo](../model_zoo/stable/index)

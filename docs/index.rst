@@ -35,6 +35,7 @@
    tutorials/distributional
    tutorials/experimental
    tutorials/model_efficiency
+   tutorials/advanced_training
 
 .. toctree::
    :caption: Model Zoo

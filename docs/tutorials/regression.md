@@ -60,7 +60,7 @@ X_val, X_test, y_val, y_test = train_test_split(X_temp, y_temp, test_size=0.5, r
 model = MambularRegressor(
     model_config=MambularConfig(d_model=64, n_layers=4, pooling_method="avg"),
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="standard",
+        numerical_preprocessing="standardization",
         categorical_preprocessing="int",
     ),
     trainer_config=TrainerConfig(max_epochs=60, batch_size=128, lr=3e-4, patience=10),
@@ -147,7 +147,53 @@ loaded_pred = loaded.predict(X_test)
 print(r2_score(y_test, loaded_pred))
 ```
 
+## Production Inference with `InferenceModel`
+
+Once a model is trained and saved, use `InferenceModel` to load it in service
+code. It provides a narrow, read-only surface — training methods such as `fit`
+are absent, so they cannot be called accidentally.
+
+```python
+from deeptab import InferenceModel
+import pandas as pd
+
+# Load once at service startup
+model = InferenceModel.from_path("regression_model.pt")
+
+print(model)
+# InferenceModel(task='regression', estimator='MambularRegressor',
+#                n_features=9, features=['num_0', ..., 'segment'])
+
+# Validate schema before prediction
+X_clean = model.validate_input(X_test)
+
+# Predict
+predictions = model.predict(X_clean)
+print(r2_score(y_test, predictions))
+```
+
+Schema validation catches common deployment mistakes before they reach the
+neural network:
+
+```python
+# Drop a column by accident
+X_bad = X_test.drop(columns=["num_0"])
+model.validate_input(X_bad)
+# ValueError: Input is missing 1 column(s) that were present during training: ['num_0'].
+
+# Extra columns from a wider upstream pipeline
+X_wide = X_test.copy()
+X_wide["debug_id"] = range(len(X_test))
+
+# Lenient mode: drop extras with a warning
+X_clean = model.validate_input(X_wide, allow_extra_columns=True)
+# UserWarning: Input has 1 column(s) not seen during training (['debug_id']); they will be dropped.
+```
+
+See [Inference Model](../core_concepts/inference) for the full production API.
+
 ## Next Steps
 
 - [Distributional regression](distributional)
+- [Advanced training](advanced_training)
 - [Recommended configs](../model_zoo/recommended_configs)
