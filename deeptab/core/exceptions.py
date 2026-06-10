@@ -53,7 +53,7 @@ class ColumnDtypeError(DataError):
     """One or more columns have an unsupported dtype."""
 
 
-class ColumnCountError(DataError):
+class ColumnCountError(DataError, ValueError):
     """Wrong number of feature columns at predict time vs. fit time."""
 
 
@@ -61,7 +61,7 @@ class ColumnNameError(DataError):
     """Feature column names don't match what was seen at fit time."""
 
 
-class EmptyDataError(DataError):
+class EmptyDataError(DataError, ValueError):
     """The input DataFrame is empty (0 rows or 0 columns)."""
 
 
