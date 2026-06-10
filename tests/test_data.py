@@ -990,3 +990,101 @@ class TestValidationLeakage:
         assert len(datamodule.X_train) == len(X_train), (  # type: ignore[arg-type]
             "Training set size was changed when an explicit val set was provided."
         )
+
+
+# ============================================================================
+# DataLoader / Sampler Generator Seeding Tests
+# ============================================================================
+
+
+class TestDataLoaderGeneratorSeeding:
+    """Test that random_state seeds the torch.Generator passed to DataLoader and WeightedRandomSampler."""
+
+    def _make_datamodule(self, regression_data, random_state, sampler=None, shuffle=True):
+        from pretab.preprocessor import Preprocessor
+
+        X, y = regression_data
+        preprocessor = Preprocessor()
+        dm = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=shuffle,
+            regression=regression_data is not None and True,
+            random_state=random_state,
+            sampler=sampler,
+        )
+        dm.preprocess_data(X, y)
+        dm.setup("fit")
+        return dm
+
+    def test_train_dataloader_has_generator_when_random_state_set(self, regression_data):
+        """DataLoader must carry a seeded Generator when random_state is provided."""
+        dm = self._make_datamodule(regression_data, random_state=42)
+        loader = dm.train_dataloader()
+        assert loader.generator is not None
+
+    def test_train_dataloader_generator_is_none_when_no_random_state(self, regression_data):
+        """DataLoader must not inject a Generator when random_state=None."""
+        dm = self._make_datamodule(regression_data, random_state=None)
+        loader = dm.train_dataloader()
+        assert loader.generator is None
+
+    def test_train_dataloader_generator_seed_matches_random_state(self, regression_data):
+        """Two DataLoaders built with the same random_state must carry generators with equal initial_seed."""
+        dm1 = self._make_datamodule(regression_data, random_state=7)
+        dm2 = self._make_datamodule(regression_data, random_state=7)
+        seed1 = dm1.train_dataloader().generator.initial_seed()
+        seed2 = dm2.train_dataloader().generator.initial_seed()
+        assert seed1 == seed2
+
+    def test_train_dataloader_different_seeds_differ(self, regression_data):
+        """DataLoaders with different random_states must carry generators with different seeds."""
+        dm1 = self._make_datamodule(regression_data, random_state=1)
+        dm2 = self._make_datamodule(regression_data, random_state=2)
+        seed1 = dm1.train_dataloader().generator.initial_seed()
+        seed2 = dm2.train_dataloader().generator.initial_seed()
+        assert seed1 != seed2
+
+    def test_weighted_sampler_has_generator_when_random_state_set(self, classification_data):
+        """WeightedRandomSampler must carry a seeded Generator when random_state is provided."""
+        from pretab.preprocessor import Preprocessor
+        from torch.utils.data import WeightedRandomSampler
+
+        X, y = classification_data
+        preprocessor = Preprocessor()
+        dm = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=True,
+            regression=False,
+            random_state=99,
+            sampler="balanced",
+        )
+        dm.preprocess_data(X, y)
+        dm.setup("fit")
+
+        sampler = dm._build_train_sampler()
+        assert isinstance(sampler, WeightedRandomSampler)
+        assert sampler.generator is not None
+
+    def test_weighted_sampler_generator_is_none_when_no_random_state(self, classification_data):
+        """WeightedRandomSampler must not inject a Generator when random_state=None."""
+        from pretab.preprocessor import Preprocessor
+        from torch.utils.data import WeightedRandomSampler
+
+        X, y = classification_data
+        preprocessor = Preprocessor()
+        dm = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=True,
+            regression=False,
+            random_state=None,
+            sampler="balanced",
+        )
+        dm.preprocess_data(X, y)
+        dm.setup("fit")
+
+        sampler = dm._build_train_sampler()
+        assert isinstance(sampler, WeightedRandomSampler)
+        assert sampler.generator is None
