@@ -247,6 +247,8 @@ class SklearnBaseRegressor(SklearnBase):
         if self.task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
+        self._emit_event("predict_started", n_samples=len(X))
+
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X, embeddings)
 
@@ -264,10 +266,10 @@ class SklearnBaseRegressor(SklearnBase):
             predictions = predictions.mean(dim=1)  # Average over ensemble dimension
 
         # Convert predictions to NumPy array and return
-
         predictions = predictions.cpu().numpy()
         if predictions.ndim == 2 and predictions.shape[1] == 1:
             predictions = predictions.ravel()
+        self._emit_event("predict_completed")
         return predictions
 
     def evaluate(self, X, y_true, embeddings=None, metrics=None):

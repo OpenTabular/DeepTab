@@ -18,11 +18,12 @@ from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attr
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
 from deeptab.metrics import get_default_metrics_dict
+from deeptab.models._mixins.observability import _ObservabilityMixin
 from deeptab.models.base import _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
-class SklearnBaseLSS(InspectionMixin, BaseEstimator):
+class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
     def __init__(
         self,
         model,
@@ -585,6 +586,8 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
         if self.task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
+        self._emit_event("predict_started", n_samples=len(X))
+
         # Preprocess the data using the data module
         self.data_module.assign_predict_dataset(X)
 
@@ -603,9 +606,10 @@ class SklearnBaseLSS(InspectionMixin, BaseEstimator):
 
         if not raw:
             result = self.task_model.family(predictions).cpu().numpy()  # type: ignore
-            return result
         else:
-            return predictions.cpu().numpy()
+            result = predictions.cpu().numpy()
+        self._emit_event("predict_completed")
+        return result
 
     def evaluate(self, X, y_true, metrics=None, distribution_family=None):
         """Evaluate the model on the given data using specified metrics.

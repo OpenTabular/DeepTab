@@ -341,13 +341,19 @@ class SklearnBaseClassifier(SklearnBase):
         if self.task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
+        self._emit_event("predict_started", n_samples=len(X))
+
         # Preprocess the data using the data module
+        if self.data_module is None:
+            raise not_fitted_error(type(self).__name__, "predict")
         self.data_module.assign_predict_dataset(X, embeddings)
 
         # Set model to evaluation mode
         self.task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
+        if self.trainer is None:
+            raise not_fitted_error(type(self).__name__, "predict")
         logits_list = self.trainer.predict(self.task_model, self.data_module)
 
         # Concatenate predictions from all batches
@@ -373,8 +379,11 @@ class SklearnBaseClassifier(SklearnBase):
         predicted_indices = predictions.cpu().numpy()
         classes = getattr(self, "classes_", None)
         if classes is not None and len(classes) > 0:
-            return classes[predicted_indices]
-        return predicted_indices
+            result = classes[predicted_indices]
+        else:
+            result = predicted_indices
+        self._emit_event("predict_completed")
+        return result
 
     def predict_proba(self, X, embeddings=None, device=None):
         """Predicts class probabilities for the given input samples.
@@ -394,12 +403,16 @@ class SklearnBaseClassifier(SklearnBase):
             raise not_fitted_error(type(self).__name__, "predict_proba")
 
         # Preprocess the data using the data module
+        if self.data_module is None:
+            raise not_fitted_error(type(self).__name__, "predict_proba")
         self.data_module.assign_predict_dataset(X, embeddings)
 
         # Set model to evaluation mode
         self.task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
+        if self.trainer is None:
+            raise not_fitted_error(type(self).__name__, "predict_proba")
         logits_list = self.trainer.predict(self.task_model, self.data_module)
 
         # Concatenate predictions from all batches
@@ -573,6 +586,8 @@ class SklearnBaseClassifier(SklearnBase):
         if not hasattr(self.task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
             raise ValueError("The model does not have an embedding layer")
 
+        if self.data_module is None:
+            raise not_fitted_error(type(self).__name__, "_pretrain")
         self.data_module.setup("fit")
 
         super()._pretrain(
