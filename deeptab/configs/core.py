@@ -133,7 +133,7 @@ class BaseModelConfig(BaseEstimator):
                     f"d_model ({self.d_model}) must be divisible by n_heads ({n_heads}).",
                 )
 
-        for dropout_field in ("dropout", "attn_dropout", "ff_dropout", "head_dropout"):
+        for dropout_field in ("dropout", "attn_dropout", "ff_dropout", "head_dropout", "rnn_dropout"):
             val = getattr(self, dropout_field, None)
             if val is not None and not (0.0 <= val < 1.0):
                 raise invalid_param_error(
@@ -142,6 +142,29 @@ class BaseModelConfig(BaseEstimator):
                     val,
                     "must be in [0, 1)",
                 )
+
+        # --- Embedding / frequency fields on BaseModelConfig itself ---
+        if self.n_frequencies < 1:
+            raise invalid_param_error(cls_name, "n_frequencies", self.n_frequencies, "must be >= 1")
+        if self.frequencies_init_scale <= 0:
+            raise invalid_param_error(cls_name, "frequencies_init_scale", self.frequencies_init_scale, "must be > 0")
+        if self.layer_norm_eps <= 0:
+            raise invalid_param_error(cls_name, "layer_norm_eps", self.layer_norm_eps, "must be > 0")
+
+        # --- Cross-field: conflicting normalisation ---
+        if self.batch_norm and self.layer_norm:
+            warn_config(
+                f"{cls_name}: both batch_norm=True and layer_norm=True are set. "
+                "Using both simultaneously is unusual and may produce unexpected results. "
+                "Consider enabling only one.",
+                stacklevel=3,
+            )
+
+        # --- Mamba / RNN / Transformer optional integer fields ---
+        for int_field in ("expand_factor", "d_conv", "d_state", "dim_feedforward", "transformer_dim_feedforward"):
+            val = getattr(self, int_field, None)
+            if val is not None and val < 1:
+                raise invalid_param_error(cls_name, int_field, val, "must be >= 1")
 
 
 @dataclass
@@ -363,12 +386,29 @@ class TrainerConfig(BaseEstimator):
                 "must be 'min' or 'max'",
                 ["min", "max"],
             )
+        if self.lr_patience < 1:
+            raise invalid_param_error("TrainerConfig", "lr_patience", self.lr_patience, "must be >= 1")
+        if not (0.0 < self.lr_factor < 1.0):
+            raise invalid_param_error(
+                "TrainerConfig",
+                "lr_factor",
+                self.lr_factor,
+                "must be in the open interval (0, 1)",
+            )
         if self.patience >= self.max_epochs:
             warn_config(
                 f"TrainerConfig: patience={self.patience} >= "
                 f"max_epochs={self.max_epochs}. "
                 "Early stopping will never trigger before training ends. "
                 "Consider reducing patience or increasing max_epochs.",
+                stacklevel=3,
+            )
+        if self.lr_patience >= self.max_epochs:
+            warn_config(
+                f"TrainerConfig: lr_patience={self.lr_patience} >= "
+                f"max_epochs={self.max_epochs}. "
+                "The learning rate scheduler will never reduce the LR before training ends. "
+                "Consider reducing lr_patience or increasing max_epochs.",
                 stacklevel=3,
             )
         if self.scheduler_interval not in {"epoch", "step"}:
