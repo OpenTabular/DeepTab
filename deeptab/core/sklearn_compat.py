@@ -20,6 +20,7 @@ from deeptab.core.exceptions import (
 def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     """Return ``X`` as a DataFrame, casting dtypes that sklearn preprocessing cannot handle.
 
+    - 1-D arrays raise :exc:`ValueError` following sklearn convention.
     - Empty DataFrames raise :exc:`~deeptab.core.exceptions.EmptyDataError`.
     - ``bool`` columns are silently cast to ``int8``; they represent valid binary
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
@@ -35,6 +36,15 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     context:
         Name of the calling method (used in error messages).
     """
+    # Reject 1-D input early: sklearn convention requires 2-D feature arrays.
+    _arr = np.asarray(X) if not isinstance(X, (pd.DataFrame, pd.Series)) else X
+    if getattr(_arr, "ndim", 2) == 1:
+        raise ValueError(
+            "Expected 2D array, got 1D array instead.\n"
+            "Reshape your data either using array.reshape(-1, 1) if your data has "
+            "a single feature or array.reshape(1, -1) if it contains a single sample."
+        )
+
     df = X if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
 
     if df.shape[0] == 0 or df.shape[1] == 0:
