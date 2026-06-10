@@ -456,6 +456,63 @@ class TestTrainerConfigValidation:
             cfg = TrainerConfig(max_epochs=100, patience=15)
         assert cfg.max_epochs == 100
 
+    def test_lr_patience_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_patience"):
+            TrainerConfig(lr_patience=0)
+
+    def test_lr_patience_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_patience"):
+            TrainerConfig(lr_patience=-5)
+
+    def test_lr_factor_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=0.0)
+
+    def test_lr_factor_one_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=1.0)
+
+    def test_lr_factor_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=-0.5)
+
+    def test_lr_factor_greater_than_one_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=1.5)
+
+    def test_lr_patience_ge_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="lr_patience"):
+            TrainerConfig(max_epochs=5, lr_patience=5)
+
+    def test_lr_patience_greater_than_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="lr_patience"):
+            TrainerConfig(max_epochs=3, lr_patience=10)
+
+    def test_valid_lr_params_no_warning(self):
+        from deeptab.configs import TrainerConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            cfg = TrainerConfig(max_epochs=100, lr_patience=5, lr_factor=0.5)
+        assert cfg.lr_patience == 5
+        assert cfg.lr_factor == 0.5
+
 
 # ===========================================================================
 # 5 — BaseModelConfig / per-model config validation
@@ -529,6 +586,90 @@ class TestModelConfigValidation:
 
         with pytest.raises(InvalidParamError, match="cat_encoding"):
             MambularConfig(cat_encoding="embedding")
+
+    def test_rnn_dropout_negative_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="rnn_dropout"):
+            TabulaRNNConfig(rnn_dropout=-0.1)
+
+    def test_rnn_dropout_one_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="rnn_dropout"):
+            TabulaRNNConfig(rnn_dropout=1.0)
+
+    def test_n_frequencies_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="n_frequencies"):
+            MambularConfig(n_frequencies=0)
+
+    def test_n_frequencies_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="n_frequencies"):
+            MLPConfig(n_frequencies=-4)
+
+    def test_frequencies_init_scale_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="frequencies_init_scale"):
+            MambularConfig(frequencies_init_scale=0.0)
+
+    def test_frequencies_init_scale_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="frequencies_init_scale"):
+            MLPConfig(frequencies_init_scale=-1.0)
+
+    def test_layer_norm_eps_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="layer_norm_eps"):
+            MambularConfig(layer_norm_eps=0.0)
+
+    def test_layer_norm_eps_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="layer_norm_eps"):
+            MLPConfig(layer_norm_eps=-1e-5)
+
+    def test_batch_norm_and_layer_norm_both_true_warns(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.warns(ConfigWarning, match="batch_norm"):
+            MambularConfig(batch_norm=True, layer_norm=True)
+
+    def test_expand_factor_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="expand_factor"):
+            MambaTabConfig(expand_factor=0)
+
+    def test_d_conv_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="d_conv"):
+            MambaTabConfig(d_conv=0)
+
+    def test_d_state_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="d_state"):
+            MambaTabConfig(d_state=0)
+
+    def test_transformer_dim_feedforward_zero_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(InvalidParamError, match="transformer_dim_feedforward"):
+            FTTransformerConfig(transformer_dim_feedforward=0)
+
+    def test_dim_feedforward_zero_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="dim_feedforward"):
+            TabulaRNNConfig(dim_feedforward=0)
 
 
 # ===========================================================================
