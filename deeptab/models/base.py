@@ -7,6 +7,7 @@ import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
+from sklearn.utils.validation import check_is_fitted
 from skopt import gp_minimize
 from torch.utils.data import DataLoader
 from tqdm import tqdm
@@ -175,6 +176,11 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         self.task_model = None
         self.built = False
         self.input_columns_: list[str] | None = None
+        # Fitted attributes — initialised here so fit() does not *add* new
+        # public attributes (which violates sklearn's estimator contract).
+        self.data_module = None
+        self.trainer = None
+        self.best_model_path: str | None = None
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""
@@ -273,6 +279,15 @@ class SklearnBase(InspectionMixin, BaseEstimator):
             self.preprocessor.set_params(**self.preprocessor_kwargs)  # type: ignore[attr-defined]
 
         return self
+
+    def __sklearn_is_fitted__(self) -> bool:
+        """sklearn hook: return True only after fit() has completed.
+
+        Declaring this method prevents sklearn's ``check_is_fitted`` from
+        inspecting attributes ending with ``_`` (e.g. ``input_columns_``,
+        ``n_features_in_``) which exist even on unfitted estimators.
+        """
+        return bool(getattr(self, "is_fitted_", False))
 
     def __getstate__(self):
         state = self.__dict__.copy()
@@ -688,8 +703,7 @@ class SklearnBase(InspectionMixin, BaseEstimator):
         raise NotImplementedError("The 'predict' method is not implemented in the Parent class.")
 
     def _validate_predict_input(self, X):
-        if self.task_model is None or self.data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
+        check_is_fitted(self)  # raises sklearn's NotFittedError before any other check
         return validate_input_features(self, X)
 
     def encode(self, X, embeddings=None, batch_size=64):
