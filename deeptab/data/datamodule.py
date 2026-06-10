@@ -358,10 +358,15 @@ class TabularDataModule(pl.LightningDataModule):
         else:
             return None
 
+        generator = None
+        if self.random_state is not None:
+            generator = torch.Generator()
+            generator.manual_seed(self.random_state)
         return WeightedRandomSampler(
             weights=torch.as_tensor(weights, dtype=torch.double),  # type: ignore[arg-type]
             num_samples=len(weights),
             replacement=True,
+            generator=generator,
         )
 
     def train_dataloader(self):
@@ -372,18 +377,26 @@ class TabularDataModule(pl.LightningDataModule):
         """
         if hasattr(self, "train_dataset"):
             sampler = self._build_train_sampler()
+            # Build a seeded Generator for worker-process batch ordering when
+            # num_workers > 0; falls back to None (global RNG) otherwise.
+            generator = None
+            if self.random_state is not None:
+                generator = torch.Generator()
+                generator.manual_seed(self.random_state)
             if sampler is not None:
                 # A sampler and shuffle are mutually exclusive; the sampler randomises order.
                 return DataLoader(
                     self.train_dataset,
                     batch_size=self.batch_size,
                     sampler=sampler,
+                    generator=generator,
                     **self.dataloader_kwargs,
                 )
             return DataLoader(
                 self.train_dataset,
                 batch_size=self.batch_size,
                 shuffle=self.shuffle,
+                generator=generator,
                 **self.dataloader_kwargs,
             )
         else:
