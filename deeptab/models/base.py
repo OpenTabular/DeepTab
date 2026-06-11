@@ -123,7 +123,7 @@ class SklearnBase(
         **kwargs,
     ):
         self.random_state = random_state
-        self.preprocessor_arg_names = [
+        self._preprocessor_arg_names = [
             "n_bins",
             "feature_preprocessing",
             "numerical_preprocessing",
@@ -149,51 +149,55 @@ class SklearnBase(
             )
             self.trainer_config = trainer_config if trainer_config is not None else TrainerConfig()
 
-            if model_config is not None:
-                self.config_kwargs = model_config.get_params(deep=False)
+            if model_config is not None and hasattr(model_config, "get_params"):
+                self._config_kwargs = model_config.get_params(deep=False)
                 self.config = model_config
             else:
-                self.config_kwargs = {}
+                self._config_kwargs = {}
                 self.config = config()
 
-            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            if hasattr(self.preprocessing_config, "to_preprocessor_kwargs"):
+                self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            else:
+                self._preprocessor_kwargs = {}
+            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
 
-            self.optimizer_type = self.trainer_config.optimizer_type
-            self.optimizer_kwargs = {}
+            self._optimizer_type = getattr(self.trainer_config, "optimizer_type", "Adam")
+            self._optimizer_kwargs = {}
         else:
             # ---- Legacy flat-kwargs path (backward compat) ----
             self.model_config = None
             self.preprocessing_config = None
             self.trainer_config = None
 
-            self.config_kwargs = {
+            self._config_kwargs = {
                 k: v
                 for k, v in kwargs.items()
-                if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
+                if k not in self._preprocessor_arg_names and not k.startswith("optimizer")
             }
-            self.config = config(**self.config_kwargs)
+            self.config = config(**self._config_kwargs)
 
-            self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            self._preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self._preprocessor_arg_names}
+            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
 
-            self.optimizer_type = kwargs.get("optimizer_type", "Adam")
-            self.optimizer_kwargs = {
+            self._optimizer_type = kwargs.get("optimizer_type", "Adam")
+            self._optimizer_kwargs = {
                 k: v
                 for k, v in kwargs.items()
                 if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
                 and k.startswith("optimizer_")
             }
 
-        self.estimator = model
-        self.task_model = None
-        self.built = False
-        self.input_columns_: list[str] | None = None
-        # Fitted attributes — initialised here so fit() does not *add* new
-        # public attributes (which violates sklearn's estimator contract).
-        self.data_module: IDataModule | None = None
-        self.trainer: pl.Trainer | None = None
-        self.best_model_path: str | None = None
+        self._estimator = model
+        self._task_model = None
+        self._built = False
+        # Fitted attributes (_data_module, _trainer, _best_model_path) are
+        # initialised here so fit() never *adds* new public attributes.
+        # input_columns_ is a proper fitted attribute (trailing _) set only
+        # in fit() via set_input_feature_attributes(); not initialised here.
+        self._data_module: IDataModule | None = None
+        self._trainer: pl.Trainer | None = None
+        self._best_model_path: str | None = None
         # Dependency-inversion factories (underscore-prefixed: ignored by
         # sklearn's get_params/set_params; clones always get fresh defaults).
         # Set via direct attribute assignment to inject test doubles:
@@ -212,26 +216,26 @@ class SklearnBase(
                 "random_state": self.random_state,
             }
             if deep:
-                if self.model_config is not None:
+                if self.model_config is not None and hasattr(self.model_config, "get_params"):
                     for k, v in self.model_config.get_params(deep=False).items():
                         params[f"model_config__{k}"] = v
-                if self.preprocessing_config is not None:
+                if self.preprocessing_config is not None and hasattr(self.preprocessing_config, "get_params"):
                     for k, v in self.preprocessing_config.get_params(deep=False).items():
                         params[f"preprocessing_config__{k}"] = v
-                if self.trainer_config is not None:
+                if self.trainer_config is not None and hasattr(self.trainer_config, "get_params"):
                     for k, v in self.trainer_config.get_params(deep=False).items():
                         params[f"trainer_config__{k}"] = v
             return params
 
         # Legacy flat-kwargs style
         params = {}
-        params.update(self.config_kwargs)
-        params.update(self.preprocessor_kwargs)
+        params.update(self._config_kwargs)
+        params.update(self._preprocessor_kwargs)
         if deep:
-            get_params_fn = getattr(self.preprocessor, "get_params", None)
+            get_params_fn = getattr(self._preprocessor, "get_params", None)
             if get_params_fn is not None:
                 preprocessor_params = {
-                    key: value for key, value in get_params_fn().items() if key in self.preprocessor_arg_names
+                    key: value for key, value in get_params_fn().items() if key in self._preprocessor_arg_names
                 }
                 params.update(preprocessor_params)
         return params
@@ -258,44 +262,48 @@ class SklearnBase(
             for k, v in direct_params.items():
                 if k == "model_config":
                     self.model_config = v
-                    if v is not None:
+                    if v is not None and hasattr(v, "get_params"):
                         self.config = v
-                        self.config_kwargs = v.get_params(deep=False)
+                        self._config_kwargs = v.get_params(deep=False)
                 elif k == "preprocessing_config":
                     self.preprocessing_config = v
-                    if v is not None:
-                        self.preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+                    if v is not None and hasattr(v, "to_preprocessor_kwargs"):
+                        self._preprocessor_kwargs = v.to_preprocessor_kwargs()
+                        self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
                 elif k == "trainer_config":
                     self.trainer_config = v
-                    if v is not None:
-                        self.optimizer_type = v.optimizer_type
+                    if v is not None and hasattr(v, "optimizer_type"):
+                        self._optimizer_type = v.optimizer_type
                 elif k == "random_state":
                     self.random_state = v
 
-            if model_config_params and self.model_config is not None:
+            if model_config_params and self.model_config is not None and hasattr(self.model_config, "set_params"):
                 self.model_config.set_params(**model_config_params)
-                self.config_kwargs = self.model_config.get_params(deep=False)
-            if preprocessing_config_params and self.preprocessing_config is not None:
+                self._config_kwargs = self.model_config.get_params(deep=False)
+            if (
+                preprocessing_config_params
+                and self.preprocessing_config is not None
+                and hasattr(self.preprocessing_config, "set_params")
+            ):
                 self.preprocessing_config.set_params(**preprocessing_config_params)
-                self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-                self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
-            if trainer_config_params and self.trainer_config is not None:
+                self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+                self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+            if trainer_config_params and self.trainer_config is not None and hasattr(self.trainer_config, "set_params"):
                 self.trainer_config.set_params(**trainer_config_params)
-                self.optimizer_type = self.trainer_config.optimizer_type
+                self._optimizer_type = self.trainer_config.optimizer_type
 
             return self
 
         # Legacy flat-kwargs style
-        config_params = {k: v for k, v in parameters.items() if k not in self.preprocessor_arg_names}
-        preprocessor_params = {k: v for k, v in parameters.items() if k in self.preprocessor_arg_names}
+        config_params = {k: v for k, v in parameters.items() if k not in self._preprocessor_arg_names}
+        preprocessor_params = {k: v for k, v in parameters.items() if k in self._preprocessor_arg_names}
 
         if config_params:
-            self.config_kwargs.update(config_params)
+            self._config_kwargs.update(config_params)
 
         if preprocessor_params:
-            self.preprocessor_kwargs.update(preprocessor_params)
-            self.preprocessor.set_params(**self.preprocessor_kwargs)  # type: ignore[attr-defined]
+            self._preprocessor_kwargs.update(preprocessor_params)
+            self._preprocessor.set_params(**self._preprocessor_kwargs)  # type: ignore[attr-defined]
 
         return self
 
@@ -315,4 +323,4 @@ class SklearnBase(
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self.task_model = None  # Reinitialize task model
+        self._task_model = None  # Reinitialize task model

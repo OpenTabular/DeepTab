@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
 import lightning as pl
 import numpy as np
@@ -13,8 +14,31 @@ from pretab.preprocessor import Preprocessor
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
 from deeptab.training import pretrain_embeddings
 
+if TYPE_CHECKING:
+    from deeptab.configs import PreprocessingConfig, TrainerConfig
+    from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
+    from deeptab.models._mixins.observability import _SupportsInfo
+
 
 class _FitMixin:
+    # ---------------------------------------------------------------------------
+    # Attributes provided by SklearnBase when this mixin is composed.
+    # Declared here for static type-checkers only; never initialised in this class.
+    # ---------------------------------------------------------------------------
+    if TYPE_CHECKING:
+        random_state: int | None
+        trainer_config: TrainerConfig | None
+        preprocessing_config: PreprocessingConfig | None
+        config: Any
+        input_columns_: list[str] | None
+        _data_module_factory: DefaultDataModuleFactory
+        _task_model_factory: DefaultTaskModelFactory
+        _optimizer_type: str | None
+        _optimizer_kwargs: dict | None
+        _event_logger: _SupportsInfo | None
+
+        def _emit_event(self, event: str, **kwargs: Any) -> None: ...
+
     """Model construction and training loop.
 
     Responsibilities
@@ -86,8 +110,8 @@ class _FitMixin:
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
         # honoured on the next fit(), consistent with set_params() behaviour.
         if self.preprocessing_config is not None:
-            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
@@ -98,8 +122,8 @@ class _FitMixin:
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
-        self.data_module = self._data_module_factory.create(
-            preprocessor=self.preprocessor,
+        self._data_module = self._data_module_factory.create(
+            preprocessor=self._preprocessor,
             batch_size=batch_size,
             shuffle=shuffle,
             X_val=X_val,
@@ -110,9 +134,9 @@ class _FitMixin:
             sampler=sampler,
             **dataloader_kwargs,
         )
-        self.data_module.input_columns_ = self.input_columns_
+        self._data_module.input_columns_ = self.input_columns_
 
-        self.data_module.preprocess_data(
+        self._data_module.preprocess_data(
             X,
             y,
             X_val=X_val,
@@ -126,17 +150,17 @@ class _FitMixin:
 
         # Derive split sizes for the data_prepared event; fall back gracefully
         # when the data module doesn't expose dataset sizes yet.
-        _n_train = getattr(getattr(self.data_module, "train_dataset", None), "__len__", lambda: None)()
-        _n_val = getattr(getattr(self.data_module, "val_dataset", None), "__len__", lambda: None)()
+        _n_train = getattr(getattr(self._data_module, "train_dataset", None), "__len__", lambda: None)()
+        _n_val = getattr(getattr(self._data_module, "val_dataset", None), "__len__", lambda: None)()
         self._emit_event("data_prepared", n_train=_n_train, n_val=_n_val)
 
-        self.task_model = self._task_model_factory.create(
-            model_class=self.estimator,  # type: ignore
+        self._task_model = self._task_model_factory.create(
+            model_class=self._estimator,  # type: ignore
             config=self.config,
             feature_information=(
-                self.data_module.num_feature_info,
-                self.data_module.cat_feature_info,
-                self.data_module.embedding_feature_info,
+                self._data_module.num_feature_info,  # type: ignore[arg-type]
+                self._data_module.cat_feature_info,  # type: ignore[arg-type]
+                self._data_module.embedding_feature_info,  # type: ignore[arg-type]
             ),
             lr=lr if lr is not None else getattr(self.config, "lr", None),
             lr_patience=(lr_patience if lr_patience is not None else getattr(self.config, "lr_patience", None)),
@@ -146,9 +170,9 @@ class _FitMixin:
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             optimizer_type=(
-                self.trainer_config.optimizer_type if self.trainer_config is not None else self.optimizer_type
+                self.trainer_config.optimizer_type if self.trainer_config is not None else self._optimizer_type
             ),
-            optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self.optimizer_kwargs,
+            optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self._optimizer_kwargs,
             scheduler_type=_scheduler_type,
             scheduler_kwargs=_scheduler_kwargs,
             monitor=_scheduler_monitor
@@ -163,8 +187,8 @@ class _FitMixin:
             loss_fct=loss_fct,
         )
 
-        self.built = True
-        self.estimator = self.task_model.estimator
+        self._built = True
+        self._estimator = self._task_model.estimator
         self._emit_event("task_model_created")
 
         return self
@@ -188,11 +212,11 @@ class _FitMixin:
         ValueError
             If the model has not been built prior to calling this method.
         """
-        if not self.built:
+        if not self._built:
             raise ValueError("The model must be built before the number of parameters can be estimated")
         if requires_grad:
-            return sum(p.numel() for p in self.task_model.parameters() if p.requires_grad)  # type: ignore
-        return sum(p.numel() for p in self.task_model.parameters())  # type: ignore
+            return sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore
+        return sum(p.numel() for p in self._task_model.parameters())  # type: ignore
 
     # ------------------------------------------------------------------
     # Training loop
@@ -351,7 +375,7 @@ class _FitMixin:
                 sampler=sampler,
             )
         else:
-            if not self.built:
+            if not self._built:
                 raise ValueError(
                     "The model must be built before calling the fit method. "
                     "Either call .build_model() or set rebuild=True"
@@ -359,7 +383,7 @@ class _FitMixin:
 
         self._emit_event(
             "model_built",
-            n_params=sum(p.numel() for p in self.task_model.parameters() if p.requires_grad),  # type: ignore
+            n_params=sum(p.numel() for p in self._task_model.parameters() if p.requires_grad),  # type: ignore
         )
 
         early_stop_callback = EarlyStopping(
@@ -374,7 +398,7 @@ class _FitMixin:
             filename="best_model",
         )
 
-        self.trainer = pl.Trainer(
+        self._trainer = pl.Trainer(
             max_epochs=max_epochs,
             callbacks=[
                 early_stop_callback,
@@ -383,24 +407,24 @@ class _FitMixin:
             ],
             **trainer_kwargs,
         )
-        self.task_model.train()  # type: ignore[union-attr]
-        self.task_model.estimator.train()  # type: ignore[union-attr]
+        self._task_model.train()  # type: ignore[union-attr]
+        self._task_model.estimator.train()  # type: ignore[union-attr]
 
         self._emit_event("training_started", max_epochs=max_epochs, batch_size=batch_size)
-        self.trainer.fit(self.task_model, self.data_module)  # type: ignore
+        self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
-        self.best_model_path = checkpoint_callback.best_model_path
-        if self.best_model_path:
+        self._best_model_path = checkpoint_callback.best_model_path
+        if self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
-            checkpoint = torch.load(self.best_model_path, weights_only=False)
-            self.task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            checkpoint = torch.load(self._best_model_path, weights_only=False)
+            self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
 
         # Retrieve best epoch and best val_loss from the checkpoint callback
         # (both are None before training and when no checkpoint was saved).
         self._emit_event(
             "training_completed",
             best_epoch=getattr(checkpoint_callback, "best_k_models", {})
-            and getattr(self.trainer, "current_epoch", None),
+            and getattr(self._trainer, "current_epoch", None),
             best_val_loss=checkpoint_callback.best_model_score.item()
             if checkpoint_callback.best_model_score is not None
             else None,

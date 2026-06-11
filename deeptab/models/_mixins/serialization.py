@@ -112,18 +112,18 @@ class _SerializationMixin:
         if not hasattr(obj, "_task_model_factory") or obj._task_model_factory is None:
             obj._task_model_factory = DefaultTaskModelFactory()
 
-        obj.data_module = obj._data_module_factory.create(
+        obj._data_module = obj._data_module_factory.create(
             preprocessor=bundle["preprocessor"],
             batch_size=bundle["batch_size"],
             shuffle=False,
             regression=bundle["regression"],
         )
-        obj.data_module.num_feature_info = bundle["feature_info"]["num"]
-        obj.data_module.cat_feature_info = bundle["feature_info"]["cat"]
-        obj.data_module.embedding_feature_info = bundle["feature_info"]["emb"]
-        obj.data_module.input_columns_ = bundle.get("input_columns")
+        obj._data_module.num_feature_info = bundle["feature_info"]["num"]
+        obj._data_module.cat_feature_info = bundle["feature_info"]["cat"]
+        obj._data_module.embedding_feature_info = bundle["feature_info"]["emb"]
+        obj._data_module.input_columns_ = bundle.get("input_columns")
 
-        obj.task_model = obj._task_model_factory.create(
+        obj._task_model = obj._task_model_factory.create(
             model_class=bundle["model_class"],
             config=bundle["config"],
             feature_information=(
@@ -141,18 +141,18 @@ class _SerializationMixin:
             lr_factor=bundle["lr_factor"],
             weight_decay=bundle["weight_decay"],
         )
-        obj.task_model.load_state_dict(bundle["task_model_state_dict"])
-        obj.task_model.eval()
-        obj.estimator = obj.task_model.estimator
+        obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        obj._task_model.eval()
+        obj._estimator = obj._task_model.estimator
 
-        obj.trainer = pl.Trainer(
+        obj._trainer = pl.Trainer(
             max_epochs=1,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,
         )
         restore_loaded_metadata(obj, bundle)
-        obj.data_module.input_columns_ = obj.input_columns_
+        obj._data_module.input_columns_ = obj.input_columns_
 
         obj._emit_event("load_completed", path=path)
         return obj

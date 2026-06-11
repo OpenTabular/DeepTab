@@ -338,29 +338,29 @@ class SklearnBaseClassifier(SklearnBase):
             The predicted class labels.
         """
         X = self._validate_predict_input(X)
-        if self.task_model is None:
+        if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
         self._emit_event("predict_started", n_samples=len(X))
 
         # Preprocess the data using the data module
-        if self.data_module is None:
+        if self._data_module is None:
             raise not_fitted_error(type(self).__name__, "predict")
-        self.data_module.assign_predict_dataset(X, embeddings)
+        self._data_module.assign_predict_dataset(X, embeddings)
 
         # Set model to evaluation mode
-        self.task_model.eval()
+        self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        if self.trainer is None:
+        if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict")
-        logits_list = self.trainer.predict(self.task_model, self.data_module)
+        logits_list = self._trainer.predict(self._task_model, self._data_module)
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore
 
         # Check if ensemble is used
-        if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
+        if getattr(self._estimator, "returns_ensemble", False):  # If using ensemble
             logits = logits.mean(dim=1)  # Average over ensemble dimension
             if logits.dim() == 1:  # Ensure correct shape
                 logits = logits.unsqueeze(1)
@@ -399,27 +399,27 @@ class SklearnBaseClassifier(SklearnBase):
             The predicted class probabilities.
         """
         X = self._validate_predict_input(X)
-        if self.task_model is None:
+        if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
 
         # Preprocess the data using the data module
-        if self.data_module is None:
+        if self._data_module is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
-        self.data_module.assign_predict_dataset(X, embeddings)
+        self._data_module.assign_predict_dataset(X, embeddings)
 
         # Set model to evaluation mode
-        self.task_model.eval()
+        self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        if self.trainer is None:
+        if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
-        logits_list = self.trainer.predict(self.task_model, self.data_module)
+        logits_list = self._trainer.predict(self._task_model, self._data_module)
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore[arg-type]
 
         # Check if ensemble is used
-        if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
+        if getattr(self._estimator, "returns_ensemble", False):  # If using ensemble
             logits = logits.mean(dim=1)  # Average over ensemble dimension
             if logits.dim() == 1:  # Ensure correct shape
                 logits = logits.unsqueeze(1)
@@ -580,19 +580,19 @@ class SklearnBaseClassifier(SklearnBase):
         - The method invokes `super()._pretrain()` with regression mode enabled.
 
         """
-        if not self.built:
+        if not self._built:
             raise ValueError("The model has not been built yet. Call model.build_model(**args) first.")
 
-        if not hasattr(self.task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
+        if not hasattr(self._task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
             raise ValueError("The model does not have an embedding layer")
 
-        if self.data_module is None:
+        if self._data_module is None:
             raise not_fitted_error(type(self).__name__, "_pretrain")
-        self.data_module.setup("fit")
+        self._data_module.setup("fit")
 
         super()._pretrain(
-            self.task_model.estimator,  # type: ignore[union-attr]
-            self.data_module,
+            self._task_model.estimator,  # type: ignore[union-attr]
+            self._data_module,
             pretrain_epochs=pretrain_epochs,
             k_neighbors=k_neighbors,
             temperature=temperature,

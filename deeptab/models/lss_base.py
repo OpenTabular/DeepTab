@@ -6,235 +6,28 @@ import numpy as np
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 from pretab.preprocessor import Preprocessor
-from sklearn.base import BaseEstimator
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from deeptab.configs.core import PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import not_fitted_error
-from deeptab.core.inspection import InspectionMixin
 from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
 from deeptab.metrics import get_default_metrics_dict
-from deeptab.models._mixins.observability import _ObservabilityMixin
-from deeptab.models.base import _validate_fit_inputs
+from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
-class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
-    def __init__(
-        self,
-        model,
-        config,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        **kwargs,
-    ):
-        self.random_state = random_state
-        self.preprocessor_arg_names = [
-            "n_bins",
-            "feature_preprocessing",
-            "numerical_preprocessing",
-            "categorical_preprocessing",
-            "use_decision_tree_bins",
-            "binning_strategy",
-            "task",
-            "cat_cutoff",
-            "treat_all_integers_as_numerical",
-            "degree",
-            "scaling_strategy",
-            "n_knots",
-            "use_decision_tree_knots",
-            "knots_strategy",
-            "spline_implementation",
-        ]
+class SklearnBaseLSS(SklearnBase):
+    """Distributional regression base class (LSS variant of SklearnBase).
 
-        if model_config is not None or preprocessing_config is not None or trainer_config is not None:
-            # ---- New split-config path ----
-            self.model_config = model_config
-            self.preprocessing_config = (
-                preprocessing_config if preprocessing_config is not None else PreprocessingConfig()
-            )
-            self.trainer_config = trainer_config if trainer_config is not None else TrainerConfig()
-
-            if model_config is not None:
-                self.config_kwargs = model_config.get_params(deep=False)
-                self.config = model_config
-            else:
-                self.config_kwargs = {}
-                self.config = config()
-
-            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
-
-            self.optimizer_type = self.trainer_config.optimizer_type
-            self.optimizer_kwargs = {}
-        else:
-            # ---- Legacy flat-kwargs path (backward compat) ----
-            self.model_config = None
-            self.preprocessing_config = None
-            self.trainer_config = None
-
-            self.config_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in self.preprocessor_arg_names and not k.startswith("optimizer")
-            }
-            self.config = config(**self.config_kwargs)
-
-            self.preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self.preprocessor_arg_names}
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
-
-            # Raise a warning if task is set to 'classification'
-            if self.preprocessor_kwargs.get("task") == "classification":
-                warnings.warn(
-                    "The task is set to 'classification'. Be aware of your preferred distribution,that \
-                    this might lead to unsatisfactory results.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-
-            self.optimizer_type = kwargs.get("optimizer_type", "Adam")
-
-            self.optimizer_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
-                and k.startswith("optimizer_")
-            }
-
-        self.task_model = None
-        self.estimator = model
-        self.built = False
-        self.input_columns_: list[str] | None = None
-
-    def get_params(self, deep=True):
-        """Get parameters for this estimator.
-
-        Parameters
-        ----------
-        deep : bool, default=True
-            If True, will return the parameters for this estimator and contained subobjects that are estimators.
-
-        Returns
-        -------
-        params : dict
-            Parameter names mapped to their values.
-        """
-        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
-            # New split-config style
-            params = {
-                "model_config": self.model_config,
-                "preprocessing_config": self.preprocessing_config,
-                "trainer_config": self.trainer_config,
-                "random_state": self.random_state,
-            }
-            if deep:
-                if self.model_config is not None:
-                    for k, v in self.model_config.get_params(deep=False).items():
-                        params[f"model_config__{k}"] = v
-                if self.preprocessing_config is not None:
-                    for k, v in self.preprocessing_config.get_params(deep=False).items():
-                        params[f"preprocessing_config__{k}"] = v
-                if self.trainer_config is not None:
-                    for k, v in self.trainer_config.get_params(deep=False).items():
-                        params[f"trainer_config__{k}"] = v
-            return params
-
-        # Legacy flat-kwargs style
-        params = {}
-        params.update(self.config_kwargs)
-
-        if deep:
-            get_params_fn = getattr(self.preprocessor, "get_params", None)
-            if get_params_fn is not None:
-                preprocessor_params = {"prepro__" + key: value for key, value in get_params_fn().items()}
-                params.update(preprocessor_params)
-
-        return params
-
-    def set_params(self, **parameters):
-        """Set the parameters of this estimator.
-
-        Parameters
-        ----------
-        **parameters : dict
-            Estimator parameters.
-
-        Returns
-        -------
-        self : object
-            Estimator instance.
-        """
-        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
-            # New split-config style
-            direct_params = {}
-            model_config_params = {}
-            preprocessing_config_params = {}
-            trainer_config_params = {}
-
-            for k, v in parameters.items():
-                if k.startswith("model_config__"):
-                    model_config_params[k[len("model_config__") :]] = v
-                elif k.startswith("preprocessing_config__"):
-                    preprocessing_config_params[k[len("preprocessing_config__") :]] = v
-                elif k.startswith("trainer_config__"):
-                    trainer_config_params[k[len("trainer_config__") :]] = v
-                else:
-                    direct_params[k] = v
-
-            for k, v in direct_params.items():
-                if k == "model_config":
-                    self.model_config = v
-                    if v is not None:
-                        self.config = v
-                        self.config_kwargs = v.get_params(deep=False)
-                elif k == "preprocessing_config":
-                    self.preprocessing_config = v
-                    if v is not None:
-                        self.preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
-                elif k == "trainer_config":
-                    self.trainer_config = v
-                    if v is not None:
-                        self.optimizer_type = v.optimizer_type
-                elif k == "random_state":
-                    self.random_state = v
-
-            if model_config_params and self.model_config is not None:
-                self.model_config.set_params(**model_config_params)
-                self.config_kwargs = self.model_config.get_params(deep=False)
-            if preprocessing_config_params and self.preprocessing_config is not None:
-                self.preprocessing_config.set_params(**preprocessing_config_params)
-                self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-                self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
-            if trainer_config_params and self.trainer_config is not None:
-                self.trainer_config.set_params(**trainer_config_params)
-                self.optimizer_type = self.trainer_config.optimizer_type
-
-            return self
-
-        # Legacy flat-kwargs style
-        config_params = {k: v for k, v in parameters.items() if not k.startswith("prepro__")}
-        preprocessor_params = {k.split("__")[1]: v for k, v in parameters.items() if k.startswith("prepro__")}
-
-        if config_params:
-            self.config_kwargs.update(config_params)
-            if self.config is not None:
-                for key, value in config_params.items():
-                    setattr(self.config, key, value)
-            else:
-                self.config = self.config_class(**self.config_kwargs)  # type: ignore
-
-        if preprocessor_params:
-            self.preprocessor_kwargs.update(preprocessor_params)
-            self.preprocessor.set_params(**preprocessor_params)  # type: ignore[attr-defined]
-
-        return self
+    Inherits all sklearn compatibility, parameter management, serialization,
+    HPO, and observability from ``SklearnBase``. Overrides ``build_model``,
+    ``fit``, ``predict``, ``save``, and ``load`` to add LSS-specific concerns:
+    distribution family selection, ``lss=True`` flag to ``TaskModel``, and
+    distribution-transform post-processing in ``predict``.
+    """
 
     def build_model(
         self,
@@ -311,8 +104,8 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
         # honoured on the next fit(), consistent with set_params() behaviour.
         if self.preprocessing_config is not None:
-            self.preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self.preprocessor = Preprocessor(**self.preprocessor_kwargs)
+            self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
+            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
@@ -324,8 +117,8 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
-        self.data_module = TabularDataModule(
-            preprocessor=self.preprocessor,
+        self._data_module = TabularDataModule(
+            preprocessor=self._preprocessor,
             batch_size=batch_size,
             shuffle=shuffle,
             X_val=X_val,
@@ -335,19 +128,19 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             regression=getattr(self, "family_name", None) != "categorical",
             **dataloader_kwargs,
         )
-        self.data_module.input_columns_ = self.input_columns_
+        self._data_module.input_columns_ = self.input_columns_
 
-        self.data_module.preprocess_data(X, y, X_val, y_val, val_size=val_size, random_state=random_state)
+        self._data_module.preprocess_data(X, y, X_val, y_val, val_size=val_size, random_state=random_state)
 
-        self.task_model = TaskModel(
-            model_class=self.estimator,  # type: ignore
+        self._task_model = TaskModel(
+            model_class=self._estimator,  # type: ignore
             num_classes=self.family.param_count,
             family=self.family,
             config=self.config,
             feature_information=(
-                self.data_module.num_feature_info,
-                self.data_module.cat_feature_info,
-                self.data_module.embedding_feature_info,
+                self._data_module.num_feature_info,
+                self._data_module.cat_feature_info,
+                self._data_module.embedding_feature_info,
             ),
             lr=lr if lr is not None else getattr(self.config, "lr", None),
             lr_patience=(lr_patience if lr_patience is not None else getattr(self.config, "lr_patience", None)),
@@ -357,46 +150,19 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             train_metrics=train_metrics,
             val_metrics=val_metrics,
             optimizer_type=(
-                self.trainer_config.optimizer_type if self.trainer_config is not None else self.optimizer_type
+                self.trainer_config.optimizer_type if self.trainer_config is not None else self._optimizer_type
             ),
             optimizer_args=(
-                getattr(self.trainer_config, "optimizer_kwargs", None) or self.optimizer_kwargs
+                getattr(self.trainer_config, "optimizer_kwargs", None) or self._optimizer_kwargs
                 if self.trainer_config is not None
-                else self.optimizer_kwargs
+                else self._optimizer_kwargs
             ),
         )
 
-        self.built = True
-        self.estimator = self.task_model.estimator
+        self._built = True
+        self._estimator = self._task_model.estimator
 
         return self
-
-    def get_number_of_params(self, requires_grad=True):
-        """Calculate the number of parameters in the model.
-
-        Parameters
-        ----------
-        requires_grad : bool, optional
-            If True, only count the parameters that require gradients (trainable parameters).
-            If False, count all parameters. Default is True.
-
-        Returns
-        -------
-        int
-            The total number of parameters in the model.
-
-        Raises
-        ------
-        ValueError
-            If the model has not been built prior to calling this method.
-        """
-        if not self.built:
-            raise ValueError("The model must be built before the number of parameters can be estimated")
-        else:
-            if requires_grad:
-                return sum(p.numel() for p in self.task_model.parameters() if p.requires_grad)  # type: ignore
-            else:
-                return sum(p.numel() for p in self.task_model.parameters())  # type: ignore
 
     def fit(
         self,
@@ -529,7 +295,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             )
 
         else:
-            if not self.built:
+            if not self._built:
                 raise ValueError(
                     "The model must be built before calling the fit method. \
                                  Either call .build_model() or set rebuild=True"
@@ -548,7 +314,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
         )
 
         # Initialize the trainer and train the model
-        self.trainer = pl.Trainer(
+        self._trainer = pl.Trainer(
             max_epochs=max_epochs,
             callbacks=[
                 early_stop_callback,
@@ -557,13 +323,13 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             ],
             **trainer_kwargs,
         )
-        self.trainer.fit(self.task_model, self.data_module)  # type: ignore
+        self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
-        self.best_model_path = checkpoint_callback.best_model_path
-        if self.best_model_path:
+        self._best_model_path = checkpoint_callback.best_model_path
+        if self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
-            checkpoint = torch.load(self.best_model_path, weights_only=False)
-            self.task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            checkpoint = torch.load(self._best_model_path, weights_only=False)
+            self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
 
         self.is_fitted_ = True
         return self
@@ -583,29 +349,29 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             The predicted target values.
         """
         X = self._validate_predict_input(X)
-        if self.task_model is None:
+        if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
         self._emit_event("predict_started", n_samples=len(X))
 
         # Preprocess the data using the data module
-        self.data_module.assign_predict_dataset(X)
+        self._data_module.assign_predict_dataset(X)
 
         # Set model to evaluation mode
-        self.task_model.eval()
+        self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self.trainer.predict(self.task_model, self.data_module)
+        predictions_list = self._trainer.predict(self._task_model, self._data_module)
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]
 
         # Check if ensemble is used
-        if getattr(self.estimator, "returns_ensemble", False):  # If using ensemble
+        if getattr(self._estimator, "returns_ensemble", False):  # If using ensemble
             predictions = predictions.mean(dim=1)  # Average over ensemble dimension
 
         if not raw:
-            result = self.task_model.family(predictions).cpu().numpy()  # type: ignore
+            result = self._task_model.family(predictions).cpu().numpy()  # type: ignore
         else:
             result = predictions.cpu().numpy()
         self._emit_event("predict_completed")
@@ -639,7 +405,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
         """
         # Infer distribution family from model settings if not provided
         if distribution_family is None:
-            distribution_family = getattr(self.task_model, "distribution_family", "normal")
+            distribution_family = getattr(self._task_model, "distribution_family", "normal")
 
         # Setup default metrics if none are provided
         if metrics is None:
@@ -664,7 +430,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
         return scores
 
     def _validate_predict_input(self, X):
-        if self.task_model is None or self.data_module is None:
+        if self._task_model is None or self._data_module is None:
             raise ValueError("The model or data module has not been fitted yet.")
         return validate_input_features(self, X)
 
@@ -705,7 +471,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             The score calculated using the specified metric.
         """
         predictions = self.predict(X)
-        score = self.task_model.family.evaluate_nll(y, predictions)  # type: ignore
+        score = self._task_model.family.evaluate_nll(y, predictions)  # type: ignore
         return score
 
     def encode(self, X, batch_size=64):
@@ -730,16 +496,16 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             If the model or data module is not fitted.
         """
         # Ensure model and data module are initialized
-        if self.task_model is None or self.data_module is None:
+        if self._task_model is None or self._data_module is None:
             raise ValueError("The model or data module has not been fitted yet.")
-        encoded_dataset = self.data_module.preprocess_new_data(X)
+        encoded_dataset = self._data_module.preprocess_new_data(X)
 
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
 
         # Process data in batches
         encoded_outputs = []
         for num_features, cat_features in tqdm(data_loader):
-            embeddings = self.task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
+            embeddings = self._task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
             encoded_outputs.append(embeddings)
 
         # Concatenate all encoded outputs
@@ -820,18 +586,18 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
         obj.family = get_distribution(bundle["family"])
         obj.family_name = bundle["family"]
 
-        obj.data_module = TabularDataModule(
+        obj._data_module = TabularDataModule(
             preprocessor=bundle["preprocessor"],
             batch_size=bundle["batch_size"],
             shuffle=False,
             regression=bundle["regression"],
         )
-        obj.data_module.num_feature_info = bundle["feature_info"]["num"]
-        obj.data_module.cat_feature_info = bundle["feature_info"]["cat"]
-        obj.data_module.embedding_feature_info = bundle["feature_info"]["emb"]
-        obj.data_module.input_columns_ = bundle.get("input_columns")
+        obj._data_module.num_feature_info = bundle["feature_info"]["num"]
+        obj._data_module.cat_feature_info = bundle["feature_info"]["cat"]
+        obj._data_module.embedding_feature_info = bundle["feature_info"]["emb"]
+        obj._data_module.input_columns_ = bundle.get("input_columns")
 
-        obj.task_model = TaskModel(
+        obj._task_model = TaskModel(
             model_class=bundle["model_class"],
             config=bundle["config"],
             feature_information=(
@@ -849,18 +615,18 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             lr_factor=bundle["lr_factor"],
             weight_decay=bundle["weight_decay"],
         )
-        obj.task_model.load_state_dict(bundle["task_model_state_dict"])
-        obj.task_model.eval()
-        obj.estimator = obj.task_model.estimator
+        obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        obj._task_model.eval()
+        obj._estimator = obj._task_model.estimator
 
-        obj.trainer = pl.Trainer(
+        obj._trainer = pl.Trainer(
             max_epochs=1,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,
         )
         restore_loaded_metadata(obj, bundle)
-        obj.data_module.input_columns_ = obj.input_columns_
+        obj._data_module.input_columns_ = obj.input_columns_
 
         return obj
 
@@ -912,7 +678,7 @@ class SklearnBaseLSS(_ObservabilityMixin, InspectionMixin, BaseEstimator):
             Best hyperparameters found during optimization.
         """
 
-        return super().optimize_hparams(  # type: ignore[attr-defined]
+        return super().optimize_hparams(
             X,
             y,
             regression=False,

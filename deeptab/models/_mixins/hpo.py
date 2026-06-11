@@ -2,12 +2,32 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 from skopt import gp_minimize
 
 from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
 
+if TYPE_CHECKING:
+    from deeptab.data.datamodule import TabularDataModule
+    from deeptab.training.lightning_module import TaskModel
+
 
 class _HyperparameterMixin:
+    # ---------------------------------------------------------------------------
+    # Attributes provided by SklearnBase when this mixin is composed.
+    # Declared here for static type-checkers only; never initialised in this class.
+    # ---------------------------------------------------------------------------
+    if TYPE_CHECKING:
+        config: Any
+        _trainer: Any
+        _task_model: TaskModel | None
+        _data_module: TabularDataModule | None
+
+        def fit(self, X: Any, y: Any, **kwargs: Any) -> Any: ...
+        def _build_model(self, X: Any, y: Any, **kwargs: Any) -> None: ...
+        def _score(self, X: Any, y: Any, embeddings: Any, metric: Any) -> float: ...
+
     """Bayesian hyperparameter search via :func:`skopt.gp_minimize`.
 
     Exposes :meth:`optimize_hparams`, which runs Gaussian-process
@@ -94,12 +114,12 @@ class _HyperparameterMixin:
             if X_val is not None and y_val is not None:
                 val_loss = self.score(X_val, y_val)  # type: ignore[attr-defined]
             else:
-                val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
+                val_loss = self._trainer.validate(self._task_model, self._data_module)[0]["val_loss"]
         else:
             raise NotImplementedError("The 'score' method is not implemented in the child class.")
 
         best_val_loss = val_loss
-        best_epoch_val_loss = self.task_model.epoch_val_loss_at(  # type: ignore
+        best_epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
             prune_epoch
         )
 
@@ -144,8 +164,8 @@ class _HyperparameterMixin:
             else:
                 early_pruning_threshold = best_val_loss * 1.5  # type: ignore[operator]
 
-            self.task_model.early_pruning_threshold = early_pruning_threshold  # type: ignore
-            self.task_model.pruning_epoch = prune_epoch  # type: ignore
+            self._task_model.early_pruning_threshold = early_pruning_threshold  # type: ignore
+            self._task_model.pruning_epoch = prune_epoch  # type: ignore
 
             try:
                 self.fit(
@@ -162,11 +182,11 @@ class _HyperparameterMixin:
                     if X_val is not None and y_val is not None:
                         val_loss = self._score(X_val, y_val)  # type: ignore[call-arg]
                     else:
-                        val_loss = self.trainer.validate(self.task_model, self.data_module)[0]["val_loss"]
+                        val_loss = self._trainer.validate(self._task_model, self._data_module)[0]["val_loss"]
                 else:
                     raise NotImplementedError("The 'score' method is not implemented in the child class.")
 
-                epoch_val_loss = self.task_model.epoch_val_loss_at(  # type: ignore
+                epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
                     prune_epoch
                 )
 

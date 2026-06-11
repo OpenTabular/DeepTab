@@ -101,10 +101,10 @@ class _PredictMixin:
             The metric value computed on the predictions.
         """
         # Explicitly load the best model state if needed
-        if hasattr(self, "trainer") and self.best_model_path:
+        if hasattr(self, "_trainer") and self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
-            checkpoint = torch.load(self.best_model_path, weights_only=False)
-            self.task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            checkpoint = torch.load(self._best_model_path, weights_only=False)
+            self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
 
         predictions = self.predict(X, embeddings)
 
@@ -143,15 +143,15 @@ class _PredictMixin:
         >>> embeddings.shape
         torch.Size([100, 64])
         """
-        if self.task_model is None or self.data_module is None:
+        if self._task_model is None or self._data_module is None:
             raise ValueError("The model or data module has not been fitted yet.")
 
-        encoded_dataset = self.data_module.preprocess_new_data(X, embeddings)
+        encoded_dataset = self._data_module.preprocess_new_data(X, embeddings)
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
 
         encoded_outputs = []
         for batch in tqdm(data_loader):
-            emb = self.task_model.estimator.encode(batch)  # type: ignore[union-attr]
+            emb = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
             encoded_outputs.append(emb)
 
         return torch.cat(encoded_outputs, dim=0)
