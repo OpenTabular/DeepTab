@@ -66,15 +66,6 @@ def _check_name(check) -> str:
 
 _XFAIL_CHECKS: dict[str, str] = {
     # ------------------------------------------------------------------
-    # Phase 2 target: rename internal state attrs to _attr or attr_
-    # ------------------------------------------------------------------
-    "check_dont_overwrite_parameters": (
-        "fit() changes public attributes (preprocessor, preprocessor_kwargs, "
-        "task_model, estimator, built, data_module, trainer, best_model_path) "
-        "that are not constructor parameters. sklearn requires these to either "
-        "start or end with '_'. Tracked for Phase 2 rename refactor."
-    ),
-    # ------------------------------------------------------------------
     # Phase 2 target: align error messages with sklearn's validate_data format
     # ------------------------------------------------------------------
     "check_estimators_empty_data_messages": (
@@ -92,23 +83,6 @@ _XFAIL_CHECKS: dict[str, str] = {
     # ------------------------------------------------------------------
     # Phase 2 target: interface segregation
     # ------------------------------------------------------------------
-    "check_no_attributes_set_in_init": (
-        "SklearnBase sets internal state (built, task_model, config, config_kwargs, "
-        "preprocessor) in __init__. These are needed before fit() but violate "
-        "sklearn's convention. Tracked for Phase 2 refactor."
-    ),
-    "check_do_not_raise_errors_in_init_or_set_params": (
-        "set_params raises AttributeError when iterating over individual nested "
-        "config params (e.g. trainer_config__lr_patience). "
-        "Root cause: get_params(deep=True) returns nested keys that set_params "
-        "cannot round-trip correctly. Tracked for Phase 2."
-    ),
-    "check_set_params": (
-        "set_params raises AttributeError during deep round-trip "
-        "(set_params(**get_params(deep=True))). "
-        "Root cause: same as check_do_not_raise_errors_in_init_or_set_params. "
-        "Tracked for Phase 2."
-    ),
     # ------------------------------------------------------------------
     # Persistence: pickle is not the supported serialisation mechanism
     # ------------------------------------------------------------------

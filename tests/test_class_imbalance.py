@@ -139,8 +139,8 @@ class TestClassifierClassWeight:
         clf = MLPClassifier()
         clf.fit(X, y, class_weight="balanced", random_state=RANDOM_STATE, **FIT_KWARGS)
 
-        assert clf.task_model is not None
-        loss = clf.task_model.loss_fct
+        assert clf._task_model is not None
+        loss = clf._task_model.loss_fct
         assert isinstance(loss, WeightedBCEWithLogitsLoss)
         assert loss.pos_weight is not None
         # minority (positive) class should be up-weighted -> pos_weight > 1
@@ -151,8 +151,8 @@ class TestClassifierClassWeight:
         clf = MLPClassifier()
         clf.fit(X, y, class_weight="balanced", random_state=RANDOM_STATE, **FIT_KWARGS)
 
-        assert clf.task_model is not None
-        loss = clf.task_model.loss_fct
+        assert clf._task_model is not None
+        loss = clf._task_model.loss_fct
         assert isinstance(loss, WeightedCrossEntropyLoss)
         assert loss.weight is not None
         assert loss.weight.shape[0] == 3
@@ -164,8 +164,8 @@ class TestClassifierClassWeight:
         clf = MLPClassifier()
         clf.fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
 
-        assert clf.task_model is not None
-        loss = clf.task_model.loss_fct
+        assert clf._task_model is not None
+        loss = clf._task_model.loss_fct
         assert isinstance(loss, nn.BCEWithLogitsLoss)
         assert loss.pos_weight is None
 
@@ -182,8 +182,8 @@ class TestClassifierClassWeight:
             **FIT_KWARGS,
         )
 
-        assert clf.task_model is not None
-        loss = clf.task_model.loss_fct
+        assert clf._task_model is not None
+        loss = clf._task_model.loss_fct
         assert loss is custom
         assert isinstance(loss, nn.BCEWithLogitsLoss)
         torch.testing.assert_close(loss.pos_weight, torch.tensor([7.0]))
@@ -311,16 +311,16 @@ class TestClassifierFocalLoss:
         X, y = _imbalanced_binary_data()
         clf = MLPClassifier()
         clf.fit(X, y, loss_fct="focal", class_weight="balanced", random_state=RANDOM_STATE, **FIT_KWARGS)
-        assert clf.task_model is not None
-        assert isinstance(clf.task_model.loss_fct, FocalLoss)
+        assert clf._task_model is not None
+        assert isinstance(clf._task_model.loss_fct, FocalLoss)
         assert clf.predict(X).shape[0] == len(y)
 
     def test_focal_string_multiclass(self):
         X, y = _imbalanced_multiclass_data()
         clf = MLPClassifier()
         clf.fit(X, y, loss_fct="focal", random_state=RANDOM_STATE, **FIT_KWARGS)
-        assert clf.task_model is not None
-        loss = clf.task_model.loss_fct
+        assert clf._task_model is not None
+        loss = clf._task_model.loss_fct
         assert isinstance(loss, FocalLoss)
         assert loss.expects_class_indices is True
         assert clf.predict_proba(X).shape == (len(y), 3)
@@ -338,11 +338,11 @@ class TestWeightedSampling:
         X, y = _imbalanced_binary_data()
         clf = MLPClassifier()
         clf.fit(X, y, balanced_sampler=True, random_state=RANDOM_STATE, **FIT_KWARGS)
-        sampler = clf.data_module._build_train_sampler()
+        sampler = clf._data_module._build_train_sampler()
         assert isinstance(sampler, WeightedRandomSampler)
         # Minority rows must carry larger sampling weight than majority rows.
         weights = np.asarray(sampler.weights)
-        y_train = np.asarray(clf.data_module.y_train)
+        y_train = np.asarray(clf._data_module.y_train)
         minority_w = weights[y_train == 1].mean()
         majority_w = weights[y_train == 0].mean()
         assert minority_w > majority_w
@@ -351,18 +351,18 @@ class TestWeightedSampling:
         X, y = _imbalanced_binary_data()
         clf = MLPClassifier()
         clf.fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
-        assert clf.data_module._build_train_sampler() is None
+        assert clf._data_module._build_train_sampler() is None
 
     def test_explicit_sample_weight_split_aligns(self):
         X, y = _imbalanced_binary_data()
         sample_weight = np.linspace(1.0, 2.0, num=len(y))
         clf = MLPClassifier()
         clf.fit(X, y, sample_weight=sample_weight, random_state=RANDOM_STATE, **FIT_KWARGS)
-        train_weights = clf.data_module._train_sample_weights
+        train_weights = clf._data_module._train_sample_weights
         assert train_weights is not None
         # Weights were split alongside the train/val partition.
-        assert clf.data_module is not None
-        assert len(train_weights) == len(clf.data_module.y_train)  # type: ignore[arg-type]
+        assert clf._data_module is not None
+        assert len(train_weights) == len(clf._data_module.y_train)  # type: ignore[arg-type]
 
     def test_sample_weight_wrong_length_raises(self):
         X, y = _imbalanced_binary_data()
@@ -389,7 +389,7 @@ class TestEnsembleWeightedLoss:
         X, y = _imbalanced_multiclass_data()
         clf = TabMClassifier()
         clf.fit(X, y, class_weight="balanced", random_state=RANDOM_STATE, **FIT_KWARGS)
-        assert clf.task_model is not None
-        assert isinstance(clf.task_model.loss_fct, WeightedCrossEntropyLoss)
-        assert getattr(clf.task_model.estimator, "returns_ensemble", False) is True
+        assert clf._task_model is not None
+        assert isinstance(clf._task_model.loss_fct, WeightedCrossEntropyLoss)
+        assert getattr(clf._task_model.estimator, "returns_ensemble", False) is True
         assert clf.predict_proba(X).shape == (len(y), 3)

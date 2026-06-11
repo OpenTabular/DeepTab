@@ -88,36 +88,36 @@ class TestProfileDryRun:
     def test_unfitted_estimator_remains_unfitted(self):
         X, y = _binary_data()
         clf = MLPClassifier()
-        assert not clf.built
+        assert not clf._built
 
         result = clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
 
         assert result["builds"] is True
-        assert not clf.built, "Estimator should remain unbuilt after dry_run=True"
-        assert clf.task_model is None
+        assert not clf._built, "Estimator should remain unbuilt after dry_run=True"
+        assert clf._task_model is None
 
     def test_already_fitted_estimator_state_preserved(self):
         X, y = _binary_data()
         clf = MLPClassifier()
         clf.fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
-        assert clf.built
+        assert clf._built
 
         result = clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
 
         assert result["builds"] is True
         # Model was already built — dry_run must NOT discard the existing state
-        assert clf.built
-        assert clf.task_model is not None
+        assert clf._built
+        assert clf._task_model is not None
 
     def test_dry_run_false_leaves_model_built(self):
         X, y = _binary_data()
         clf = MLPClassifier()
-        assert not clf.built
+        assert not clf._built
 
         result = clf.profile(X, y, dry_run=False, random_state=RANDOM_STATE)
 
         assert result["builds"] is True
-        assert clf.built, "dry_run=False should leave the model built"
+        assert clf._built, "dry_run=False should leave the model built"
 
 
 class TestProfileContent:
@@ -222,4 +222,4 @@ class TestProfileFailure:
         monkeypatch.setattr(clf, "build_model", _raise)
 
         clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
-        assert not clf.built
+        assert not clf._built

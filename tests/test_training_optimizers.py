@@ -234,3 +234,61 @@ class TestBuildOptimizer:
             optimizer_kwargs={"eps": 1e-5},
         )
         assert opt.param_groups[0]["eps"] == pytest.approx(1e-5)
+
+
+# ---------------------------------------------------------------------------
+# Phase 7d — TrainerConfig.no_weight_decay_for_bias_and_norm integration
+# ---------------------------------------------------------------------------
+
+
+class TestParameterGroupingViaTrainerConfig:
+    """Verify that TrainerConfig.no_weight_decay_for_bias_and_norm is forwarded
+    all the way from the config into the optimizer parameter groups."""
+
+    def test_trainer_config_field_exists(self):
+        from deeptab.configs import TrainerConfig
+
+        cfg = TrainerConfig(no_weight_decay_for_bias_and_norm=True)
+        assert cfg.no_weight_decay_for_bias_and_norm is True
+
+    def test_trainer_config_default_is_false(self):
+        from deeptab.configs import TrainerConfig
+
+        cfg = TrainerConfig()
+        assert cfg.no_weight_decay_for_bias_and_norm is False
+
+    def test_build_optimizer_with_no_wd_flag_creates_two_groups(self):
+        """Passing no_weight_decay_for_bias_and_norm=True creates two param groups."""
+        model = nn.Sequential(nn.Linear(4, 8), nn.LayerNorm(8), nn.Linear(8, 1))
+        opt = build_optimizer(
+            model,
+            optimizer_type="AdamW",
+            lr=1e-3,
+            weight_decay=1e-4,
+            no_weight_decay_for_bias_and_norm=True,
+        )
+        assert len(opt.param_groups) == 2
+        # The no-decay group must have weight_decay == 0
+        no_wd = [g for g in opt.param_groups if g["weight_decay"] == 0.0]
+        assert len(no_wd) == 1
+
+    def test_layernorm_weight_in_no_decay_group(self):
+        """LayerNorm weight parameters must be in the zero-weight-decay group."""
+        ln = nn.LayerNorm(8)
+        model = nn.Sequential(nn.Linear(4, 8), ln)
+        groups = build_parameter_groups(model, weight_decay=1e-4, no_weight_decay_for_bias_and_norm=True)
+        no_decay_params = groups[1]["params"]
+        # LayerNorm weight is a 1-D tensor of shape (8,)
+        assert any(p.shape == ln.weight.shape and p.data_ptr() == ln.weight.data_ptr() for p in no_decay_params)
+
+    def test_all_parameters_covered(self):
+        """Every parameter must appear in exactly one group."""
+        model = nn.Sequential(
+            nn.Linear(4, 8),
+            nn.BatchNorm1d(8),
+            nn.Linear(8, 2),
+        )
+        groups = build_parameter_groups(model, weight_decay=1e-4, no_weight_decay_for_bias_and_norm=True)
+        all_param_ids = {id(p) for p in model.parameters()}
+        grouped_ids = {id(p) for g in groups for p in g["params"]}
+        assert all_param_ids == grouped_ids

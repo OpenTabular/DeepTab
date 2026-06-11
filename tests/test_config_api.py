@@ -416,7 +416,7 @@ class TestEstimatorFitPredict:
             trainer_config=TrainerConfig(max_epochs=1, batch_size=64, patience=1),
         )
         model.fit(X_cls, y_cls)
-        assert model.trainer.max_epochs == 1
+        assert model._trainer.max_epochs == 1
 
     def test_random_state_is_honoured(self):
         model = MLPClassifier(

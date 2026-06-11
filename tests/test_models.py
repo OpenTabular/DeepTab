@@ -372,7 +372,7 @@ def test_config_serialisation_roundtrip(cls):
     model2 = cls(**params)
 
     # All config kwargs must round-trip exactly.
-    for key, value in model.config_kwargs.items():
+    for key, value in model._config_kwargs.items():
         assert getattr(model2.config, key, object()) == value, (
             f"{cls.__name__}: config.{key}={value!r} did not survive get_params round-trip"
         )

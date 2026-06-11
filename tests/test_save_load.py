@@ -267,16 +267,16 @@ def test_restore_base_state(regression_data):
     obj = object.__new__(MLPRegressor)
     restore_base_state(obj, bundle)
 
-    assert obj.built is True
+    assert obj._built is True
     assert obj.is_fitted_ is True
     assert obj.model_config is None
     assert obj.preprocessing_config is None
     assert obj.trainer_config is None
     assert obj.random_state is None
     assert obj.config is bundle["config"]
-    assert obj.preprocessor is bundle["preprocessor"]
-    assert obj.optimizer_type == bundle["optimizer_type"]
-    assert obj.preprocessor_arg_names == list(_PREPROCESSOR_ARG_NAMES)
+    assert obj._preprocessor is bundle["preprocessor"]
+    assert obj._optimizer_type == bundle["optimizer_type"]
+    assert obj._preprocessor_arg_names == list(_PREPROCESSOR_ARG_NAMES)
 
 
 def test_lss_bundle_structure(regression_data):
