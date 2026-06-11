@@ -41,7 +41,7 @@ class _SerializationMixin:
         # The stub here lets type-checkers resolve the call sites in save/load.
         def _emit_event(self, event: str, **kwargs) -> None: ...
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | None = None) -> str:
         """Save the fitted model to *path*.
 
         The bundle written by this method can be restored with
@@ -53,27 +53,51 @@ class _SerializationMixin:
 
         Parameters
         ----------
-        path : str
-            Destination file path (e.g. ``"model.pt"``).
+        path : str or None, default=None
+            Destination file path (e.g. ``"model.pt"``).  When ``None``
+            and a run directory is active (i.e. ``configure_observability``
+            was called with a config that creates a run dir), the model is
+            saved to ``<run_dir>/artifacts/model.deeptab`` automatically.
+            When no run dir is active either, raises ``ValueError``.
+
+        Returns
+        -------
+        str
+            The resolved path the bundle was written to.
 
         Raises
         ------
         ValueError
-            If the model has not been fitted yet.
+            If the model has not been fitted yet, or *path* is ``None``
+            and no run directory is active.
 
         Examples
         --------
         >>> model = MLPClassifier()
         >>> model.fit(X_train, y_train)
-        >>> model.save("my_model.deeptab")
-        >>> loaded = MLPClassifier.load("my_model.deeptab")
+        >>> saved_path = model.save("my_model.deeptab")
+        >>> loaded = MLPClassifier.load(saved_path)
         >>> predictions = loaded.predict(X_test)
         """
+        import os
+
+        if path is None:
+            _run_dir = getattr(self, "_run_dir", None)
+            if not _run_dir:
+                raise ValueError(
+                    "path is required when no run directory is active. "
+                    "Either pass an explicit path to save() or call "
+                    "configure_observability() before fit() to enable run tracking."
+                )
+            path = os.path.join(_run_dir, "artifacts", "model.deeptab")
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+
         self._emit_event("save_started", path=path)
         _warn_extension(path)
         bundle = build_save_bundle(self, lss=False, family=None)
         torch.save(bundle, path)
         self._emit_event("save_completed", path=path)
+        return path
 
     @classmethod
     def load(cls, path: str):
