@@ -429,11 +429,6 @@ class SklearnBaseLSS(SklearnBase):
 
         return scores
 
-    def _validate_predict_input(self, X):
-        if self._task_model is None or self._data_module is None:
-            raise ValueError("The model or data module has not been fitted yet.")
-        return validate_input_features(self, X)
-
     def get_default_metrics(self, distribution_family):
         """Return default evaluation metrics for the given distribution family.
 
@@ -498,6 +493,10 @@ class SklearnBaseLSS(SklearnBase):
         # Ensure model and data module are initialized
         if self._task_model is None or self._data_module is None:
             raise ValueError("The model or data module has not been fitted yet.")
+        if not hasattr(self._task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
+            raise AttributeError(
+                f"{type(self._task_model.estimator).__name__} does not have an embedding_layer."  # type: ignore[union-attr]
+            )
         encoded_dataset = self._data_module.preprocess_new_data(X)
 
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)

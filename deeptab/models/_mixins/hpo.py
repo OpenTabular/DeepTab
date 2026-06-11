@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from skopt import gp_minimize
 
-from deeptab.hpo import activation_mapper, get_search_space, round_to_nearest_16
+from deeptab.hpo.search_space import activation_mapper, get_search_space, round_to_nearest_16
 
 if TYPE_CHECKING:
     from deeptab.data.datamodule import TabularDataModule
