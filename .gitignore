@@ -168,14 +168,23 @@ dist/
 # logs and checkpoints
 examples/lightning_logs
 *.ckpt
-
-docs/_build/doctrees/*
-docs/_build/html/*
-
-dev
-dev/*
-
 lightning_logs
 lightning_logs/*
 model_checkpoints
 model_checkpoints/*
+outputs
+outputs/*
+experiment_logs
+experiment_logs/*
+mlruns
+mlruns/*
+deeptab_runs
+deeptab_runs/*
+
+# Sphinx build artifacts
+docs/_build/doctrees/*
+docs/_build/html/*
+
+# dev files
+dev
+dev/*
