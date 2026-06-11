@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import warnings
+from typing import TYPE_CHECKING
 
 import lightning as pl
 import numpy as np
@@ -17,6 +20,9 @@ from deeptab.models._mixins import (
     _PredictMixin,
     _SerializationMixin,
 )
+
+if TYPE_CHECKING:
+    from deeptab.core.observability import ObservabilityConfig
 
 
 def _validate_fit_inputs(
@@ -39,6 +45,12 @@ def _validate_fit_inputs(
     n_y = len(y)
     if n_X != n_y:
         raise xy_length_mismatch_error(n_X, n_y)
+
+    if hasattr(X, "ndim") and X.ndim == 1:
+        raise ValueError(
+            "Expected a 2D array for X, got a 1D array instead. "
+            "Reshape your data using X.reshape(-1, 1) for a single feature."
+        )
 
     y_arr = np.asarray(y)
     if y_arr.ndim <= 2 and np.issubdtype(y_arr.dtype, np.floating) and np.isnan(y_arr).any():
@@ -120,6 +132,7 @@ class SklearnBase(
         preprocessing_config=None,
         trainer_config=None,
         random_state=None,
+        observability_config: ObservabilityConfig | None = None,
         **kwargs,
     ):
         self.random_state = random_state
@@ -204,6 +217,11 @@ class SklearnBase(
         #   estimator._data_module_factory = MyFactory()
         self._data_module_factory: IDataModuleFactory = DefaultDataModuleFactory()
         self._task_model_factory: ITaskModelFactory = DefaultTaskModelFactory()
+        # Observability — wire up backends if a config was provided.
+        # Underscore-prefix: hidden from sklearn get_params/set_params/clone.
+        self._observability_config: ObservabilityConfig | None = observability_config
+        if observability_config is not None:
+            self.configure_observability(observability_config)
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""
