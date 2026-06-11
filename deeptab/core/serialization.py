@@ -275,8 +275,8 @@ def build_save_bundle(
     """
     if not getattr(estimator, "is_fitted_", False):
         raise ValueError("Model must be fitted before saving.")
-    if estimator.task_model is None:
-        raise RuntimeError("task_model is unexpectedly None after fitting.")
+    if estimator._task_model is None:
+        raise RuntimeError("_task_model is unexpectedly None after fitting.")
 
     if lss:
         task = (
@@ -285,20 +285,20 @@ def build_save_bundle(
             else "distributional_regression"
         )
     else:
-        task = "regression" if estimator.data_module.regression else "classification"
+        task = "regression" if estimator._data_module.regression else "classification"
 
     artifact_metadata = build_artifact_metadata(
         estimator=estimator,
-        model_class=type(estimator.estimator),
+        model_class=type(estimator._estimator),
         config=estimator.config,
-        data_module=estimator.data_module,
-        preprocessor=estimator.preprocessor,
-        preprocessor_kwargs=getattr(estimator, "preprocessor_kwargs", {}),
+        data_module=estimator._data_module,
+        preprocessor=estimator._preprocessor,
+        preprocessor_kwargs=getattr(estimator, "_preprocessor_kwargs", {}),
         task=task,
-        regression=estimator.data_module.regression,
+        regression=estimator._data_module.regression,
         lss=lss,
         family=family,
-        num_classes=estimator.task_model.num_classes,
+        num_classes=estimator._task_model.num_classes,
         classes_=getattr(estimator, "classes_", None),
     )
     feature_schema = artifact_metadata["feature_schema"]
@@ -306,27 +306,27 @@ def build_save_bundle(
     return {
         "_class": type(estimator),
         "config": estimator.config,
-        "config_kwargs": estimator.config_kwargs,
-        "preprocessor_kwargs": getattr(estimator, "preprocessor_kwargs", {}),
-        "preprocessor": estimator.preprocessor,
+        "config_kwargs": estimator._config_kwargs,
+        "preprocessor_kwargs": getattr(estimator, "_preprocessor_kwargs", {}),
+        "preprocessor": estimator._preprocessor,
         "feature_info": {
-            "num": estimator.data_module.num_feature_info,
-            "cat": estimator.data_module.cat_feature_info,
-            "emb": estimator.data_module.embedding_feature_info,
+            "num": estimator._data_module.num_feature_info,
+            "cat": estimator._data_module.cat_feature_info,
+            "emb": estimator._data_module.embedding_feature_info,
         },
-        "batch_size": estimator.data_module.batch_size,
-        "regression": estimator.data_module.regression,
-        "model_class": type(estimator.estimator),
-        "num_classes": estimator.task_model.num_classes,
+        "batch_size": estimator._data_module.batch_size,
+        "regression": estimator._data_module.regression,
+        "model_class": type(estimator._estimator),
+        "num_classes": estimator._task_model.num_classes,
         "lss": lss,
         "family": family,
-        "optimizer_type": estimator.optimizer_type,
-        "optimizer_kwargs": estimator.optimizer_kwargs,
-        "lr": estimator.task_model.lr,
-        "lr_patience": estimator.task_model.lr_patience,
-        "lr_factor": estimator.task_model.lr_factor,
-        "weight_decay": estimator.task_model.weight_decay,
-        "task_model_state_dict": estimator.task_model.state_dict(),
+        "optimizer_type": estimator._optimizer_type,
+        "optimizer_kwargs": estimator._optimizer_kwargs,
+        "lr": estimator._task_model.lr,
+        "lr_patience": estimator._task_model.lr_patience,
+        "lr_factor": estimator._task_model.lr_factor,
+        "weight_decay": estimator._task_model.weight_decay,
+        "task_model_state_dict": estimator._task_model.state_dict(),
         "artifact_metadata": artifact_metadata,
         "architecture_metadata": artifact_metadata["architecture"],
         "feature_schema": feature_schema,
@@ -371,18 +371,18 @@ def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
     ``load()`` classmethod.
     """
     obj.config = bundle["config"]
-    obj.config_kwargs = bundle["config_kwargs"]
-    obj.preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
-    obj.preprocessor = bundle["preprocessor"]
-    obj.optimizer_type = bundle["optimizer_type"]
-    obj.optimizer_kwargs = bundle["optimizer_kwargs"]
-    obj.built = True
+    obj._config_kwargs = bundle["config_kwargs"]
+    obj._preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
+    obj._preprocessor = bundle["preprocessor"]
+    obj._optimizer_type = bundle["optimizer_type"]
+    obj._optimizer_kwargs = bundle["optimizer_kwargs"]
+    obj._built = True
     obj.is_fitted_ = True
     obj.model_config = None
     obj.preprocessing_config = None
     obj.trainer_config = None
     obj.random_state = None
-    obj.preprocessor_arg_names = list(_PREPROCESSOR_ARG_NAMES)
+    obj._preprocessor_arg_names = list(_PREPROCESSOR_ARG_NAMES)
 
 
 def restore_loaded_metadata(obj: Any, bundle: dict[str, Any]) -> None:

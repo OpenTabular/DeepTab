@@ -78,18 +78,18 @@ class InspectionMixin:
     """Shared model-inspection interface for sklearn-style DeepTab estimators."""
 
     def _require_built_for_inspection(self) -> None:
-        if not getattr(self, "built", False) or getattr(self, "task_model", None) is None:
+        if not getattr(self, "_built", False) or getattr(self, "_task_model", None) is None:
             raise ValueError("The model must be built or fitted before this inspection method can be used.")
 
     def _architecture(self) -> nn.Module | None:
-        task_model = getattr(self, "task_model", None)
+        task_model = getattr(self, "_task_model", None)
         if task_model is not None:
             return getattr(task_model, "estimator", None)
-        estimator = getattr(self, "estimator", None)
+        estimator = getattr(self, "_estimator", None)
         return estimator if isinstance(estimator, nn.Module) else None
 
     def _parameter_counts(self) -> dict[str, int]:
-        task_model = getattr(self, "task_model", None)
+        task_model = getattr(self, "_task_model", None)
         if task_model is None:
             return {"total": 0, "trainable": 0, "non_trainable": 0}
 
@@ -107,8 +107,8 @@ class InspectionMixin:
         The method is safe to call before fitting. Parameter counts and feature
         metadata are included only after the model has been built.
         """
-        data_module = getattr(self, "data_module", None)
-        task_model = getattr(self, "task_model", None)
+        data_module = getattr(self, "_data_module", None)
+        task_model = getattr(self, "_task_model", None)
         architecture = self._architecture()
         config = getattr(self, "config", None)
 
@@ -135,9 +135,9 @@ class InspectionMixin:
 
         return {
             "estimator": type(self).__name__,
-            "architecture": _safe_class_name(architecture) or _safe_class_name(getattr(self, "estimator", None)),
+            "architecture": _safe_class_name(architecture) or _safe_class_name(getattr(self, "_estimator", None)),
             "task": task,
-            "built": bool(getattr(self, "built", False)),
+            "built": bool(getattr(self, "_built", False)),
             "fitted": bool(getattr(self, "is_fitted_", False)),
             "model_config": _safe_class_name(config),
             "preprocessing_config": _safe_class_name(getattr(self, "preprocessing_config", None)),
@@ -199,7 +199,7 @@ class InspectionMixin:
             If True, include only parameters with ``requires_grad=True``.
         """
         self._require_built_for_inspection()
-        task_model: nn.Module | None = self.task_model  # pyright: ignore[reportAttributeAccessIssue]
+        task_model: nn.Module | None = self._task_model  # pyright: ignore[reportAttributeAccessIssue]
         if task_model is None:
             raise RuntimeError("The model must be built before calling parameter_table.")
 
@@ -231,9 +231,9 @@ class InspectionMixin:
         The method is safe to call before fitting. Device and dtype are inferred
         from model parameters when a model has been built.
         """
-        task_model = getattr(self, "task_model", None)
-        trainer = getattr(self, "trainer", None)
-        data_module = getattr(self, "data_module", None)
+        task_model = getattr(self, "_task_model", None)
+        trainer = getattr(self, "_trainer", None)
+        data_module = getattr(self, "_data_module", None)
         first_param = _first_parameter(task_model)
 
         accelerator = getattr(trainer, "accelerator", None)
@@ -245,7 +245,7 @@ class InspectionMixin:
         trainer_config_values = _config_to_dict(trainer_config)
 
         return {
-            "built": bool(getattr(self, "built", False)),
+            "built": bool(getattr(self, "_built", False)),
             "fitted": bool(getattr(self, "is_fitted_", False)),
             "device": str(first_param.device) if first_param is not None else None,
             "dtype": str(first_param.dtype).replace("torch.", "") if first_param is not None else None,
@@ -260,7 +260,7 @@ class InspectionMixin:
             "current_epoch": getattr(trainer, "current_epoch", None),
             "global_step": getattr(trainer, "global_step", None),
             "batch_size": getattr(data_module, "batch_size", None) or trainer_config_values.get("batch_size"),
-            "optimizer_type": getattr(self, "optimizer_type", None),
+            "optimizer_type": getattr(self, "_optimizer_type", None),
             "lr": getattr(task_model, "lr", None) if task_model is not None else trainer_config_values.get("lr"),
             "weight_decay": getattr(task_model, "weight_decay", None)
             if task_model is not None
@@ -338,7 +338,7 @@ class InspectionMixin:
             ``runtime``
                 Full :meth:`runtime_info` dict (populated after build).
         """
-        was_already_built = bool(getattr(self, "built", False))
+        was_already_built = bool(getattr(self, "_built", False))
 
         result: dict[str, Any] = {
             "builds": False,
@@ -388,7 +388,7 @@ class InspectionMixin:
             result["builds"] = True
 
             # ── 2. Parameter counts & memory ─────────────────────────────────
-            task_model = getattr(self, "task_model", None)
+            task_model = getattr(self, "_task_model", None)
             counts = self._parameter_counts()
             result["total_params"] = counts["total"]
             result["trainable_params"] = counts["trainable"]
@@ -406,7 +406,7 @@ class InspectionMixin:
                 result["loss_fct"] = _safe_class_name(getattr(task_model, "loss_fct", None))
 
             # ── 4. Dummy forward pass — shape + timing ────────────────────────
-            data_module = getattr(self, "data_module", None)
+            data_module = getattr(self, "_data_module", None)
             if task_model is not None and data_module is not None:
                 try:
                     data_module.setup("fit")
@@ -466,10 +466,10 @@ class InspectionMixin:
         finally:
             # Tear down the temporary build so the estimator is left unfitted
             if dry_run and not was_already_built:
-                self.task_model = None
-                self.built = False
-                if hasattr(self, "data_module"):
-                    self.data_module = None  # type: ignore[assignment]
+                self._task_model = None
+                self._built = False
+                if hasattr(self, "_data_module"):
+                    self._data_module = None  # type: ignore[assignment]
                 if hasattr(self, "is_fitted_"):
                     self.is_fitted_ = False
 
