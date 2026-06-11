@@ -113,7 +113,7 @@ class TestFactoryInjection:
         clf = MLPClassifier(trainer_config=_FAST_TRAINER)
         clf._data_module_factory = MagicMock(spec=IDataModuleFactory)
         cloned = clone(clf)
-        assert isinstance(cloned._data_module_factory, DefaultDataModuleFactory), (
+        assert isinstance(cloned._data_module_factory, DefaultDataModuleFactory), (  # type: ignore[union-attr]
             "Clone should use DefaultDataModuleFactory, not the replaced mock."
         )
 

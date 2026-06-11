@@ -1033,16 +1033,16 @@ class TestDataLoaderGeneratorSeeding:
         """Two DataLoaders built with the same random_state must carry generators with equal initial_seed."""
         dm1 = self._make_datamodule(regression_data, random_state=7)
         dm2 = self._make_datamodule(regression_data, random_state=7)
-        seed1 = dm1.train_dataloader().generator.initial_seed()
-        seed2 = dm2.train_dataloader().generator.initial_seed()
+        seed1 = dm1.train_dataloader().generator.initial_seed()  # type: ignore[union-attr]
+        seed2 = dm2.train_dataloader().generator.initial_seed()  # type: ignore[union-attr]
         assert seed1 == seed2
 
     def test_train_dataloader_different_seeds_differ(self, regression_data):
         """DataLoaders with different random_states must carry generators with different seeds."""
         dm1 = self._make_datamodule(regression_data, random_state=1)
         dm2 = self._make_datamodule(regression_data, random_state=2)
-        seed1 = dm1.train_dataloader().generator.initial_seed()
-        seed2 = dm2.train_dataloader().generator.initial_seed()
+        seed1 = dm1.train_dataloader().generator.initial_seed()  # type: ignore[union-attr]
+        seed2 = dm2.train_dataloader().generator.initial_seed()  # type: ignore[union-attr]
         assert seed1 != seed2
 
     def test_weighted_sampler_has_generator_when_random_state_set(self, classification_data):
@@ -1079,7 +1079,7 @@ class TestDataLoaderGeneratorSeeding:
             batch_size=32,
             shuffle=True,
             regression=False,
-            random_state=None,
+            random_state=None,  # type: ignore[arg-type]
             sampler="balanced",
         )
         dm.preprocess_data(X, y)

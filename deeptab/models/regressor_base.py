@@ -250,13 +250,13 @@ class SklearnBaseRegressor(SklearnBase):
         self._emit_event("predict_started", n_samples=len(X))
 
         # Preprocess the data using the data module
-        self._data_module.assign_predict_dataset(X, embeddings)
+        self._data_module.assign_predict_dataset(X, embeddings)  # type: ignore[union-attr]
 
         # Set model to evaluation mode
         self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self._trainer.predict(self._task_model, self._data_module)
+        predictions_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore
@@ -394,11 +394,11 @@ class SklearnBaseRegressor(SklearnBase):
         if not hasattr(self._task_model.estimator, "embedding_layer"):  # type: ignore[union-attr]
             raise ValueError("The model does not have an embedding layer")
 
-        self._data_module.setup("fit")
+        self._data_module.setup("fit")  # type: ignore[union-attr]
 
         super()._pretrain(
             self._task_model.estimator,  # type: ignore[union-attr]
-            self._data_module,
+            self._data_module,  # type: ignore[arg-type]
             pretrain_epochs=pretrain_epochs,
             k_neighbors=k_neighbors,
             temperature=temperature,

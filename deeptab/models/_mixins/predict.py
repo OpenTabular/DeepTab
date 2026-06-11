@@ -2,12 +2,17 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import torch
 from sklearn.utils.validation import check_is_fitted
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from deeptab.core.sklearn_compat import validate_input_features
+
+if TYPE_CHECKING:
+    from deeptab.core.interfaces import IDataModule, ITaskModel
 
 
 class _PredictMixin:
@@ -24,6 +29,14 @@ class _PredictMixin:
     * ``_score`` — internal helper used by ``optimize_hparams`` to evaluate
       validation loss with the best checkpoint loaded.
     """
+
+    if TYPE_CHECKING:
+        # Attributes provided by SklearnBase when this mixin is composed.
+        # Declared here for static type-checkers only; never initialised in this class.
+        config: Any
+        _best_model_path: str | None
+        _task_model: ITaskModel | None
+        _data_module: IDataModule | None
 
     def predict(self, X, embeddings=None, device=None):
         """Return predictions for input *X*.

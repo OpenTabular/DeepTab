@@ -149,7 +149,7 @@ class SklearnBaseLSS(SklearnBase):
             lss=True,
             train_metrics=train_metrics,
             val_metrics=val_metrics,
-            optimizer_type=(
+            optimizer_type=(  # type: ignore[arg-type]
                 self.trainer_config.optimizer_type if self.trainer_config is not None else self._optimizer_type
             ),
             optimizer_args=(
@@ -355,13 +355,13 @@ class SklearnBaseLSS(SklearnBase):
         self._emit_event("predict_started", n_samples=len(X))
 
         # Preprocess the data using the data module
-        self._data_module.assign_predict_dataset(X)
+        self._data_module.assign_predict_dataset(X)  # type: ignore[union-attr]
 
         # Set model to evaluation mode
         self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self._trainer.predict(self._task_model, self._data_module)
+        predictions_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]

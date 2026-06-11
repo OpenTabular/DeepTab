@@ -354,7 +354,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)
+        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore
@@ -413,7 +413,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)
+        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore[arg-type]
