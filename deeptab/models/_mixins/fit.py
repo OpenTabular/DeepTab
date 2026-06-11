@@ -2,7 +2,13 @@
 
 from __future__ import annotations
 
+import os
+import re
+import time
+import uuid
 from collections.abc import Callable
+from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, Any
 
 import lightning as pl
@@ -17,7 +23,26 @@ from deeptab.training import pretrain_embeddings
 if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig, TrainerConfig
     from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
+    from deeptab.core.observability import ObservabilityConfig
     from deeptab.models._mixins.observability import _SupportsInfo
+
+
+def _build_trainer_loggers(
+    obs_config: ObservabilityConfig | None,
+    run_dir_name: str | None = None,
+) -> bool | list[Any]:
+    """Return Lightning loggers derived from *obs_config*.
+
+    Returns ``False`` (no logger) when no experiment trackers are configured
+    so that Lightning never writes a spurious ``lightning_logs/`` directory.
+    Returns a list of loggers when trackers are active.
+    """
+    if obs_config is None or not obs_config.experiment_trackers:
+        return False  # suppress Lightning's default CSVLogger
+    from deeptab.core.observability import build_lightning_loggers
+
+    loggers = build_lightning_loggers(obs_config, run_dir_name=run_dir_name)
+    return loggers if loggers else False
 
 
 class _FitMixin:
@@ -134,6 +159,8 @@ class _FitMixin:
             sampler=sampler,
             **dataloader_kwargs,
         )
+        # Insert timer start for data module before preprocess_data call
+        _t_data = time.monotonic()
         self._data_module.input_columns_ = self.input_columns_
 
         self._data_module.preprocess_data(
@@ -146,14 +173,22 @@ class _FitMixin:
             val_size=val_size,
             random_state=random_state,
         )
-        self._emit_event("data_module_created")
+        _dm = self._data_module
+        _n_train = len(_dm.y_train) if getattr(_dm, "y_train", None) is not None else None  # type: ignore[union-attr]
+        _n_val = len(_dm.y_val) if getattr(_dm, "y_val", None) is not None else None  # type: ignore[union-attr]
+        _n_num = len(_dm.num_feature_info) if getattr(_dm, "num_feature_info", None) is not None else None  # type: ignore[union-attr]
+        _n_cat = len(_dm.cat_feature_info) if getattr(_dm, "cat_feature_info", None) is not None else None  # type: ignore[union-attr]
+        self._emit_event(
+            "data.created",
+            n_train=_n_train,
+            n_val=_n_val,
+            n_num_features=_n_num,
+            n_cat_features=_n_cat,
+            val_size=val_size,
+            duration_min=round((time.monotonic() - _t_data) / 60, 4),
+        )
 
-        # Derive split sizes for the data_prepared event; fall back gracefully
-        # when the data module doesn't expose dataset sizes yet.
-        _n_train = getattr(getattr(self._data_module, "train_dataset", None), "__len__", lambda: None)()
-        _n_val = getattr(getattr(self._data_module, "val_dataset", None), "__len__", lambda: None)()
-        self._emit_event("data_prepared", n_train=_n_train, n_val=_n_val)
-
+        _t_model = time.monotonic()
         self._task_model = self._task_model_factory.create(
             model_class=self._estimator,  # type: ignore
             config=self.config,
@@ -189,7 +224,15 @@ class _FitMixin:
 
         self._built = True
         self._estimator = self._task_model.estimator
-        self._emit_event("task_model_created")
+        _n_params_build = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)
+        self._emit_event(
+            "model.created",
+            backbone=type(self._estimator).__name__,
+            n_params=_n_params_build,
+            n_num_features=_n_num,
+            n_cat_features=_n_cat,
+            duration_min=round((time.monotonic() - _t_model) / 60, 4),
+        )
 
         return self
 
@@ -348,7 +391,43 @@ class _FitMixin:
 
             set_seed(random_state)
 
-        self._emit_event("fit_started", n_samples=len(X), n_features=getattr(self, "n_features_in_", None))
+        # Generate a short unique run id for this fit() call so that
+        # concurrent/repeated runs are distinguishable in the event log.
+        self._run_id = uuid.uuid4().hex[:8]
+        self._fit_start_ms = time.monotonic()
+
+        # ---------------------------------------------------------------
+        # Per-run output directory
+        # Create a run directory whenever an ObservabilityConfig is present
+        # so that ModelCheckpoint always writes into <run_dir>/checkpoints/
+        # instead of the fallback global 'model_checkpoints/' directory.
+        # ---------------------------------------------------------------
+        _obs_config = getattr(self, "_observability_config", None)
+        _run_dir_name: str | None = None
+        self._run_dir = None
+        if _obs_config is not None:
+            from deeptab.core.observability import create_run_dir, write_run_config
+
+            self._run_dir, _run_dir_name = create_run_dir(_obs_config, self._run_id)
+            # Write config.yaml to the run directory.
+            try:
+                write_run_config(self._run_dir, self.get_params())  # type: ignore[attr-defined]
+            except Exception:  # noqa: S110
+                pass
+            # (Re-)build the per-run structured logger so lifecycle.jsonl
+            # lands inside this run's directory.
+            if _obs_config.structured_logging:
+                from deeptab.core.observability import build_structlog_logger
+
+                self._event_logger = build_structlog_logger(_obs_config, run_dir=self._run_dir)
+
+        self._emit_event(
+            "fit.started",
+            model_class=type(self).__name__,
+            n_samples=len(X),
+            n_features=X.shape[1] if hasattr(X, "shape") else len(X.columns),
+            random_state=getattr(self, "random_state", None),
+        )
 
         if rebuild:
             self._build_model(
@@ -381,10 +460,9 @@ class _FitMixin:
                     "Either call .build_model() or set rebuild=True"
                 )
 
-        self._emit_event(
-            "model_built",
-            n_params=sum(p.numel() for p in self._task_model.parameters() if p.requires_grad),  # type: ignore
-        )
+        # n_params computed in _build_model and emitted via model.created;
+        # recalculate here for _log_run_metadata_to_mlflow and fit.completed.
+        _n_params = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore[union-attr]
 
         early_stop_callback = EarlyStopping(
             monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
@@ -394,7 +472,10 @@ class _FitMixin:
             monitor="val_loss",
             mode="min",
             save_top_k=1,
-            dirpath=checkpoint_path,
+            # Use the per-run checkpoints/ sub-directory when a run dir exists.
+            # When no run dir is active (no observability config), use a temp
+            # directory so no model_checkpoints/ folder is left behind.
+            dirpath=os.path.join(self._run_dir, "checkpoints") if self._run_dir else None,
             filename="best_model",
         )
 
@@ -405,12 +486,26 @@ class _FitMixin:
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
             ],
+            # Let an explicit `logger=` in trainer_kwargs override our default.
+            logger=trainer_kwargs.pop(
+                "logger",
+                _build_trainer_loggers(getattr(self, "_observability_config", None), _run_dir_name),
+            ),
             **trainer_kwargs,
         )
         self._task_model.train()  # type: ignore[union-attr]
         self._task_model.estimator.train()  # type: ignore[union-attr]
 
-        self._emit_event("training_started", max_epochs=max_epochs, batch_size=batch_size)
+        _t_train = time.monotonic()
+        self._emit_event(
+            "train.started",
+            max_epochs=max_epochs,
+            batch_size=batch_size,
+            lr=lr,
+            optimizer=getattr(self.trainer_config, "optimizer_type", None) if self.trainer_config is not None else None,
+            patience=patience,
+            val_size=val_size,
+        )
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
@@ -419,20 +514,195 @@ class _FitMixin:
             checkpoint = torch.load(self._best_model_path, weights_only=False)
             self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
 
-        # Retrieve best epoch and best val_loss from the checkpoint callback
-        # (both are None before training and when no checkpoint was saved).
+        # Parse best epoch from checkpoint filename (epoch=N pattern).
+        _best_epoch: int | None = None
+        if self._best_model_path:
+            _m = re.search(r"epoch=(\d+)", self._best_model_path)
+            if _m:
+                _best_epoch = int(_m.group(1))
+        _best_val_loss = (
+            checkpoint_callback.best_model_score.item() if checkpoint_callback.best_model_score is not None else None
+        )
+        _n_params = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore[union-attr]
         self._emit_event(
-            "training_completed",
-            best_epoch=getattr(checkpoint_callback, "best_k_models", {})
-            and getattr(self._trainer, "current_epoch", None),
-            best_val_loss=checkpoint_callback.best_model_score.item()
-            if checkpoint_callback.best_model_score is not None
-            else None,
+            "train.completed",
+            best_epoch=_best_epoch,
+            best_val_loss=_best_val_loss,
+            n_epochs_run=getattr(self._trainer, "current_epoch", None),
+            duration_min=round((time.monotonic() - _t_train) / 60, 4),
         )
 
+        _total_duration_min = round((time.monotonic() - self._fit_start_ms) / 60, 4)
+
+        # Write per-run summary.json BEFORE MLflow artifact logging so it
+        # can be uploaded alongside config.yaml and lifecycle.jsonl.
+        if self._run_dir is not None:
+            from deeptab.core.observability import write_run_summary
+
+            write_run_summary(
+                self._run_dir,
+                {
+                    "run_id": self._run_id,
+                    "model_class": type(self).__name__,
+                    "n_params": _n_params,
+                    "n_samples": len(X) if hasattr(X, "__len__") else None,
+                    "best_val_loss": _best_val_loss,
+                    "best_epoch": _best_epoch,
+                    "n_epochs_run": getattr(self._trainer, "current_epoch", None),
+                    "duration_min": _total_duration_min,
+                },
+            )
+
         self.is_fitted_ = True
-        self._emit_event("fit_completed")
+        self._log_run_metadata_to_mlflow(
+            n_samples=len(X) if hasattr(X, "__len__") else None,
+            n_features=getattr(self, "n_features_in_", None),
+            n_train=getattr(getattr(self, "_data_module", None), "y_train", None),
+            n_val=getattr(getattr(self, "_data_module", None), "y_val", None),
+            n_params=_n_params,
+            best_val_loss=_best_val_loss,
+            best_epoch=_best_epoch,
+        )
+        self._emit_event(
+            "fit.completed",
+            status="success",
+            model_class=type(self).__name__,
+            n_params=_n_params,
+            best_val_loss=_best_val_loss,
+            duration_min=_total_duration_min,
+        )
         return self
+
+    def _log_run_metadata_to_mlflow(
+        self,
+        n_samples: int | None,
+        n_features: int | None,
+        n_train: Any,
+        n_val: Any,
+        n_params: int,
+        best_val_loss: float | None,
+        best_epoch: int | None,
+    ) -> None:
+        """Log hyperparameters, dataset stats, tags, and run summary to MLflow.
+
+        Called once at the end of ``fit()``.  Does nothing when MLflow is not
+        in the active experiment trackers.
+        """
+        obs = getattr(self, "_observability_config", None)
+        if obs is None or "mlflow" not in obs.experiment_trackers:
+            return
+
+        try:
+            from lightning.pytorch.loggers import MLFlowLogger
+        except ImportError:
+            return
+
+        # Find the MLFlowLogger that was active during this training run.
+        mlflow_logger: Any = next(
+            (lg for lg in (getattr(self._trainer, "loggers", None) or []) if isinstance(lg, MLFlowLogger)),
+            None,
+        )
+        if mlflow_logger is None or mlflow_logger.run_id is None:
+            return
+
+        run_id: str = mlflow_logger.run_id
+        client = mlflow_logger.experiment  # MlflowClient
+
+        # ------------------------------------------------------------------
+        # 1. Hyperparameters — model config + trainer config (flat, prefixed)
+        # ------------------------------------------------------------------
+        params: dict[str, str] = {}
+
+        if is_dataclass(self.config):
+            for f in dataclass_fields(self.config):
+                v = getattr(self.config, f.name)
+                if v is not None:
+                    params[f"model/{f.name}"] = str(v)
+
+        tc = getattr(self, "trainer_config", None)
+        if tc is not None and is_dataclass(tc):
+            for f in dataclass_fields(tc):
+                v = getattr(tc, f.name)
+                if v is not None:
+                    params[f"trainer/{f.name}"] = str(v)
+
+        # ------------------------------------------------------------------
+        # 2. Dataset stats
+        # ------------------------------------------------------------------
+        dm = getattr(self, "_data_module", None)
+        _n_train = len(n_train) if n_train is not None else None
+        _n_val = len(n_val) if n_val is not None else None
+        for k, v in {
+            "data/n_samples": n_samples,
+            "data/n_features": n_features,
+            "data/n_train": _n_train,
+            "data/n_val": _n_val,
+            "data/n_num_features": len(dm.num_feature_info)
+            if dm is not None and getattr(dm, "num_feature_info", None) is not None
+            else None,  # type: ignore[union-attr]
+            "data/n_cat_features": len(dm.cat_feature_info)
+            if dm is not None and getattr(dm, "cat_feature_info", None) is not None
+            else None,  # type: ignore[union-attr]
+        }.items():
+            if v is not None:
+                params[k] = str(v)
+
+        # ------------------------------------------------------------------
+        # 3. Training summary
+        # ------------------------------------------------------------------
+        for k, v in {
+            "train/n_params": n_params,
+            "train/best_epoch": best_epoch,
+            "train/best_val_loss": f"{best_val_loss:.6f}" if best_val_loss is not None else None,
+        }.items():
+            if v is not None:
+                params[k] = str(v)
+
+        # Log params in batches of 100 (MLflow API limit per call).
+        import mlflow.entities  # type: ignore[import-untyped]
+
+        items = list(params.items())
+        for i in range(0, len(items), 100):
+            batch = [mlflow.entities.Param(k, v) for k, v in items[i : i + 100]]
+            client.log_batch(run_id, params=batch)
+
+        # ------------------------------------------------------------------
+        # 4. Tags — model class, deeptab version, task type
+        # ------------------------------------------------------------------
+        try:
+            from deeptab._version import __version__ as _dtv
+        except ImportError:
+            _dtv = "unknown"
+
+        for tag_key, tag_val in {
+            "deeptab.model_class": type(self).__name__,
+            "deeptab.version": _dtv,
+            "deeptab.random_state": str(getattr(self, "random_state", None)),
+        }.items():
+            client.set_tag(run_id, tag_key, tag_val)
+
+        # ------------------------------------------------------------------
+        # 5. Run artifacts — config.yaml, lifecycle.jsonl, summary.json,
+        #    and checkpoints from the per-run directory (when present).
+        # ------------------------------------------------------------------
+        import os
+
+        _run_dir = getattr(self, "_run_dir", None)
+        if _run_dir is not None:
+            for fname in ("config.yaml", "config.json", "lifecycle.jsonl", "summary.json"):
+                fpath = os.path.join(_run_dir, fname)
+                if os.path.exists(fpath):
+                    try:
+                        client.log_artifact(run_id, fpath)
+                    except Exception:  # noqa: S110
+                        pass
+            ckpt_dir = os.path.join(_run_dir, "checkpoints")
+            if os.path.isdir(ckpt_dir):
+                for ckpt in os.listdir(ckpt_dir):
+                    try:
+                        client.log_artifact(run_id, os.path.join(ckpt_dir, ckpt), artifact_path="checkpoints")
+                    except Exception:  # noqa: S110
+                        pass
 
     # ------------------------------------------------------------------
     # Pre-training
