@@ -4,12 +4,17 @@ All estimators emit named events at key points in the fit / predict /
 serialise lifecycle via ``_emit_event``.  This module provides the default
 no-op implementation so the call sites work without any configuration.
 
-To receive events, replace ``_event_logger`` on an estimator instance with
-any object that exposes ``info(event: str, **kwargs) -> None``::
+To receive events, pass an ``ObservabilityConfig`` at construction time::
 
-    import structlog
-    clf._event_logger = structlog.get_logger()
+    from deeptab.core.observability import ObservabilityConfig
+
+    obs = ObservabilityConfig(structured_logging=True)
+    clf = MLPClassifier(observability_config=obs)
     clf.fit(X, y)   # fit_started, model_built, … are now logged
+
+Or configure after construction::
+
+    clf.configure_observability(obs)
 
 The full event inventory is documented in the architecture plan:
 ``dev/documentation/deeptab-modules/architecture_improvement_v0.md``.
@@ -17,7 +22,10 @@ The full event inventory is documented in the architecture plan:
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol
+from typing import TYPE_CHECKING, Any, Protocol
+
+if TYPE_CHECKING:
+    from deeptab.core.observability import ObservabilityConfig
 
 
 class _SupportsInfo(Protocol):
@@ -28,7 +36,7 @@ class _SupportsInfo(Protocol):
     or simple test doubles all qualify.
     """
 
-    def info(self, event: str, **kwargs) -> None: ...
+    def info(self, event: str, **kwargs: Any) -> None: ...
 
 
 class _NoOpEventLogger:
@@ -40,37 +48,65 @@ class _NoOpEventLogger:
     site.
     """
 
-    def info(self, event: str, **kwargs) -> None:
+    def info(self, event: str, **kwargs: Any) -> None:
         pass
 
 
 class _ObservabilityMixin:
     """Provide lifecycle event dispatch to all DeepTab estimators.
 
-    Attach a logger to start receiving events::
+    Use ``configure_observability`` to attach a backend::
 
-        clf._event_logger = structlog.get_logger()
-
-    Any object with an ``info(event: str, **kwargs) -> None`` method is
-    accepted — standard ``logging.Logger``, ``structlog`` loggers, and
-    simple callables all work.
+        from deeptab.core.observability import ObservabilityConfig
+        clf.configure_observability(ObservabilityConfig(structured_logging=True))
 
     When ``_event_logger`` is ``None`` (the default) all events are
     silently discarded via ``_NoOpEventLogger`` semantics.
     """
 
     _event_logger: _SupportsInfo | None = None
+    _run_id: str | None = None  # set per fit() call; auto-injected into every event
+    _run_dir: str | None = None  # per-run output directory (set at fit start)
+    _fit_start_ms: float = 0.0  # monotonic timestamp at fit() start
 
-    def _emit_event(self, event: str, **kwargs) -> None:
+    def configure_observability(self, config: ObservabilityConfig) -> None:
+        """Wire up logging backends described by *config*.
+
+        Can be called at any point — before or after ``fit()``.  Changes take
+        effect on the next lifecycle event emitted (i.e. the next ``fit()``
+        or ``predict()`` call).
+
+        Parameters
+        ----------
+        config : ObservabilityConfig
+            Observability settings.  Imports optional dependencies lazily;
+            raises ``ImportError`` with install hints if they are absent.
+        """
+        from deeptab.core.observability import build_structlog_logger
+
+        # Always store the config so fit() can access it for run-dir creation,
+        # Lightning loggers, and MLflow metadata logging.
+        self._observability_config = config  # type: ignore[attr-defined]
+
+        if config.structured_logging:
+            self._event_logger = build_structlog_logger(config)
+
+    def _emit_event(self, event: str, **kwargs: Any) -> None:
         """Dispatch a named lifecycle event to the attached logger.
+
+        Automatically prepends ``run_id`` from the current fit run when
+        one is active, so call sites never need to pass it explicitly.
 
         Parameters
         ----------
         event : str
-            Event name, e.g. ``"fit_started"``, ``"model_built"``.
+            Dot-namespaced event name, e.g. ``"fit.started"``, ``"train.completed"``.
         **kwargs
-            Arbitrary key-value context attached to the event
-            (e.g. ``n_samples=1000``, ``path="model.pt"``).
+            Arbitrary key-value context attached to the event.
         """
         if self._event_logger is not None:
-            self._event_logger.info(event, **kwargs)
+            run_id = getattr(self, "_run_id", None)
+            if run_id is not None and "run_id" not in kwargs:
+                self._event_logger.info(event, run_id=run_id, **kwargs)
+            else:
+                self._event_logger.info(event, **kwargs)
