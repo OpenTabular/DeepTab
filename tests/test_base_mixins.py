@@ -115,14 +115,12 @@ class TestNoOpEventLogger:
 
 
 _EXPECTED_FIT_EVENTS = [
-    "fit_started",
-    "data_module_created",
-    "data_prepared",
-    "task_model_created",
-    "model_built",
-    "training_started",
-    "training_completed",
-    "fit_completed",
+    "fit.started",
+    "data.created",
+    "model.created",
+    "train.started",
+    "train.completed",
+    "fit.completed",
 ]
 
 _EXPECTED_PREDICT_EVENTS = [
@@ -165,25 +163,25 @@ class TestEventInventoryViaFastTrainer:
 
     def test_fit_started_carries_n_samples(self, fitted_clf):
         _, logger, _ = fitted_clf
-        kw = logger.kwargs_for("fit_started")
+        kw = logger.kwargs_for("fit.started")
         assert kw["n_samples"] == 60
 
     def test_training_started_carries_max_epochs_and_batch_size(self, fitted_clf):
         _, logger, _ = fitted_clf
-        kw = logger.kwargs_for("training_started")
+        kw = logger.kwargs_for("train.started")
         assert "max_epochs" in kw
         assert "batch_size" in kw
 
     def test_model_built_carries_n_params(self, fitted_clf):
         _, logger, _ = fitted_clf
-        kw = logger.kwargs_for("model_built")
+        kw = logger.kwargs_for("model.created")
         assert "n_params" in kw
         assert isinstance(kw["n_params"], int)
         assert kw["n_params"] > 0
 
     def test_training_completed_carries_best_val_loss(self, fitted_clf):
         _, logger, _ = fitted_clf
-        kw = logger.kwargs_for("training_completed")
+        kw = logger.kwargs_for("train.completed")
         assert "best_val_loss" in kw
 
     def test_predict_events_fired(self, fitted_clf):
