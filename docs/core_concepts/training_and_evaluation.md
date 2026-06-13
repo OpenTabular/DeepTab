@@ -78,7 +78,7 @@ Practical starting points:
 
 ### Validation and leakage
 
-`TabularDataModule.preprocess_data()` fits the preprocessor on the **training split only**. Validation and prediction data are transformed with that fitted state — leakage from preprocessing statistics is avoided.
+`TabularDataModule.preprocess_data()` fits the preprocessor on the **training split only**. Validation and prediction data are transformed with that fitted state, which avoids leakage from preprocessing statistics.
 
 ### Inspecting fitted feature metadata
 
@@ -189,7 +189,7 @@ TrainerConfig(
 )
 ```
 
-**Selective weight decay** (recommended for transformer models — bias and `LayerNorm` / `BatchNorm` parameters are excluded):
+**Selective weight decay** (recommended for transformer models, where bias and `LayerNorm` / `BatchNorm` parameters are excluded):
 
 ```python
 TrainerConfig(
@@ -224,9 +224,9 @@ TrainerConfig(
 
 ```{important}
 Prior to v2.0 the scheduler always watched `val_loss` in `min` mode
-regardless of `monitor` / `mode`.  This caused the LR scheduler and early
+regardless of `monitor` / `mode`. This caused the LR scheduler and early
 stopping to track different metrics when using a maximise-mode metric such as
-`val_auroc`.  Both are now correctly aligned.
+`val_auroc`. Both are now correctly aligned.
 ```
 
 **Inspect and extend the registries:**
@@ -281,7 +281,7 @@ model.fit(X_train, y_train)
 
 Running the same script twice produces bit-identical predictions on the same hardware.
 
-### `set_seed` — standalone utility
+### `set_seed`: standalone utility
 
 ```python
 from deeptab import set_seed
@@ -306,7 +306,7 @@ For strict reproducibility on any accelerator:
 set_seed(42, deterministic=True)  # calls torch.use_deterministic_algorithms(True)
 ```
 
-### `seed_context` — scoped seeding
+### `seed_context`: scoped seeding
 
 ```python
 from deeptab import seed_context
@@ -353,25 +353,25 @@ Pass the same integer to both `train_test_split` and `random_state`.
 
 ## Evaluation
 
-Default `evaluate()` outputs are task-specific:
+Default `evaluate()` outputs are task-specific. With no `metrics` argument the keys are the registry metric short names:
 
 ```python
-classification_metrics = classifier.evaluate(X_test, y_test)   # {"Accuracy": ...}
-regression_metrics     = regressor.evaluate(X_test, y_test)    # {"Mean Squared Error": ...}
+classification_metrics = classifier.evaluate(X_test, y_test)   # {"accuracy": ..., "auroc": ..., "log_loss": ...}
+regression_metrics     = regressor.evaluate(X_test, y_test)    # {"rmse": ..., "mae": ..., "r2": ...}
 lss_metrics            = lss_model.evaluate(X_test, y_test)    # family-specific
 ```
 
-Pass explicit metrics for reproducible reports:
+Pass explicit metrics for reproducible reports. The dictionary values are callables with the signature `metric(y_true, y_pred)`; the built-in `DeepTabMetric` classes route probability-based metrics to `predict_proba` automatically:
 
 ```python
-from sklearn.metrics import accuracy_score, f1_score, log_loss
+from deeptab.metrics import Accuracy, F1Score, LogLoss
 
 metrics = classifier.evaluate(
     X_test, y_test,
     metrics={
-        "accuracy":  (accuracy_score, False),
-        "f1_macro":  (lambda y, p: f1_score(y, p, average="macro"), False),
-        "log_loss":  (log_loss, True),
+        "accuracy": Accuracy(),
+        "f1":       F1Score(),
+        "log_loss": LogLoss(),
     },
 )
 ```
@@ -381,7 +381,7 @@ metrics = classifier.evaluate(
 | Estimator  | Default `score()`       |
 | ---------- | ----------------------- |
 | Classifier | accuracy                |
-| Regressor  | mean squared error      |
+| Regressor  | R2                      |
 | LSS        | negative log-likelihood |
 
 ### Custom metrics during training
@@ -394,6 +394,30 @@ model.fit(
     train_metrics={"train_acc": MulticlassAccuracy(num_classes=3)},
     val_metrics={"val_acc": MulticlassAccuracy(num_classes=3)},
 )
+```
+
+---
+
+## Observability
+
+By default a fit is silent. To record what happens while a model trains, its hyperparameters, lifecycle events, and final metrics, attach an `ObservabilityConfig`. Each fit then writes a self-contained run directory, and optional trackers (TensorBoard, MLflow) build on the same configuration.
+
+```python
+from deeptab.core.observability import ObservabilityConfig
+
+model = MLPRegressor(
+    trainer_config=TrainerConfig(max_epochs=100),
+    observability_config=ObservabilityConfig(
+        experiment_name="baseline",
+        structured_logging=True,
+        experiment_trackers=["tensorboard"],
+    ),
+)
+model.fit(X_train, y_train)
+```
+
+```{note}
+Observability is entirely opt-in. Estimators created without an `ObservabilityConfig` emit nothing, so the training loop above behaves exactly as it did before. The dedicated [Observability](observability) guide covers the configuration reference, the run-directory layout, verbosity levels, and how to plug in your own logger.
 ```
 
 ---
@@ -414,5 +438,6 @@ model.fit(
 ## Next Steps
 
 - [Config System](config_system)
+- [Observability](observability)
 - [Model Operations](model_operations)
 - [sklearn API](sklearn_api)

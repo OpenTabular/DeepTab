@@ -106,7 +106,7 @@ Valid fields:
 | `scheduler_type`                    | Case-insensitive name of a registered LR scheduler, or `None` to disable. Default: `"ReduceLROnPlateau"`.                                                             |
 | `scheduler_kwargs`                  | Extra kwargs forwarded to the scheduler constructor. For `ReduceLROnPlateau`, `"factor"` and `"patience"` are synthesised from `lr_factor`/`lr_patience` when absent. |
 | `scheduler_monitor`                 | Override the metric watched by the scheduler (defaults to `monitor`).                                                                                                 |
-| `scheduler_interval`                | `"epoch"` (default) or `"step"` — Lightning scheduling granularity.                                                                                                   |
+| `scheduler_interval`                | `"epoch"` (default) or `"step"`: Lightning scheduling granularity.                                                                                                    |
 | `scheduler_frequency`               | How many intervals to wait between scheduler steps (default `1`).                                                                                                     |
 | `no_weight_decay_for_bias_and_norm` | When `True`, bias and normalisation-layer parameters receive zero weight decay. Recommended for transformer-style architectures.                                      |
 | `checkpoint_path`                   | Directory for the best-model checkpoint.                                                                                                                              |
@@ -151,9 +151,31 @@ tc = TrainerConfig(scheduler_type=None)
 
 ```{important}
 `monitor` and `mode` are forwarded to **both** early stopping and the LR
-scheduler, so they are always aligned.  Previously `ReduceLROnPlateau` always
+scheduler, so they are always aligned. Previously `ReduceLROnPlateau` always
 watched `val_loss` in `min` mode regardless of what early stopping was
 configured to use.
+```
+
+## Observability Config
+
+The three configs above describe the model and how it trains. A fourth, optional config, `ObservabilityConfig`, controls what gets recorded while training runs: lifecycle events, a per-run artifact directory, and output for experiment trackers such as TensorBoard or MLflow. It is opt-in, so an estimator built without one trains exactly as before and emits nothing.
+
+```python
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier(
+    model_config=MambularConfig(d_model=64, n_layers=4),
+    observability_config=ObservabilityConfig(
+        experiment_name="churn_baseline",
+        structured_logging=True,
+        experiment_trackers=["tensorboard"],
+    ),
+)
+```
+
+```{note}
+`ObservabilityConfig` lives in `deeptab.core.observability`, not `deeptab.configs`, because it records training rather than defining the model recipe. Unlike the three configs above it is excluded from `get_params()` and `sklearn.clone`, so it never takes part in hyperparameter search. The [Observability guide](observability) has the full field reference, the run-directory layout, and the verbosity levels.
 ```
 
 ## Using Configs Together
@@ -235,4 +257,5 @@ Start with a small model and explicit trainer settings. Add preprocessing and ar
 ## Next Steps
 
 - [Training and Evaluation](training_and_evaluation)
+- [Observability](observability)
 - [Model Zoo](../model_zoo/stable/index)
