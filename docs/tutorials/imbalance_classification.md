@@ -1,10 +1,10 @@
-# Imbalanced Classification Tutorial
+# Imbalanced Classification
 
 <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-  <a href="https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/imbalance_classification.ipynb" target="_blank">
+  <a href="https://colab.research.google.com/github/OpenTabular/DeepTab/blob/main/docs/tutorials/notebooks/imbalance_classification.ipynb" target="_blank">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
   </a>
-  <a href="https://github.com/basf/DeepTab/blob/main/docs/tutorials/notebooks/imbalance_classification.ipynb" target="_blank">
+  <a href="https://github.com/OpenTabular/DeepTab/blob/main/docs/tutorials/notebooks/imbalance_classification.ipynb" target="_blank">
     <img src="https://img.shields.io/badge/View%20on-GitHub-181717?logo=github&logoColor=white" alt="View on GitHub"/>
   </a>
 </div>
@@ -22,7 +22,8 @@ The notebook linked above is generated from this same tutorial content. Use the 
 - How to apply `class_weight="balanced"`, named loss strings (`"focal"`), and custom `nn.Module` losses.
 - How `balanced_sampler` and `sample_weight` complement loss-side strategies.
 - How to compare strategies side-by-side using recall and F1 instead of accuracy.
-- How to save a trained model and verify the loss is preserved on reload.
+- How to record runs with `ObservabilityConfig` so experiments are reproducible and comparable.
+- How to save a trained model and serve predictions safely with `InferenceModel`.
 
 ## Setup
 
@@ -51,10 +52,29 @@ from deeptab.training.losses import (
 )
 ```
 
+```{note}
+For a quick demonstration these tutorials train with very low `max_epochs` and `patience` (5 and 2). Treat these as placeholders and choose values that match your own compute budget and problem. As a starting point, at least `max_epochs=100` and `patience=10` are recommended for meaningful results.
+```
+
+```python
+import logging
+import warnings
+
+# These tutorials use small synthetic datasets and short training runs, which
+# surfaces a few non-actionable framework messages. Quieten them so the output
+# stays focused on the tutorial; none of them affect correctness.
+warnings.filterwarnings("ignore", message=".*n_quantiles.*")
+warnings.filterwarnings("ignore", message=".*does not have many workers.*")
+warnings.filterwarnings("ignore", message=".*have no logger configured.*")
+warnings.filterwarnings("ignore", message=".*lr_patience.*")
+warnings.filterwarnings("ignore", message=".*Checkpoint directory.*")
+logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
+```
+
 ## Data
 
-We create a **binary** dataset with a 10:1 imbalance ratio — 1 090 majority-class
-samples and 110 minority-class samples.
+We create a **binary** dataset with a 10:1 imbalance ratio: roughly 1 090
+majority-class samples to 110 minority-class samples.
 
 ```python
 RANDOM_STATE = 42
@@ -119,10 +139,10 @@ locks down the entire pipeline:
 
 ```python
 TRAINER = TrainerConfig(
-    max_epochs=40,
+    max_epochs=5,
     batch_size=64,
     lr=3e-4,
-    patience=8,
+    patience=2,
     optimizer_type="Adam",
 )
 PREPROC = PreprocessingConfig(numerical_preprocessing="quantile")
@@ -153,7 +173,7 @@ def evaluate(model, X_test, y_test, label=""):
     return results
 ```
 
-## Baseline — No Imbalance Correction
+## Baseline: No Imbalance Correction
 
 Train without any correction so we have a reference point to beat.
 
@@ -175,10 +195,10 @@ print(type(baseline.task_model.loss_fct).__name__)
 results = {"baseline": evaluate(baseline, X_test, y_test, "Baseline")}
 ```
 
-The baseline typically shows high accuracy but very low minority recall — the
+The baseline typically shows high accuracy but very low minority recall: the
 model learns to ignore the rare class.
 
-## Strategy 1 — `class_weight="balanced"`
+## Strategy 1: `class_weight="balanced"`
 
 DeepTab computes weights automatically using the sklearn formula
 `n_samples / (n_classes × count_per_class)` and maps them onto the loss:
@@ -222,7 +242,7 @@ weights = compute_class_weights("balanced", y_train)
 print(weights)   # e.g. [0.549, 5.556]
 ```
 
-## Strategy 2 — Focal Loss
+## Strategy 2: Focal Loss
 
 Focal loss (Lin et al., 2017) tackles a different problem: even weighted BCE still
 treats every example at equal gradient weight. Easy majority examples, though
@@ -236,7 +256,7 @@ standard CE :  −log(0.95)          ≈ 0.051
 focal loss  :  −(0.05)² × log(0.95) ≈ 0.000128   (400× smaller)
 ```
 
-### 2a — Focal loss by name (simplest)
+### 2a: Focal loss by name (simplest)
 
 ```python
 set_seed(RANDOM_STATE)
@@ -255,7 +275,7 @@ print(clf_focal.task_model.loss_fct)
 results["focal"] = evaluate(clf_focal, X_test, y_test, "Focal (gamma=2)")
 ```
 
-### 2b — Focal + class weights feeding into alpha
+### 2b: Focal + class weights feeding into alpha
 
 The `class_weight` argument feeds into focal's `alpha` parameter when a loss name
 is given:
@@ -283,7 +303,7 @@ print(f"gamma={loss.gamma}, alpha={loss.alpha_scalar:.3f}")
 results["focal+cw"] = evaluate(clf_focal_cw, X_test, y_test, "Focal + class_weight")
 ```
 
-### 2c — Custom gamma
+### 2c: Custom gamma
 
 ```python
 set_seed(RANDOM_STATE)
@@ -302,7 +322,7 @@ clf_focal_g3.fit(
 results["focal_g3"] = evaluate(clf_focal_g3, X_test, y_test, "Focal (gamma=3)")
 ```
 
-### 2d — Fully custom nn.Module
+### 2d: Fully custom nn.Module
 
 Any `nn.Module` can be passed as `loss_fct`. It takes full precedence over
 `class_weight`:
@@ -310,7 +330,7 @@ Any `nn.Module` can be passed as `loss_fct`. It takes full precedence over
 ```python
 set_seed(RANDOM_STATE)
 
-pos_weight = torch.tensor([(y_train == 0).sum() / (y_train == 1).sum()])
+pos_weight = torch.tensor([(y_train == 0).sum() / (y_train == 1).sum()], dtype=torch.float32)
 custom_loss = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
 
 clf_custom = MambularClassifier(
@@ -323,7 +343,7 @@ clf_custom.fit(X_train, y_train, loss_fct=custom_loss, **FIT_KWARGS)
 results["custom_bce"] = evaluate(clf_custom, X_test, y_test, "Custom BCEWithLogitsLoss")
 ```
 
-## Strategy 3 — Balanced Sampler
+## Strategy 3: Balanced Sampler
 
 Instead of reweighting the loss, oversample minority rows so each mini-batch
 contains approximately equal numbers of each class. This is orthogonal to loss
@@ -347,7 +367,7 @@ print(type(clf_sampler.task_model.loss_fct).__name__)
 results["balanced_sampler"] = evaluate(clf_sampler, X_test, y_test, "balanced_sampler")
 ```
 
-You can also pass explicit per-row sampling weights — useful when you have
+You can also pass explicit per-row sampling weights, useful when you have
 domain knowledge about example quality or recency:
 
 ```python
@@ -366,7 +386,7 @@ clf_sw.fit(X_train, y_train, sample_weight=recency, **FIT_KWARGS)
 The weight array is split alongside the train/val partition using the same random
 state, so it always aligns with the training rows actually used.
 
-## Strategy 4 — Combined: Focal Loss + Balanced Sampler
+## Strategy 4: Combined Focal Loss + Balanced Sampler
 
 Both levers are orthogonal. The sampler controls which examples appear in a
 mini-batch; the focal loss controls how much gradient each example contributes
@@ -467,72 +487,6 @@ the majority class for every example achieves 91 % accuracy on this dataset.
 Use recall and F1 to see whether the minority class is being learned.
 ```
 
-## Serialisation and Deployment
-
-Save the best model and verify predictions are bit-identical after reload.
-
-```python
-# Save
-clf_combined.save("imbalanced_clf.pt")
-
-# Load via estimator API (research / retraining use case)
-loaded = MambularClassifier.load("imbalanced_clf.pt")
-
-# Verify predictions
-original_pred = clf_combined.predict(X_test)
-loaded_pred   = loaded.predict(X_test)
-assert (original_pred == loaded_pred).all(), "Predictions differ after reload!"
-print("Predictions match ✓")
-
-# Verify original probabilities
-original_proba = clf_combined.predict_proba(X_test)
-loaded_proba   = loaded.predict_proba(X_test)
-np.testing.assert_allclose(original_proba, loaded_proba, atol=1e-5)
-print("Probabilities match ✓")
-
-# Verify loss is preserved
-orig_loss   = clf_combined.task_model.loss_fct
-loaded_loss = loaded.task_model.loss_fct
-print(f"Original loss : {type(orig_loss).__name__}")
-print(f"Loaded loss   : {type(loaded_loss).__name__}")
-```
-
-### Production inference with `InferenceModel`
-
-For a service or batch job use `InferenceModel` instead. It prevents training
-methods from being called and handles column schema mismatches cleanly.
-
-```python
-from deeptab import InferenceModel
-
-# Load once at service startup
-model = InferenceModel.from_path("imbalanced_clf.pt")
-
-print(model)
-# InferenceModel(task='classification', estimator='MambularClassifier',
-#                n_features=10, features=['num_0', ...], n_classes=2)
-
-# Per-request inference
-def score_request(payload: dict) -> dict:
-    X = pd.DataFrame([payload])
-    X_clean = model.validate_input(X, allow_extra_columns=True)
-    proba   = model.predict_proba(X_clean)
-    label   = model.predict(X_clean)
-    return {
-        "probability_positive": float(proba[0, 1]),
-        "label": int(label[0]),
-    }
-```
-
-Common deployment error caught automatically:
-
-```python
-# Upstream pipeline drops a feature column
-X_bad = X_test.drop(columns=["num_3"])
-model.validate_input(X_bad)
-# ValueError: Input is missing 1 column(s) that were present during training: ['num_3'].
-```
-
 ## Decision Guide
 
 Choose your strategy based on the imbalance ratio and what you want to control.
@@ -549,7 +503,7 @@ What is your imbalance ratio?
 │   ├── loss_fct="focal"               (hard-example focus)
 │   └── balanced_sampler=True          (data side, if batches are small)
 │
-├── Extreme (> 50:1 — fraud, rare events, anomalies)
+├── Extreme (> 50:1, e.g. fraud, rare events, anomalies)
 │   ├── loss_fct="focal", class_weight="balanced"
 │   ├── balanced_sampler=True
 │   └── Consider a custom loss with domain cost knowledge
@@ -576,8 +530,170 @@ sampler controls which examples are in each batch, and focal loss controls
 how much gradient each of those examples contributes.
 ```
 
+## Observability
+
+Once you settle on a strategy, attach an `ObservabilityConfig` so each run
+records its hyperparameters, lifecycle events, and final metrics in one
+self-contained directory. This pays off when you sweep imbalance strategies and
+want to compare runs after the fact instead of scrolling back through console
+output.
+
+```python
+from deeptab.core.observability import ObservabilityConfig
+
+obs = ObservabilityConfig(
+    experiment_name="imbalance_focal_sampler",
+    structured_logging=True,          # human-readable console + JSON event log
+    log_to_file=True,                 # write lifecycle.jsonl per run
+    verbosity=2,                      # milestones plus data/training setup
+    experiment_trackers=["tensorboard"],
+)
+
+set_seed(RANDOM_STATE)
+clf_tracked = MambularClassifier(
+    model_config=MambularConfig(d_model=64, n_layers=3),
+    preprocessing_config=PREPROC,
+    trainer_config=TRAINER,
+    observability_config=obs,
+    random_state=RANDOM_STATE,
+)
+clf_tracked.fit(
+    X_train, y_train,
+    loss_fct="focal",
+    class_weight="balanced",
+    balanced_sampler=True,
+    **FIT_KWARGS,
+)
+```
+
+Every fit writes a tidy run directory you can archive or load into your own
+tooling. The `config.yaml` captures the chosen loss and sampler settings, so the
+exact imbalance strategy behind each run is recorded alongside its metrics:
+
+```text
+deeptab_runs/
+  runs/imbalance_focal_sampler/20260611_174830_8f3a2c/
+    config.yaml       # estimator hyperparameters, including the focal loss
+    lifecycle.jsonl   # structured event log
+    summary.json      # final metrics
+    checkpoints/best.ckpt
+  tensorboard/imbalance_focal_sampler/...
+```
+
+```{note}
+Structured logging needs `structlog` (`pip install 'deeptab[logs]'`) and the
+TensorBoard tracker needs `tensorboard`. Drop `observability_config` entirely to
+train silently, or see the [Observability guide](../core_concepts/observability)
+for MLflow, verbosity levels, and bringing your own logger. If you already track
+experiments with your own framework, you do not need this at all.
+```
+
+## Save and Load
+
+Persist the fitted estimator as a single artifact. The recommended extension is
+`.deeptab`; the bundle carries the weights, fitted preprocessor, feature schema,
+and the configured loss, so a reloaded model predicts identically with no
+re-fitting.
+
+```python
+# Save (the .deeptab extension is the recommended convention)
+clf_combined.save("imbalanced_clf.deeptab")
+
+# Load via estimator API (research / retraining use case)
+loaded = MambularClassifier.load("imbalanced_clf.deeptab")
+
+# Verify predictions
+original_pred = clf_combined.predict(X_test)
+loaded_pred   = loaded.predict(X_test)
+assert (original_pred == loaded_pred).all(), "Predictions differ after reload!"
+print("Predictions match ✓")
+
+# Verify original probabilities
+original_proba = clf_combined.predict_proba(X_test)
+loaded_proba   = loaded.predict_proba(X_test)
+np.testing.assert_allclose(original_proba, loaded_proba, atol=1e-5)
+print("Probabilities match ✓")
+
+# Verify loss is preserved
+orig_loss   = clf_combined.task_model.loss_fct
+loaded_loss = loaded.task_model.loss_fct
+print(f"Original loss : {type(orig_loss).__name__}")
+print(f"Loaded loss   : {type(loaded_loss).__name__}")
+```
+
+## Production Inference with `InferenceModel`
+
+For a service or batch job use `InferenceModel` instead of the full estimator.
+It exposes only `predict`, `predict_proba`, and `validate_input`, so deployment
+code cannot accidentally trigger a `fit()` or mutate model state. It also checks
+the incoming schema and re-orders columns to match training order before
+predicting.
+
+```python
+from deeptab import InferenceModel
+
+# Load once at service startup
+model = InferenceModel.from_path("imbalanced_clf.deeptab")
+
+print(model)
+# InferenceModel(task='classification', estimator='MambularClassifier',
+#                n_features=10, features=['num_0', ...], n_classes=2)
+
+# Per-request inference
+def score_request(payload: dict) -> dict:
+    X = pd.DataFrame([payload])
+    X_clean = model.validate_input(X, allow_extra_columns=True)
+    proba   = model.predict_proba(X_clean)
+    label   = model.predict(X_clean)
+    return {
+        "probability_positive": float(proba[0, 1]),
+        "label": int(label[0]),
+    }
+```
+
+Common deployment error caught automatically:
+
+```python
+# Upstream pipeline drops a feature column
+X_bad = X_test.drop(columns=["num_3"])
+model.validate_input(X_bad)
+# ValueError: Input is missing 1 column(s) that were present during training: ['num_3'].
+```
+
+### Tuning the decision threshold
+
+The default `predict()` uses a 0.5 cut-off, which is rarely optimal for
+imbalanced problems. Because `InferenceModel` exposes `predict_proba`, you can
+choose a threshold on the validation set that reflects your tolerance for false
+negatives, then apply it at serving time:
+
+```python
+from sklearn.metrics import f1_score
+
+# Pick the threshold that maximises minority-class F1 on the validation set
+val_proba = model.predict_proba(X_val)[:, 1]
+thresholds = np.linspace(0.1, 0.9, 81)
+best_t = max(thresholds, key=lambda t: f1_score(y_val, (val_proba >= t).astype(int)))
+print(f"Chosen threshold: {best_t:.2f}")
+
+# Apply the tuned threshold at serving time
+test_proba = model.predict_proba(X_test)[:, 1]
+tuned_pred = (test_proba >= best_t).astype(int)
+```
+
+```{tip}
+Tune the threshold on validation data, never on the test set. A lower threshold
+trades precision for recall, which is usually the right call when missing a
+minority case is costly (fraud, disease screening, churn).
+```
+
+See [Inference Model](../core_concepts/inference) for the full production API.
+
 ## Next Steps
 
-- [Advanced training](advanced_training)
-- [Config system](../core_concepts/config_system)
-- [Stable model zoo](../model_zoo/stable/index)
+- [Hyperparameter optimization](hpo): tune any model with Bayesian search across all three task types
+- [Skewed-target regression](skewed_regression): point regression on a right-skewed target
+- [Uncertainty quantification](uncertainty_quantification): predict full conditional distributions, not just point estimates
+- [Advanced training](advanced_training): schedulers, callbacks, and fine-grained training control
+- [Observability](../core_concepts/observability): lifecycle events, structured logging, and experiment tracking
+- [Inference model](../core_concepts/inference): the deployment-safe prediction surface
