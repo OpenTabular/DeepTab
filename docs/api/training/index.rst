@@ -74,28 +74,33 @@ Contrastive Pretraining
 Self-supervised pretraining can improve performance on small datasets by learning
 better feature representations before supervised training.
 
+:func:`pretrain_embeddings` operates on a base architecture (an ``nn.Module`` with an
+``embedding_layer`` and an ``encode`` method) and a PyTorch ``DataLoader`` that yields
+``(numerical_features, categorical_features)`` batches. It trains the embedding layer
+with a contrastive objective and saves the learned weights to ``save_path``.
+
 .. code-block:: python
 
     from deeptab.training import pretrain_embeddings
-    from deeptab.models import MambularClassifier
 
-    # Pretrain on unlabeled data
-    pretrained_model = pretrain_embeddings(
-        X_unlabeled,
-        architecture="mambular",
-        max_epochs=100,
+    # ``base_model`` is a DeepTab architecture instance; ``train_dataloader`` yields
+    # (numerical_features, categorical_features) batches.
+    pretrain_embeddings(
+        base_model,
+        train_dataloader,
+        pretrain_epochs=5,
+        save_path="pretrained_embeddings.pth",
     )
 
-    # Fine-tune on labeled data
-    model = MambularClassifier()
-    model.backbone = pretrained_model  # Transfer weights
-    model.fit(X_train, y_train, max_epochs=50)
+The saved embedding weights can then be loaded into a model that shares the same
+architecture before supervised fine-tuning. For finer control over the contrastive
+objective, use :class:`ContrastivePretrainer` directly.
 
 See Also
 --------
 
-- :doc:`../../core_concepts/training_and_evaluation` — Training guide
-- :doc:`../models/index` — High-level model API
+- :doc:`../../core_concepts/training_and_evaluation`: Training guide
+- :doc:`../models/index`: High-level model API
 - `PyTorch Lightning docs <https://lightning.ai/docs/pytorch/stable/>`_
 
 Reference

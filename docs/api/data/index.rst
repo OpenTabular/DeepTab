@@ -5,7 +5,7 @@
 Data
 =====
 
-The data API provides low-level control over data loading, batching, and feature inspection. **Most users don't need this** — the sklearn-compatible interface (``model.fit(X, y)``) handles data management automatically.
+The data API provides low-level control over data loading, batching, and feature inspection. **Most users don't need this.** The sklearn-compatible interface (``model.fit(X, y)``) handles data management automatically.
 
 Use the data API when you need:
 
@@ -22,7 +22,7 @@ Class                                       Description
 =======================================    =======================================================================================================
 :class:`FeatureSchema`                     Inspect feature types, preprocessing, and dimensions after fitting a model
 :class:`FeatureInfo`                       Metadata for individual features (type, cardinality, preprocessing method)
-:class:`TabularBatch`                      Typed container for batches (numerical, categorical features, labels) — new in v2.0
+:class:`TabularBatch`                      Typed container for batches (numerical, categorical features, labels); new in v2.0
 :class:`TabularDataModule`                 Lightning DataModule for train/val/test splits and batching (internal use)
 :class:`TabularDataset`                    PyTorch Dataset for preprocessed tensors (internal use)
 =======================================    =======================================================================================================
@@ -127,9 +127,9 @@ Key Design Principles
 See Also
 --------
 
-- :doc:`../../core_concepts/training_and_evaluation` — How preprocessing works under the hood
-- :doc:`../../core_concepts/sklearn_api` — Standard sklearn interface (recommended for most users)
-- :doc:`../../tutorials/imbalance_classification` — End-to-end workflow example
+- :doc:`../../core_concepts/training_and_evaluation`: How preprocessing works under the hood
+- :doc:`../../core_concepts/sklearn_api`: Standard sklearn interface (recommended for most users)
+- :doc:`../../tutorials/imbalance_classification`: End-to-end workflow example
 
 .. toctree::
    :maxdepth: 1

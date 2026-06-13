@@ -35,7 +35,7 @@ settings can be managed, versioned, and shared independently.
 Quick-start by task
 -------------------
 
-All three model variants — **Classifier**, **Regressor**, and **LSS** — accept the same
+All three model variants (**Classifier**, **Regressor**, and **LSS**) accept the same
 config objects. The only difference is the class you import.
 
 Classification
@@ -101,7 +101,7 @@ scikit-learn parameter protocol is available.
 get_params
 ~~~~~~~~~~
 
-Returns a flat dictionary of all hyperparameters — identical to the behaviour of
+Returns a flat dictionary of all hyperparameters, identical to the behaviour of
 any scikit-learn estimator:
 
 .. code-block:: python
@@ -199,41 +199,41 @@ Available model configs
    * - Config class
      - Model family
    * - :class:`AutoIntConfig`
-     - AutoInt — Automatic Feature Interaction Learning via Self-Attentive Neural Networks
+     - AutoInt: Automatic Feature Interaction Learning via Self-Attentive Neural Networks
    * - :class:`ENODEConfig`
-     - ENODE — Extended Neural Oblivious Decision Ensembles
+     - ENODE: Extended Neural Oblivious Decision Ensembles
    * - :class:`FTTransformerConfig`
-     - FT-Transformer — Feature Tokenizer Transformer
+     - FT-Transformer: Feature Tokenizer Transformer
    * - :class:`MambaTabConfig`
-     - MambaTab — Mamba-based tabular model
+     - MambaTab: Mamba-based tabular model
    * - :class:`MambAttentionConfig`
-     - MambAttention — Mamba + self-attention hybrid
+     - MambAttention: Mamba + self-attention hybrid
    * - :class:`MambularConfig`
-     - Mambular — general-purpose Mamba backbone
+     - Mambular: general-purpose Mamba backbone
    * - :class:`MLPConfig`
-     - MLP — multilayer perceptron baseline
+     - MLP: multilayer perceptron baseline
    * - :class:`ModernNCAConfig`
-     - ModernNCA — Modern Neural Context-Aware model *(experimental)*
+     - ModernNCA: Modern Neural Context-Aware model *(experimental)*
    * - :class:`NDTFConfig`
-     - NDTF — Neural Decision Tree Forest
+     - NDTF: Neural Decision Tree Forest
    * - :class:`NODEConfig`
-     - NODE — Neural Oblivious Decision Ensembles
+     - NODE: Neural Oblivious Decision Ensembles
    * - :class:`ResNetConfig`
-     - ResNet — residual network for tabular data
+     - ResNet: residual network for tabular data
    * - :class:`SAINTConfig`
-     - SAINT — Self-Attention and Intersample Attention Transformer
+     - SAINT: Self-Attention and Intersample Attention Transformer
    * - :class:`TabMConfig`
-     - TabM — Batch-Ensembling MLP
+     - TabM: Batch-Ensembling MLP
    * - :class:`TabRConfig`
-     - TabR — Retrieval-Augmented Tabular model
+     - TabR: Retrieval-Augmented Tabular model
    * - :class:`TabTransformerConfig`
-     - TabTransformer — transformer with categorical embeddings
+     - TabTransformer: transformer with categorical embeddings
    * - :class:`TabulaRNNConfig`
-     - TabulaRNN — LSTM / GRU recurrent baseline
+     - TabulaRNN: LSTM / GRU recurrent baseline
    * - :class:`TangosConfig`
-     - Tangos — Targeted Regularisation *(experimental)*
+     - Tangos: Targeted Regularisation *(experimental)*
    * - :class:`TromptConfig`
-     - Trompt — tree-inspired tabular model *(experimental)*
+     - Trompt: tree-inspired tabular model *(experimental)*
 
 ----
 

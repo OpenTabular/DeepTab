@@ -28,8 +28,8 @@ framework reads automatically:
        (MSE, NLL, deviances). Used by HPO to set the optimisation direction.
    * - ``needs_raw``
      - ``bool``
-     - ``False`` (default) — metric receives already-transformed distribution
-       parameters. ``True`` — metric receives raw model logits and applies
+     - ``False`` (default): metric receives already-transformed distribution
+       parameters. ``True``: metric receives raw model logits and applies
        transforms itself. Only :class:`NegativeLogLikelihood` uses ``True``.
 
 Quick Start
@@ -263,28 +263,28 @@ The first entry in each list is the primary metric used by HPO and model selecti
     get_default_metrics("lss", family="gamma")
     # [GammaDeviance(), RootMeanSquaredError()]
 
-    # Returns {name: metric} dict — useful for model.evaluate()
+    # Returns {name: metric} dict, useful for model.evaluate()
     get_default_metrics_dict("lss", family="normal")
     # {"crps": CRPS(...), "rmse": RootMeanSquaredError(), "mae": MeanAbsoluteError()}
 
 Choosing a Distribution-Specific Metric
 ----------------------------------------
 
-**For continuous point-estimate regression** — use RMSE (default) or MAE for
+**For continuous point-estimate regression**: use RMSE (default) or MAE for
 outlier-robustness.
 
-**For distributional (LSS) models** — use CRPS as the primary metric.  CRPS is
+**For distributional (LSS) models**: use CRPS as the primary metric. CRPS is
 a *proper scoring rule*: it rewards both accuracy and calibration, so it cannot
 be gamed by reporting an over-wide predictive distribution.
 
-**For count data** (poisson, zip, negativebinom) — use the appropriate deviance.
+**For count data** (poisson, zip, negativebinom): use the appropriate deviance.
 Deviances are equivalent to twice the log-likelihood ratio against the saturated
 model and are the standard criterion for GLM-type models.
 
-**For probability / composition** (beta, dirichlet) — use BetaBrierScore or
+**For probability / composition** (beta, dirichlet): use BetaBrierScore or
 DirichletError.
 
-**For uncertainty quantification** — combine CRPS with CoverageProbability and
+**For uncertainty quantification**: combine CRPS with CoverageProbability and
 SharpnessScore to get a complete picture of calibration and precision.
 
 Writing a Custom Metric
@@ -315,9 +315,9 @@ implement ``__call__``:
 See Also
 --------
 
-- :doc:`../../core_concepts/training_and_evaluation` — training loop and evaluation guide
-- :doc:`../../tutorials/distributional` — LSS model tutorial with metric examples
-- :doc:`../distributions/index` — distribution families reference
+- :doc:`../../core_concepts/training_and_evaluation`: training loop and evaluation guide
+- :doc:`../../tutorials/uncertainty_quantification`: LSS model tutorial with metric examples
+- :doc:`../distributions/index`: distribution families reference
 
 API Reference
 -------------

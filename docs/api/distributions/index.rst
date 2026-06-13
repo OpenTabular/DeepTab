@@ -100,14 +100,15 @@ Quick Example
     model = MambularLSS()
     model.fit(X_train, y_train, family="normal")
 
-    # Predict distribution parameters
-    params = model.predict(X_test)  # Returns dict with 'loc' and 'scale'
+    # Predict distribution parameters as an array of shape (n_samples, n_params).
+    # For the normal family the columns are (loc, scale).
+    params = model.predict(X_test)
 
-    # Sample from predicted distributions
-    samples = model.sample(X_test, n_samples=100)
+    # Score with distribution-aware metrics such as CRPS and NLL
+    scores = model.evaluate(X_test, y_test)
 
-    # Get prediction intervals
-    lower, upper = model.predict_quantiles(X_test, quantiles=[0.025, 0.975])
+For worked examples that turn these parameters into prediction intervals and
+calibration plots, see the :doc:`../../tutorials/uncertainty_quantification` tutorial.
 
 Choosing a Distribution
 ------------------------
@@ -171,8 +172,8 @@ Choosing a Distribution
 See Also
 --------
 
-- :doc:`../../tutorials/distributional` — Complete LSS examples
-- :class:`deeptab.models.MambularLSS` — LSS model reference
+- :doc:`../../tutorials/uncertainty_quantification`: Complete LSS examples
+- :class:`deeptab.models.MambularLSS`: LSS model reference
 
 API Reference
 -------------
