@@ -17,6 +17,7 @@ class SklearnBaseRegressor(SklearnBase):
         preprocessing_config=None,
         trainer_config=None,
         random_state=None,
+        observability_config=None,
         **kwargs,
     ):
         if kwargs:
@@ -28,6 +29,7 @@ class SklearnBaseRegressor(SklearnBase):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
 
     def build_model(

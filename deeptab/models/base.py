@@ -219,8 +219,11 @@ class SklearnBase(
         self._task_model_factory: ITaskModelFactory = DefaultTaskModelFactory()
         # Observability — wire up backends if a config was provided.
         # Underscore-prefix: hidden from sklearn get_params/set_params/clone.
+        # Only wire up for a genuine ObservabilityConfig; like the model and
+        # preprocessing configs above, an unexpected value is stored as-is and
+        # validation is deferred rather than raising inside __init__.
         self._observability_config: ObservabilityConfig | None = observability_config
-        if observability_config is not None:
+        if observability_config is not None and hasattr(observability_config, "structured_logging"):
             self.configure_observability(observability_config)
 
     def get_params(self, deep=True):

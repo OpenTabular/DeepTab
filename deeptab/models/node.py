@@ -30,6 +30,7 @@ class NODERegressor(SklearnBaseRegressor):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
+        observability_config=None,
     ):
         super().__init__(
             model=NODE,
@@ -38,6 +39,7 @@ class NODERegressor(SklearnBaseRegressor):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
 
 
@@ -64,6 +66,7 @@ class NODEClassifier(SklearnBaseClassifier):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
+        observability_config=None,
     ):
         super().__init__(
             model=NODE,
@@ -72,6 +75,7 @@ class NODEClassifier(SklearnBaseClassifier):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
 
 
@@ -98,6 +102,7 @@ class NODELSS(SklearnBaseLSS):
         preprocessing_config=None,
         trainer_config=None,
         random_state=None,
+        observability_config=None,
     ):
         super().__init__(
             model=NODE,
@@ -106,4 +111,5 @@ class NODELSS(SklearnBaseLSS):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )

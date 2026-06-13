@@ -31,6 +31,7 @@ class TabulaRNNRegressor(SklearnBaseRegressor):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
+        observability_config=None,
     ):
         super().__init__(
             model=TabulaRNN,
@@ -39,6 +40,7 @@ class TabulaRNNRegressor(SklearnBaseRegressor):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
 
 
@@ -65,6 +67,7 @@ class TabulaRNNClassifier(SklearnBaseClassifier):
         preprocessing_config: PreprocessingConfig | None = None,
         trainer_config: TrainerConfig | None = None,
         random_state: int | None = None,
+        observability_config=None,
     ):
         super().__init__(
             model=TabulaRNN,
@@ -73,6 +76,7 @@ class TabulaRNNClassifier(SklearnBaseClassifier):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
 
 
@@ -99,6 +103,7 @@ class TabulaRNNLSS(SklearnBaseLSS):
         preprocessing_config=None,
         trainer_config=None,
         random_state=None,
+        observability_config=None,
     ):
         super().__init__(
             model=TabulaRNN,
@@ -107,4 +112,5 @@ class TabulaRNNLSS(SklearnBaseLSS):
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
             random_state=random_state,
+            observability_config=observability_config,
         )
