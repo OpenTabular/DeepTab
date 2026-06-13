@@ -168,8 +168,11 @@ dist/
 # logs and checkpoints
 examples/lightning_logs
 *.ckpt
+*.deeptab
 lightning_logs
 lightning_logs/*
+checkpoints
+checkpoints/*
 model_checkpoints
 model_checkpoints/*
 outputs
@@ -180,6 +183,8 @@ mlruns
 mlruns/*
 deeptab_runs
 deeptab_runs/*
+obs_runs
+obs_runs/*
 
 # Sphinx build artifacts
 docs/_build/doctrees/*
