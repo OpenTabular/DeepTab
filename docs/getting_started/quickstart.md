@@ -54,12 +54,12 @@ That's it! The model handles preprocessing, batching, device placement, and trai
 
 ### What just happened?
 
-1. **Data preparation** — Created a DataFrame with 10 features and 3 classes
-2. **Train/test split** — Standard scikit-learn split
-3. **Model initialization** — Created a Mambular classifier with default settings
-4. **Training** — The `fit` method handles everything: preprocessing, batching, GPU transfer, and optimization
-5. **Evaluation** — The `evaluate` method returns a dict of metrics
-6. **Prediction** — Standard `predict` and `predict_proba` methods
+1. **Data preparation**: Created a DataFrame with 10 features and 3 classes
+2. **Train/test split**: Standard scikit-learn split
+3. **Model initialization**: Created a Mambular classifier with default settings
+4. **Training**: The `fit` method handles everything, including preprocessing, batching, GPU transfer, and optimization
+5. **Evaluation**: The `evaluate` method returns a dict of metrics
+6. **Prediction**: Standard `predict` and `predict_proba` methods
 
 ## Regression example
 
@@ -240,7 +240,7 @@ print(f"Prediction intervals: [{lower_bound[0]:.2f}, {upper_bound[0]:.2f}]")
 | `quantile`      | Distribution-free percentiles     | Pinball loss     |
 
 Each family automatically selects appropriate evaluation metrics via `model.evaluate()`.
-See the [distributions reference](../../api/distributions/index) and [metrics reference](../../api/metrics/index) for the full API.
+See the [distributions reference](../api/distributions/index) and [metrics reference](../api/metrics/index) for the full API.
 
 ## Comparing models
 
@@ -297,7 +297,7 @@ model = MambularClassifier()
 model.fit(
     X_train,
     y_train,
-    X_embedding=text_embeddings,  # Added alongside tabular features
+    embeddings=text_embeddings,  # Added alongside tabular features
     max_epochs=50,
 )
 ```
@@ -362,15 +362,17 @@ model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
 # Save to disk
-model.save("my_model.pkl")
+model.save("my_model.deeptab")
 
 # Load later
 from deeptab.models import MambularClassifier
-loaded_model = MambularClassifier.load("my_model.pkl")
+loaded_model = MambularClassifier.load("my_model.deeptab")
 
 # Use loaded model
 predictions = loaded_model.predict(X_test)
 ```
+
+Use the `.deeptab` extension for saved models. DeepTab accepts any extension but warns when a different one is used, so sticking to `.deeptab` keeps artifacts easy to recognise.
 
 Note: `save()` writes a fitted estimator artifact, not just neural-network weights. The artifact includes the architecture/config, trained weights, fitted preprocessing state, feature schema and column order, task metadata such as classifier `classes_`, and package versions for debugging reloads across environments.
 
@@ -421,8 +423,8 @@ model.fit(
 
 ```{tip}
 `monitor` and `mode` apply to **both** early stopping and the LR scheduler.
-Setting `monitor="val_auroc"` and `mode="max"` keeps them perfectly aligned —
-previously the scheduler always watched `val_loss` in the wrong direction.
+Setting `monitor="val_auroc"` and `mode="max"` keeps them perfectly aligned,
+so the scheduler reduces the learning rate in the same direction it is optimised.
 ```
 
 ### Optimizer and LR scheduler
@@ -433,7 +435,7 @@ Switch to a different optimizer or scheduler without subclassing anything:
 from deeptab.configs import TrainerConfig
 from deeptab.models import FTTransformerClassifier
 
-# AdamW with custom betas — good default for transformer models
+# AdamW with custom betas, a good default for transformer models
 model = FTTransformerClassifier(
     trainer_config=TrainerConfig(
         optimizer_type="AdamW",
@@ -449,7 +451,7 @@ model = FTTransformerClassifier(
 Switch the LR schedule independently:
 
 ```python
-# Cosine annealing — no plateau needed
+# Cosine annealing, no plateau needed
 model = FTTransformerClassifier(
     trainer_config=TrainerConfig(
         optimizer_type="AdamW",
@@ -491,8 +493,6 @@ model = FTTransformerClassifier(
 )
 ```
 
-````
-
 ### Custom preprocessing for specific features
 
 ```python
@@ -507,7 +507,7 @@ config = PreprocessingConfig(
 
 model = MambularClassifier(preprocessing_config=config)
 model.fit(X_train, y_train, max_epochs=50)
-````
+```
 
 ## Debugging tips
 
@@ -522,16 +522,17 @@ print(f"Using device: {torch.cuda.get_device_name(0) if torch.cuda.is_available(
 
 ### Monitor training progress
 
-DeepTab shows a progress bar by default. To see more detailed logging:
+DeepTab shows a progress bar by default. For richer per-epoch metrics, pass
+`train_metrics`/`val_metrics` to `fit()`, or attach an experiment tracker through
+`ObservabilityConfig` (MLflow or TensorBoard):
 
 ```python
-from deeptab.configs import TrainerConfig
+from deeptab.core.observability import ObservabilityConfig
 
 model = MambularClassifier(
-    trainer_config=TrainerConfig(
-        verbose=True,  # More detailed output
-    )
+    observability_config=ObservabilityConfig(verbosity=2, experiment_trackers=["tensorboard"]),
 )
+model.fit(X_train, y_train, max_epochs=50)
 ```
 
 ### Reduce batch size for memory errors
@@ -557,9 +558,9 @@ model.fit(X_train, y_train, accelerator="cpu")
 
 Now that you've run your first models, explore:
 
-- **[Core Concepts](../core_concepts/config_system)** — Deep dive into the config system, preprocessing, and distributional regression
-- **[Tutorials](../tutorials/imbalance_classification)** — Complete end-to-end workflows for different tasks
-- **[API Reference](../api/models/index)** — Full documentation of all models and configs
-- **[FAQ](faq)** — Answers to common questions
+- **[Core Concepts](../core_concepts/config_system)**: Deep dive into the config system, preprocessing, and distributional regression
+- **[Tutorials](../tutorials/imbalance_classification)**: Complete end-to-end workflows for different tasks
+- **[API Reference](../api/models/index)**: Full documentation of all models and configs
+- **[FAQ](faq)**: Answers to common questions
 
 For questions or issues, check the [FAQ](faq) or open an issue on [GitHub](https://github.com/OpenTabular/DeepTab/issues).

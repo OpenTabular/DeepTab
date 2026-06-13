@@ -1,6 +1,6 @@
 # Overview
 
-DeepTab brings modern deep learning to tabular data with a clean scikit-learn interface. No boilerplate PyTorch code, no manual data loaders—just `fit`, `predict`, and `evaluate`.
+DeepTab brings modern deep learning to tabular data with a clean scikit-learn interface. No boilerplate PyTorch code, no manual data loaders, just `fit`, `predict`, and `evaluate`.
 
 ## What is DeepTab?
 
@@ -172,16 +172,16 @@ register_optimizer("muon", MyMuonOptimizer)
 
 For advanced use cases (custom training loops, model integration), v2.0 exposes low-level components:
 
-- **TabularDataset** - PyTorch Dataset with batch object support
-- **TabularDataModule** - Lightning DataModule with preprocessing
-- **FeatureSchema** — Typed feature metadata container
-- **TabularBatch** — Strongly typed batch with device management
+- **TabularDataset**: PyTorch Dataset with batch object support
+- **TabularDataModule**: Lightning DataModule with preprocessing
+- **FeatureSchema**: Typed feature metadata container
+- **TabularBatch**: Strongly typed batch with device management
 
-See [API docs](../api/data/index) for details. Most users can ignore these—the high-level estimator API (e.g., `MambularClassifier`) is unchanged.
+See [API docs](../api/data/index) for details. Most users can ignore these, since the high-level estimator API (e.g., `MambularClassifier`) is unchanged.
 
 ## Next Steps
 
-- [Why DeepTab](why_deeptab) — Key advantages and use cases
-- [Installation](installation) — Set up in 2 minutes
-- [Quickstart](quickstart) — First model in 5 minutes
-- [FAQ](faq) — Common questions
+- [Why DeepTab](why_deeptab): Key advantages and use cases
+- [Installation](installation): Set up in 2 minutes
+- [Quickstart](quickstart): First model in 5 minutes
+- [FAQ](faq): Common questions

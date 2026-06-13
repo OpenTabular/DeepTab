@@ -42,10 +42,10 @@ Quick pointers:
 
 No, but it helps significantly for larger datasets and more complex architectures. The short answer:
 
-- **MLP, ResNet, TabM, MambaTab** — train comfortably on CPU up to ~100K–500K rows.
-- **Mambular, TabulaRNN, TabTransformer, NODE** — CPU is fine up to ~10K–20K rows; GPU recommended beyond that.
-- **FTTransformer, AutoInt, MambAttention, ENODE, NDTF, TabR** — GPU recommended above ~5K–10K rows.
-- **SAINT** — GPU strongly recommended above ~2K rows (row attention makes every batch expensive).
+- **MLP, ResNet, TabM, MambaTab**: train comfortably on CPU up to ~100K to 500K rows.
+- **Mambular, TabulaRNN, TabTransformer, NODE**: CPU is fine up to ~10K to 20K rows; GPU recommended beyond that.
+- **FTTransformer, AutoInt, MambAttention, ENODE, NDTF, TabR**: GPU recommended above ~5K to 10K rows.
+- **SAINT**: GPU strongly recommended above ~2K rows (row attention makes every batch expensive).
 
 For a full per-model breakdown including the cost driver for each architecture, see the [Model Zoo Comparison Tables](../model_zoo/comparison_tables) in the Model Zoo.
 
@@ -58,7 +58,7 @@ import torch
 print(f"CUDA available: {torch.cuda.is_available()}")
 ```
 
-DeepTab will automatically use the first available GPU. If CUDA is available but you're not seeing speedups, ensure you're training on a reasonably large dataset—small batches may not benefit from GPU parallelism.
+DeepTab will automatically use the first available GPU. If CUDA is available but you're not seeing speedups, ensure you're training on a reasonably large dataset, since small batches may not benefit from GPU parallelism.
 
 ### Can I use DeepTab with PyTorch dataloaders?
 
@@ -90,7 +90,7 @@ DeepTab automatically handles:
 
 - **Numerical**: `int`, `float` dtypes
 - **Categorical**: `object`, `category`, `bool` dtypes
-- **Embeddings**: Pass pre-computed embeddings via `X_embedding` parameter
+- **Embeddings**: Pass pre-computed embeddings via the `embeddings` parameter of `fit()`
 
 ### How do I handle missing values?
 
@@ -149,7 +149,7 @@ If you're using NumPy arrays, all features are treated as numerical by default.
 DeepTab is designed for tabular data. For text or images:
 
 1. Use a pre-trained encoder to generate embeddings
-2. Pass embeddings via the `X_embedding` parameter
+2. Pass embeddings via the `embeddings` parameter of `fit()`
 
 ```python
 from sentence_transformers import SentenceTransformer
@@ -161,7 +161,7 @@ text_embeddings = text_model.encode(df["description"].tolist())
 # Pass embeddings alongside tabular features
 X_tabular = df.drop(columns=["description", "target"])
 model = MambularClassifier()
-model.fit(X_tabular, y, X_embedding=text_embeddings, max_epochs=50)
+model.fit(X_tabular, y, embeddings=text_embeddings, max_epochs=50)
 ```
 
 ### Can I customize preprocessing per feature?
@@ -188,30 +188,30 @@ Combine GPU acceleration with larger batch sizes and early stopping for fastest 
 
 Several options:
 
-1. **Use a GPU** — Install CUDA-enabled PyTorch
-2. **Increase batch size** — Larger batches are more efficient (if memory allows)
-3. **Reduce epochs** — Use early stopping instead of fixed epochs
-4. **Use multi-worker data loading** — Set `num_workers` in `TrainerConfig`
+1. **Use a GPU**: install CUDA-enabled PyTorch
+2. **Increase batch size**: larger batches are more efficient when memory allows (`TrainerConfig(batch_size=...)`)
+3. **Reduce epochs**: rely on early stopping instead of a fixed epoch count
+4. **Use multi-worker data loading**: pass `num_workers` through `dataloader_kwargs` in `fit()`
 
 ```python
 from deeptab.configs import TrainerConfig
 
 model = MambularClassifier(
     trainer_config=TrainerConfig(
-        batch_size=512,      # Larger batch size
-        num_workers=4,       # Parallel data loading
-        patience=10,         # Early stopping
+        batch_size=512,   # Larger batch size
+        patience=10,      # Early stopping
     )
 )
-```
 
-````
+# num_workers is a DataLoader option, so pass it via dataloader_kwargs
+model.fit(X_train, y_train, dataloader_kwargs={"num_workers": 4}, max_epochs=100)
+```
 
 ### Training is slow on GPU
 
 ```{note}
-GPUs need larger batch sizes to show speedup over CPU. Small batches or datasets may run faster on CPU.
-````
+GPUs need larger batch sizes to show a speedup over CPU. Small batches or datasets may run faster on CPU.
+```
 
 Ensure you're using GPU:
 
@@ -222,9 +222,9 @@ print(torch.cuda.is_available())  # Should be True
 
 If True but still slow:
 
-- **Small batches** — GPU efficiency requires larger batches (try 256+)
-- **Small dataset** — For < 1K samples, CPU may be faster due to transfer overhead
-- **CPU bottleneck** — Increase `num_workers` in `TrainerConfig` for faster data loading
+- **Small batches**: GPU efficiency requires larger batches (try 256+)
+- **Small dataset**: for < 1K samples, CPU may be faster due to transfer overhead
+- **CPU bottleneck**: increase `num_workers` via `dataloader_kwargs` in `fit()` for faster data loading
 
 ### How do I use early stopping?
 
@@ -252,7 +252,7 @@ model.fit(
 
 ### How do I save a trained model?
 
-Use the `.deeptab` extension — DeepTab warns when a different extension is used.
+Use the `.deeptab` extension. DeepTab warns when a different extension is used.
 
 ```python
 # Save
@@ -272,19 +272,19 @@ Not directly through the estimator API. If you need this, consider using `Tabula
 
 ### How do I monitor training metrics?
 
-DeepTab shows a progress bar by default. For more detailed logging:
+DeepTab shows a progress bar by default. For richer per-epoch metrics, pass
+`train_metrics`/`val_metrics` dicts to `fit()`, or attach an experiment tracker
+through `ObservabilityConfig`:
 
 ```python
-from deeptab.configs import TrainerConfig
+from deeptab.core.observability import ObservabilityConfig
 
 model = MambularClassifier(
-    trainer_config=TrainerConfig(
-        verbose=True,  # Detailed logging
-    )
+    observability_config=ObservabilityConfig(verbosity=2, experiment_trackers=["tensorboard"]),
 )
 ```
 
-For custom metrics, use Lightning callbacks (advanced usage—see Lightning docs).
+For fully custom metrics, use Lightning callbacks (advanced usage, see the Lightning docs).
 
 ## Errors and troubleshooting
 
@@ -304,14 +304,11 @@ model = MambularClassifier(
 )
 ```
 
-Or force CPU training:
+Or force CPU training by passing the Lightning accelerator to `fit()`:
 
 ```python
-from deeptab.configs import TrainerConfig
-
-model = MambularClassifier(
-    trainer_config=TrainerConfig(device="cpu")
-)
+model = MambularClassifier()
+model.fit(X_train, y_train, accelerator="cpu")
 ```
 
 ### ValueError: could not convert string to float
@@ -366,14 +363,11 @@ model = MambularClassifier(
 )
 ```
 
-Or enable stronger gradient clipping (default is already enabled at 1.0):
+Or enable gradient clipping, which is off by default. Pass it to `fit()` as a Lightning trainer argument:
 
 ```python
-from deeptab.configs import TrainerConfig
-
-model = MambularClassifier(
-    trainer_config=TrainerConfig(gradient_clip_val=0.5)  # Stronger clipping
-)
+model = MambularClassifier()
+model.fit(X_train, y_train, gradient_clip_val=0.5)
 ```
 
 ### RuntimeError: Expected all tensors to be on the same device
@@ -396,8 +390,8 @@ The estimator API handles this automatically.
 
 Both use Mamba (State Space Model) blocks, but differ in how they process features:
 
-- **Mambular** — Sequential model. Processes features one at a time in sequence, learning dependencies between features.
-- **MambaTab** — Joint model. Applies Mamba to a concatenated representation of all features at once.
+- **Mambular**: Sequential model. Processes features one at a time in sequence, learning dependencies between features.
+- **MambaTab**: Joint model. Applies Mamba to a concatenated representation of all features at once.
 
 Mambular tends to work better for datasets where feature order matters or where you want to learn sequential dependencies.
 
@@ -409,10 +403,10 @@ Use LSS models when you need uncertainty estimates, not just point predictions.
 
 Use `LSS` models when you need:
 
-- **Uncertainty quantification** — Know when predictions are confident vs uncertain
-- **Prediction intervals** — Generate confidence bounds (e.g., 95% intervals)
-- **Heteroscedastic noise** — Model varying noise levels across inputs
-- **Risk-aware decisions** — Use full distributions for downstream optimization
+- **Uncertainty quantification**: Know when predictions are confident vs uncertain
+- **Prediction intervals**: Generate confidence bounds (e.g., 95% intervals)
+- **Heteroscedastic noise**: Model varying noise levels across inputs
+- **Risk-aware decisions**: Use full distributions for downstream optimization
 
 Example:
 
@@ -489,7 +483,7 @@ Note: Set `n_jobs=1` in GridSearchCV if using GPU, as each model will try to use
 
 ### Can I deploy DeepTab models?
 
-Yes. For deployment, use `InferenceModel` — it validates the input schema and exposes only the inference surface, preventing accidental retraining in production:
+Yes. For deployment, use `InferenceModel`. It validates the input schema and exposes only the inference surface, preventing accidental retraining in production:
 
 ```python
 # Training environment
@@ -509,15 +503,22 @@ See the [Inference Model](../core_concepts/inference) guide for the full deploym
 
 ### How do I access the underlying PyTorch model?
 
-The Lightning module is stored in `model.task_model`:
+For most inspection needs, use the public helpers `model.summary()`,
+`model.describe()`, and `model.parameter_table()`. They work once the model is
+built or fitted and do not require touching internals.
 
 ```python
 model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
-task_model = model.task_model   # Lightning TaskModel
-architecture = model.estimator  # raw nn.Module architecture
+print(model.summary())        # human-readable overview
+info = model.describe()       # structured dict (architecture, task, params, ...)
 ```
+
+If you need direct access for advanced work, the fitted Lightning module lives
+in the private `model._task_model` attribute, and the raw `nn.Module`
+architecture is `model._task_model.estimator`. These are internal and may change
+between releases.
 
 ### Can I use custom loss functions?
 
@@ -531,11 +532,11 @@ Access intermediate representations:
 model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
-# Get feature representations (before final classification layer)
-features = model.model.encoder(batch)  # Requires using TabularDataset/DataModule directly
+# The raw architecture lives on the fitted Lightning module (internal API)
+architecture = model._task_model.estimator
 ```
 
-This is an advanced use case—see the source code for details.
+This is an advanced use case. See the source code for details.
 
 ### Can I use multiple GPUs?
 
@@ -583,10 +584,10 @@ See the [Contributing guide](../developer_guide/contributing) for:
 
 It depends on the dataset:
 
-- **Small datasets (< 1K samples)** — XGBoost often wins
-- **Large datasets (> 10K samples)** — DeepTab competitive or better, especially with complex feature interactions
-- **Categorical-heavy data** — XGBoost may be more efficient
-- **Need for uncertainty** — DeepTab LSS models provide distributional predictions
+- **Small datasets (< 1K samples)**: XGBoost often wins
+- **Large datasets (> 10K samples)**: DeepTab competitive or better, especially with complex feature interactions
+- **Categorical-heavy data**: XGBoost may be more efficient
+- **Need for uncertainty**: DeepTab LSS models provide distributional predictions
 
 Use both and compare on your specific data. DeepTab makes experimentation easy.
 
@@ -594,7 +595,7 @@ Use both and compare on your specific data. DeepTab makes experimentation easy.
 
 No, DeepTab uses PyTorch under the hood. It provides convenience, not speed improvements. However, it does:
 
-- Apply best practices (gradient clipping, early stopping, LR scheduling)
+- Apply sensible defaults (early stopping, LR scheduling)
 - Handle device management automatically
 - Provide efficient data loading
 

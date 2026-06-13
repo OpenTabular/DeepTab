@@ -1,6 +1,6 @@
 # Why DeepTab
 
-DeepTab is your **one-stop shop for tabular deep learning**. Every model supports classification, regression, and distributional regression—15 stable architectures, all in one place, with consistent APIs.
+DeepTab is your **one-stop shop for tabular deep learning**. Every model supports classification, regression, and distributional regression across 15 stable architectures, all in one place, with consistent APIs.
 
 ## One Library, All Tasks
 
@@ -61,7 +61,7 @@ search.fit(X, y)
 
 ## One Model, Three Tasks
 
-Every architecture comes in three variants—just change the suffix:
+Every architecture comes in three variants. Just change the suffix:
 
 | Class         | Task                      | Output                  |
 | ------------- | ------------------------- | ----------------------- |
@@ -151,7 +151,7 @@ upper = params[:, 0] + 1.96 * params[:, 1]
 - You're modeling count data or bounded outcomes
 ```
 
-**Supported families:** `normal`, `poisson`, `gamma`, `beta`, `negative_binomial`, `student_t`, and more.
+**Supported families:** `normal`, `poisson`, `gamma`, `beta`, `negativebinom`, `studentt`, and more. See the [distributions reference](../api/distributions/index) for the full list.
 
 ## Fast Experimentation
 
@@ -198,11 +198,32 @@ from deeptab.configs import TrainerConfig
 model = TabulaRNNRegressor(
     trainer_config=TrainerConfig(
         batch_size=512,
-        num_workers=4,      # Parallel data loading
         max_epochs=100,
         patience=10,        # Early stopping
     )
 )
+
+# Parallel data loading is a DataLoader option, passed through fit()
+model.fit(X_train, y_train, dataloader_kwargs={"num_workers": 4})
+```
+
+## On the Roadmap
+
+DeepTab is actively developed, and a few larger pieces are on the way:
+
+| Area              | What's coming                                                           | Status  |
+| ----------------- | ----------------------------------------------------------------------- | ------- |
+| Foundation models | Adapters for pretrained tabular models, starting with TabPFN and TabICL | Planned |
+| Model promotion   | ModernNCA, Trompt, and Tangos graduating from experimental to stable    | Planned |
+
+The foundation-model work wraps the upstream pretrained models behind the same
+`fit`/`predict` estimator API you already use, so adopting them will not change
+your workflow.
+
+```{note}
+This roadmap is indicative, not a release commitment. Priorities and ordering
+may shift as work progresses. To track progress or share what you'd like to see,
+follow the [GitHub issues and discussions](https://github.com/OpenTabular/DeepTab/issues).
 ```
 
 ## When to Choose DeepTab
@@ -228,6 +249,6 @@ model = TabulaRNNRegressor(
 
 ## Next Steps
 
-- [Installation](installation) — Get started in 2 minutes
-- [Quickstart](quickstart) — First model in 5 minutes
-- [Tutorials](../tutorials/imbalance_classification) — End-to-end workflows
+- [Installation](installation): Get started in 2 minutes
+- [Quickstart](quickstart): First model in 5 minutes
+- [Tutorials](../tutorials/imbalance_classification): End-to-end workflows

@@ -22,7 +22,7 @@ print(deeptab.__version__)  # e.g., "2.0.0"
 
 ## GPU Support
 
-DeepTab automatically detects and uses your GPU—no configuration needed.
+DeepTab automatically detects and uses your GPU, with no configuration needed.
 
 **Verify GPU:**
 
@@ -103,5 +103,5 @@ pip list | grep deeptab
 
 ## Next Steps
 
-- [Quickstart](quickstart) — Train your first model in 5 minutes
-- [FAQ](faq) — Common questions and solutions
+- [Quickstart](quickstart): Train your first model in 5 minutes
+- [FAQ](faq): Common questions and solutions
