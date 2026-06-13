@@ -21,6 +21,7 @@
    core_concepts/sklearn_api
    core_concepts/model_tiers
    core_concepts/config_system
+   core_concepts/observability
    core_concepts/training_and_evaluation
    core_concepts/model_operations
    core_concepts/inference
@@ -30,12 +31,14 @@
    :maxdepth: 1
    :hidden:
 
+   tutorials/skewed_regression
    tutorials/imbalance_classification
-   tutorials/regression
-   tutorials/distributional
-   tutorials/experimental
-   tutorials/model_efficiency
+   tutorials/uncertainty_quantification
+   tutorials/hpo
    tutorials/advanced_training
+   tutorials/observability
+   tutorials/model_efficiency
+   tutorials/experimental
 
 .. toctree::
    :caption: Model Zoo
@@ -68,8 +71,8 @@
    developer_guide/contributing
    developer_guide/testing
    developer_guide/documentation
-   developer_guide/release
    developer_guide/versioning
    developer_guide/ci_cd
+   developer_guide/release
    developer_guide/model_promotion_policy
    developer_guide/support_matrix
