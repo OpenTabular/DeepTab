@@ -1,17 +1,17 @@
 <div align="center">
-    <img src="./docs/images/logo/deeptab-v1.png" width="550"/>
+    <img src="./docs/images/logo/deeptab-v1.png" width="720"/>
 
 [![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
 [![docs build](https://readthedocs.org/projects/deeptab/badge/?version=latest)](https://deeptab.readthedocs.io/en/latest/?badge=latest)
 [![docs](https://img.shields.io/badge/docs-latest-blue)](https://deeptab.readthedocs.io/en/latest/)
-[![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/basf/deeptab/issues)
+[![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/DeepTab/issues)
 
 [📘 Documentation](https://deeptab.readthedocs.io) |
 [🚀 Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/quickstart.html) |
 [🎯 Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) |
 [📖 Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html) |
-[🤔 Report Issues](https://github.com/basf/deeptab/issues)
+[🤔 Report Issues](https://github.com/OpenTabular/DeepTab/issues)
 
 </div>
 
@@ -19,24 +19,43 @@
 
 # DeepTab: Tabular Deep Learning Made Simple
 
-**DeepTab** is a Python library for deep learning on tabular data. It features state-of-the-art architectures including Mamba (State Space Models), Transformers, and specialized tabular models—all with a familiar scikit-learn interface.
+**DeepTab** is a Python library for deep learning on tabular data. It features state-of-the-art architectures including Mamba (State Space Models), Transformers, and specialized tabular models, all with a familiar scikit-learn interface.
 
-📄 **Papers:**
+## 📖 Why DeepTab?
 
-- [Mambular: A Sequential Model for Tabular Deep Learning](https://arxiv.org/abs/2408.06291)
-- [TabulaRNN: Analyzing Efficiency of RNN Models for Tabular Data](https://arxiv.org/pdf/2411.17207)
+- **🔧 Familiar API**: Drop-in replacement for sklearn models
+- **⚡ Auto-Preprocessing**: Automatic feature detection and transformation
+- **🎯 State-of-the-Art Models**: 15+ proven architectures
+- **📊 Distributional Regression**: Full distribution prediction (LSS)
+- **🔍 Model Selection**: Comprehensive [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) with guidance
+- **📚 Complete Docs**: [Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), [examples](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and [API reference](https://deeptab.readthedocs.io/en/latest/api/index.html)
 
 ## ⚡ What's New in v2.0
 
-- **New Documentation**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), [Tutorials with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)
-- **Metrics Module**: Unified `deeptab.metrics` with 25+ metric classes for regression, classification, and distributional models; auto-selected per task via registry
-- **Typed Data Layer**: `TabularDataset`, `TabularDataModule`, `FeatureSchema`
-- **Split-Config API**: Separate configs for model, preprocessing, and training
-- **Enhanced Preprocessing**: Feature-specific transformations, PLE, pre-trained encodings
-- **Optimizer & Scheduler Registry**: All `torch.optim` classes available by name through `TrainerConfig`; custom optimizers and schedulers registerable at runtime
-- **`InferenceModel`**: Deployment-only wrapper with schema validation, read-only prediction surface, and task-type enforcement
-- **New Models**: AutoInt, ENODE, TabR
-- **Experimental Models**: Tangos, Trompt, ModernNCA
+### Core API
+
+- **Split-Config API**: Separate configuration objects for the model, preprocessing, and training, so each concern can be tuned on its own
+- **Typed Data Layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract
+- **Deployment-safe inference**: `InferenceModel` wraps a fitted estimator in a read-only prediction surface with schema validation and task-type enforcement
+
+### Training and Evaluation
+
+- **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry
+- **Optimizer and scheduler registry**: Every `torch.optim` class is available by name through `TrainerConfig`, and custom optimizers or schedulers can be registered at runtime
+- **Observability and experiment tracking**: `ObservabilityConfig` adds structured logging, lifecycle events, and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree
+
+### Preprocessing
+
+- **Enhanced preprocessing**: Feature-specific transformations, piecewise-linear encoding (PLE), and pre-trained categorical encodings
+
+### Models
+
+- **New stable models**: AutoInt, ENODE, and TabR
+- **New experimental models**: Tangos, Trompt, and ModernNCA
+
+### Documentation
+
+- **Rebuilt documentation**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), [Tutorials with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), and [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)
 
 ## 🏃 Quickstart
 
@@ -54,16 +73,7 @@ probabilities = model.predict_proba(X_test)
 
 > **💡 That's it!** DeepTab handles preprocessing, batching, and training automatically.
 
-> **📊 Works with pandas & numpy:** Pass DataFrames or arrays—DeepTab auto-detects feature types.
-
-## 📖 Why DeepTab?
-
-- **🔧 Familiar API**: Drop-in replacement for sklearn models
-- **⚡ Auto-Preprocessing**: Automatic feature detection and transformation
-- **🎯 State-of-the-Art Models**: 15+ proven architectures
-- **📊 Distributional Regression**: Full distribution prediction (LSS)
-- **🔍 Model Selection**: Comprehensive [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) with guidance
-- **📚 Complete Docs**: [Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), [examples](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and [API reference](https://deeptab.readthedocs.io/en/latest/api/index.html)
+> **📊 Works with pandas & numpy:** Pass DataFrames or arrays, and DeepTab auto-detects feature types.
 
 ## 🤖 Available Models
 
@@ -103,11 +113,13 @@ DeepTab includes 15 stable models + 3 experimental architectures:
 
 All models come in three variants:
 
-- `*Classifier` — Classification (binary & multi-class)
-- `*Regressor` — Regression (point estimates)
-- `*LSS` — Distributional regression (full distribution prediction)
+- `*Classifier`: Classification (binary & multi-class)
+- `*Regressor`: Regression (point estimates)
+- `*LSS`: Distributional regression (full distribution prediction)
 
-> **🔄 Consistent API:** All models use the same interface—swap architectures without changing code!
+> **🔄 Consistent API:** All models use the same interface, so you can swap architectures without changing code!
+
+<!-- END HOMEPAGE CONTENT -->
 
 ## 📚 Documentation
 
@@ -115,11 +127,11 @@ All models come in three variants:
 
 ### Quick Links
 
-- **[Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html)** — Installation, quickstart, FAQ
-- **[Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html)** — sklearn API, config system, preprocessing, training
-- **[Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html)** — Classification, regression, LSS (with Google Colab)
-- **[Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)** — Model selection, comparisons, recommended configs
-- **[API Reference](https://deeptab.readthedocs.io/en/latest/api/index.html)** — Complete API documentation
+- **[Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html)**: Installation, quickstart, FAQ
+- **[Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html)**: sklearn API, config system, preprocessing, training
+- **[Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html)**: Classification, regression, LSS (with Google Colab)
+- **[Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)**: Model selection, comparisons, recommended configs
+- **[API Reference](https://deeptab.readthedocs.io/en/latest/api/index.html)**: Complete API documentation
 
 ## 🛠️ Installation
 
@@ -129,11 +141,23 @@ All models come in three variants:
 pip install deeptab
 ```
 
-**With Mamba SSM (recommended for best performance):**
+**With experiment tracking and structured logging:**
 
 ```bash
-pip install deeptab[mamba]
+pip install 'deeptab[tracking]'   # MLflow + TensorBoard loggers
+pip install 'deeptab[logs]'       # structured logging via structlog
+pip install 'deeptab[all]'        # every optional backend
 ```
+
+**Faster Mamba models (optional CUDA kernels):**
+
+```bash
+pip install mamba-ssm
+```
+
+> **⚡ Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
+
+> **📦 Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
 
 > **💻 Requirements:** Python 3.10+, PyTorch 2.0+, Lightning 2.3.3+
 
@@ -255,6 +279,43 @@ model.fit(X_train, y_train, max_epochs=50)
 
 > **📖 Learn more:** [Preprocessing Guide](https://deeptab.readthedocs.io/en/latest/core_concepts/preprocessing.html)
 
+### Observability & Experiment Tracking
+
+DeepTab can record what happens during training without you writing any callbacks. Pass an `ObservabilityConfig` when you build a model, and each run captures its hyperparameters, lifecycle events, and final metrics in one self-contained folder.
+
+```python
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.models import MambularClassifier
+
+obs = ObservabilityConfig(
+    experiment_name="churn_baseline",
+    structured_logging=True,          # human-readable console + JSON event log
+    experiment_trackers=["mlflow"],   # also supports "tensorboard"
+)
+
+model = MambularClassifier(observability_config=obs)
+model.fit(X_train, y_train, max_epochs=50)
+```
+
+Every fit produces a tidy, reproducible run directory:
+
+```text
+deeptab_runs/
+  runs/churn_baseline/20260611_174830_8f3a2c/
+    config.yaml       # estimator hyperparameters
+    lifecycle.jsonl   # structured event log
+    summary.json      # final metrics
+    checkpoints/best.ckpt
+  tensorboard/...
+  mlflow/...
+```
+
+> **🧭 Tune the noise:** `verbosity` controls how much is emitted (`0` silent, `1` milestones, `2` detailed, `3` debug). The default keeps notebooks quiet.
+
+> **🔬 For researchers:** Lifecycle events such as `fit.started`, `model.created`, and `train.completed` carry structured metadata (sample counts, parameter counts, best validation loss), so you can script experiment sweeps and compare runs programmatically.
+
+> **📖 Learn more:** [Observability](https://deeptab.readthedocs.io/en/latest/core_concepts/observability.html)
+
 ### Custom Models
 
 Implement your own architecture with DeepTab's base classes:
@@ -327,7 +388,7 @@ If you use DeepTab in your research, please cite:
 ```bibtex
 @article{thielmann2024mambular,
   title={Mambular: A Sequential Model for Tabular Deep Learning},
-  author={Thielmann, Anton and Weisser, Christoph and Kre{\ss}in, Arik and Reuter, Fabio and Kruse, Julius and Ben Amor, Farnoosh and Jungbluth, Tobias and dos Anjos, Antonia and Salkuti, Bhavya and S{\"a}fken, Benjamin},
+  author={Thielmann, Anton Frederik and Kumar, Manish and Weisser, Christoph and Reuter, Arik and S{\"a}fken, Benjamin and Samiee, Soheila},
   journal={arXiv preprint arXiv:2408.06291},
   year={2024}
 }
@@ -351,5 +412,5 @@ Contributions are welcome! Please see [Contributing Guide](https://deeptab.readt
 ## 📞 Support
 
 - **Documentation:** [deeptab.readthedocs.io](https://deeptab.readthedocs.io)
-- **Issues:** [GitHub Issues](https://github.com/basf/deeptab/issues)
-- **Discussions:** [GitHub Discussions](https://github.com/basf/deeptab/discussions)
+- **Issues:** [GitHub Issues](https://github.com/OpenTabular/DeepTab/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/OpenTabular/DeepTab/discussions)
