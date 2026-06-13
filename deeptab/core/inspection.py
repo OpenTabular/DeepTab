@@ -77,6 +77,16 @@ def _config_to_dict(config: Any) -> dict[str, Any]:
 class InspectionMixin:
     """Shared model-inspection interface for sklearn-style DeepTab estimators."""
 
+    @property
+    def task_model(self):
+        """The fitted Lightning task model, or ``None`` before fitting.
+
+        This exposes the underlying ``TaskModel`` (which holds the architecture
+        via ``task_model.estimator`` and the loss via ``task_model.loss_fct``)
+        as a stable, public read-only attribute.
+        """
+        return getattr(self, "_task_model", None)
+
     def _require_built_for_inspection(self) -> None:
         if not getattr(self, "_built", False) or getattr(self, "_task_model", None) is None:
             raise ValueError("The model must be built or fitted before this inspection method can be used.")
