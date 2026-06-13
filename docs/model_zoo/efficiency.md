@@ -70,7 +70,7 @@ Synthetic forward-pass benchmarks are useful for isolating architecture cost, bu
 
 ## Using the Efficiency Notebook
 
-The runnable version lives in the [Model Efficiency Benchmarking tutorial](../tutorials/model_efficiency), with the notebook stored at `docs/tutorials/notebooks/model_efficiency.ipynb` ([open on GitHub](https://github.com/basf/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb)). The notebook is stored with the tutorial notebooks so executable examples live in one place.
+The runnable version lives in the [Model Efficiency Benchmarking tutorial](../tutorials/model_efficiency), with the notebook stored at `docs/tutorials/notebooks/model_efficiency.ipynb` ([open on GitHub](https://github.com/OpenTabular/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb)). The notebook is stored with the tutorial notebooks so executable examples live in one place.
 
 Use the notebook when you want to stress-test model families across:
 
