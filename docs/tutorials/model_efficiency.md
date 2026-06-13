@@ -1,10 +1,10 @@
 # Model Efficiency Benchmarking Tutorial
 
 <div style="display: flex; gap: 10px; margin-bottom: 20px;">
-  <a href="https://colab.research.google.com/github/basf/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb" target="_blank">
+  <a href="https://colab.research.google.com/github/OpenTabular/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb" target="_blank">
     <img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"/>
   </a>
-  <a href="https://github.com/basf/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb" target="_blank">
+  <a href="https://github.com/OpenTabular/DeepTab/blob/main/docs/tutorials/notebooks/model_efficiency.ipynb" target="_blank">
     <img src="https://img.shields.io/badge/View%20on-GitHub-181717?logo=github&logoColor=white" alt="View on GitHub"/>
   </a>
 </div>
