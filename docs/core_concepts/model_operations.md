@@ -6,7 +6,7 @@ This page covers what you can do with a fitted DeepTab model beyond training: ho
 
 ## Serialisation
 
-DeepTab models save the complete artifact needed for inference — weights, fitted preprocessor, feature schema, model config, task metadata, and package versions.
+DeepTab models save the complete artifact needed for inference: weights, fitted preprocessor, feature schema, model config, task metadata, and package versions.
 
 ### Saving and loading
 
@@ -16,7 +16,7 @@ The recommended extension is `.deeptab`. DeepTab emits a `UserWarning` when a di
 # Save
 model.save("my_model.deeptab")
 
-# Load (returns a fully ready estimator — no re-fitting needed)
+# Load (returns a fully ready estimator, no re-fitting needed)
 from deeptab.models import MLPClassifier
 
 loaded = MLPClassifier.load("my_model.deeptab")
@@ -82,7 +82,7 @@ loaded.input_columns_          # ordered feature names
 
 All DeepTab estimators inherit `InspectionMixin`, which provides four read-only methods and one dry-run profiler. They are safe to call before or after fitting.
 
-### `describe()` — structured dict
+### `describe()`: structured dict
 
 Returns a structured snapshot of the estimator and its fitted state:
 
@@ -101,9 +101,9 @@ info = model.describe()
 # }
 ```
 
-Safe to call before fitting — parameter and feature metadata are omitted when the model is not yet built.
+Safe to call before fitting: parameter and feature metadata are omitted when the model is not yet built.
 
-### `summary()` — human-readable string
+### `summary()`: human-readable string
 
 Compact text report combining `describe()` and `runtime_info()`:
 
@@ -122,7 +122,7 @@ print(model.summary())
 #   Accelerator: None
 ```
 
-### `parameter_table()` — per-parameter DataFrame
+### `parameter_table()`: per-parameter DataFrame
 
 Returns one row per parameter:
 
@@ -137,7 +137,7 @@ df.head()
 df_train = model.parameter_table(trainable_only=True)
 ```
 
-### `runtime_info()` — device and training setup
+### `runtime_info()`: device and training setup
 
 ```python
 info = model.runtime_info()
@@ -157,9 +157,9 @@ info = model.runtime_info()
 # }
 ```
 
-### `profile()` — pre-training dry run
+### `profile()`: pre-training dry run
 
-`profile()` builds the model on a small sample, runs a forward pass, and returns a complete picture of what training will look like — without any gradient updates.
+`profile()` builds the model on a small sample, runs a forward pass, and returns a complete picture of what training will look like, without any gradient updates.
 
 ```python
 result = model.profile(X, y)   # dry_run=True by default
@@ -192,7 +192,7 @@ Key parameters:
 
 When `dry_run=False`, the estimator is left built after the call and can proceed directly to `fit()`.
 
-If the build fails for any reason, `result["builds"]` is `False` and `result["error"]` contains the exception message — all other keys are still present.
+If the build fails for any reason, `result["builds"]` is `False` and `result["error"]` contains the exception message, while all other keys are still present.
 
 ---
 

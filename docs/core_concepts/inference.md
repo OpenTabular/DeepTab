@@ -12,12 +12,12 @@ Both paths load the same artifact and call the same underlying neural network. T
 
 | Concern                   | `estimator.load()` + `predict()`                                                      | `InferenceModel`                                                                                 |
 | ------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Interface surface**     | Full estimator API — `fit`, `optimize_hparams`, `build_model`, etc.                   | Only `predict`, `predict_proba`, `predict_params`, `validate_input`, `describe`, `runtime_info`  |
+| **Interface surface**     | Full estimator API: `fit`, `optimize_hparams`, `build_model`, etc.                    | Only `predict`, `predict_proba`, `predict_params`, `validate_input`, `describe`, `runtime_info`  |
 | **Schema validation**     | `validate_input_features` checks count and name equality, but column order must match | `validate_input` checks missing columns, extra columns, and silently re-orders to training order |
 | **Missing-column error**  | Raises a generic sklearn-style message                                                | Raises with the exact list of missing column names                                               |
 | **Extra-column handling** | Raises                                                                                | Configurable: raises by default, or drops with a warning when `allow_extra_columns=True`         |
 | **Column reordering**     | Not performed                                                                         | Always reorders to match training order before calling the estimator                             |
-| **Production intent**     | Signals "research / local experimentation"                                            | Signals "deployment" — the code reviewer and the type checker both see a narrower type           |
+| **Production intent**     | Signals "research / local experimentation"                                            | Signals "deployment": the code reviewer and the type checker both see a narrower type            |
 | **Task-aware API**        | One `predict()` for all tasks                                                         | `predict_proba()` and `predict_params()` raise `TypeError` when called on the wrong task type    |
 
 ```{tip}
@@ -27,7 +27,7 @@ Use `InferenceModel` when writing a service, pipeline step, or batch job where t
 
 ---
 
-## Step 1 — Load from a saved artifact
+## Step 1: Load from a saved artifact
 
 ```python
 from deeptab import InferenceModel
@@ -38,7 +38,7 @@ model = InferenceModel.from_path("my_model.deeptab")
 `from_path` calls the estimator's own `load()` classmethod internally, so the artifact format is identical to what `estimator.load()` reads. Any `.deeptab` file saved by `model.save()` is valid input.
 
 ```{note}
-A `UserWarning` is emitted when the file does not end with `.deeptab`. The file is still loaded correctly — the warning is advisory only.
+A `UserWarning` is emitted when the file does not end with `.deeptab`. The file is still loaded correctly; the warning is advisory only.
 ```
 
 ### Wrap an already-fitted estimator
@@ -61,7 +61,7 @@ InferenceModel.from_estimator(MLPClassifier())
 
 ---
 
-## Step 2 — Inspect what was loaded
+## Step 2: Inspect what was loaded
 
 Before routing data through the model, check that the artifact matches your expectations.
 
@@ -111,7 +111,7 @@ df = model.parameter_table()
 
 ---
 
-## Step 3 — Validate input
+## Step 3: Validate input
 
 `validate_input` enforces the column contract against training data before prediction. Call it explicitly to get a clear error before handing data to the model, or rely on the fact that `predict`, `predict_proba`, and `predict_params` all call it internally.
 
@@ -180,7 +180,7 @@ model.validate_input(X_wrong_shape)
 
 ---
 
-## Step 4 — Predict
+## Step 4: Predict
 
 ### Classification
 
@@ -247,7 +247,7 @@ print(model)
 def score_request(payload: dict) -> dict:
     X = pd.DataFrame([payload])
 
-    # Validate schema — raises immediately on mismatch
+    # Validate schema, raises immediately on mismatch
     X_clean = model.validate_input(X, allow_extra_columns=True)
 
     proba   = model.predict_proba(X_clean)
@@ -298,6 +298,6 @@ print(model)
 
 ## Next Steps
 
-- [Model Operations](model_operations) — saving, loading, and inspecting estimators
-- [sklearn API](sklearn_api) — the full estimator interface for research and training
-- [Training and Evaluation](training_and_evaluation) — fit pipeline, configs, and callbacks
+- [Model Operations](model_operations): saving, loading, and inspecting estimators
+- [sklearn API](sklearn_api): the full estimator interface for research and training
+- [Training and Evaluation](training_and_evaluation): fit pipeline, configs, and callbacks

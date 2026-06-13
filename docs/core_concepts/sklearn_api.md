@@ -124,42 +124,43 @@ predictions = model.predict(X_test, embeddings=test_embeddings)
 
 ## Evaluate
 
-Default metric names are implementation-defined:
+`evaluate()` returns a `{metric_name: score}` dictionary. With no `metrics` argument it uses the task defaults from the metric registry, so the keys are the metric short names:
 
 ```python
 classifier.evaluate(X_test, y_test)
-# {"Accuracy": ...}
+# {"accuracy": ..., "auroc": ..., "log_loss": ...}
 
 regressor.evaluate(X_test, y_test)
-# {"Mean Squared Error": ...}
+# {"rmse": ..., "mae": ..., "r2": ...}
 ```
 
-Use explicit metrics in tutorials and papers:
+For tutorials and papers, pass explicit metrics. The dictionary values are callables with the signature `metric(y_true, y_pred)`; the built-in `DeepTabMetric` classes route probability-based metrics (such as `LogLoss` and `AUROC`) to `predict_proba` automatically:
 
 ```python
-from sklearn.metrics import accuracy_score, log_loss
+from deeptab.metrics import Accuracy, AUROC, LogLoss
 
 classifier.evaluate(
     X_test,
     y_test,
     metrics={
-        "accuracy": (accuracy_score, False),
-        "log_loss": (log_loss, True),
+        "accuracy": Accuracy(),
+        "auroc": AUROC(),
+        "log_loss": LogLoss(),
     },
 )
 ```
 
 ## Score
 
-`score()` follows a consistent default per estimator family:
+`score()` follows the scikit-learn convention of one default metric per estimator family (higher is better):
 
-| Estimator  | Current default         |
+| Estimator  | Default `score()`       |
 | ---------- | ----------------------- |
 | Classifier | accuracy                |
-| Regressor  | mean squared error      |
+| Regressor  | R2                      |
 | LSS        | negative log-likelihood |
 
-Pass a metric explicitly if you need F1, R2, log loss, or another convention:
+Pass a metric explicitly if you need F1, log loss, or another convention:
 
 ```python
 from sklearn.metrics import log_loss
@@ -192,9 +193,9 @@ For normal user workflows, prefer the estimator-level API:
 
 ```python
 model.fit(X_train, y_train)
-model.save("model.pt")
+model.save("model.deeptab")
 
-loaded = type(model).load("model.pt")
+loaded = type(model).load("model.deeptab")
 predictions = loaded.predict(X_test)
 ```
 
@@ -212,7 +213,7 @@ The saved estimator bundle is designed as a fitted inference artifact. It includ
 Using pandas DataFrames is recommended because the saved schema can preserve meaningful column names. NumPy inputs are supported, but their inferred column order is positional.
 
 ```python
-loaded = MambularClassifier.load("model.pt")
+loaded = MambularClassifier.load("model.deeptab")
 
 loaded.input_columns_
 loaded.feature_schema_
