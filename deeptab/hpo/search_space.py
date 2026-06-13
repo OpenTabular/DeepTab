@@ -97,8 +97,15 @@ def get_search_space(
     # Iterate through config fields
     for field in config.__dataclass_fields__:
         if field in fixed_params:
-            # Fix the parameter value directly in the config
-            setattr(config, field, fixed_params[field])
+            # Fix the parameter value directly in the config. Activation fields
+            # are stored as nn.Module instances, so map a known activation name
+            # to its module just like the search loop does; any other value
+            # (numbers, booleans, plain string choices) is set as-is.
+            fixed_value = fixed_params[field]
+            if isinstance(fixed_value, str) and fixed_value in activation_mapper:
+                setattr(config, field, activation_mapper[fixed_value])
+            else:
+                setattr(config, field, fixed_value)
             continue  # Skip optimization for this parameter
 
         if field in search_space_mapping:

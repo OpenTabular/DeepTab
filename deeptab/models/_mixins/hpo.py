@@ -26,6 +26,7 @@ class _HyperparameterMixin:
 
         def fit(self, X: Any, y: Any, **kwargs: Any) -> Any: ...
         def _build_model(self, X: Any, y: Any, **kwargs: Any) -> None: ...
+        def build_model(self, X: Any, y: Any, **kwargs: Any) -> Any: ...
         def _score(self, X: Any, y: Any, embeddings: Any, metric: Any) -> float: ...
 
     """Bayesian hyperparameter search via :func:`skopt.gp_minimize`.
@@ -98,27 +99,34 @@ class _HyperparameterMixin:
             custom_search_space=custom_search_space,
         )
 
-        # Initial fit to establish a baseline validation loss
-        self.fit(
-            X,
-            y,
-            regression=regression,
-            X_val=X_val,
-            y_val=y_val,
-            embeddings=embeddings,
-            embeddings_val=embeddings_val,
-            max_epochs=max_epochs,
-        )
+        # Shared keyword arguments for every fit() call. The task-aware fit()
+        # wrapper of each estimator injects ``regression`` (and an LSS ``family``
+        # arrives via ``optimize_kwargs``), so neither is forwarded here. Optional
+        # external embeddings are only passed when actually supplied, because the
+        # LSS fit() signature does not accept them.
+        base_fit_kwargs = {"X_val": X_val, "y_val": y_val, **optimize_kwargs}
+        if embeddings is not None:
+            base_fit_kwargs["embeddings"] = embeddings
+        if embeddings_val is not None:
+            base_fit_kwargs["embeddings_val"] = embeddings_val
 
-        if hasattr(self, "score") and callable(self.score):  # type: ignore[attr-defined]
-            if X_val is not None and y_val is not None:
-                val_loss = self.score(X_val, y_val)  # type: ignore[attr-defined]
-            else:
-                val_loss = self._trainer.validate(self._task_model, self._data_module)[0]["val_loss"]
-        else:
-            raise NotImplementedError("The 'score' method is not implemented in the child class.")
+        def _validation_loss():
+            """Return the scalar Lightning ``val_loss`` for the current model.
 
-        best_val_loss = val_loss
+            ``val_loss`` is the training objective itself (MSE for regression,
+            cross-entropy for classification, negative log-likelihood for LSS),
+            so it is always defined and always lower-is-better. Using it as the
+            optimisation target keeps the search direction consistent across
+            every task type.
+            """
+            return float(self._trainer.validate(self._task_model, self._data_module, verbose=False)[0]["val_loss"])
+
+        # Initial fit to establish a baseline validation loss. rebuild=True (the
+        # default) means this call also constructs the model; for LSS it sets the
+        # distribution family that subsequent build_model() calls reuse.
+        self.fit(X, y, max_epochs=max_epochs, **base_fit_kwargs)
+
+        best_val_loss = _validation_loss()
         best_epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
             prune_epoch
         )
@@ -134,30 +142,25 @@ class _HyperparameterMixin:
                     head_layer_size_length = param_value
                 elif key.startswith("head_layer_size_"):
                     head_layer_sizes.append(round_to_nearest_16(param_value))
+                elif isinstance(param_value, str) and param_value in activation_mapper:
+                    # Activation fields are stored as nn.Module instances; the
+                    # search space proposes them by name, so map name -> module.
+                    setattr(self.config, key, activation_mapper[param_value])
                 else:
-                    field_type = self.config.__dataclass_fields__[key].type
-                    if field_type == callable and isinstance(param_value, str):
-                        if param_value in activation_mapper:
-                            setattr(self.config, key, activation_mapper[param_value])
-                        else:
-                            raise ValueError(f"Unknown activation function: {param_value}")
-                    else:
-                        setattr(self.config, key, param_value)
+                    setattr(self.config, key, param_value)
 
             if head_layer_size_length is not None:
                 self.config.head_layer_sizes = head_layer_sizes[:head_layer_size_length]
 
-            self._build_model(
-                X,
-                y,
-                regression=regression,
-                X_val=X_val,
-                y_val=y_val,
-                embeddings=embeddings,
-                embeddings_val=embeddings_val,
-                lr=self.config.lr,
-                **optimize_kwargs,
-            )
+            # Rebuild the model with the candidate config using the task-aware
+            # public build_model(), which selects the correct head (regression,
+            # classification, or the LSS distribution family stored on self).
+            build_kwargs = {"X_val": X_val, "y_val": y_val, "lr": getattr(self.config, "lr", None)}
+            if embeddings is not None:
+                build_kwargs["embeddings"] = embeddings
+            if embeddings_val is not None:
+                build_kwargs["embeddings_val"] = embeddings_val
+            self.build_model(X, y, **build_kwargs)
 
             if prune_by_epoch:
                 early_pruning_threshold = best_epoch_val_loss * 1.5
@@ -168,23 +171,11 @@ class _HyperparameterMixin:
             self._task_model.pruning_epoch = prune_epoch  # type: ignore
 
             try:
-                self.fit(
-                    X,
-                    y,
-                    regression=regression,
-                    X_val=X_val,
-                    y_val=y_val,
-                    max_epochs=max_epochs,
-                    rebuild=False,
-                )
+                # rebuild=False trains the model just constructed above so that
+                # the pruning thresholds set on it are preserved.
+                self.fit(X, y, max_epochs=max_epochs, rebuild=False, **base_fit_kwargs)
 
-                if hasattr(self, "score") and callable(self._score):
-                    if X_val is not None and y_val is not None:
-                        val_loss = self._score(X_val, y_val)  # type: ignore[call-arg]
-                    else:
-                        val_loss = self._trainer.validate(self._task_model, self._data_module)[0]["val_loss"]
-                else:
-                    raise NotImplementedError("The 'score' method is not implemented in the child class.")
+                val_loss = _validation_loss()
 
                 epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
                     prune_epoch
@@ -212,12 +203,10 @@ class _HyperparameterMixin:
                 head_layer_sizes.append(round_to_nearest_16(param_value))
             elif key.startswith("layer_size_") and layer_sizes is not None:
                 layer_sizes.append(round_to_nearest_16(param_value))
+            elif isinstance(param_value, str) and param_value in activation_mapper:
+                setattr(self.config, key, activation_mapper[param_value])
             else:
-                field_type = self.config.__dataclass_fields__[key].type
-                if field_type == callable and isinstance(param_value, str):
-                    setattr(self.config, key, activation_mapper[param_value])
-                else:
-                    setattr(self.config, key, param_value)
+                setattr(self.config, key, param_value)
 
         if head_layer_sizes is not None and head_layer_sizes:
             self.config.head_layer_sizes = head_layer_sizes

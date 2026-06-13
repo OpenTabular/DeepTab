@@ -189,8 +189,12 @@ class _FitMixin:
         )
 
         _t_model = time.monotonic()
+        # After the first build, self._estimator holds the model *instance*
+        # (assigned below). Resolve back to the class so repeated builds
+        # (e.g. HPO trials or a refit) construct a fresh model correctly.
+        _model_class = self._estimator if isinstance(self._estimator, type) else type(self._estimator)
         self._task_model = self._task_model_factory.create(
-            model_class=self._estimator,  # type: ignore
+            model_class=_model_class,  # type: ignore
             config=self.config,
             feature_information=(
                 self._data_module.num_feature_info,  # type: ignore[arg-type]
