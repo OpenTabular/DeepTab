@@ -20,7 +20,7 @@ To run a single file or a specific test:
 
 ```bash
 poetry run pytest tests/test_models.py -v
-poetry run pytest tests/test_models.py::test_tabnet_fit -v
+poetry run pytest tests/test_models.py::test_classifier_fit_predict_shape -v
 ```
 
 To print live log output and stop on the first failure:
@@ -28,29 +28,6 @@ To print live log output and stop on the first failure:
 ```bash
 poetry run pytest tests/ -x -s
 ```
-
-## Test files
-
-| File                                | What it covers                                                                                                            |
-| ----------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
-| `tests/test_models.py`              | End-to-end fit/predict cycle for every model                                                                              |
-| `tests/test_base.py`                | Shared base-class behaviour (sklearn API, `set_params`, `get_params`)                                                     |
-| `tests/test_config_api.py`          | Split-config API: `TrainerConfig`, `PreprocessingConfig`, per-model `*Config` classes                                     |
-| `tests/test_data.py`                | Data API contracts: `TabularDataset`, `TabularDataModule`, `FeatureSchema`, `TabularBatch`                                |
-| `tests/test_inference_model.py`     | `InferenceModel`: `from_path`, `from_estimator`, `validate_input`, task-type enforcement                                  |
-| `tests/test_save_load.py`           | Checkpoint save / load round-trips, prediction identity after reload                                                      |
-| `tests/test_model_exports.py`       | ONNX export and TorchScript tracing                                                                                       |
-| `tests/test_metrics.py`             | All metric classes: return type, value, attribute contract, LSS parameter handling                                        |
-| `tests/test_distributions.py`       | Distribution classes: importability, `__all__` completeness, forward pass                                                 |
-| `tests/test_class_imbalance.py`     | Class-imbalance helpers: `compute_class_weights`, `build_weighted_classification_loss`, `class_weight`/`loss_fct` fit API |
-| `tests/test_training_optimizers.py` | Optimizer registry: `get_optimizer`, `build_optimizer`, parameter groups                                                  |
-| `tests/test_training_schedulers.py` | Scheduler registry: `get_scheduler`, `build_scheduler`, plateau/mode wiring                                               |
-| `tests/test_reproducibility.py`     | `set_seed` and `seed_context`: PyTorch, NumPy, Python RNG seeding                                                         |
-| `tests/test_inspection.py`          | `InspectionMixin` methods and model introspection                                                                         |
-| `tests/test_profile.py`             | `InspectionMixin.profile()`: dry-run and live-model profiling                                                             |
-| `tests/test_nn_blocks.py`           | `deeptab.nn` blocks: forward-pass correctness without a training loop                                                     |
-| `tests/test_hpo.py`                 | HPO API: `get_search_space` importability and return contract                                                             |
-| `tests/test_exceptions.py`          | Exception and warning hierarchy, factories, and integration                                                               |
 
 ## Writing new tests
 
@@ -95,8 +72,10 @@ All 12 combinations run in parallel with `fail-fast: false`, so a failure in one
 
 ## Pre-push checks
 
-The pre-commit configuration includes a push-stage hook that runs the full test suite before `git push`. This is installed automatically by `just install`. To run it manually:
+The pre-commit configuration includes a push-stage hook that runs `pyright` type checking before `git push`. This is installed automatically by `just install`. To run it manually:
 
 ```bash
 just check
 ```
+
+The full test suite is not part of the push hook; it runs in CI on every push and pull request. Run `just test` locally before pushing if your change touches model or training code.

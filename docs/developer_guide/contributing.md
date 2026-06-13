@@ -81,7 +81,9 @@ just test
 just docs
 ```
 
-Verify the output under `docs/_build/html/`. `index.html` is the entry point. 7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
+Verify the output under `docs/_build/html/`, where `index.html` is the entry point.
+
+7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
 
 ```bash
 just check
@@ -106,26 +108,30 @@ just commit
 
 ## Pre-commit Hooks
 
-This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. The hooks run on two stages:
+This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. The hooks run at two stages:
 
-- **commit** — `ruff` format and lint checks, plus general file hygiene hooks
-- **push** — `pyright` type checking (slow, so deferred to push)
+- **commit**: `ruff` format and lint checks, plus general file hygiene hooks (trailing whitespace, end-of-file, merge conflicts).
+- **push**: `pyright` type checking, which is slower and so is deferred until push.
+
+A separate `commit-msg` hook validates that every commit message follows the Conventional Commits format.
 
 `just install` registers all three hook types (`commit-msg`, `pre-commit`, `pre-push`) so everything fires at the right time automatically.
 
-> **Important:** Run `just check` before opening a PR. It executes all hooks against every file in the repo (both commit and push stages), giving you the same signal CI will see.
+```{important}
+Run `just check` before opening a PR. It executes the commit and push stage hooks against every file in the repo, giving you the same signal CI will see.
+```
 
 ```bash
-# Run commit-stage hooks on all files (ruff format, ruff lint, file hygiene)
+# Lint and auto-fix with ruff
 just lint
 
-# Run ruff formatter
+# Run the ruff formatter
 just format
 
-# Run pyright type checker
-just typecheck
+# Run the pyright type checker
+just types
 
-# Run ALL hooks across ALL files (commit + push stages) — equivalent to what CI checks
+# Run ALL hooks across ALL files (commit + push stages), equivalent to what CI checks
 just check
 ```
 
@@ -138,7 +144,7 @@ Type checking with `pyright` runs automatically on `git push` via the pre-push h
 To run it manually at any time:
 
 ```bash
-just typecheck
+just types
 ```
 
 Fix any reported errors before opening a PR.
@@ -158,9 +164,9 @@ open docs/_build/html/index.html
 
 For the end-to-end release procedure (version bump, tags, PyPI publishing) see:
 
-- **[Release process](release.md)** — step-by-step instructions
-- **[Versioning](versioning.md)** — SemVer rules, commit types, `cz bump`
-- **[CI/CD](ci_cd.md)** — what each GitHub Actions workflow does
+- **[Release process](release.md)**: step-by-step instructions.
+- **[Versioning](versioning.md)**: SemVer rules, commit types, `cz bump`.
+- **[CI/CD](ci_cd.md)**: what each GitHub Actions workflow does.
 
 ## Submitting Contributions
 
