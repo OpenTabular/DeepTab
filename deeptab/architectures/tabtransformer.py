@@ -95,6 +95,7 @@ class TabTransformer(BaseModel):
             encoder_layer,
             num_layers=self.hparams.n_layers,
             norm=self.norm_f,
+            enable_nested_tensor=False,
         )
 
         mlp_input_dim = 0

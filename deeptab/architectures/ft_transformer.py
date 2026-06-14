@@ -76,6 +76,7 @@ class FTTransformer(BaseModel):
             encoder_layer,
             num_layers=self.hparams.n_layers,
             norm=self.norm_f,
+            enable_nested_tensor=False,
         )
 
         self.tabular_head = MLPhead(

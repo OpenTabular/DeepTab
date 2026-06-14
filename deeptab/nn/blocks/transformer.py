@@ -40,6 +40,7 @@ class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
             activation=getattr(config, "transformer_activation", F.relu),
             layer_norm_eps=getattr(config, "layer_norm_eps", 1e-5),
             norm_first=getattr(config, "norm_first", False),
+            batch_first=True,
         )
         self.bias = getattr(config, "bias", True)
         self.custom_activation = getattr(config, "transformer_activation", F.relu)
