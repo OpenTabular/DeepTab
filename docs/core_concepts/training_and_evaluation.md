@@ -252,6 +252,101 @@ tc = TrainerConfig(scheduler_type="warmup_cosine")
 
 ---
 
+## Fit-time Parameters
+
+`TrainerConfig` sets training defaults at construction time, but `fit()` also
+accepts keyword arguments. A value passed to `fit()` overrides the matching
+`TrainerConfig` field for that single run, which is convenient for quick
+experiments without rebuilding the estimator.
+
+```{note}
+Anything you can configure through `TrainerConfig` can also be passed directly
+to `fit()`. The `fit()` argument always wins when both are provided.
+```
+
+```python
+from deeptab.configs import TrainerConfig
+from deeptab.models import MLPClassifier
+
+model = MLPClassifier(trainer_config=TrainerConfig(max_epochs=100, lr=1e-3))
+
+# Override training settings just for this run.
+model.fit(
+    X_train, y_train,
+    X_val=X_val, y_val=y_val,
+    max_epochs=50,          # overrides TrainerConfig(max_epochs=100)
+    batch_size=256,
+    patience=10,
+    monitor="val_auroc",
+    mode="max",
+    lr=3e-4,
+    random_state=42,
+)
+```
+
+### Available `fit()` arguments
+
+| Argument                       | Default               | Purpose                                                                          |
+| ------------------------------ | --------------------- | -------------------------------------------------------------------------------- |
+| `X`, `y`                       | required              | Training inputs and targets.                                                     |
+| `val_size`                     | `0.2`                 | Validation fraction when `X_val` is not given. Ignored if `X_val` is provided.   |
+| `X_val`, `y_val`               | `None`                | Explicit validation set. Skips the internal split when supplied.                 |
+| `embeddings`, `embeddings_val` | `None`                | External feature embeddings for train and validation data.                       |
+| `max_epochs`                   | `100`                 | Maximum number of training epochs.                                               |
+| `random_state`                 | `101`                 | Seed applied before model build and training for reproducibility.                |
+| `batch_size`                   | `128`                 | Samples per gradient update.                                                     |
+| `shuffle`                      | `True`                | Shuffle training data each epoch.                                                |
+| `patience`                     | `15`                  | Early-stopping patience on the monitored metric.                                 |
+| `monitor`                      | `"val_loss"`          | Metric watched for early stopping and the LR scheduler.                          |
+| `mode`                         | `"min"`               | Whether the monitored metric is minimised (`"min"`) or maximised (`"max"`).      |
+| `lr`                           | `None`                | Learning rate. Falls back to `TrainerConfig.lr` when `None`.                     |
+| `lr_patience`, `lr_factor`     | `None`                | LR-scheduler patience and reduction factor.                                      |
+| `weight_decay`                 | `None`                | L2 penalty coefficient.                                                          |
+| `checkpoint_path`              | `"model_checkpoints"` | Directory for best-checkpoint saving and restore.                                |
+| `train_metrics`, `val_metrics` | `None`                | `torchmetrics` dicts logged during training and validation.                      |
+| `dataloader_kwargs`            | `{}`                  | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                   |
+| `rebuild`                      | `True`                | Rebuild the architecture even if one already exists.                             |
+| `**trainer_kwargs`             | -                     | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...). |
+
+### Classifier-only arguments
+
+| Argument           | Default | Purpose                                                                                    |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------ |
+| `class_weight`     | `None`  | `"balanced"`, a `{label: weight}` mapping, or an array to reweight the loss for imbalance. |
+| `loss_fct`         | `None`  | An `nn.Module` or registered loss name (`"focal"`, `"bce"`, `"cross_entropy"`).            |
+| `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                           |
+| `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.               |
+
+### LSS-only argument
+
+Distributional (`*LSS`) estimators accept a `family` argument in `fit()` that
+selects the output distribution:
+
+```python
+from deeptab.models import MLPLSS
+
+model = MLPLSS()
+model.fit(X_train, y_train, family="normal", max_epochs=50)
+```
+
+### Lightning Trainer passthrough
+
+Any keyword not listed above flows through `**trainer_kwargs` straight to
+Lightning's `Trainer`, so device, precision, and gradient-clipping are set on
+`fit()`:
+
+```python
+model.fit(
+    X_train, y_train,
+    accelerator="gpu",
+    devices=1,
+    precision="32-true",
+    gradient_clip_val=1.0,
+)
+```
+
+---
+
 ## Reproducibility
 
 Getting the same result every time is essential for debugging, comparisons, and publication. DeepTab seeds every layer of randomness from data splitting through weight initialisation.
