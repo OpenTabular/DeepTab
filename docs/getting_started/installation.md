@@ -1,7 +1,7 @@
 # Installation
 
 ```{important}
-**Requirements:** Python 3.10+ | PyTorch 2.0+ (auto-installed)
+**Requirements:** Python 3.10+ | PyTorch 2.2+ (auto-installed)
 **Installation time:** ~2 minutes
 ```
 

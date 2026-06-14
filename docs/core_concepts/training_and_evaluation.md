@@ -54,7 +54,7 @@ cfg = PreprocessingConfig(
     numerical_preprocessing="quantile",
     categorical_preprocessing="int",
     n_bins=50,
-    scaling_strategy="standard",
+    scaling_strategy="standardization",
 )
 ```
 
@@ -85,7 +85,7 @@ Practical starting points:
 ```python
 model.fit(X_train, y_train)
 
-dm = model.data_module
+dm = model._data_module
 print(dm.num_feature_info)
 print(dm.cat_feature_info)
 

@@ -63,7 +63,7 @@ from deeptab.models import MLPRegressor
 
 model = MLPRegressor(
     model_config=MLPConfig(layer_sizes=[256, 128, 32], dropout=0.2),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
