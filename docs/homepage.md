@@ -1,90 +1,112 @@
-```{include} ../README.md
-:start-after: <!-- START SHARED CONTENT -->
-:end-before: <!-- END HOMEPAGE CONTENT -->
+# DeepTab: Tabular Deep Learning Made Simple
+
+DeepTab is a Python library for deep learning on tabular data. It brings state-of-the-art architectures, State Space Models (Mamba), Transformers, and tree-inspired networks, to a single scikit-learn compatible interface, so you can go from a DataFrame to a trained model in a few lines.
+
+```python
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier()
+model.fit(X_train, y_train, max_epochs=50)
+
+predictions = model.predict(X_test)
+probabilities = model.predict_proba(X_test)
 ```
 
----
+## Why DeepTab
 
-## 📚 Documentation Navigation
+- **Familiar interface.** A scikit-learn `fit`/`predict`/`evaluate` API that drops into existing pipelines, including `GridSearchCV`.
+- **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are built in.
+- **One model, three tasks.** Every architecture ships as a classifier, a regressor, and a distributional (`LSS`) variant for uncertainty quantification.
+- **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](model_zoo/comparison_tables).
+- **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.
 
-### 🚀 Getting Started
+## Installation
 
-New to DeepTab? Start here:
+```bash
+pip install deeptab
+```
 
-- **[Overview](getting_started/overview)**: What is DeepTab?
-- **[Why DeepTab?](getting_started/why_deeptab)**: Key features and advantages
-- **[Installation](getting_started/installation)**: Setup and dependencies
-- **[Quickstart](getting_started/quickstart)**: Your first model in 5 minutes
-- **[FAQ](getting_started/faq)**: Common questions answered
+DeepTab requires Python 3.10+ and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
 
-### 📖 Core Concepts
+## What's New in v2.0
 
-Understand DeepTab's design:
+- **Split-config API**: separate model, preprocessing, and training configuration objects.
+- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the pipeline an inspectable contract.
+- **Unified metrics**: 25+ metric classes auto-selected per task, with a registry-backed optimizer and scheduler system.
+- **Observability**: `ObservabilityConfig` adds structured logging and one-line MLflow or TensorBoard tracking.
+- **New models**: AutoInt, ENODE, and TabR (stable); Tangos, Trompt, and ModernNCA (experimental).
 
-- **[sklearn API](core_concepts/sklearn_api)**: Familiar fit/predict/evaluate interface
-- **[Model Tiers](core_concepts/model_tiers)**: Stable vs experimental models
-- **[Config System](core_concepts/config_system)**: Split-config for model, preprocessing, training
-- **[Training & Evaluation](core_concepts/training_and_evaluation)**: Fit pipeline, preprocessing, reproducibility, evaluation
-- **[Observability](core_concepts/observability)**: Lifecycle events, structured logging, and experiment tracking
-- **[Model Operations](core_concepts/model_operations)**: Serialisation and model inspection
-- **[Inference](core_concepts/inference)**: `InferenceModel` for schema validation and deployment-safe prediction
+See the [Overview](getting_started/overview) for the full picture.
 
-### 🎯 Interactive Tutorials
+## Available Models
 
-Hands-on examples with Google Colab:
+DeepTab provides 15 stable architectures across five families: State Space Models (Mambular, MambaTab, MambAttention), Transformers (FTTransformer, TabTransformer, SAINT, AutoInt), residual networks (ResNet, TabR), tree-inspired models (NODE, ENODE, NDTF), and general baselines (MLP, TabM, TabulaRNN). Three experimental models (ModernNCA, Tangos, Trompt) are under evaluation for promotion.
 
-- **[Classification Tutorial](tutorials/imbalance_classification)**: Multi-class classification workflow
-- **[Skewed-Target Regression](tutorials/skewed_regression)**: Regression on a right-skewed target with FT-Transformer
-- **[Uncertainty Quantification (LSS)](tutorials/uncertainty_quantification)**: Calibrated prediction intervals and full distribution prediction
-- **[Experimental Models](tutorials/experimental)**: Using cutting-edge architectures
-- **[Model Efficiency Benchmarking](tutorials/model_efficiency)**: Runtime and memory workflow
-- **[Advanced Training & Inference](tutorials/advanced_training)**: Optimizer/scheduler registry, custom extensions, `InferenceModel` in production
-- **[Observability & Logging](tutorials/observability)**: Run directories, structured logging, experiment trackers, and bring-your-own-logger
-
-### 🤖 Model Zoo
-
-Choose the right model for your task:
-
-- **[Model Selection Guide](model_zoo/comparison_tables)**: Quick start and decision tree
-- **[Comparison Tables](model_zoo/comparison_tables)**: Performance across dimensions
-- **[Efficiency & Benchmarking](model_zoo/efficiency)**: Runtime and memory benchmarking guidance
-- **[Recommended Configs](model_zoo/recommended_configs)**: Hyperparameter recipes
-
-**Browse by category:**
-
-- [State Space Models](model_zoo/stable/index): Mambular, MambaTab, MambAttention
-- [Transformer-Based](model_zoo/stable/index): FTTransformer, TabTransformer, SAINT
-- [MLP-Based](model_zoo/stable/index): ResNet, MLP, TabM, AutoInt
-- [Tree-Based](model_zoo/stable/index): NODE, ENODE, NDTF
-- [Specialized](model_zoo/stable/index): TabR, TabulaRNN
-- [Experimental](model_zoo/experimental/index): ModernNCA, Tangos, Trompt
-
-### 📖 API Reference
-
-Complete API documentation:
-
-- **[Models API](api/models/index)**: All model classes (Classifier, Regressor, LSS)
-- **[Configs API](api/configs/index)**: Configuration dataclasses
-- **[Data API](api/data/index)**: TabularDataset, TabularDataModule, schemas
-- **[Distributions API](api/distributions/index)**: LSS distribution families
-- **[Training API](api/training/index)**: Lightning modules for advanced use
-
-### 🛠️ Developer Guide
-
-Contributing to DeepTab:
-
-- **[Contributing Guidelines](developer_guide/contributing)**: How to contribute
-- **[Testing](developer_guide/testing)**: Test suite and coverage
-- **[Documentation](developer_guide/documentation)**: Building docs locally
-- **[Release Process](developer_guide/release)**: Release workflow
-- **[Versioning](developer_guide/versioning)**: Semantic versioning policy
-- **[CI/CD](developer_guide/ci_cd)**: Continuous integration
-- **[Model Promotion Policy](developer_guide/model_promotion_policy)**: Experimental to stable
-- **[Support Matrix](developer_guide/support_matrix)**: Python/PyTorch versions
+Each architecture comes in three variants, `*Classifier`, `*Regressor`, and `*LSS`, sharing one interface so you can swap models without changing code. See the [Model Zoo](model_zoo/comparison_tables) for comparisons and selection guidance.
 
 ---
 
-## 🏷️ Citation
+## Documentation
+
+### Getting Started
+
+- [Overview](getting_started/overview): What DeepTab is and when to use it
+- [Installation](getting_started/installation): Setup, GPU support, and optional kernels
+- [Quickstart](getting_started/quickstart): Train your first models in a few minutes
+- [FAQ](getting_started/faq): Common questions and troubleshooting
+
+### Core Concepts
+
+- [sklearn API](core_concepts/sklearn_api): The fit/predict/evaluate interface
+- [Model Tiers](core_concepts/model_tiers): Stable versus experimental models
+- [Config System](core_concepts/config_system): Split configuration for model, preprocessing, and training
+- [Training and Evaluation](core_concepts/training_and_evaluation): The fit pipeline, metrics, and reproducibility
+- [Observability](core_concepts/observability): Lifecycle events, structured logging, and experiment tracking
+- [Model Operations](core_concepts/model_operations): Serialisation and inspection
+- [Inference](core_concepts/inference): Deployment-safe prediction with `InferenceModel`
+
+### Tutorials
+
+- [Imbalanced Classification](tutorials/imbalance_classification): An end-to-end classification workflow
+- [Skewed-Target Regression](tutorials/skewed_regression): Regression on a right-skewed target
+- [Uncertainty Quantification](tutorials/uncertainty_quantification): Prediction intervals with LSS models
+- [Hyperparameter Optimisation](tutorials/hpo): Tuning models efficiently
+- [Advanced Training and Inference](tutorials/advanced_training): Optimizers, schedulers, and production inference
+- [Observability and Logging](tutorials/observability): Run directories and experiment trackers
+- [Model Efficiency](tutorials/model_efficiency): Runtime and memory benchmarking
+- [Experimental Models](tutorials/experimental): Working with cutting-edge architectures
+
+### Model Zoo
+
+- [Comparison Tables](model_zoo/comparison_tables): Selection guidance and performance across dimensions
+- [Stable Models](model_zoo/stable/index): Production-ready architectures
+- [Experimental Models](model_zoo/experimental/index): Models under evaluation
+- [Efficiency and Benchmarking](model_zoo/efficiency): Runtime and memory guidance
+- [Recommended Configs](model_zoo/recommended_configs): Hyperparameter recipes
+
+### API Reference
+
+- [Models](api/models/index): Classifier, Regressor, and LSS classes
+- [Configs](api/configs/index): Configuration dataclasses
+- [Data](api/data/index): Datasets, data modules, and schemas
+- [Distributions](api/distributions/index): LSS distribution families
+- [Metrics](api/metrics/index): Task-aware metric classes
+- [Training](api/training/index): Lightning modules for advanced use
+
+### Developer Guide
+
+- [Contributing](developer_guide/contributing): How to contribute
+- [Testing](developer_guide/testing): Test suite and coverage
+- [Documentation](developer_guide/documentation): Building the docs locally
+- [Versioning](developer_guide/versioning): Semantic versioning policy
+- [CI/CD](developer_guide/ci_cd): Continuous integration
+- [Release Process](developer_guide/release): Release workflow
+- [Model Promotion Policy](developer_guide/model_promotion_policy): From experimental to stable
+- [Support Matrix](developer_guide/support_matrix): Supported Python and PyTorch versions
+
+---
+
+## Citation
 
 If you use DeepTab in your research, please cite:
 
@@ -104,6 +126,6 @@ If you use DeepTab in your research, please cite:
 }
 ```
 
-## 📄 License
+## License
 
 DeepTab is licensed under the MIT License. See [LICENSE](https://github.com/OpenTabular/DeepTab/blob/main/LICENSE) for details.

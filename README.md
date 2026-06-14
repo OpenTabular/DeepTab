@@ -1,8 +1,10 @@
 <div align="center">
-    <img src="./docs/images/logo/deeptab-v1.png" width="720"/>
+    <img src="./docs/images/logo/deeptab-v1.png" width="900"/>
 
 [![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
+[![Python](https://img.shields.io/pypi/pyversions/deeptab)](https://pypi.org/project/deeptab)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/OpenTabular/DeepTab/blob/main/LICENSE)
 [![docs build](https://readthedocs.org/projects/deeptab/badge/?version=latest)](https://deeptab.readthedocs.io/en/latest/?badge=latest)
 [![docs](https://img.shields.io/badge/docs-latest-blue)](https://deeptab.readthedocs.io/en/latest/)
 [![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/DeepTab/issues)
@@ -15,20 +17,17 @@
 
 </div>
 
-<!-- START SHARED CONTENT -->
-
 # DeepTab: Tabular Deep Learning Made Simple
 
-**DeepTab** is a Python library for deep learning on tabular data. It features state-of-the-art architectures including Mamba (State Space Models), Transformers, and specialized tabular models, all with a familiar scikit-learn interface.
+**DeepTab** is a Python library for deep learning on tabular data. It brings state-of-the-art architectures, State Space Models (Mamba), Transformers, and tree-inspired networks, to a single scikit-learn compatible interface, so you can go from a DataFrame to a trained model in a few lines.
 
 ## 📖 Why DeepTab?
 
-- **🔧 Familiar API**: Drop-in replacement for sklearn models
-- **⚡ Auto-Preprocessing**: Automatic feature detection and transformation
-- **🎯 State-of-the-Art Models**: 15+ proven architectures
-- **📊 Distributional Regression**: Full distribution prediction (LSS)
-- **🔍 Model Selection**: Comprehensive [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) with guidance
-- **📚 Complete Docs**: [Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), [examples](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and [API reference](https://deeptab.readthedocs.io/en/latest/api/index.html)
+- **Familiar interface.** A scikit-learn `fit`/`predict`/`evaluate` API that drops into existing pipelines, including `GridSearchCV`.
+- **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are built in.
+- **One model, three tasks.** Every architecture ships as a classifier, a regressor, and a distributional (`LSS`) variant for uncertainty quantification.
+- **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
+- **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.
 
 ## ⚡ What's New in v2.0
 
@@ -43,10 +42,6 @@
 - **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry
 - **Optimizer and scheduler registry**: Every `torch.optim` class is available by name through `TrainerConfig`, and custom optimizers or schedulers can be registered at runtime
 - **Observability and experiment tracking**: `ObservabilityConfig` adds structured logging, lifecycle events, and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree
-
-### Preprocessing
-
-- **Enhanced preprocessing**: Feature-specific transformations, piecewise-linear encoding (PLE), and pre-trained categorical encodings
 
 ### Models
 
@@ -77,29 +72,41 @@ probabilities = model.predict_proba(X_test)
 
 ## 🤖 Available Models
 
-DeepTab includes 15 stable models + 3 experimental architectures:
+DeepTab provides 15 stable architectures across five families: State Space Models (Mambular, MambaTab, MambAttention), Transformers (FTTransformer, TabTransformer, SAINT, AutoInt), residual networks (ResNet, TabR), tree-inspired models (NODE, ENODE, NDTF), and general baselines (MLP, TabM, TabulaRNN). Three experimental models (ModernNCA, Tangos, Trompt) are under evaluation for promotion.
 
 > **🎯 See the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) for detailed comparisons, complexity analysis, and selection guidance.**
 
 ### Stable Models
 
-| Category               | Model              | Architecture                        | Best For                              |
-| ---------------------- | ------------------ | ----------------------------------- | ------------------------------------- |
-| **State Space Models** | **Mambular**       | Multi-layer Mamba SSM               | General-purpose, best overall         |
-|                        | **MambaTab**       | Single Mamba block                  | Small datasets, fast training         |
-|                        | **MambAttention**  | Hybrid Mamba + Attention            | Complex feature interactions          |
-| **Transformers**       | **FTTransformer**  | Feature Tokenizer Transformer       | Strong baseline, feature interactions |
-|                        | **TabTransformer** | Transformer for categoricals        | Categorical-heavy data (>60%)         |
-|                        | **SAINT**          | Self-Attention + Intersample        | Small datasets, semi-supervised       |
-|                        | **AutoInt**        | Automatic Feature Interactions      | Interaction discovery                 |
-| **Residual Networks**  | **ResNet**         | Residual MLP                        | Fast baseline, simple and effective   |
-|                        | **TabR**           | Retrieval-augmented ResNet          | Large datasets (>50K samples)         |
-| **Tree-Based**         | **NODE**           | Neural Oblivious Decision Ensembles | Interpretable, tree inductive bias    |
-|                        | **ENODE**          | Enhanced NODE                       | Better feature representations        |
-|                        | **NDTF**           | Neural Decision Tree Forest         | Differentiable tree ensemble          |
-| **Other**              | **MLP**            | Standard Multi-Layer Perceptron     | Fastest baseline                      |
-|                        | **TabM**           | Batch Ensembling MLP                | Efficient ensemble, no tuning         |
-|                        | **TabulaRNN**      | LSTM/GRU for tabular                | Sequential/temporal features          |
+| Category               | Model                                      | Architecture                        | Best For                               |
+| ---------------------- | ------------------------------------------ | ----------------------------------- | -------------------------------------- |
+| **State Space Models** | **[Mambular][mambular-paper]**             | Stacked Mamba over feature tokens   | General-purpose tabular modeling       |
+|                        | **[MambaTab][mambatab-paper]**             | Lightweight Mamba SSM               | Small datasets and fast training       |
+|                        | **MambAttention**                          | Mamba with feature attention        | Feature-interaction-heavy data         |
+| **Transformers**       | **[FTTransformer][fttransformer-paper]**   | Feature Tokenizer + Transformer     | Strong attention-based baseline        |
+|                        | **[TabTransformer][tabtransformer-paper]** | Transformer over categorical tokens | Categorical-heavy data                 |
+|                        | **[SAINT][saint-paper]**                   | Row and column attention            | Small or label-scarce datasets         |
+|                        | **[AutoInt][autoint-paper]**               | Self-attentive feature interactions | Automatic high-order interactions      |
+| **Residual Networks**  | **[ResNet][resnet-paper]**                 | Residual MLP                        | Fast dense baseline                    |
+|                        | **[TabR][tabr-paper]**                     | Retrieval-augmented MLP/kNN         | Large datasets with neighbor signal    |
+| **Tree-Inspired**      | **[NODE][node-paper]**                     | Neural oblivious decision ensembles | Differentiable tree inductive bias     |
+|                        | **ENODE**                                  | Embedded NODE-style soft trees      | Tree-inspired modeling with embeddings |
+|                        | **[NDTF][ndtf-paper]**                     | Neural decision tree forest         | Differentiable forest experiments      |
+| **Other**              | **MLP**                                    | Feedforward dense network           | Fastest baseline                       |
+|                        | **[TabM][tabm-paper]**                     | Parameter-efficient ensemble MLP    | Strong efficient baseline              |
+|                        | **TabulaRNN**                              | Recurrent feature-sequence model    | Sequential feature modeling            |
+
+[mambular-paper]: https://arxiv.org/abs/2408.06291
+[mambatab-paper]: https://arxiv.org/abs/2401.08867
+[fttransformer-paper]: https://arxiv.org/abs/2106.11959
+[resnet-paper]: https://arxiv.org/abs/2106.11959
+[tabtransformer-paper]: https://arxiv.org/abs/2012.06678
+[saint-paper]: https://arxiv.org/abs/2106.01342
+[autoint-paper]: https://arxiv.org/abs/1810.11921
+[tabr-paper]: https://arxiv.org/abs/2307.14338
+[node-paper]: https://arxiv.org/abs/1909.06312
+[ndtf-paper]: https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html
+[tabm-paper]: https://arxiv.org/abs/2410.24210
 
 ### Experimental Models ⚠️
 
@@ -118,8 +125,6 @@ All models come in three variants:
 - `*LSS`: Distributional regression (full distribution prediction)
 
 > **🔄 Consistent API:** All models use the same interface, so you can swap architectures without changing code!
-
-<!-- END HOMEPAGE CONTENT -->
 
 ## 📚 Documentation
 
@@ -159,7 +164,7 @@ pip install mamba-ssm
 
 > **📦 Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
 
-> **💻 Requirements:** Python 3.10+, PyTorch 2.0+, Lightning 2.3.3+
+> **💻 Requirements:** Python 3.10+, PyTorch 2.2+, Lightning 2.3.3+
 
 > **🚀 GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
@@ -223,32 +228,30 @@ print(f"Best params: {search.best_params_}")
 print(f"Best score: {search.best_score_}")
 ```
 
-> **🔍 Built-in HPO:** DeepTab also supports Optuna for Bayesian optimization. See [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
+> **🔍 Built-in HPO:** Every estimator exposes `optimize_hparams()`, which runs Gaussian process Bayesian optimization (via [scikit-optimize](https://scikit-optimize.github.io/)) over a search space derived from the model config. See the [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
 
 ### Distributional Regression (LSS)
 
-Predict full distributions instead of point estimates:
+Predict a full distribution instead of a single point estimate:
 
 ```python
 from deeptab.models import MambularLSS
 
-# Fit with a distribution family
+# Choose a distribution family when you fit
 model = MambularLSS()
 model.fit(X_train, y_train, family="normal", max_epochs=50)
 
-# Predict distribution parameters
-params = model.predict(X_test)  # Returns dict with "loc", "scale", etc.
+# predict() returns the estimated distribution parameters per sample
+# (for "normal", that is the location and scale)
+params = model.predict(X_test)
 
-# Sample from predicted distributions
-samples = model.sample(X_test, n_samples=1000)
-
-# Get prediction intervals
-intervals = model.predict_quantiles(X_test, quantiles=[0.025, 0.975])
+# Evaluate with proper scoring rules selected for the family
+metrics = model.evaluate(X_test, y_test)
 ```
 
 > **📊 Available families:** `normal`, `lognormal`, `studentt`, `gamma`, `beta`, `tweedie`, `poisson`, `zip`, `negativebinom`, `dirichlet`, `mog`, `quantile`, and more. Each family auto-selects appropriate evaluation metrics (CRPS, deviances, NLL).
 
-> **📖 Learn more:** [Distributional Regression Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/distributional.html)
+> **📐 Prediction intervals:** Turn the predicted parameters into calibrated intervals as shown in the [Uncertainty Quantification tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/uncertainty_quantification.html).
 
 ## 🔧 Advanced Features
 
@@ -261,9 +264,8 @@ from deeptab.configs import PreprocessingConfig
 from deeptab.models import MambularClassifier
 
 prep_config = PreprocessingConfig(
-    numerical_preprocessing="quantile",  # Robust to outliers
-    use_ple=True,                        # Piecewise linear encoding
-    n_bins=50                            # Bins for PLE/quantile
+    numerical_preprocessing="ple",  # Piecewise linear encoding
+    n_bins=50                       # Number of bins for the encoding
 )
 
 model = MambularClassifier(preprocessing_config=prep_config)
@@ -273,11 +275,11 @@ model.fit(X_train, y_train, max_epochs=50)
 > **✨ Features:**
 >
 > - **Automatic detection:** Feature types detected from data
-> - **Feature-specific:** Different preprocessing per feature
-> - **Methods:** PLE, quantile transform, spline encoding, polynomial features
+> - **Type-aware:** Separate strategies for numerical and categorical features
+> - **Methods:** PLE, quantile transform, splines, standardization, min-max, and robust scaling
 > - **Pre-trained encodings:** Transfer learning for categorical features
 
-> **📖 Learn more:** [Preprocessing Guide](https://deeptab.readthedocs.io/en/latest/core_concepts/preprocessing.html)
+> **📖 Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
 
 ### Observability & Experiment Tracking
 
@@ -350,8 +352,9 @@ class MyCustomModel(BaseModel):
             nn.Linear(config.d_model, num_classes)
         )
 
-    def forward(self, num_features, cat_features):
-        # Implement forward pass
+    def forward(self, num_features, cat_features, embeddings):
+        # forward() always receives three positional arguments:
+        # num_features, cat_features, and embeddings
         x = num_features  # Process features as needed
         return self.encoder(x)
 
@@ -379,8 +382,6 @@ model.fit(X_train, y_train, max_epochs=50)
 
 > **🛠️ Developer Guide:** See [Contributing](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for architecture guidelines.
 
-<!-- END SHARED CONTENT -->
-
 ## 🏷️ Citation
 
 If you use DeepTab in your research, please cite:
@@ -407,10 +408,9 @@ DeepTab is licensed under the MIT License. See [LICENSE](LICENSE) for details.
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please see [Contributing Guide](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html).
+Contributions are welcome. See the [Contributing Guide](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) to get started, and please follow our [Code of Conduct](https://github.com/OpenTabular/DeepTab/blob/main/CODE_OF_CONDUCT.md).
 
 ## 📞 Support
 
-- **Documentation:** [deeptab.readthedocs.io](https://deeptab.readthedocs.io)
 - **Issues:** [GitHub Issues](https://github.com/OpenTabular/DeepTab/issues)
 - **Discussions:** [GitHub Discussions](https://github.com/OpenTabular/DeepTab/discussions)

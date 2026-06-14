@@ -37,6 +37,26 @@ predictions = model.predict(X_test)
 metrics = model.evaluate(X_test, y_test)
 ```
 
+## One model, three tasks
+
+Every architecture comes in three variants. Change the suffix to change the task:
+
+| Class         | Task                      | Output                   |
+| ------------- | ------------------------- | ------------------------ |
+| `*Classifier` | Classification            | Labels and probabilities |
+| `*Regressor`  | Regression                | Continuous values        |
+| `*LSS`        | Distributional regression | Distribution parameters  |
+
+```python
+from deeptab.models import MambularClassifier, MambularRegressor, MambularLSS
+
+clf = MambularClassifier()   # labels and probabilities
+reg = MambularRegressor()    # point estimates
+lss = MambularLSS()          # full predictive distribution
+```
+
+The interface is identical across all three, so you can move between tasks, or swap architectures, without rewriting your pipeline.
+
 ## Design Philosophy
 
 ### Familiar Interface
@@ -77,111 +97,33 @@ model = ResNetClassifier(
 
 ### Production-Ready
 
-Built for real-world messiness:
+DeepTab targets the data encountered in practice, not only clean benchmarks:
 
-- ✅ Mixed data types (numerical, categorical, embeddings)
-- ✅ Class imbalance (automatic stratified splits)
-- ✅ Missing values (built-in handling)
-- ✅ Large datasets (efficient batching)
-- ✅ Multi-GPU support via Lightning
+- Mixed numerical, categorical, and precomputed embedding features
+- Automatic stratified splits for classification, preserving class proportions
+- Built-in imputation of missing values during preprocessing
+- Mini-batch training that scales to large datasets
+- Single-device GPU acceleration by default, with other Lightning strategies (including multi-device training) available by forwarding trainer arguments to `fit()`
 
 ## When to Use DeepTab
 
-```{tip}
-**Good fit when you have:**
+DeepTab is well suited to:
 
-- Tabular data with mixed feature types
-- 1000+ samples where deep learning excels
-- Complex feature interactions
-- Need for uncertainty (distributional regression)
-- Integration with scikit-learn pipelines
-```
+- Tabular data with a mix of numerical and categorical features
+- Datasets large enough for neural networks to be competitive, typically from a few thousand samples upward
+- Problems with complex feature interactions
+- Applications that require calibrated uncertainty through distributional regression
+- Workflows that integrate with the scikit-learn ecosystem
 
-```{warning}
-**Consider alternatives for:**
+Gradient-boosted trees (XGBoost, LightGBM, CatBoost) remain a strong baseline and are often preferable for:
 
-- Very small datasets (<1000 samples) → try simpler models
-- Out-of-core datasets → consider XGBoost/LightGBM
-- Pure categorical data → tree methods may be faster
-- Strict latency requirements → trees are faster at inference
-```
-
-## What's New in v2.0
-
-```{important}
-**Key improvements:**
-
-- Fully typed data layer with `TabularBatch`, `TabularDataset`, `FeatureSchema`
-- Automatic stratified splits for classification
-- Enhanced preprocessing with `pretab` integration
-- Better type safety and IDE support
-- Structured exception hierarchy with descriptive error messages
-- Registry-backed optimizer and LR-scheduler system (see below)
-```
-
-### Training system upgrades
-
-`TrainerConfig` now exposes the full optimizer and scheduler surface without
-requiring you to subclass `TaskModel`:
-
-```python
-from deeptab.configs import TrainerConfig
-
-# Switch to AdamW with custom beta values
-tc = TrainerConfig(
-    optimizer_type="AdamW",
-    optimizer_kwargs={"betas": (0.9, 0.95)},
-    weight_decay=1e-2,
-)
-
-# Cosine annealing instead of ReduceLROnPlateau
-tc = TrainerConfig(
-    scheduler_type="CosineAnnealingLR",
-    scheduler_kwargs={"T_max": 100},
-)
-
-# Align early stopping AND scheduler to the same metric/direction
-tc = TrainerConfig(
-    monitor="val_auroc",
-    mode="max",          # Both early stopping and ReduceLROnPlateau now maximise
-)
-
-# Disable the scheduler entirely
-tc = TrainerConfig(scheduler_type=None)
-
-# Exempt bias and LayerNorm weights from weight decay (recommended for transformers)
-tc = TrainerConfig(
-    optimizer_type="AdamW",
-    weight_decay=1e-2,
-    no_weight_decay_for_bias_and_norm=True,
-)
-```
-
-You can also inspect and extend the registries directly:
-
-```python
-from deeptab.training.optimizers import available_optimizers, register_optimizer
-from deeptab.training.schedulers import available_schedulers, register_scheduler
-
-print(available_optimizers())   # ['adadelta', 'adagrad', 'adam', 'adamw', ...]
-print(available_schedulers())   # ['constantlr', 'cosineannealinglr', ...]
-
-# Plug in a third-party optimizer
-register_optimizer("muon", MyMuonOptimizer)
-```
-
-For advanced use cases (custom training loops, model integration), v2.0 exposes low-level components:
-
-- **TabularDataset**: PyTorch Dataset with batch object support
-- **TabularDataModule**: Lightning DataModule with preprocessing
-- **FeatureSchema**: Typed feature metadata container
-- **TabularBatch**: Strongly typed batch with device management
-
-See [API docs](../api/data/index) for details. Most users can ignore these, since the high-level estimator API (e.g., `MambularClassifier`) is unchanged.
+- Small datasets, where neural networks are prone to overfitting
+- Data that does not fit in memory
+- Latency-critical inference, where tree ensembles are typically faster
 
 ## Next Steps
 
-- [Why DeepTab](why_deeptab): Key advantages and use cases
-- [Installation](installation): Set up in 2 minutes
-- [Quickstart](quickstart): First model in 5 minutes
+- [Installation](installation): Set up in a couple of minutes
+- [Quickstart](quickstart): Train your first model in a few minutes
+- [Tutorials](../tutorials/imbalance_classification): End-to-end workflows
 - [FAQ](faq): Common questions

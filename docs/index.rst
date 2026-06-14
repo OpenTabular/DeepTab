@@ -9,7 +9,6 @@
 
    getting_started/overview
    getting_started/installation
-   getting_started/why_deeptab
    getting_started/quickstart
    getting_started/faq
 
