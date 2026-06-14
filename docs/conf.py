@@ -81,21 +81,12 @@ filterwarnings = [
 ]
 
 # Suppress unresolvable cross-references in third-party docstrings.
-# sklearn's get_metadata_routing / RequestMethod.__get__ docstrings contain
-# :ref:`metadata_routing` which only resolves in sklearn's own Sphinx build.
 # sphinx-autodoc-typehints 3.x still attempts to format signatures for
 # dataclass __init__ methods even with typehints_use_signature=False, and
 # crashes on nn.Module defaults like activation=nn.ReLU().
 suppress_warnings = [
     "autodoc",  # nn.ReLU() default value signature crash
     "intersphinx.fetch_inventory",  # SSL/network failures when building offline
-]
-
-# Suppress unresolvable cross-references in third-party docstrings.
-# sklearn's get_metadata_routing / RequestMethod.__get__ docstrings contain
-# :ref:`metadata_routing` which only resolves in sklearn's own Sphinx build.
-nitpick_ignore_regex = [
-    ("ref.ref", r"metadata_routing"),
 ]
 
 
@@ -188,7 +179,22 @@ html_show_sourcelink = False
 autodoc_default_options = {
     "members": True,
     "inherited-members": True,
-    "exclude-members": "set_output",
+    # Exclude sklearn's inherited metadata-routing boilerplate. Their docstrings
+    # contain :ref:`metadata_routing`, which only resolves in sklearn's own
+    # Sphinx build and otherwise emits "undefined label" warnings here. They are
+    # not part of DeepTab's public API surface.
+    "exclude-members": (
+        "set_output,"
+        "get_metadata_routing,"
+        "set_fit_request,"
+        "set_predict_request,"
+        "set_predict_proba_request,"
+        "set_predict_log_proba_request,"
+        "set_score_request,"
+        "set_partial_fit_request,"
+        "set_transform_request,"
+        "set_inverse_transform_request"
+    ),
 }
 
 # -- Options for sphinxext-opengraph ------------------------------------------
