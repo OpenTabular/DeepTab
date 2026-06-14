@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 import lightning as pl
 import numpy as np
@@ -78,35 +78,6 @@ def _validate_fit_inputs(
             )
 
 
-def _raise_flat_param_error(kwargs: dict, estimator_name: str) -> None:
-    """Raise a helpful TypeError when flat kwargs are passed to a split-config estimator.
-
-    DeepTab 2.0 no longer accepts flat model/training/preprocessing parameters in
-    Classifier and Regressor constructors.  Pass them via the dedicated config objects.
-    """
-    param_list = ", ".join(f"'{k}'" for k in sorted(kwargs))
-    # Infer the model-config class name from the estimator name.
-    # e.g.  MLPClassifier → MLPConfig,  FTTransformerRegressor → FTTransformerConfig
-    config_name = estimator_name
-    for suffix in ("Classifier", "Regressor"):
-        if config_name.endswith(suffix):
-            config_name = config_name[: -len(suffix)] + "Config"
-            break
-    raise TypeError(
-        f"{estimator_name}() received unexpected keyword arguments: {param_list}.\n"
-        f"\n"
-        f"DeepTab 2.0 no longer accepts flat model/training/preprocessing parameters.\n"
-        f"Pass them through the split-config API instead:\n"
-        f"\n"
-        f"  from deeptab.configs import {config_name}, PreprocessingConfig, TrainerConfig\n"
-        f"  model = {estimator_name}(\n"
-        f"      model_config={config_name}(...),\n"
-        f"      preprocessing_config=PreprocessingConfig(...),  # optional\n"
-        f"      trainer_config=TrainerConfig(max_epochs=100, lr=1e-4),\n"
-        f"  )\n"
-    )
-
-
 class SklearnBase(
     _ObservabilityMixin,
     _FitMixin,
@@ -122,19 +93,34 @@ class SklearnBase(
         _ObservabilityMixin  →  _FitMixin  →  _PredictMixin
         → _SerializationMixin  →  _HyperparameterMixin
         → InspectionMixin  →  BaseEstimator
+
+    Concrete estimators declare the architecture and its default config class
+    via the ``_model_cls`` and ``_config_cls`` class attributes instead of
+    passing them through ``__init__``. This keeps the constructor signature
+    limited to the public, sklearn-introspectable parameters.
     """
+
+    # Set by concrete estimator subclasses (e.g. ``_model_cls = MLP``).
+    _model_cls: ClassVar[type | None] = None
+    _config_cls: ClassVar[type | None] = None
 
     def __init__(
         self,
-        model,
-        config,
         model_config=None,
         preprocessing_config=None,
         trainer_config=None,
-        random_state=None,
         observability_config: ObservabilityConfig | None = None,
+        random_state=None,
         **kwargs,
     ):
+        model_cls = type(self)._model_cls
+        config_cls = type(self)._config_cls
+        if model_cls is None or config_cls is None:
+            raise TypeError(
+                f"{type(self).__name__} must define the '_model_cls' and "
+                "'_config_cls' class attributes (the architecture class and its "
+                "default config class)."
+            )
         self.random_state = random_state
         self._preprocessor_arg_names = [
             "n_bins",
@@ -167,7 +153,7 @@ class SklearnBase(
                 self.config = model_config
             else:
                 self._config_kwargs = {}
-                self.config = config()
+                self.config = config_cls()
 
             if hasattr(self.preprocessing_config, "to_preprocessor_kwargs"):
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
@@ -188,7 +174,7 @@ class SklearnBase(
                 for k, v in kwargs.items()
                 if k not in self._preprocessor_arg_names and not k.startswith("optimizer")
             }
-            self.config = config(**self._config_kwargs)
+            self.config = config_cls(**self._config_kwargs)
 
             self._preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self._preprocessor_arg_names}
             self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
@@ -201,7 +187,7 @@ class SklearnBase(
                 and k.startswith("optimizer_")
             }
 
-        self._estimator = model
+        self._estimator = model_cls
         self._task_model = None
         self._built = False
         # Fitted attributes (_data_module, _trainer, _best_model_path) are
@@ -225,6 +211,21 @@ class SklearnBase(
         self._observability_config: ObservabilityConfig | None = observability_config
         if observability_config is not None and hasattr(observability_config, "structured_logging"):
             self.configure_observability(observability_config)
+
+    @property
+    def config(self):
+        """The instantiated model config object backing this estimator.
+
+        Stored on the private ``_config`` attribute so it stays out of
+        sklearn's ``get_params``/``__init__`` introspection (it is derived
+        from ``model_config``/``_model_cls`` rather than a constructor
+        parameter), while remaining readable and settable as ``estimator.config``.
+        """
+        return self._config
+
+    @config.setter
+    def config(self, value):
+        self._config = value
 
     def get_params(self, deep=True):
         """Get parameters for this estimator."""

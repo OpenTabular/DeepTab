@@ -5,31 +5,24 @@ from sklearn.metrics import r2_score
 
 from deeptab.core.exceptions import not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
-from deeptab.models.base import SklearnBase, _raise_flat_param_error
+from deeptab.models.base import SklearnBase
 
 
 class SklearnBaseRegressor(SklearnBase):
     def __init__(
         self,
-        model,
-        config,
         model_config=None,
         preprocessing_config=None,
         trainer_config=None,
-        random_state=None,
         observability_config=None,
-        **kwargs,
+        random_state=None,
     ):
-        if kwargs:
-            _raise_flat_param_error(kwargs, type(self).__name__)
         super().__init__(
-            model,
-            config,
             model_config=model_config,
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
-            random_state=random_state,
             observability_config=observability_config,
+            random_state=random_state,
         )
 
     def build_model(

@@ -9,7 +9,7 @@ from sklearn.metrics import accuracy_score, log_loss
 
 from deeptab.core.exceptions import NotFittedError, not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
-from deeptab.models.base import SklearnBase, _raise_flat_param_error
+from deeptab.models.base import SklearnBase
 from deeptab.training.losses import build_classification_loss, compute_class_weights
 
 
@@ -39,25 +39,18 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
 class SklearnBaseClassifier(SklearnBase):
     def __init__(
         self,
-        model,
-        config,
         model_config=None,
         preprocessing_config=None,
         trainer_config=None,
-        random_state=None,
         observability_config=None,
-        **kwargs,
+        random_state=None,
     ):
-        if kwargs:
-            _raise_flat_param_error(kwargs, type(self).__name__)
         super().__init__(
-            model,
-            config,
             model_config=model_config,
             preprocessing_config=preprocessing_config,
             trainer_config=trainer_config,
-            random_state=random_state,
             observability_config=observability_config,
+            random_state=random_state,
         )
 
     def build_model(

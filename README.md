@@ -326,7 +326,6 @@ Implement your own architecture with DeepTab's base classes:
 import torch.nn as nn
 from deeptab.core import BaseModel
 from deeptab.models import SklearnBaseRegressor
-from deeptab.configs import PreprocessingConfig, TrainerConfig
 
 class MyCustomConfig:
     def __init__(self, d_model=64, dropout=0.1):
@@ -359,21 +358,8 @@ class MyCustomModel(BaseModel):
         return self.encoder(x)
 
 class MyRegressor(SklearnBaseRegressor):
-    def __init__(
-        self,
-        model_config: MyCustomConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-    ):
-        super().__init__(
-            model=MyCustomModel,
-            config=MyCustomConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-        )
+    _model_cls = MyCustomModel
+    _config_cls = MyCustomConfig
 
 # Use like any other DeepTab model
 model = MyRegressor()
