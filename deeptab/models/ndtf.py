@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.ndtf_config import NDTFConfig
 from ._docstring import generate_docstring
 
 
 class NDTFRegressor(SklearnBaseRegressor):
+    _model_cls = NDTF
+    _config_cls = NDTFConfig
+
     __doc__ = generate_docstring(
         NDTFConfig,
         model_description="""
@@ -17,33 +19,19 @@ class NDTFRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import NDTFRegressor
-        >>> model = NDTFRegressor(n_ensembles=12, max_depth=8)
+        >>> from deeptab.configs import NDTFConfig
+        >>> model = NDTFRegressor(model_config=NDTFConfig(n_ensembles=12, max_depth=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: NDTFConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=NDTF,
-            config=NDTFConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class NDTFClassifier(SklearnBaseClassifier):
+    _model_cls = NDTF
+    _config_cls = NDTFConfig
+
     __doc__ = generate_docstring(
         NDTFConfig,
         model_description="""
@@ -52,33 +40,19 @@ class NDTFClassifier(SklearnBaseClassifier):
         """,
         examples="""
         >>> from deeptab.models import NDTFClassifier
-        >>> model = NDTFClassifier(n_ensembles=12, max_depth=8)
+        >>> from deeptab.configs import NDTFConfig
+        >>> model = NDTFClassifier(model_config=NDTFConfig(n_ensembles=12, max_depth=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: NDTFConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=NDTF,
-            config=NDTFConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class NDTFLSS(SklearnBaseLSS):
+    _model_cls = NDTF
+    _config_cls = NDTFConfig
+
     __doc__ = generate_docstring(
         NDTFConfig,
         model_description="""
@@ -87,27 +61,10 @@ class NDTFLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models import NDTFLSS
-        >>> model = NDTFLSS(n_ensembles=12, max_depth=8)
+        >>> from deeptab.configs import NDTFConfig
+        >>> model = NDTFLSS(model_config=NDTFConfig(n_ensembles=12, max_depth=8))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=NDTF,
-            config=NDTFConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

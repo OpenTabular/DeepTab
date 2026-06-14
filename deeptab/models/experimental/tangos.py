@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ...configs.core import PreprocessingConfig, TrainerConfig
 from ...configs.experimental.tangos_config import TangosConfig
 from .._docstring import generate_docstring
 
 
 class TangosRegressor(SklearnBaseRegressor):
+    _model_cls = Tangos
+    _config_cls = TangosConfig
+
     __doc__ = generate_docstring(
         TangosConfig,
         model_description="""
@@ -17,33 +19,19 @@ class TangosRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models.experimental import TangosRegressor
-        >>> model = TangosRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TangosConfig
+        >>> model = TangosRegressor(model_config=TangosConfig(layer_sizes=[128, 64]))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: TangosConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        **kwargs,
-    ):
-        super().__init__(
-            model=Tangos,
-            config=TangosConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            **kwargs,
-        )
-
 
 class TangosClassifier(SklearnBaseClassifier):
+    _model_cls = Tangos
+    _config_cls = TangosConfig
+
     __doc__ = generate_docstring(
         TangosConfig,
         model_description="""
@@ -52,33 +40,19 @@ class TangosClassifier(SklearnBaseClassifier):
         """,
         examples="""
         >>> from deeptab.models.experimental import TangosClassifier
-        >>> model = TangosClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TangosConfig
+        >>> model = TangosClassifier(model_config=TangosConfig(layer_sizes=[128, 64]))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: TangosConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        **kwargs,
-    ):
-        super().__init__(
-            model=Tangos,
-            config=TangosConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            **kwargs,
-        )
-
 
 class TangosLSS(SklearnBaseLSS):
+    _model_cls = Tangos
+    _config_cls = TangosConfig
+
     __doc__ = generate_docstring(
         TangosConfig,
         model_description="""
@@ -87,27 +61,10 @@ class TangosLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models.experimental import TangosLSS
-        >>> model = TangosLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TangosConfig
+        >>> model = TangosLSS(model_config=TangosConfig(layer_sizes=[128, 64]))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        **kwargs,
-    ):
-        super().__init__(
-            model=Tangos,
-            config=TangosConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            **kwargs,
-        )

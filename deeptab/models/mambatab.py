@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.mambatab_config import MambaTabConfig
 from ._docstring import generate_docstring
 
 
 class MambaTabRegressor(SklearnBaseRegressor):
+    _model_cls = MambaTab
+    _config_cls = MambaTabConfig
+
     __doc__ = generate_docstring(
         MambaTabConfig,
         model_description="""
@@ -17,33 +19,19 @@ class MambaTabRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import MambaTabRegressor
-        >>> model = MambaTabRegressor(d_model=64, n_layers=2)
+        >>> from deeptab.configs import MambaTabConfig
+        >>> model = MambaTabRegressor(model_config=MambaTabConfig(d_model=64, n_layers=2))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambaTabConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambaTab,
-            config=MambaTabConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambaTabClassifier(SklearnBaseClassifier):
+    _model_cls = MambaTab
+    _config_cls = MambaTabConfig
+
     __doc__ = generate_docstring(
         MambaTabConfig,
         model_description="""
@@ -52,33 +40,19 @@ class MambaTabClassifier(SklearnBaseClassifier):
         """,
         examples="""
         >>> from deeptab.models import MambaTabClassifier
-        >>> model = MambaTabClassifier(d_model=64, n_layers=2)
+        >>> from deeptab.configs import MambaTabConfig
+        >>> model = MambaTabClassifier(model_config=MambaTabConfig(d_model=64, n_layers=2))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambaTabConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambaTab,
-            config=MambaTabConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambaTabLSS(SklearnBaseLSS):
+    _model_cls = MambaTab
+    _config_cls = MambaTabConfig
+
     __doc__ = generate_docstring(
         MambaTabConfig,
         model_description="""
@@ -87,27 +61,10 @@ class MambaTabLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models import MambaTabLSS
-        >>> model = MambaTabLSS(d_model=64, n_layers=2)
+        >>> from deeptab.configs import MambaTabConfig
+        >>> model = MambaTabLSS(model_config=MambaTabConfig(d_model=64, n_layers=2))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambaTab,
-            config=MambaTabConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

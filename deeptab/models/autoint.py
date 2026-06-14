@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.autoint_config import AutoIntConfig
 from ._docstring import generate_docstring
 
 
 class AutoIntRegressor(SklearnBaseRegressor):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
         AutoIntConfig,
         model_description="""
@@ -18,66 +20,38 @@ class AutoIntRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import AutoIntRegressor
-        >>> model = AutoIntRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntRegressor(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: AutoIntConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=AutoInt,
-            config=AutoIntConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class AutoIntClassifier(SklearnBaseClassifier):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
         AutoIntConfig,
         """AutoInt Classifier. This class extends the SklearnBaseClassifier class
         and uses the AutoInt model with the default AutoInt configuration.""",
         examples="""
         >>> from deeptab.models import AutoIntClassifier
-        >>> model = AutoIntClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntClassifier(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: AutoIntConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=AutoInt,
-            config=AutoIntConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class AutoIntLSS(SklearnBaseLSS):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
         AutoIntConfig,
         """AutoInt for distributional regression.
@@ -85,27 +59,10 @@ class AutoIntLSS(SklearnBaseLSS):
         AutoInt model with the default AutoInt configuration.""",
         examples="""
         >>> from deeptab.models import AutoIntLSS
-        >>> model = AutoIntLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntLSS(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train, family="normal")
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=AutoInt,
-            config=AutoIntConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

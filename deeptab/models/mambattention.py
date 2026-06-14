@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.mambattention_config import MambAttentionConfig
 from ._docstring import generate_docstring
 
 
 class MambAttentionRegressor(SklearnBaseRegressor):
+    _model_cls = MambAttention
+    _config_cls = MambAttentionConfig
+
     __doc__ = generate_docstring(
         MambAttentionConfig,
         model_description="""
@@ -17,33 +19,19 @@ class MambAttentionRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import MambAttentionRegressor
-        >>> model = MambAttentionRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import MambAttentionConfig
+        >>> model = MambAttentionRegressor(model_config=MambAttentionConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambAttentionConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambAttention,
-            config=MambAttentionConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambAttentionClassifier(SklearnBaseClassifier):
+    _model_cls = MambAttention
+    _config_cls = MambAttentionConfig
+
     __doc__ = generate_docstring(
         MambAttentionConfig,
         model_description="""
@@ -51,34 +39,20 @@ class MambAttentionClassifier(SklearnBaseClassifier):
         with the default MambAttention configuration.
         """,
         examples="""
-        >>> from MambAttention.models import MambAttentionClassifier
-        >>> model = MambAttentionClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.models import MambAttentionClassifier
+        >>> from deeptab.configs import MambAttentionConfig
+        >>> model = MambAttentionClassifier(model_config=MambAttentionConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambAttentionConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambAttention,
-            config=MambAttentionConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambAttentionLSS(SklearnBaseLSS):
+    _model_cls = MambAttention
+    _config_cls = MambAttentionConfig
+
     __doc__ = generate_docstring(
         MambAttentionConfig,
         model_description="""
@@ -86,28 +60,11 @@ class MambAttentionLSS(SklearnBaseLSS):
         with the default MambAttention configuration.
         """,
         examples="""
-        >>> from MambAttention.models import MambAttentionLSS
-        >>> model = MambAttentionLSS(d_model=64, n_layers=8)
+        >>> from deeptab.models import MambAttentionLSS
+        >>> from deeptab.configs import MambAttentionConfig
+        >>> model = MambAttentionLSS(model_config=MambAttentionConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MambAttention,
-            config=MambAttentionConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

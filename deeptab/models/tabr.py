@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.tabr_config import TabRConfig
 from ._docstring import generate_docstring
 
 
 class TabRRegressor(SklearnBaseRegressor):
+    _model_cls = TabR
+    _config_cls = TabRConfig
+
     __doc__ = generate_docstring(
         TabRConfig,
         model_description="""
@@ -24,26 +26,11 @@ class TabRRegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(
-        self,
-        model_config: TabRConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=TabR,
-            config=TabRConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class TabRClassifier(SklearnBaseClassifier):
+    _model_cls = TabR
+    _config_cls = TabRConfig
+
     __doc__ = generate_docstring(
         TabRConfig,
         model_description="""
@@ -59,26 +46,11 @@ class TabRClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(
-        self,
-        model_config: TabRConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=TabR,
-            config=TabRConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class TabRLSS(SklearnBaseLSS):
+    _model_cls = TabR
+    _config_cls = TabRConfig
+
     __doc__ = generate_docstring(
         TabRConfig,
         model_description="""
@@ -87,27 +59,9 @@ class TabRLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models import TabRLSS
-        >>> model = TabRLSS(d_model=64, family='normal')
-        >>> model.fit(X_train, y_train)
+        >>> model = TabRLSS()
+        >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=TabR,
-            config=TabRConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

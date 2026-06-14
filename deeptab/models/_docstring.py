@@ -31,13 +31,13 @@ def generate_docstring(config, model_description, examples):
                 Training-loop settings such as epochs, batch size, learning
                 rate, and early stopping. If ``None``, defaults from
                 :class:`~deeptab.configs.TrainerConfig` are used.
-            random_state : int, optional
-                Seed for reproducible weight initialisation and data shuffling.
             observability_config : ObservabilityConfig, optional
                 Optional logging, experiment tracking, and run-directory
                 settings (``deeptab.core.observability.ObservabilityConfig``).
                 If ``None``, observability is disabled and the estimator emits
-                nothing."""
+                nothing.
+            random_state : int, optional
+                Seed for reproducible weight initialisation and data shuffling."""
         ),
         "    ",
     )

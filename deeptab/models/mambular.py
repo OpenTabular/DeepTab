@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.mambular_config import MambularConfig
 from ._docstring import generate_docstring
 
 
 class MambularRegressor(SklearnBaseRegressor):
+    _model_cls = Mambular
+    _config_cls = MambularConfig
+
     __doc__ = generate_docstring(
         MambularConfig,
         model_description="""
@@ -17,33 +19,19 @@ class MambularRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import MambularRegressor
-        >>> model = MambularRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import MambularConfig
+        >>> model = MambularRegressor(model_config=MambularConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambularConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=Mambular,
-            config=MambularConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambularClassifier(SklearnBaseClassifier):
+    _model_cls = Mambular
+    _config_cls = MambularConfig
+
     __doc__ = generate_docstring(
         MambularConfig,
         model_description="""
@@ -52,33 +40,19 @@ class MambularClassifier(SklearnBaseClassifier):
         """,
         examples="""
         >>> from deeptab.models import MambularClassifier
-        >>> model = MambularClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.configs import MambularConfig
+        >>> model = MambularClassifier(model_config=MambularConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MambularConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=Mambular,
-            config=MambularConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MambularLSS(SklearnBaseLSS):
+    _model_cls = Mambular
+    _config_cls = MambularConfig
+
     __doc__ = generate_docstring(
         MambularConfig,
         model_description="""
@@ -87,27 +61,10 @@ class MambularLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models import MambularLSS
-        >>> model = MambularLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import MambularConfig
+        >>> model = MambularLSS(model_config=MambularConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=Mambular,
-            config=MambularConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )

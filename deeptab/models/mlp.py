@@ -3,12 +3,14 @@ from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.regressor_base import SklearnBaseRegressor
 
-from ..configs.core import PreprocessingConfig, TrainerConfig
 from ..configs.models.mlp_config import MLPConfig
 from ._docstring import generate_docstring
 
 
 class MLPRegressor(SklearnBaseRegressor):
+    _model_cls = MLP
+    _config_cls = MLPConfig
+
     __doc__ = generate_docstring(
         MLPConfig,
         model_description="""
@@ -27,26 +29,11 @@ class MLPRegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MLPConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MLP,
-            config=MLPConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MLPClassifier(SklearnBaseClassifier):
+    _model_cls = MLP
+    _config_cls = MLPConfig
+
     __doc__ = generate_docstring(
         MLPConfig,
         model_description="""
@@ -65,26 +52,11 @@ class MLPClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(
-        self,
-        model_config: MLPConfig | None = None,
-        preprocessing_config: PreprocessingConfig | None = None,
-        trainer_config: TrainerConfig | None = None,
-        random_state: int | None = None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MLP,
-            config=MLPConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
-
 
 class MLPLSS(SklearnBaseLSS):
+    _model_cls = MLP
+    _config_cls = MLPConfig
+
     __doc__ = generate_docstring(
         MLPConfig,
         model_description="""
@@ -93,27 +65,10 @@ class MLPLSS(SklearnBaseLSS):
         """,
         examples="""
         >>> from deeptab.models import MLPLSS
-        >>> model = MLPLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import MLPConfig
+        >>> model = MLPLSS(model_config=MLPConfig(layer_sizes=[128, 64]))
         >>> model.fit(X_train, y_train, family='normal')
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(
-        self,
-        model_config=None,
-        preprocessing_config=None,
-        trainer_config=None,
-        random_state=None,
-        observability_config=None,
-    ):
-        super().__init__(
-            model=MLP,
-            config=MLPConfig,
-            model_config=model_config,
-            preprocessing_config=preprocessing_config,
-            trainer_config=trainer_config,
-            random_state=random_state,
-            observability_config=observability_config,
-        )
