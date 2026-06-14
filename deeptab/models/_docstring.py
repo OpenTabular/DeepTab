@@ -1,42 +1,55 @@
-import inspect
 import textwrap
-
-from pretab.preprocessor import Preprocessor
 
 
 def generate_docstring(config, model_description, examples):
-    """Generates the complete docstring for any model class by combining config and Preprocessor docstrings.
+    """Build a model class docstring from its description, constructor
+    parameters, and usage examples.
 
-    The `Parameters` tag is stripped from the Preprocessor docstring to avoid duplication.
+    DeepTab estimators accept a small, fixed set of config objects rather than
+    flat hyperparameters, so the documented ``Parameters`` mirror the real
+    constructor signature. The architecture hyperparameters live on the model
+    config and are documented on that config class, which avoids listing config
+    fields as if they were constructor arguments.
     """
-    # inspect.cleandoc is the correct tool for Python docstrings: it strips
-    # leading blank lines, then removes the common indentation from lines 2+
-    # (the class-body indent).  textwrap.dedent cannot do this because Python
-    # stores line 1 without any leading whitespace, making the common indent 0.
-    config_doc = inspect.cleandoc(config.__doc__ or "No documentation.")
-    preprocessor_doc = inspect.cleandoc(Preprocessor.__doc__ or "No documentation.")
+    config_name = config.__name__
 
-    # After cleandoc the section header is at column 0: "Parameters\n----------\n"
-    preprocessor_doc_cleaned = preprocessor_doc.split("Parameters\n----------\n", 1)[-1].strip()
-    preprocessor_doc_cleaned = preprocessor_doc_cleaned.split("Attributes")[0].strip()
+    description = textwrap.indent(textwrap.dedent(model_description).strip(), "    ")
+    examples_block = textwrap.indent(textwrap.dedent(examples).strip(), "    ")
 
-    # Combine config doc + preprocessor params, then re-indent uniformly at 4 spaces.
-    config_doc_indented = textwrap.indent(config_doc + "\n\n" + preprocessor_doc_cleaned, "    ")
-
-    description_indented = textwrap.indent(textwrap.dedent(model_description).strip(), "    ")
-    examples_indented = textwrap.indent(textwrap.dedent(examples).strip(), "    ")
+    parameters = textwrap.indent(
+        textwrap.dedent(
+            f"""\
+            model_config : {config_name}, optional
+                Architecture hyperparameters for the model. If ``None``, a
+                default :class:`~deeptab.configs.{config_name}` is used. See
+                that class for the full list of available fields.
+            preprocessing_config : PreprocessingConfig, optional
+                Feature preprocessing settings such as scaling, encoding, and
+                numerical embeddings. If ``None``, defaults from
+                :class:`~deeptab.configs.PreprocessingConfig` are used.
+            trainer_config : TrainerConfig, optional
+                Training-loop settings such as epochs, batch size, learning
+                rate, and early stopping. If ``None``, defaults from
+                :class:`~deeptab.configs.TrainerConfig` are used.
+            random_state : int, optional
+                Seed for reproducible weight initialisation and data shuffling.
+            observability_config : ObservabilityConfig, optional
+                Optional logging, experiment tracking, and run-directory
+                settings (``deeptab.core.observability.ObservabilityConfig``).
+                If ``None``, observability is disabled and the estimator emits
+                nothing."""
+        ),
+        "    ",
+    )
 
     return f"""
-{description_indented}
+{description}
 
-    Notes
-    -----
-    The parameters for this class include the attributes from the config
-    dataclass as well as preprocessing arguments handled by the base class.
-
-{config_doc_indented}
+    Parameters
+    ----------
+{parameters}
 
     Examples
     --------
-{examples_indented}
+{examples_block}
     """
