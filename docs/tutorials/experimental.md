@@ -9,7 +9,7 @@
   </a>
 </div>
 
-Experimental models live in `deeptab.models.experimental`. They share the exact same estimator workflow as the stable zoo — the same `fit`/`predict`/`save`/`load` surface, the same split-config system, the same preprocessing pipeline — but they sit behind a separate import on purpose. Their constructors, defaults, and internals may change between releases without a deprecation cycle, so the explicit import is a deliberate speed bump that keeps surprise upgrades out of code review.
+Experimental models live in `deeptab.models.experimental`. They share the exact same estimator workflow as the stable zoo: the same `fit`/`predict`/`save`/`load` surface, the same split-config system, and the same preprocessing pipeline. The difference is that they sit behind a separate import on purpose. Their constructors, defaults, and internals may change between releases without a deprecation cycle, so the explicit import is a deliberate speed bump that keeps surprise upgrades out of code review.
 
 This tutorial goes beyond "import it and call `fit`". It explains what the experimental tier actually guarantees, introduces the three model families currently available, shows what makes each one architecturally distinctive, and walks through a defensible workflow for evaluating a research-stage model: benchmark it against a stable baseline, pin your environment, and persist results reproducibly.
 
@@ -20,31 +20,31 @@ The notebook linked above mirrors this tutorial. Use the markdown page for readi
 ## What You Will Learn
 
 - What the **experimental tier** promises (and does not promise) compared with stable models.
-- The three experimental families — **Trompt**, **ModernNCA**, and **Tangos** — and the idea behind each.
+- The three experimental families, **Trompt**, **ModernNCA**, and **Tangos**, and the idea behind each.
 - How to configure each model with its own config class and read the parameters that matter.
 - How to **benchmark** an experimental model against a stable baseline so results are trustworthy.
 - How to keep experimental work reproducible with **exact version pinning** and the `.deeptab` model bundle.
 
 ## What "experimental" means in DeepTab
 
-DeepTab sorts every model into one of two tiers. The tier is a contract about API stability, not a judgement about quality — several experimental models are strong performers that simply have not finished the promotion process yet.
+DeepTab sorts every model into one of two tiers. The tier is a contract about API stability, not a judgement about quality. Several experimental models are strong performers that simply have not finished the promotion process yet.
 
 |                     | Experimental                                       | Stable                                                  |
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------- |
 | **Import path**     | `deeptab.models.experimental`                      | `deeptab.models`                                        |
 | **API stability**   | May change without a deprecation cycle             | Frozen under semantic versioning                        |
-| **Recommended pin** | Exact version (`deeptab==1.8.0`)                   | Range (`deeptab>=1.8,<2.0`)                             |
+| **Recommended pin** | Exact version (`deeptab==2.0.0`)                   | Range (`deeptab>=2.0,<3.0`)                             |
 | **Best for**        | Evaluating recent architectures, research feedback | Production, long-running baselines, reproducible suites |
 
 Before an experimental model graduates to the stable zoo it has to clear a documented bar: a conventional public API, a model-zoo page with a limitations section, a runnable end-to-end example, working `save`/`load` with a prediction round-trip test, passing behavioural tests in CI, no open correctness bugs, and registration in the model registry. Until then, treat its defaults as provisional.
 
 ```{warning}
-Pin the **exact** DeepTab version whenever experimental results go into a paper, a benchmark table, or anything you might need to reproduce later. A range such as `deeptab>=1.8` can silently pull a release that changes an experimental model's behaviour.
+Pin the **exact** DeepTab version whenever experimental results go into a paper, a benchmark table, or anything you might need to reproduce later. A range such as `deeptab>=2.0` can silently pull a release that changes an experimental model's behaviour.
 ```
 
 ## The experimental lineup
 
-Three model families are available today, each in `Classifier`, `Regressor`, and `LSS` (distributional) variants. They come from different corners of the tabular deep-learning literature, so they fail and succeed on different kinds of data — which is exactly why benchmarking matters.
+Three model families are available today, each in `Classifier`, `Regressor`, and `LSS` (distributional) variants. They come from different corners of the tabular deep-learning literature, so they fail and succeed on different kinds of data, which is exactly why benchmarking matters.
 
 | Model         | Core idea                                                                                                                                                                   | Config class      | Primary controls                                |
 | ------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- | ----------------------------------------------- |
@@ -125,12 +125,12 @@ print("classification:", Xc_train.shape, "| regression:", Xr_train.shape)
 
 Trompt is inspired by prompt learning. Instead of a single forward pass, it runs several **cycles**: a set of `P` learnable prototype records reads the embedded columns through a feature-importance map, aggregates them, and updates itself, producing one prediction per cycle. The cycle predictions are combined into the final output, which gives Trompt an ensemble-like character from a single model.
 
-The parameters you will tune most are `n_cycles` (how many read–aggregate rounds) and `P` (how many prototype records). `d_model` sets the embedding width.
+The parameters you will tune most are `n_cycles` (how many read-aggregate rounds) and `P` (how many prototype records). `d_model` sets the embedding width.
 
 | Field      | Default | Meaning                                                   |
 | ---------- | ------- | --------------------------------------------------------- |
 | `d_model`  | `128`   | Embedding dimensionality.                                 |
-| `n_cycles` | `6`     | Number of read–aggregate cycles; each emits a prediction. |
+| `n_cycles` | `6`     | Number of read-aggregate cycles; each emits a prediction. |
 | `n_cells`  | `4`     | Declared cells per cycle (see the note below).            |
 | `P`        | `128`   | Number of learnable prototype records.                    |
 
@@ -159,7 +159,7 @@ The current DeepTab implementation builds one cell per cycle, so `n_cycles` and 
 
 ModernNCA modernises Neighbourhood Component Analysis. It learns a neural representation of each row, then predicts a query row by comparing it to a set of **candidate** rows in that representation space: distances are turned into weights by a temperature-scaled softmax, and the prediction is the weighted average of the candidates' labels. It behaves like a learned, soft k-nearest-neighbours.
 
-Two parameters deserve attention. `temperature` controls how sharply the softmax favours the closest candidates (lower is sharper). `sample_rate` is the fraction of training rows used as candidates on each forward pass — it changes the stochastic training objective, so it should be reported alongside any benchmark numbers.
+Two parameters deserve attention. `temperature` controls how sharply the softmax favours the closest candidates (lower is sharper). `sample_rate` is the fraction of training rows used as candidates on each forward pass, and it changes the stochastic training objective, so it should be reported alongside any benchmark numbers.
 
 | Field         | Default | Meaning                                                |
 | ------------- | ------- | ------------------------------------------------------ |
@@ -182,7 +182,7 @@ print("ModernNCA RMSE:", round(np.sqrt(mean_squared_error(yr_test, nca_pred)), 3
 ```
 
 ```{important}
-The pairwise distance computation is the dominant cost — roughly proportional to `batch_size x n_candidates x dim`. On large datasets, watch memory and step time, and tune `sample_rate` to trade accuracy for speed.
+The pairwise distance computation is the dominant cost, roughly proportional to `batch_size x n_candidates x dim`. On large datasets, watch memory and step time, and tune `sample_rate` to trade accuracy for speed.
 ```
 
 ## Tangos: an MLP with a gradient-attribution regularizer
@@ -249,14 +249,14 @@ pd.DataFrame(rows).sort_values("accuracy", ascending=False).reset_index(drop=Tru
 ```
 
 ```{tip}
-Treat every experimental result as a hypothesis. With only five epochs on a synthetic dataset these numbers are illustrative, not verdicts — for a real comparison train to convergence, average over several seeds, and keep the baseline and the candidate on the same preprocessing and trainer settings.
+Treat every experimental result as a hypothesis. With only five epochs on a synthetic dataset these numbers are illustrative, not verdicts. For a real comparison, train to convergence, average over several seeds, and keep the baseline and the candidate on the same preprocessing and trainer settings.
 ```
 
 ## Reproducibility: pinning and persistence
 
 Because experimental APIs can shift, reproducibility rests on two habits: pin the exact package version, and save the fitted model as a self-contained bundle.
 
-DeepTab's `.deeptab` bundle is the canonical artifact. It stores the architecture and config, the network weights, the fitted preprocessing state, the feature schema and column order, the task metadata and class labels, and the package versions used to create it — everything needed to reload and predict in another environment. (Saving with a `.pt` extension still works but emits a warning; prefer `.deeptab`.)
+DeepTab's `.deeptab` bundle is the canonical artifact. It stores the architecture and config, the network weights, the fitted preprocessing state, the feature schema and column order, the task metadata and class labels, and the package versions used to create it. That is everything needed to reload and predict in another environment. (Saving with a `.pt` extension still works but emits a warning; prefer `.deeptab`.)
 
 ```python
 import deeptab

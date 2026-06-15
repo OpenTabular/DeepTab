@@ -386,10 +386,10 @@ another for schedulers. When you pass `optimizer_type="adamw"` to
 `TrainerConfig`, DeepTab simply looks that name up in the registry. Three
 functions act on each registry:
 
-- `register_optimizer(name, cls)` / `register_scheduler(name, cls)` — add a new
+- `register_optimizer(name, cls)` / `register_scheduler(name, cls)`: add a new
   entry.
-- `available_optimizers()` / `available_schedulers()` — list what is registered.
-- `unregister_optimizer(name)` / `unregister_scheduler(name)` — remove an entry
+- `available_optimizers()` / `available_schedulers()`: list what is registered.
+- `unregister_optimizer(name)` / `unregister_scheduler(name)`: remove an entry
   **you added**.
 
 Two rules keep this safe to use:
@@ -406,7 +406,7 @@ Two rules keep this safe to use:
   built-in for your own variant.
 
 - **Built-ins are protected.** You can _override_ a built-in like `adam`, but
-  you cannot `unregister` it — removing it would break every estimator in the
+  you cannot `unregister` it; removing it would break every estimator in the
   process. Only names you registered yourself can be removed.
 
 ### Registering a custom optimizer
@@ -446,7 +446,7 @@ clf_custom_opt.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 
 ### Registering a custom scheduler
 
-Schedulers follow exactly the same rules — `override=True` for idempotent
+Schedulers follow exactly the same rules: `override=True` for idempotent
 re-registration, and the same protection for built-ins.
 
 ```python
@@ -485,8 +485,8 @@ clf_warmup.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 
 ### Cleaning up: unregistering your entries
 
-If you no longer need a custom optimizer or scheduler — for example to free up
-a name or reset state between experiments — remove it with
+If you no longer need a custom optimizer or scheduler (for example to free up
+a name or reset state between experiments), remove it with
 `unregister_optimizer` / `unregister_scheduler`. Use `missing_ok=True` for
 idempotent teardown that will not raise if the entry is already gone. Built-in
 DeepTab names are protected and cannot be removed.
@@ -497,7 +497,7 @@ unregister_optimizer("scaledadam")
 unregister_scheduler("warmupconstant")
 print("scaledadam" in available_optimizers())   # False
 
-# Safe to call again — missing_ok avoids an error if it is already gone.
+# Safe to call again: missing_ok avoids an error if it is already gone.
 unregister_optimizer("scaledadam", missing_ok=True)
 
 # Built-ins are protected: this raises, by design.

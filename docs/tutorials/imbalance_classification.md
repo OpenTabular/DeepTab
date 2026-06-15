@@ -494,11 +494,11 @@ Choose your strategy based on the imbalance ratio and what you want to control.
 ```
 What is your imbalance ratio?
 │
-├── Mild   (2:1 – 10:1)
+├── Mild   (2:1 to 10:1)
 │   └── Start with class_weight="balanced"
 │       Cheap, interpretable, sklearn-familiar.
 │
-├── Moderate (10:1 – 50:1)
+├── Moderate (10:1 to 50:1)
 │   ├── class_weight="balanced"        (loss side)
 │   ├── loss_fct="focal"               (hard-example focus)
 │   └── balanced_sampler=True          (data side, if batches are small)

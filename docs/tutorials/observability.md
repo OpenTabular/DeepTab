@@ -590,11 +590,11 @@ obs_logger_only = ObservabilityConfig(
     logger=CSVLogger(save_dir=str(WORKDIR / "09_logger_only" / "csv"), name="mlp"),
 )
 train(obs_logger_only)
-show_tree(WORKDIR / "09_logger_only", "09_logger_only/   (no csv/ — logger was ignored without a tracker)")
+show_tree(WORKDIR / "09_logger_only", "09_logger_only/   (no csv/, logger was ignored without a tracker)")
 ```
 
 ```text
-09_logger_only/   (no csv/ — logger was ignored without a tracker)
+09_logger_only/   (no csv/, logger was ignored without a tracker)
     runs/
         demo/
             20260613_094641_.../
@@ -684,7 +684,7 @@ its own: your code is in full control.
 The trees below are the canonical shapes you can expect. Timestamps and ids vary per run; the
 structure does not.
 
-**No observability** — only the best-weights checkpoint:
+**No observability**: only the best-weights checkpoint:
 
 ```text
 01_no_observability/
@@ -692,7 +692,7 @@ structure does not.
         best_model.ckpt
 ```
 
-**Minimal `ObservabilityConfig`** — self-describing run directory:
+**Minimal `ObservabilityConfig`**: self-describing run directory:
 
 ```text
 02_minimal/
@@ -704,7 +704,7 @@ structure does not.
             best_model.ckpt
 ```
 
-**`structured_logging=True, log_to_file=True`** — adds the event log:
+**`structured_logging=True, log_to_file=True`**: adds the event log:
 
 ```text
 04_with_file/
@@ -717,7 +717,7 @@ structure does not.
             best_model.ckpt
 ```
 
-**`experiment_trackers=["tensorboard"]`** — adds a TensorBoard tree:
+**`experiment_trackers=["tensorboard"]`**: adds a TensorBoard tree:
 
 ```text
 06_tensorboard/
@@ -731,7 +731,7 @@ structure does not.
         hparams.yaml
 ```
 
-**`experiment_trackers=["mlflow"]`** — adds a local MLflow store:
+**`experiment_trackers=["mlflow"]`**: adds a local MLflow store:
 
 ```text
 07_mlflow/
@@ -749,7 +749,7 @@ structure does not.
             checkpoints/best_model.ckpt
 ```
 
-**`logger=...` + a tracker** — your Lightning logger sits beside DeepTab's trees:
+**`logger=...` + a tracker**: your Lightning logger sits beside DeepTab's trees:
 
 ```text
 08_byo_logger/

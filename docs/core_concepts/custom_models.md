@@ -61,7 +61,7 @@ The architecture subclasses `BaseModel`. Two conventions define the contract:
 
 - The constructor receives a `feature_information` tuple and `num_classes`.
 - `forward` receives the three feature groups and returns raw outputs (logits
-  for classification, real values for regression). No final activation —
+  for classification, real values for regression). No final activation, because
   DeepTab applies the task-appropriate loss.
 
 ### The `feature_information` tuple
@@ -73,7 +73,7 @@ feature_information = (num_feature_info, cat_feature_info, embedding_feature_inf
 ```
 
 Each element is a dict describing one feature group, where every entry carries a
-`"dimension"` key. You rarely inspect these dicts by hand — use the helpers:
+`"dimension"` key. You rarely inspect these dicts by hand; use the helpers:
 
 - `get_feature_dimensions(*feature_information)` returns the total flattened
   input width when you are **not** using embeddings.
@@ -131,7 +131,7 @@ class MyMLP(BaseModel):
 ## 3. The estimator
 
 The estimator binds the architecture and its default config through two class
-attributes — `_model_cls` and `_config_cls`. Define one estimator per task you
+attributes, `_model_cls` and `_config_cls`. Define one estimator per task you
 want to support:
 
 ```python
@@ -226,4 +226,4 @@ class MyEmbeddedModel(BaseModel):
 - [Config System](config_system)
 - [scikit-learn API](sklearn_api)
 - [Model Tiers](model_tiers)
-- [Contributing](../developer_guide/contributing) — if you want to upstream a model into DeepTab itself.
+- [Contributing](../developer_guide/contributing): if you want to upstream a model into DeepTab itself.

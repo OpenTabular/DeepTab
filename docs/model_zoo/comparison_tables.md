@@ -211,10 +211,10 @@ Start Here
 
 ## Hardware Requirements by Model
 
-The table below gives practical guidance on whether each model trains comfortably on a **CPU-only machine** or requires a **GPU (CUDA, MPS, or other accelerator)**. Thresholds are rough estimates based on architecture cost — the actual boundary depends on the number of features, hidden width, and depth used.
+The table below gives practical guidance on whether each model trains comfortably on a **CPU-only machine** or requires a **GPU (CUDA, MPS, or other accelerator)**. Thresholds are rough estimates based on architecture cost, and the actual boundary depends on the number of features, hidden width, and depth used.
 
 ```{important}
-**Features matter as much as rows.** Transformer-style models grow quadratically with feature-token count, so 20 features with a default FTTransformer config can require as much compute as 50 features with an MLP. The estimates below assume the default DeepTab config for each model and a moderate feature count (10–30 columns). Wide datasets shift the GPU threshold lower.
+**Features matter as much as rows.** Transformer-style models grow quadratically with feature-token count, so 20 features with a default FTTransformer config can require as much compute as 50 features with an MLP. The estimates below assume the default DeepTab config for each model and a moderate feature count (10 to 30 columns). Wide datasets shift the GPU threshold lower.
 ```
 
 | Model              | Family      | CPU-only comfortable up to | GPU strongly recommended above | Primary cost driver                             | Notes                                                                                   |
@@ -237,8 +237,8 @@ The table below gives practical guidance on whether each model trains comfortabl
 
 **Legend:**
 
-- _CPU-only comfortable up to_ — training at default config typically completes in a reasonable wall-clock time on a modern CPU.
-- _GPU strongly recommended above_ — training time on CPU becomes a bottleneck; a CUDA, MPS, or similar accelerator provides meaningful speedup.
+- _CPU-only comfortable up to_: training at default config typically completes in a reasonable wall-clock time on a modern CPU.
+- _GPU strongly recommended above_: training time on CPU becomes a bottleneck; a CUDA, MPS, or similar accelerator provides meaningful speedup.
 
 ```{tip}
 **Apple Silicon (MPS):** All models run on MPS via PyTorch's MPS backend. Set `accelerator="mps"` in `TrainerConfig`. MPS provides meaningful speedup for most models except those with Mamba CUDA kernels, which fall back to CPU on MPS unless a dedicated MPS implementation is available.
@@ -284,6 +284,6 @@ Key papers used for the comparison:
 
 ## See Also
 
-- [Recommended Configs](recommended_configs) — Hyperparameter guidelines
-- [Model Efficiency and Benchmarking](efficiency) — Runtime and memory benchmarking protocol
-- [Model Tiers](../core_concepts/model_tiers) — Stable vs experimental
+- [Recommended Configs](recommended_configs): Hyperparameter guidelines
+- [Model Efficiency and Benchmarking](efficiency): Runtime and memory benchmarking protocol
+- [Model Tiers](../core_concepts/model_tiers): Stable vs experimental

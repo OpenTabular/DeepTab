@@ -191,6 +191,6 @@ Use this compact template in experiment notes or pull requests:
 
 ## See Also
 
-- [Model Comparison](comparison_tables) — Architecture-level complexity and model selection tables
-- [Recommended Configs](recommended_configs) — Hyperparameter and reporting guidance
-- [Model Efficiency Benchmarking tutorial](../tutorials/model_efficiency) — Runnable benchmarking workflow
+- [Model Comparison](comparison_tables): Architecture-level complexity and model selection tables
+- [Recommended Configs](recommended_configs): Hyperparameter and reporting guidance
+- [Model Efficiency Benchmarking tutorial](../tutorials/model_efficiency): Runnable benchmarking workflow
