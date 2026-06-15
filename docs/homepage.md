@@ -30,11 +30,22 @@ DeepTab requires Python 3.10+ and installs PyTorch automatically. See [Installat
 
 ## What's New in v2.0
 
-- **Split-config API**: separate model, preprocessing, and training configuration objects.
-- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the pipeline an inspectable contract.
-- **Unified metrics**: 25+ metric classes auto-selected per task, with a registry-backed optimizer and scheduler system.
-- **Observability**: `ObservabilityConfig` adds structured logging and one-line MLflow or TensorBoard tracking.
+v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API stays familiar, while the package layout, configuration objects, and import paths have moved.
+
+- **Split-config API**: separate model, preprocessing, and training configuration objects, so each concern can be tuned on its own. This is the first thing you reach for in v2.
 - **New models**: AutoInt, ENODE, and TabR (stable); Tangos, Trompt, and ModernNCA (experimental).
+- **Observability**: `ObservabilityConfig` adds structured lifecycle logging and one-line MLflow or TensorBoard tracking, opt-in and silent by default.
+- **Deployment-safe inference**: `InferenceModel` exposes a read-only prediction surface with schema validation, so a served model cannot be re-fitted by accident.
+- **Self-describing artifacts**: a single `.deeptab` save format bundles the architecture, feature schema, preprocessing, and versions with the weights.
+- **Registry-driven training**: optimizers, schedulers, and losses are selectable by name through `TrainerConfig` and extensible at runtime.
+- **Unified metrics**: 25+ metric classes auto-selected per task across regression, classification, and distributional models.
+- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the pipeline an inspectable contract.
+- **Reproducibility**: cross-platform seeding across CPU, CUDA, and MPS.
+- **Rebuilt docs and tutorials**: refreshed guides plus end-to-end, Colab-ready tutorials for [classification](tutorials/imbalance_classification), [regression](tutorials/skewed_regression), and [uncertainty quantification](tutorials/uncertainty_quantification).
+
+```{warning}
+Upgrading from v1 requires changes. Packages were reorganised, the `Default<Arch>Config` classes were renamed to `<Arch>Config`, and the data modules became `TabularDataModule` / `TabularDataset`. See the [FAQ](getting_started/faq) for v1 support and upgrade notes.
+```
 
 See the [Overview](getting_started/overview) for the full picture.
 

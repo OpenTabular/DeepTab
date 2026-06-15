@@ -31,26 +31,36 @@
 
 ## ⚡ What's New in v2.0
 
-### Core API
+v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API (`MambularClassifier().fit(...)`) is largely unchanged, but the internal package layout, configuration objects, and import paths have moved.
 
-- **Split-Config API**: Separate configuration objects for the model, preprocessing, and training, so each concern can be tuned on its own
-- **Typed Data Layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract
-- **Deployment-safe inference**: `InferenceModel` wraps a fitted estimator in a read-only prediction surface with schema validation and task-type enforcement
+> **⚠️ Upgrading from v1?** Packages were reorganised, the `Default<Arch>Config` classes were renamed to `<Arch>Config`, and the data modules were renamed to `TabularDataModule` / `TabularDataset`. Code that only uses the high-level estimators mostly keeps working; code that imported internal modules needs updating. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html) for v1 support and upgrade notes.
 
-### Training and Evaluation
+### Configuration and data
 
-- **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry
-- **Optimizer and scheduler registry**: Every `torch.optim` class is available by name through `TrainerConfig`, and custom optimizers or schedulers can be registered at runtime
-- **Observability and experiment tracking**: `ObservabilityConfig` adds structured logging, lifecycle events, and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree
+- **Split-config API**: The model, preprocessing, and training each have their own configuration object, so you can tune one concern without disturbing the others. This is the first thing you reach for in v2.
+- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract, with stratified splitting controlled through `SplitConfig`.
 
 ### Models
 
-- **New stable models**: AutoInt, ENODE, and TabR
-- **New experimental models**: Tangos, Trompt, and ModernNCA
+- **New stable models**: AutoInt, ENODE, and TabR.
+- **New experimental models**: Tangos, Trompt, and ModernNCA, under evaluation for promotion.
+
+### Training and evaluation
+
+- **Observability and experiment tracking**: `ObservabilityConfig` adds structured lifecycle logging and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree. It is opt-in and silent by default.
+- **Registry-driven training**: Every `torch.optim` optimizer, learning-rate scheduler, and loss is selectable by name through `TrainerConfig`, and you can register your own at runtime.
+- **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry.
+- **Reproducibility**: `set_seed` and `seed_context` seed Python, NumPy, and PyTorch across CPU, CUDA, and MPS, including the DataLoader and sampler generators.
+
+### Deployment
+
+- **Deployment-safe inference**: `InferenceModel` wraps a fitted estimator in a read-only prediction surface with schema validation and task-type enforcement. Training methods are deliberately absent, so a served model cannot be re-fitted by accident.
+- **Self-describing artifacts**: save and load go through a single `.deeptab` format that bundles the architecture, feature schema, preprocessing, task type, and package versions alongside the weights, so a saved model carries everything needed to reload it.
 
 ### Documentation
 
-- **Rebuilt documentation**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), [Tutorials with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html), and [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)
+- **Rebuilt from the ground up**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
+- **End-to-end tutorials**: runnable [walkthroughs with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html) covering imbalanced classification, skewed regression, uncertainty quantification, hyperparameter tuning, and observability.
 
 ## 🏃 Quickstart
 
