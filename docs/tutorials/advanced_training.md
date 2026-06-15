@@ -50,6 +50,8 @@ from deeptab.training import (
     available_schedulers,
     register_optimizer,
     register_scheduler,
+    unregister_optimizer,
+    unregister_scheduler,
 )
 ```
 
@@ -377,7 +379,40 @@ plug in any optimizer or scheduler that follows the standard
 registered, it works through the same `TrainerConfig` fields as the built-in
 classes.
 
+### How the registry works
+
+DeepTab keeps a process-global mapping of `name -> class` for optimizers and
+another for schedulers. When you pass `optimizer_type="adamw"` to
+`TrainerConfig`, DeepTab simply looks that name up in the registry. Three
+functions act on each registry:
+
+- `register_optimizer(name, cls)` / `register_scheduler(name, cls)` — add a new
+  entry.
+- `available_optimizers()` / `available_schedulers()` — list what is registered.
+- `unregister_optimizer(name)` / `unregister_scheduler(name)` — remove an entry
+  **you added**.
+
+Two rules keep this safe to use:
+
+- **Names are unique.** Registering a name that already exists raises a
+  `ValueError`:
+
+  ```text
+  ValueError: Optimizer 'scaledadam' is already registered. Pass override=True to replace it.
+  ```
+
+  Pass `override=True` to intentionally replace the entry. This is what you want
+  when you iterate on an implementation and re-run a cell, or when you swap a
+  built-in for your own variant.
+
+- **Built-ins are protected.** You can _override_ a built-in like `adam`, but
+  you cannot `unregister` it — removing it would break every estimator in the
+  process. Only names you registered yourself can be removed.
+
 ### Registering a custom optimizer
+
+`override=True` makes registration idempotent, so re-running the snippet does
+not raise the "already registered" error above.
 
 ```python
 class ScaledAdam(torch.optim.Adam):
@@ -387,7 +422,7 @@ class ScaledAdam(torch.optim.Adam):
         super().__init__(params, lr=lr * scale, **kwargs)
 
 
-register_optimizer("scaledadam", ScaledAdam)
+register_optimizer("scaledadam", ScaledAdam, override=True)
 
 # Verify registration (names are stored lowercase)
 print("scaledadam" in available_optimizers())   # True
@@ -411,6 +446,9 @@ clf_custom_opt.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 
 ### Registering a custom scheduler
 
+Schedulers follow exactly the same rules — `override=True` for idempotent
+re-registration, and the same protection for built-ins.
+
 ```python
 class WarmupConstant(torch.optim.lr_scheduler.LambdaLR):
     """Linear warmup for `warmup_steps`, then constant LR."""
@@ -424,7 +462,7 @@ class WarmupConstant(torch.optim.lr_scheduler.LambdaLR):
         super().__init__(optimizer, lr_lambda=_lambda)
 
 
-register_scheduler("warmupconstant", WarmupConstant)
+register_scheduler("warmupconstant", WarmupConstant, override=True)
 
 print("warmupconstant" in available_schedulers())   # True
 
@@ -443,6 +481,30 @@ clf_warmup = MambularClassifier(
     random_state=RANDOM_STATE,
 )
 clf_warmup.fit(X_train, y_train, X_val=X_val, y_val=y_val)
+```
+
+### Cleaning up: unregistering your entries
+
+If you no longer need a custom optimizer or scheduler — for example to free up
+a name or reset state between experiments — remove it with
+`unregister_optimizer` / `unregister_scheduler`. Use `missing_ok=True` for
+idempotent teardown that will not raise if the entry is already gone. Built-in
+DeepTab names are protected and cannot be removed.
+
+```python
+# Remove the custom entries we added above.
+unregister_optimizer("scaledadam")
+unregister_scheduler("warmupconstant")
+print("scaledadam" in available_optimizers())   # False
+
+# Safe to call again — missing_ok avoids an error if it is already gone.
+unregister_optimizer("scaledadam", missing_ok=True)
+
+# Built-ins are protected: this raises, by design.
+try:
+    unregister_optimizer("adam")
+except ValueError as err:
+    print("Refused to remove built-in:", err)
 ```
 
 ---
