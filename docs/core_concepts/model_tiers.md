@@ -2,10 +2,10 @@
 
 DeepTab separates production-ready models from research-stage models.
 
-| Tier | Import path | API expectation | Best use |
-| --- | --- | --- | --- |
-| Stable | `from deeptab.models import ...` | Public API intended to remain compatible within a major version. | Production, long-running projects, baseline suites. |
-| Experimental | `from deeptab.models.experimental import ...` | May change as research implementations mature. | Prototyping, research comparisons, early feedback. |
+| Tier         | Import path                                   | API expectation                                                  | Best use                                            |
+| ------------ | --------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------- |
+| Stable       | `from deeptab.models import ...`              | Public API intended to remain compatible within a major version. | Production, long-running projects, baseline suites. |
+| Experimental | `from deeptab.models.experimental import ...` | May change as research implementations mature.                   | Prototyping, research comparisons, early feedback.  |
 
 ## Stable Models
 
@@ -39,6 +39,13 @@ Experimental model pages:
 - [ModernNCA](../model_zoo/experimental/modernnca)
 - [TANGOS](../model_zoo/experimental/tangos)
 - [Trompt](../model_zoo/experimental/trompt)
+
+## Custom Models
+
+Beyond the stable and experimental tiers, you can plug in your own architecture
+and use it through the same scikit-learn API, preprocessing pipeline, and
+trainer as the built-in models. See [Custom Models](custom_models) for the full
+guide.
 
 ## Choosing a Tier
 

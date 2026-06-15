@@ -320,51 +320,70 @@ deeptab_runs/
 
 ### Custom Models
 
-Implement your own architecture with DeepTab's base classes:
+Implement your own architecture with DeepTab's base classes. A model is three
+small pieces: a dataclass **config** (subclassing `BaseModelConfig`), a PyTorch
+**architecture** (subclassing `BaseModel`), and one **estimator** per task that
+binds them via `_model_cls` / `_config_cls`:
 
 ```python
+from dataclasses import dataclass, field
+
+import torch
 import torch.nn as nn
-from deeptab.core import BaseModel
+
+from deeptab.configs import BaseModelConfig, TrainerConfig
+from deeptab.core import BaseModel, get_feature_dimensions
 from deeptab.models import SklearnBaseRegressor
 
-class MyCustomConfig:
-    def __init__(self, d_model=64, dropout=0.1):
-        self.d_model = d_model
-        self.dropout = dropout
+
+@dataclass
+class MyCustomConfig(BaseModelConfig):
+    layer_sizes: list = field(default_factory=lambda: [128, 64])
+    dropout: float = 0.1
+
 
 class MyCustomModel(BaseModel):
     def __init__(
         self,
-        feature_information: tuple,
+        feature_information: tuple,  # (num_info, cat_info, embedding_info)
         num_classes: int = 1,
-        config: MyCustomConfig = MyCustomConfig(),
-        **kwargs
+        config: MyCustomConfig = MyCustomConfig(),  # noqa: B008
+        **kwargs,
     ):
         super().__init__(config=config, **kwargs)
-        # feature_information = (num_feature_info, cat_feature_info, embedding_feature_info)
+        self.save_hyperparameters(ignore=["feature_information"])
 
-        # Define your architecture
-        self.encoder = nn.Sequential(
-            nn.Linear(config.d_model, config.d_model),
-            nn.ReLU(),
-            nn.Dropout(config.dropout),
-            nn.Linear(config.d_model, num_classes)
-        )
+        # Input width is derived from the data, never hard-coded.
+        input_dim = get_feature_dimensions(*feature_information)
 
-    def forward(self, num_features, cat_features, embeddings):
-        # forward() always receives three positional arguments:
-        # num_features, cat_features, and embeddings
-        x = num_features  # Process features as needed
-        return self.encoder(x)
+        layers: list[nn.Module] = []
+        prev = input_dim
+        for size in self.hparams.layer_sizes:
+            layers += [nn.Linear(prev, size), nn.ReLU(), nn.Dropout(self.hparams.dropout)]
+            prev = size
+        layers.append(nn.Linear(prev, num_classes))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, *data) -> torch.Tensor:
+        # data == (num_features, cat_features, embeddings)
+        x = torch.cat([t for group in data for t in group], dim=1)
+        return self.layers(x)
+
 
 class MyRegressor(SklearnBaseRegressor):
     _model_cls = MyCustomModel
     _config_cls = MyCustomConfig
 
+
 # Use like any other DeepTab model
-model = MyRegressor()
+model = MyRegressor(
+    model_config=MyCustomConfig(layer_sizes=[256, 128]),
+    trainer_config=TrainerConfig(lr=1e-3),
+)
 model.fit(X_train, y_train, max_epochs=50)
 ```
+
+> **📖 Learn more:** [Custom Models](https://deeptab.readthedocs.io/en/latest/core_concepts/custom_models.html) walks through configs, embeddings, and the `*Classifier` / `*Regressor` / `*LSS` variants.
 
 > **🛠️ Developer Guide:** See [Contributing](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for architecture guidelines.
 

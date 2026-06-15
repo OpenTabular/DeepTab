@@ -19,6 +19,7 @@
 
    core_concepts/sklearn_api
    core_concepts/model_tiers
+   core_concepts/custom_models
    core_concepts/config_system
    core_concepts/observability
    core_concepts/training_and_evaluation
