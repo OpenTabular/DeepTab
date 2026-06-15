@@ -1,97 +1,9 @@
 """LR-scheduler registry and Lightning-compatible factory for DeepTab.
 
-Background
-----------
-Previously ``TaskModel.configure_optimizers`` hard-coded
-``ReduceLROnPlateau`` with ``mode='min'`` and ``monitor='val_loss'``.
-That is wrong whenever the user sets ``TrainerConfig(mode='max')`` or
-``TrainerConfig(monitor='val_auc')`` because early stopping then follows
-the correct metric/direction while the scheduler watches a different,
-possibly opposing metric.
-
-What this module provides
--------------------------
-1. A registry of standard PyTorch schedulers under predictable lowercase
-   names (see *Built-in schedulers* below).
-2. :func:`build_scheduler` — returns a Lightning-compatible dict (or
-   ``None`` when the scheduler is disabled).
-3. Correct forwarding of ``mode`` and ``monitor`` to ``ReduceLROnPlateau``
-   so both early stopping and the scheduler track the same metric.
-4. Backward-compatible defaults: ``ReduceLROnPlateau`` remains the default
-   and the legacy ``lr_patience`` / ``lr_factor`` fields still take effect.
-
-Built-in schedulers
--------------------
-All standard ``torch.optim.lr_scheduler`` classes are registered at import
-time under their original (case-insensitive) names::
-
-    constantlr, cosineannealinglr, cosineannealingwarmrestarts,
-    cycliclr, exponentiallr, linearlr, multisteplr, onecyclelr,
-    reducelronplateau, sequentiallr, steplr
-
-Basic usage
------------
-:func:`build_scheduler` is called automatically by
-``TaskModel.configure_optimizers``.  You rarely need it directly, but it is
-useful when building custom training loops::
-
-    from deeptab.training.schedulers import build_scheduler
-    import torch.nn as nn, torch.optim as optim
-
-    model = nn.Linear(10, 1)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
-
-    # Default: ReduceLROnPlateau watching val_loss (minimised)
-    sched_cfg = build_scheduler(optimizer)
-
-    # Cosine annealing (no monitor needed)
-    sched_cfg = build_scheduler(
-        optimizer,
-        scheduler_type="CosineAnnealingLR",
-        scheduler_kwargs={"T_max": 100},
-    )
-
-    # Disabled
-    sched_cfg = build_scheduler(optimizer, scheduler_type=None)
-    # sched_cfg is None
-
-Using via TrainerConfig
------------------------
-The most common configuration path is through
-:class:`~deeptab.configs.TrainerConfig`::
-
-    from deeptab.configs import TrainerConfig
-
-    # Switch to cosine annealing
-    tc = TrainerConfig(
-        scheduler_type="CosineAnnealingLR",
-        scheduler_kwargs={"T_max": 50},
-    )
-
-    # Maximise AUC (early stopping AND scheduler aligned)
-    tc = TrainerConfig(
-        monitor="val_auc",
-        mode="max",
-        scheduler_type="ReduceLROnPlateau",
-        lr_patience=5,
-        lr_factor=0.5,
-    )
-
-Registering a custom scheduler
--------------------------------
-::
-
-    from deeptab.training.schedulers import register_scheduler
-
-    register_scheduler("warmup_cosine", MyWarmupCosineScheduler)
-    tc = TrainerConfig(scheduler_type="warmup_cosine")
-
-See Also
---------
-:mod:`deeptab.training.optimizers` : Companion optimizer registry.
-:class:`~deeptab.configs.TrainerConfig` : Config object that drives
-    ``scheduler_type``, ``scheduler_kwargs``, ``monitor``, ``mode``,
-    ``lr_patience``, and ``lr_factor``.
+See :func:`build_scheduler` (the primary entry point, which also documents how
+``mode``/``monitor`` are forwarded to ``ReduceLROnPlateau``),
+:func:`register_scheduler` and :func:`unregister_scheduler` (extension points),
+and :func:`available_schedulers` (the list of built-in names).
 """
 
 from __future__ import annotations
@@ -106,9 +18,15 @@ __all__ = [
     "build_scheduler",
     "get_scheduler",
     "register_scheduler",
+    "unregister_scheduler",
 ]
 
 _SCHEDULER_REGISTRY: dict[str, type] = {}
+
+# Names registered by DeepTab itself at import time.  These are protected:
+# end-users may override them (intentionally, with ``override=True``) but may
+# not remove them via :func:`unregister_scheduler`.
+_BUILTIN_SCHEDULERS: frozenset[str] = frozenset()
 
 # Schedulers that need a 'monitor' key in the Lightning dict
 _PLATEAU_SCHEDULERS: frozenset[str] = frozenset({"reducelronplateau"})
@@ -118,6 +36,7 @@ _SCHEDULERS_WITH_MODE: frozenset[str] = frozenset({"reducelronplateau"})
 
 
 def _register_torch_defaults() -> None:
+    global _BUILTIN_SCHEDULERS
     names = [
         "ReduceLROnPlateau",
         "StepLR",
@@ -135,6 +54,7 @@ def _register_torch_defaults() -> None:
         cls = getattr(_lr_sched, name, None)
         if cls is not None:
             _SCHEDULER_REGISTRY[name.lower()] = cls
+    _BUILTIN_SCHEDULERS = frozenset(_SCHEDULER_REGISTRY.keys())
 
 
 _register_torch_defaults()
@@ -188,6 +108,72 @@ def register_scheduler(name: str, factory: type, *, override: bool = False) -> N
     if key in _SCHEDULER_REGISTRY and not override:
         raise ValueError(f"Scheduler {name!r} is already registered. Pass override=True to replace it.")
     _SCHEDULER_REGISTRY[key] = factory
+
+
+def unregister_scheduler(name: str, *, missing_ok: bool = False) -> None:
+    """Remove a **user-registered** scheduler from the registry.
+
+    Use this to undo a previous :func:`register_scheduler` call — for example
+    to free up a name or to reset state between experiments.  Only schedulers
+    that you registered yourself can be removed; the schedulers that ship with
+    DeepTab are protected and cannot be unregistered (removing them would break
+    every estimator in the process).
+
+    Parameters
+    ----------
+    name : str
+        Case-insensitive name of the scheduler to remove.
+    missing_ok : bool, default=False
+        If ``True``, silently return when *name* is not registered instead of
+        raising.  Useful for idempotent teardown (e.g. in notebooks or tests
+        that may run more than once).
+
+    Raises
+    ------
+    ValueError
+        If *name* is a built-in DeepTab scheduler.  Built-ins are protected
+        and can only be replaced via ``register_scheduler(..., override=True)``,
+        never removed.
+    ~deeptab.core.exceptions.InvalidParamError
+        If *name* is not registered and *missing_ok* is ``False``.  The error
+        message lists the available names.
+
+    Examples
+    --------
+    >>> from deeptab.training.schedulers import register_scheduler, unregister_scheduler
+    >>> register_scheduler("warmup_cosine", MyWarmupCosineScheduler)
+    >>> unregister_scheduler("warmup_cosine")
+    >>> unregister_scheduler("warmup_cosine", missing_ok=True)  # no error, already gone
+    >>> unregister_scheduler("steplr")  # raises ValueError: built-in, protected
+
+    Notes
+    -----
+    Like registration, removal is **process-global**.
+
+    See Also
+    --------
+    :func:`register_scheduler` : Add or replace a scheduler.
+    :func:`available_schedulers` : Inspect the current registry.
+    """
+    key = name.lower()
+    if key in _BUILTIN_SCHEDULERS:
+        raise ValueError(
+            f"Scheduler {name!r} is a built-in DeepTab scheduler and cannot be unregistered. "
+            "Built-ins can be replaced with register_scheduler(..., override=True) but not removed."
+        )
+    if key not in _SCHEDULER_REGISTRY:
+        if missing_ok:
+            return
+        from deeptab.core.exceptions import invalid_param_error
+
+        raise invalid_param_error(
+            "unregister_scheduler",
+            "name",
+            name,
+            "must be a user-registered scheduler name",
+            sorted(set(available_schedulers()) - _BUILTIN_SCHEDULERS),
+        )
+    del _SCHEDULER_REGISTRY[key]
 
 
 def get_scheduler(name: str) -> type:

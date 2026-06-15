@@ -1,64 +1,8 @@
 """Optimizer registry and factory for DeepTab training.
 
-This module replaces the previous pattern of ``getattr(torch.optim, name)`` in
-``TaskModel.configure_optimizers``.  The old approach:
-
-- failed with an unhelpful ``AttributeError`` on typos;
-- was not extensible without patching ``TaskModel``;
-- gave no indication of what optimizer names were valid.
-
-The registry-backed design solves all three problems: names are validated
-upfront with a helpful error listing available options, and custom optimizers
-can be plugged in via :func:`register_optimizer` without touching any
-DeepTab internals.
-
-Built-in optimizers
--------------------
-All standard ``torch.optim`` classes are registered at import time under
-their original (case-insensitive) names::
-
-    adadelta, adagrad, adam, adamw, adamax, asgd,
-    lbfgs, nadam, radam, rmsprop, rprop, sgd, sparseadam
-
-Basic usage
------------
-The typical entry point for end-users is :func:`build_optimizer`, which is
-called automatically by ``TaskModel.configure_optimizers`` using the values
-from :class:`~deeptab.configs.TrainerConfig`::
-
-    from deeptab.training.optimizers import build_optimizer
-    import torch.nn as nn
-
-    model = nn.Linear(10, 1)
-
-    # AdamW with custom betas
-    opt = build_optimizer(
-        model,
-        optimizer_type="AdamW",
-        lr=3e-4,
-        weight_decay=1e-2,
-        optimizer_kwargs={"betas": (0.9, 0.95)},
-    )
-
-Registering a custom optimizer
--------------------------------
-Any callable that accepts ``(params, **kwargs)`` can be registered::
-
-    from deeptab.training.optimizers import register_optimizer
-    import torch.optim as optim
-
-    # e.g. a third-party Muon optimizer
-    register_optimizer("muon", MyMuonOptimizer)
-
-    # Then use it via TrainerConfig
-    from deeptab.configs import TrainerConfig
-    tc = TrainerConfig(optimizer_type="muon", lr=1e-3)
-
-See Also
---------
-:mod:`deeptab.training.schedulers` : Companion LR-scheduler registry.
-:class:`~deeptab.configs.TrainerConfig` : The config object that drives
-    ``optimizer_type``, ``lr``, ``weight_decay``, and ``optimizer_kwargs``.
+See :func:`build_optimizer` (the primary entry point), :func:`register_optimizer`
+and :func:`unregister_optimizer` (extension points), and
+:func:`available_optimizers` (the list of built-in names) for usage details.
 """
 
 from __future__ import annotations
@@ -75,13 +19,20 @@ __all__ = [
     "get_optimizer",
     "normalize_optimizer_kwargs",
     "register_optimizer",
+    "unregister_optimizer",
 ]
 
 # Registry: lowercase key -> optimizer class
 _OPTIMIZER_REGISTRY: dict[str, type[torch.optim.Optimizer]] = {}
 
+# Names registered by DeepTab itself at import time.  These are protected:
+# end-users may override them (intentionally, with ``override=True``) but may
+# not remove them via :func:`unregister_optimizer`.
+_BUILTIN_OPTIMIZERS: frozenset[str] = frozenset()
+
 
 def _register_torch_defaults() -> None:
+    global _BUILTIN_OPTIMIZERS
     names = [
         "Adadelta",
         "Adagrad",
@@ -101,6 +52,7 @@ def _register_torch_defaults() -> None:
         cls = getattr(torch.optim, name, None)
         if cls is not None:
             _OPTIMIZER_REGISTRY[name.lower()] = cls
+    _BUILTIN_OPTIMIZERS = frozenset(_OPTIMIZER_REGISTRY.keys())
 
 
 _register_torch_defaults()
@@ -167,6 +119,73 @@ def register_optimizer(
     if key in _OPTIMIZER_REGISTRY and not override:
         raise ValueError(f"Optimizer {name!r} is already registered. Pass override=True to replace it.")
     _OPTIMIZER_REGISTRY[key] = factory
+
+
+def unregister_optimizer(name: str, *, missing_ok: bool = False) -> None:
+    """Remove a **user-registered** optimizer from the registry.
+
+    Use this to undo a previous :func:`register_optimizer` call — for example
+    to free up a name or to reset state between experiments.  Only optimizers
+    that you registered yourself can be removed; the optimizers that ship with
+    DeepTab are protected and cannot be unregistered (removing them would break
+    every estimator in the process).
+
+    Parameters
+    ----------
+    name : str
+        Case-insensitive name of the optimizer to remove.
+    missing_ok : bool, default=False
+        If ``True``, silently return when *name* is not registered instead of
+        raising.  Useful for idempotent teardown (e.g. in notebooks or tests
+        that may run more than once).
+
+    Raises
+    ------
+    ValueError
+        If *name* is a built-in DeepTab optimizer.  Built-ins are protected
+        and can only be replaced via ``register_optimizer(..., override=True)``,
+        never removed.
+    ~deeptab.core.exceptions.InvalidParamError
+        If *name* is not registered and *missing_ok* is ``False``.  The error
+        message lists the available names.
+
+    Examples
+    --------
+    >>> from deeptab.training.optimizers import register_optimizer, unregister_optimizer
+    >>> import torch.optim as optim
+    >>> register_optimizer("sgdm", optim.SGD)
+    >>> unregister_optimizer("sgdm")
+    >>> unregister_optimizer("sgdm", missing_ok=True)  # no error, already gone
+    >>> unregister_optimizer("adam")  # raises ValueError: built-in, protected
+
+    Notes
+    -----
+    Like registration, removal is **process-global**.
+
+    See Also
+    --------
+    :func:`register_optimizer` : Add or replace an optimizer.
+    :func:`available_optimizers` : Inspect the current registry.
+    """
+    key = name.lower()
+    if key in _BUILTIN_OPTIMIZERS:
+        raise ValueError(
+            f"Optimizer {name!r} is a built-in DeepTab optimizer and cannot be unregistered. "
+            "Built-ins can be replaced with register_optimizer(..., override=True) but not removed."
+        )
+    if key not in _OPTIMIZER_REGISTRY:
+        if missing_ok:
+            return
+        from deeptab.core.exceptions import invalid_param_error
+
+        raise invalid_param_error(
+            "unregister_optimizer",
+            "name",
+            name,
+            "must be a user-registered optimizer name",
+            sorted(set(available_optimizers()) - _BUILTIN_OPTIMIZERS),
+        )
+    del _OPTIMIZER_REGISTRY[key]
 
 
 def get_optimizer(name: str) -> type[torch.optim.Optimizer]:

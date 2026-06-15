@@ -7,7 +7,13 @@ import torch
 import torch.nn as nn
 
 from deeptab.core.exceptions import InvalidParamError
-from deeptab.training.schedulers import available_schedulers, build_scheduler, get_scheduler, register_scheduler
+from deeptab.training.schedulers import (
+    available_schedulers,
+    build_scheduler,
+    get_scheduler,
+    register_scheduler,
+    unregister_scheduler,
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -100,6 +106,38 @@ class TestRegisterScheduler:
 
         register_scheduler("_over_sched", _OverSched, override=True)
         register_scheduler("_over_sched", _OverSched, override=True)  # no error
+
+
+# ---------------------------------------------------------------------------
+# unregister_scheduler
+# ---------------------------------------------------------------------------
+
+
+class TestUnregisterScheduler:
+    def test_unregister_user_entry(self):
+        class _DummySched(torch.optim.lr_scheduler.StepLR):
+            pass
+
+        register_scheduler("_unreg_sched", _DummySched, override=True)
+        assert "_unreg_sched" in available_schedulers()
+        unregister_scheduler("_unreg_sched")
+        assert "_unreg_sched" not in available_schedulers()
+
+    def test_unknown_raises_invalid_param_error(self):
+        with pytest.raises(InvalidParamError):
+            unregister_scheduler("_never_registered_sched")
+
+    def test_missing_ok_suppresses_error(self):
+        unregister_scheduler("_never_registered_sched", missing_ok=True)  # no error
+
+    def test_builtin_cannot_be_unregistered(self):
+        with pytest.raises(ValueError, match="built-in"):
+            unregister_scheduler("steplr")
+        assert "steplr" in available_schedulers()
+
+    def test_builtin_protected_even_with_missing_ok(self):
+        with pytest.raises(ValueError, match="built-in"):
+            unregister_scheduler("reducelronplateau", missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

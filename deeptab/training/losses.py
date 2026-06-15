@@ -1,31 +1,8 @@
 """Training loss functions and class-imbalance utilities used across DeepTab models.
 
-New in v2.0.0.
-
-Classification losses follow the same class-based, registry-driven design as the
-distributional losses in :mod:`deeptab.distributions`: every concrete loss is an
-``nn.Module`` subclass of :class:`BaseLoss` exposing a uniform
-``forward(logits, targets) -> Tensor`` interface and registering itself under a
-string ``name``.  This makes losses addressable from configs / HPO search spaces
-(``loss_fct="focal"``) and keeps new losses trivial to add — subclass
-:class:`BaseLoss`, give it a ``name``, and (optionally) override
-``from_class_weights`` to describe how class weights map onto its parameters.
-
-Helpers for imbalanced classification targets:
-
-* :func:`compute_class_weights` — turn a sklearn-style ``class_weight`` argument
-  (``"balanced"``, a mapping, or an array) into a per-class weight vector.
-* :func:`build_classification_loss` — resolve a loss spec (``None``, a registry
-  name, or an ``nn.Module``) into a ready-to-use loss, applying class weights.
-* :func:`build_weighted_classification_loss` — construct the default weighted
-  loss (binary :class:`WeightedBCEWithLogitsLoss` or multiclass
-  :class:`WeightedCrossEntropyLoss`) from a per-class weight vector.
-
-Available registered losses:
-
-* ``"bce"`` — :class:`WeightedBCEWithLogitsLoss` (binary).
-* ``"cross_entropy"`` — :class:`WeightedCrossEntropyLoss` (multiclass).
-* ``"focal"`` — :class:`FocalLoss` (binary or multiclass; best for extreme imbalance).
+See :class:`BaseLoss` for the registry design and the list of built-in losses,
+and :func:`build_classification_loss` / :func:`compute_class_weights` /
+:func:`build_weighted_classification_loss` for the imbalance helpers.
 """
 
 from __future__ import annotations
@@ -171,6 +148,15 @@ class BaseLoss(nn.Module):
     To add a new loss, subclass :class:`BaseLoss` with a ``name`` keyword and
     implement :meth:`forward`. Override :meth:`from_class_weights` to describe how
     a per-class weight vector maps onto the loss's own parameters.
+
+    Built-in registered losses:
+
+    * ``"bce"`` — :class:`WeightedBCEWithLogitsLoss` (binary).
+    * ``"cross_entropy"`` — :class:`WeightedCrossEntropyLoss` (multiclass).
+    * ``"focal"`` — :class:`FocalLoss` (binary or multiclass; best for extreme imbalance).
+
+    Use :meth:`available` to list registered names and :func:`get_loss` to look
+    up a class by name.
 
     Attributes
     ----------

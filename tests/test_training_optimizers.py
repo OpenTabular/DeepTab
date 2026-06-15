@@ -14,6 +14,7 @@ from deeptab.training.optimizers import (
     get_optimizer,
     normalize_optimizer_kwargs,
     register_optimizer,
+    unregister_optimizer,
 )
 
 # ---------------------------------------------------------------------------
@@ -114,6 +115,38 @@ class TestRegisterOptimizer:
 
         register_optimizer("_over_opt", _DummyOpt3, override=True)
         register_optimizer("_over_opt", _DummyOpt3, override=True)  # no error
+
+
+# ---------------------------------------------------------------------------
+# unregister_optimizer
+# ---------------------------------------------------------------------------
+
+
+class TestUnregisterOptimizer:
+    def test_unregister_user_entry(self):
+        class _DummyOpt(torch.optim.SGD):
+            pass
+
+        register_optimizer("_unreg_opt", _DummyOpt, override=True)
+        assert "_unreg_opt" in available_optimizers()
+        unregister_optimizer("_unreg_opt")
+        assert "_unreg_opt" not in available_optimizers()
+
+    def test_unknown_raises_invalid_param_error(self):
+        with pytest.raises(InvalidParamError):
+            unregister_optimizer("_never_registered_opt")
+
+    def test_missing_ok_suppresses_error(self):
+        unregister_optimizer("_never_registered_opt", missing_ok=True)  # no error
+
+    def test_builtin_cannot_be_unregistered(self):
+        with pytest.raises(ValueError, match="built-in"):
+            unregister_optimizer("adam")
+        assert "adam" in available_optimizers()
+
+    def test_builtin_protected_even_with_missing_ok(self):
+        with pytest.raises(ValueError, match="built-in"):
+            unregister_optimizer("sgd", missing_ok=True)
 
 
 # ---------------------------------------------------------------------------

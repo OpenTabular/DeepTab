@@ -17,9 +17,10 @@ from .optimizers import (
     get_optimizer,
     normalize_optimizer_kwargs,
     register_optimizer,
+    unregister_optimizer,
 )
 from .pretraining import ContrastivePretrainer, pretrain_embeddings
-from .schedulers import available_schedulers, build_scheduler, get_scheduler, register_scheduler
+from .schedulers import available_schedulers, build_scheduler, get_scheduler, register_scheduler, unregister_scheduler
 
 __all__ = [
     "BaseLoss",
@@ -44,4 +45,6 @@ __all__ = [
     "pretrain_embeddings",
     "register_optimizer",
     "register_scheduler",
+    "unregister_optimizer",
+    "unregister_scheduler",
 ]
