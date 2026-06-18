@@ -2,6 +2,33 @@
 
 DeepTab estimators follow the scikit-learn pattern while training PyTorch models under the hood. You instantiate an estimator, call `fit`, then use `predict`, `evaluate`, `score`, `save`, and `load`.
 
+## What "scikit-learn compatible" means
+
+scikit-learn defines a small set of conventions that every estimator is expected to honour. Meeting them is what lets a model drop into tools like `Pipeline`, `GridSearchCV`, and `cross_val_score` without special-casing. The table below lists each convention, what it requires, and whether DeepTab satisfies it.
+
+| Convention                     | What it requires                                                                  | DeepTab |
+| ------------------------------ | --------------------------------------------------------------------------------- | :-----: |
+| Subclasses `BaseEstimator`     | Inherit from sklearn's base class for shared machinery                            |    ✓    |
+| Params set in `__init__` only  | The constructor stores arguments verbatim and does no heavy work                  |    ✓    |
+| `get_params` / `set_params`    | Expose and update hyperparameters by name (also nested, e.g. `model_config__...`) |    ✓    |
+| `fit(X, y)` returns `self`     | Training mutates the estimator in place and returns it for chaining               |    ✓    |
+| `predict(X)`                   | Produce predictions from a fitted estimator                                       |    ✓    |
+| `score(X, y)`                  | Default metric, higher is better (R² for regression, accuracy for classification) |    ✓    |
+| Fitted attributes end with `_` | Learned state is exposed as `classes_`, `n_features_in_`, etc.                    |    ✓    |
+| `check_is_fitted` support      | Defines `__sklearn_is_fitted__` so fitted state is detected correctly             |    ✓    |
+| Clone friendly                 | `sklearn.base.clone` reproduces the estimator from its params                     |    ✓    |
+| `predict_proba` (classifiers)  | Probability estimates for classification tasks                                    |    ✓    |
+
+```{note}
+DeepTab implements `score` directly rather than inheriting `ClassifierMixin` / `RegressorMixin`, but it follows the same "higher is better" convention, so `GridSearchCV` and friends behave as expected.
+```
+
+```{important}
+Because every constructor argument is stored untouched and all heavy lifting happens in `fit`, DeepTab estimators are safe to clone and reuse inside `Pipeline` and cross-validation. Avoid mutating private (underscore-prefixed) attributes if you rely on cloning, since those are deliberately hidden from `get_params`.
+```
+
+---
+
 ## Basic Workflow
 
 ```python
