@@ -42,6 +42,40 @@ The bundle saved to disk is a PyTorch-serialised dictionary containing:
 | `classes_`              | Class labels for classifiers                                              |
 | `versions`              | Python, PyTorch, Lightning, NumPy, pandas, scikit-learn versions          |
 
+### Why everything lives in one bundle
+
+A trained model is more than its weights. To turn raw input into a prediction you also need the fitted preprocessor that scaled and encoded the features, the feature schema that says which columns belong where, the architecture and its config to rebuild the network, and the task metadata that decides whether an output is a class label, a point estimate, or distribution parameters. If any of these travel separately, a reload can silently go wrong: a column in the wrong position or a re-fitted scaler will produce confident but incorrect predictions.
+
+DeepTab keeps all of it together so that one file is enough to reproduce the exact model you trained. The saved package versions make that promise auditable, so when a colleague loads your artifact a year later they can see the environment it was built in.
+
+```{note}
+The metadata is tiny next to the weights. Schema, config, task info, and version stamps add a few kilobytes and grow with the number of features, not the number of training rows. A model trained on ten rows and one trained on ten million carry the same metadata footprint.
+```
+
+### How `.deeptab` compares to raw formats
+
+`.deeptab` is not a new on-disk format. It is a PyTorch-serialised dictionary with a clear name, and the value it adds over saving raw weights is everything wrapped around those weights.
+
+| Capability                                         | `.pt` (state dict) | `.pkl` (pickled estimator) | `.h5` | `.deeptab` |
+| -------------------------------------------------- | :----------------: | :------------------------: | :---: | :--------: |
+| Model weights                                      |         ✓          |             ✓              |   ✓   |     ✓      |
+| Rebuilds the correct architecture automatically    |         ✗          |      depends on class      |   ✗   |     ✓      |
+| Fitted preprocessor (scalers, encoders)            |         ✗          |         sometimes          |   ✗   |     ✓      |
+| Feature schema for predict-time validation         |         ✗          |             ✗              |   ✗   |     ✓      |
+| Task metadata (regression, LSS family, `classes_`) |         ✗          |         sometimes          |   ✗   |     ✓      |
+| Environment version stamps                         |         ✗          |             ✗              |   ✗   |     ✓      |
+| Self-contained: predict with no extra glue code    |         ✗          |             ✗              |   ✗   |     ✓      |
+
+With a bare `.pt` file you have to recreate the architecture by hand and re-attach a preprocessor before the weights mean anything. A pickled estimator can capture more, but it stores a live Python object graph that breaks the moment a class is renamed or a dependency shifts, and unpickling it runs arbitrary code. `.deeptab` sidesteps both problems by storing structured metadata alongside the weights and reconstructing the model through DeepTab's own loader.
+
+```{important}
+The self-contained reload is a feature of the DeepTab package, not of the file on its own. Loading a `.deeptab` artifact needs `deeptab` installed, ideally at a compatible version, which is exactly why the version snapshot is saved. The file is not a framework-independent interchange format. If you need a model that runs in a non-Python or non-DeepTab runtime, export to ONNX or TorchScript instead.
+```
+
+```{warning}
+Because the artifact is pickle-backed under the hood, only load `.deeptab` files from sources you trust, the same caution that applies to any `torch.load` or pickle file.
+```
+
 ### Verifying a round-trip
 
 ```python
@@ -74,6 +108,26 @@ loaded.classes_                # class labels
 loaded.versions_               # package version snapshot
 loaded.n_features_in_          # number of input features
 loaded.input_columns_          # ordered feature names
+```
+
+### The feature schema
+
+`feature_schema_` is the model's data contract. When the preprocessor fits, DeepTab records each feature's name, the preprocessing applied to it, its output dimension, and, for categorical columns, its category list. It tracks numerical, categorical, and embedding features separately.
+
+```python
+loaded.feature_schema_
+# {
+#   "numerical_features":   {"age": {...}, "income": {...}},
+#   "categorical_features": {"city": {..., "categories": ["NYC", "Boston", ...]}},
+#   "embedding_features":   None,
+#   "dimensions": {"num_numerical_features": 2, "num_categorical_features": 1, ...},
+# }
+```
+
+This single description does several jobs. The architecture reads it to size its input and embedding layers, so you never wire feature counts by hand. It records which columns the model expects, in what order and of what type, which is what lets `InferenceModel.validate_input()` reject a mismatched request at serving time. Because it is saved inside the artifact, a reloaded model knows its feature layout without re-fitting.
+
+```{note}
+The schema grows with the number of features, not the number of rows. It is the piece that lets a saved model carry "how to feed me" alongside its weights, so think of it as the bridge between preprocessing, the network, and deployment.
 ```
 
 ---

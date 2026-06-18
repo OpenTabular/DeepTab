@@ -73,7 +73,13 @@ The split-config API is the recommended style for new code.
 
 ## Fit
 
+You can train in one of two ways. Pass `X` and `y` alone and DeepTab holds out a validation fraction internally, or pass your own `X_val` and `y_val` to control the split yourself.
+
 ```python
+# Auto split: DeepTab holds out val_size (default 0.2) for validation
+model.fit(X, y)
+
+# Explicit split: you supply the validation set, e.g. a time-based holdout
 model.fit(
     X_train,
     y_train,
@@ -81,6 +87,12 @@ model.fit(
     y_val=y_val,
 )
 ```
+
+```{note}
+`X` and `y` are required; `X_val` and `y_val` are optional. When you pass `X_val` you must also pass `y_val`, and `val_size` is then ignored because nothing is held out from `X`. There is no separate test set inside `fit()`: keep your test data aside and use `predict()` or `evaluate()` on it afterwards.
+```
+
+Early stopping, the learning-rate scheduler, and checkpointing all watch the validation metric, so a meaningful validation set, whether automatic or explicit, matters for good results.
 
 Useful fit arguments:
 

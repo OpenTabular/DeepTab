@@ -67,6 +67,26 @@ Valid fields:
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
+### Running with no numerical preprocessing
+
+Set `numerical_preprocessing=None` (and `categorical_preprocessing=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
+
+```python
+prep = PreprocessingConfig(
+    numerical_preprocessing=None,    # no scaling, binning, or PLE on numeric columns
+    categorical_preprocessing=None,  # leave categorical encoding at its default
+)
+model = MambularClassifier(preprocessing_config=prep)
+```
+
+```{important}
+`None` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
+```
+
+```{note}
+Most deep tabular models train better with a numerical transform than without one. `None` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
+```
+
 ## Trainer Config
 
 `TrainerConfig` controls fit-time defaults used by the estimator.
@@ -154,6 +174,43 @@ tc = TrainerConfig(scheduler_type=None)
 scheduler, so they are always aligned. Previously `ReduceLROnPlateau` always
 watched `val_loss` in `min` mode regardless of what early stopping was
 configured to use.
+```
+
+## Split Config
+
+`SplitConfig` groups the train/validation split parameters into one value object instead of leaving them as loose `fit()` keywords. It is handy when several estimators should share the exact same splitting policy.
+
+```python
+from deeptab.configs import SplitConfig
+
+split = SplitConfig(
+    val_size=0.15,    # fraction held out when no explicit validation set is passed
+    random_state=42,  # seed for the shuffle and split; same seed reproduces the partition
+    shuffle=True,     # shuffle before splitting
+    stratify=True,    # preserve class proportions (classification only)
+)
+```
+
+| Field          | Default | Meaning                                                        |
+| -------------- | ------- | -------------------------------------------------------------- |
+| `val_size`     | `0.2`   | Validation fraction used when no `X_val` is given.             |
+| `random_state` | `101`   | Seed controlling the shuffle and split.                        |
+| `shuffle`      | `True`  | Shuffle before splitting; `False` keeps the split order-based. |
+| `stratify`     | `False` | Preserve class proportions in classification splits.           |
+
+Apply it by passing its fields into `fit()`, which accepts `val_size`, `random_state`, and `shuffle` directly:
+
+```python
+model.fit(
+    X, y,
+    val_size=split.val_size,
+    random_state=split.random_state,
+    shuffle=split.shuffle,
+)
+```
+
+```{note}
+For classification, DeepTab already stratifies the internal split on `y` automatically, and it skips stratification for regression where a continuous target cannot be stratified. When you provide your own `X_val` and `y_val`, no split happens at all, so these fields do not apply.
 ```
 
 ## Observability Config
