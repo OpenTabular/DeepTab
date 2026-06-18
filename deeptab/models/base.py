@@ -8,9 +8,16 @@ import numpy as np
 from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
 
-from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, SplitConfig, TrainerConfig
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
-from deeptab.core.exceptions import DataError, target_nan_error, target_range_error, warn_data, xy_length_mismatch_error
+from deeptab.core.exceptions import (
+    DataError,
+    target_nan_error,
+    target_range_error,
+    warn_config,
+    warn_data,
+    xy_length_mismatch_error,
+)
 from deeptab.core.inspection import InspectionMixin
 from deeptab.core.interfaces import IDataModule, IDataModuleFactory, ITaskModel, ITaskModelFactory
 from deeptab.models._mixins import (
@@ -23,6 +30,36 @@ from deeptab.models._mixins import (
 
 if TYPE_CHECKING:
     from deeptab.core.observability import ObservabilityConfig
+
+
+def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_config) -> None:
+    """Warn when a config object is passed to the wrong constructor slot.
+
+    The constructor duck-types each config, so a misplaced config (for example a
+    ``TrainerConfig`` handed to ``model_config``) would otherwise be accepted
+    silently and then quietly ignored. This emits an advisory ``ConfigWarning``
+    when a recognisably wrong config type is detected, without raising, so that
+    legitimate duck-typed test doubles keep working.
+    """
+    slots = (
+        ("model_config", model_config, BaseModelConfig),
+        ("preprocessing_config", preprocessing_config, PreprocessingConfig),
+        ("trainer_config", trainer_config, TrainerConfig),
+    )
+    known_config_types = (BaseModelConfig, PreprocessingConfig, TrainerConfig, SplitConfig)
+    for slot_name, value, expected_cls in slots:
+        if value is None:
+            continue
+        # Only warn when the value is clearly *another* known config type;
+        # unknown duck-typed objects (mocks, test doubles) are left alone.
+        if isinstance(value, known_config_types) and not isinstance(value, expected_cls):
+            warn_config(
+                f"{type(value).__name__} was passed as '{slot_name}', but '{slot_name}' "
+                f"expects a {expected_cls.__name__}. Configs are not reordered for you, "
+                f"so this one will be misused or silently ignored. Pass it as its matching "
+                f"argument instead.",
+                stacklevel=4,
+            )
 
 
 def _validate_fit_inputs(
@@ -142,6 +179,7 @@ class SklearnBase(
 
         if model_config is not None or preprocessing_config is not None or trainer_config is not None:
             # ---- New split-config path ----
+            _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_config)
             self.model_config = model_config
             self.preprocessing_config = (
                 preprocessing_config if preprocessing_config is not None else PreprocessingConfig()

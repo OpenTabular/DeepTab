@@ -6,6 +6,7 @@ Covers:
 - Every factory function produces the right type with the right message fragment
 - PreprocessingConfig validation (__post_init__)
 - TrainerConfig validation (__post_init__)
+- Misplaced-config warning from the estimator constructor
 - BaseModelConfig / per-model config validation (__post_init__)
 - sklearn_compat.ensure_dataframe() guards (empty, bad dtype, all-NaN warning)
 - sklearn_compat.validate_input_features() guards (column count, column names)
@@ -512,6 +513,67 @@ class TestTrainerConfigValidation:
             cfg = TrainerConfig(max_epochs=100, lr_patience=5, lr_factor=0.5)
         assert cfg.lr_patience == 5
         assert cfg.lr_factor == 0.5
+
+
+# ===========================================================================
+# 4b — Misplaced-config warning (estimator constructor)
+# ===========================================================================
+
+
+class TestMisplacedConfigWarning:
+    """The estimator constructor warns when a config lands in the wrong slot."""
+
+    def test_trainer_config_as_model_config_warns(self):
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="model_config.*expects a BaseModelConfig"):
+            MLPClassifier(model_config=TrainerConfig())
+
+    def test_model_config_as_preprocessing_config_warns(self):
+        from deeptab.configs import MLPConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="preprocessing_config.*expects a PreprocessingConfig"):
+            MLPClassifier(preprocessing_config=MLPConfig())
+
+    def test_preprocessing_config_as_trainer_config_warns(self):
+        from deeptab.configs import PreprocessingConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="trainer_config.*expects a TrainerConfig"):
+            MLPClassifier(trainer_config=PreprocessingConfig())
+
+    def test_split_config_in_wrong_slot_warns(self):
+        from deeptab.configs import SplitConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="trainer_config.*expects a TrainerConfig"):
+            MLPClassifier(trainer_config=SplitConfig())
+
+    def test_correct_slots_emit_no_misplacement_warning(self):
+        from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            MLPClassifier(
+                model_config=MLPConfig(),
+                preprocessing_config=PreprocessingConfig(),
+                trainer_config=TrainerConfig(max_epochs=100, patience=15),
+            )
+
+    def test_duck_typed_object_is_not_flagged(self):
+        from deeptab.models import MLPClassifier
+
+        class DuckConfig:
+            def get_params(self, deep=True):
+                return {}
+
+        # An unknown duck-typed object must not trip the misplacement check.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            MLPClassifier(model_config=DuckConfig())
 
 
 # ===========================================================================
