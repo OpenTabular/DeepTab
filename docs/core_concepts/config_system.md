@@ -16,6 +16,70 @@ The model constructor accepts `model_config`, `preprocessing_config`, and `train
 
 All three are optional. If omitted, DeepTab creates default config objects internally.
 
+### Where to find every field
+
+Each config has a complete, authoritative field reference. Use the table below as the index.
+
+| Config                | Full field reference                                                                                                                                           |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `<Model>Config`       | Shared fields in `BaseModelConfig`, plus model-specific fields on each [Model Zoo](../model_zoo/stable/index) page and the API reference for that config class |
+| `PreprocessingConfig` | The [Preprocessing Config](#preprocessing-config) table below                                                                                                  |
+| `TrainerConfig`       | The [Trainer Config](#trainer-config) table below                                                                                                              |
+| `SplitConfig`         | The [Split Config](#split-config) table below                                                                                                                  |
+
+```{tip}
+At runtime you can list the fields of any config without leaving Python: `MambularConfig().get_params(deep=False)` returns the field-to-value mapping, and the same call works on `PreprocessingConfig`, `TrainerConfig`, and `SplitConfig`.
+```
+
+### Keeping each config in the right slot
+
+Each config belongs to a specific constructor argument: a model config goes to `model_config`, a `PreprocessingConfig` to `preprocessing_config`, and a `TrainerConfig` to `trainer_config`. The estimator does not reorder them for you and does not guess intent from the object type.
+
+If you pass a config to the wrong slot, DeepTab now detects it and emits a `ConfigWarning` that names the offending object and the slot it landed in:
+
+```python
+from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
+from deeptab.models import MambularClassifier
+
+# TrainerConfig accidentally passed where the model config belongs
+MambularClassifier(model_config=TrainerConfig())
+# ConfigWarning: TrainerConfig was passed as 'model_config', but 'model_config'
+# expects a BaseModelConfig. Configs are not reordered for you, so this one will
+# be misused or silently ignored. Pass it as its matching argument instead.
+```
+
+```{warning}
+The check warns rather than raises, so construction still succeeds. A misplaced config is then misused or silently ignored: for example a wrong `preprocessing_config` falls back to default preprocessing, and a wrong `trainer_config` falls back to the default optimizer. Treat this warning as an error in your own code and fix the argument it points to.
+```
+
+```{note}
+The warning only fires for a recognised DeepTab config sitting in the wrong slot. Genuinely custom or duck-typed objects (for example test doubles) are left untouched, so the check never gets in the way of advanced extension code.
+```
+
+### Passing a field to the wrong config
+
+A related mistake is putting the right kind of value on the wrong config, for example a model field such as `d_model` on a `SplitConfig`, or a trainer field such as `lr` on a `PreprocessingConfig`. This case does not need a DeepTab warning because it already fails fast and clearly through the underlying machinery.
+
+Each config is a dataclass, so an unknown field is rejected the moment you build it:
+
+```python
+from deeptab.configs import SplitConfig
+
+SplitConfig(d_model=64)
+# TypeError: SplitConfig.__init__() got an unexpected keyword argument 'd_model'
+```
+
+The same protection applies through `set_params`, where scikit-learn validates the nested field name:
+
+```python
+model.set_params(trainer_config__d_model=64)
+# ValueError: Invalid parameter 'd_model' for estimator TrainerConfig(...).
+```
+
+```{note}
+The two mistakes fail in deliberately different ways. A whole config in the wrong **slot** is duck-typed and only triggers an advisory `ConfigWarning`, because a custom object might legitimately stand in for a config. A wrong **field** name has no such ambiguity, so it raises immediately. If you are unsure which config owns a field, check the [field reference index](#where-to-find-every-field) above or call `Config().get_params(deep=False)` to list its valid fields.
+```
+
 ## Model Configs
 
 Every architecture has a dedicated config class:
