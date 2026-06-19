@@ -19,9 +19,9 @@
 
 # DeepTab: Tabular Deep Learning Made Simple
 
-**DeepTab** is a Python library for deep learning on tabular data. It brings state-of-the-art architectures, State Space Models (Mamba), Transformers, and tree-inspired networks, to a single scikit-learn compatible interface, so you can go from a DataFrame to a trained model in a few lines.
+**DeepTab** is a Python library for deep learning on tabular data, built on PyTorch and Lightning with a scikit-learn compatible API. It provides 15 neural architectures, including State Space Models (Mamba), Transformers, attention, retrieval, and tree-inspired networks, each available as a classifier, a regressor, and a distributional (`LSS`) model for uncertainty estimation. Preprocessing, training, and evaluation run through the standard `fit`/`predict`/`evaluate` workflow, so one code path serves day-to-day modeling, architecture research (via runtime registries and custom-model base classes), and production deployment (via schema-validated, read-only inference artifacts).
 
-## 📖 Why DeepTab?
+## Why DeepTab?
 
 - **Familiar interface.** A scikit-learn `fit`/`predict`/`evaluate` API that drops into existing pipelines, including `GridSearchCV`.
 - **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are built in.
@@ -38,7 +38,7 @@ v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API (`Mam
 ### Configuration and data
 
 - **Split-config API**: The model, preprocessing, and training each have their own configuration object, so you can tune one concern without disturbing the others. This is the first thing you reach for in v2.
-- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract, with stratified splitting controlled through `SplitConfig`.
+- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract, with stratified splitting controlled through `TrainerConfig`.
 
 ### Models
 
@@ -76,15 +76,15 @@ predictions = model.predict(X_test)
 probabilities = model.predict_proba(X_test)
 ```
 
-> **💡 That's it!** DeepTab handles preprocessing, batching, and training automatically.
+> **That's it!** DeepTab handles preprocessing, batching, and training automatically.
 
-> **📊 Works with pandas & numpy:** Pass DataFrames or arrays, and DeepTab auto-detects feature types.
+> **Works with pandas & numpy:** Pass DataFrames or arrays, and DeepTab auto-detects feature types.
 
-## 🤖 Available Models
+## Available Models
 
 DeepTab provides 15 stable architectures across five families: State Space Models (Mambular, MambaTab, MambAttention), Transformers (FTTransformer, TabTransformer, SAINT, AutoInt), residual networks (ResNet, TabR), tree-inspired models (NODE, ENODE, NDTF), and general baselines (MLP, TabM, TabulaRNN). Three experimental models (ModernNCA, Tangos, Trompt) are under evaluation for promotion.
 
-> **🎯 See the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) for detailed comparisons, complexity analysis, and selection guidance.**
+> **See the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) for detailed comparisons, complexity analysis, and selection guidance.**
 
 ### Stable Models
 
@@ -134,7 +134,7 @@ All models come in three variants:
 - `*Regressor`: Regression (point estimates)
 - `*LSS`: Distributional regression (full distribution prediction)
 
-> **🔄 Consistent API:** All models use the same interface, so you can swap architectures without changing code!
+> **Consistent API:** All models use the same interface, so you can swap architectures without changing code.
 
 ## 📚 Documentation
 
@@ -170,15 +170,15 @@ pip install 'deeptab[all]'        # every optional backend
 pip install mamba-ssm
 ```
 
-> **⚡ Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
+> **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
 
-> **📦 Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
+> **Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
 
-> **💻 Requirements:** Python 3.10+, PyTorch 2.2+, Lightning 2.3.3+
+> **Requirements:** Python 3.10+, PyTorch 2.2+, Lightning 2.3.3+
 
-> **🚀 GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
+> **GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
-## 🚀 Usage
+## Usage
 
 ### Basic Workflow
 
@@ -238,7 +238,7 @@ print(f"Best params: {search.best_params_}")
 print(f"Best score: {search.best_score_}")
 ```
 
-> **🔍 Built-in HPO:** Every estimator exposes `optimize_hparams()`, which runs Gaussian process Bayesian optimization (via [scikit-optimize](https://scikit-optimize.github.io/)) over a search space derived from the model config. See the [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
+> **Built-in HPO:** Every estimator exposes `optimize_hparams()`, which runs Gaussian process Bayesian optimization (via [scikit-optimize](https://scikit-optimize.github.io/)) over a search space derived from the model config. See the [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
 
 ### Distributional Regression (LSS)
 
@@ -259,11 +259,11 @@ params = model.predict(X_test)
 metrics = model.evaluate(X_test, y_test)
 ```
 
-> **📊 Available families:** `normal`, `lognormal`, `studentt`, `gamma`, `beta`, `tweedie`, `poisson`, `zip`, `negativebinom`, `dirichlet`, `mog`, `quantile`, and more. Each family auto-selects appropriate evaluation metrics (CRPS, deviances, NLL).
+> **Available families:** `normal`, `lognormal`, `studentt`, `gamma`, `beta`, `tweedie`, `poisson`, `zip`, `negativebinom`, `dirichlet`, `mog`, `quantile`, and more. Each family auto-selects appropriate evaluation metrics (CRPS, deviances, NLL).
 
-> **📐 Prediction intervals:** Turn the predicted parameters into calibrated intervals as shown in the [Uncertainty Quantification tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/uncertainty_quantification.html).
+> **Prediction intervals:** Turn the predicted parameters into calibrated intervals as shown in the [Uncertainty Quantification tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/uncertainty_quantification.html).
 
-## 🔧 Advanced Features
+## Advanced Features
 
 ### Preprocessing
 
@@ -282,14 +282,14 @@ model = MambularClassifier(preprocessing_config=prep_config)
 model.fit(X_train, y_train, max_epochs=50)
 ```
 
-> **✨ Features:**
+> **Features:**
 >
 > - **Automatic detection:** Feature types detected from data
 > - **Type-aware:** Separate strategies for numerical and categorical features
 > - **Methods:** PLE, quantile transform, splines, standardization, min-max, and robust scaling
 > - **Pre-trained encodings:** Transfer learning for categorical features
 
-> **📖 Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
+> **Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
 
 ### Observability & Experiment Tracking
 
@@ -322,7 +322,7 @@ deeptab_runs/
   mlflow/...
 ```
 
-> **🧭 Tune the noise:** `verbosity` controls how much is emitted (`0` silent, `1` milestones, `2` detailed, `3` debug). The default keeps notebooks quiet.
+> **Tune the noise:** `verbosity` controls how much is emitted (`0` silent, `1` milestones, `2` detailed, `3` debug). The default keeps notebooks quiet.
 
 > **🔬 For researchers:** Lifecycle events such as `fit.started`, `model.created`, and `train.completed` carry structured metadata (sample counts, parameter counts, best validation loss), so you can script experiment sweeps and compare runs programmatically.
 

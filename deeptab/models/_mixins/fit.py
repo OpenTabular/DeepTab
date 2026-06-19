@@ -96,6 +96,7 @@ class _FitMixin:
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
+        stratify: bool = True,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
@@ -156,6 +157,7 @@ class _FitMixin:
             val_size=val_size,
             random_state=random_state,
             regression=regression,
+            stratify=stratify,
             sampler=sampler,
             **dataloader_kwargs,
         )
@@ -284,6 +286,7 @@ class _FitMixin:
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
+        stratify: bool = True,
         patience: int = 15,
         monitor: str = "val_loss",
         mode: str = "min",
@@ -331,6 +334,11 @@ class _FitMixin:
             Mini-batch size.
         shuffle : bool, default=True
             Whether to shuffle training data each epoch.
+        stratify : bool, default=True
+            Whether to stratify the validation split on ``y`` for classification
+            tasks so the split keeps the same class proportions. Ignored for
+            regression. When a ``TrainerConfig`` is set, its ``stratify`` value
+            takes precedence.
         patience : int, default=15
             Early-stopping patience (epochs without validation improvement).
         monitor : str, default="val_loss"
@@ -374,6 +382,7 @@ class _FitMixin:
             batch_size = tc.batch_size
             val_size = tc.val_size
             shuffle = tc.shuffle
+            stratify = tc.stratify
             patience = tc.patience
             monitor = tc.monitor
             mode = tc.mode
@@ -447,6 +456,7 @@ class _FitMixin:
                 random_state=random_state,  # type: ignore[arg-type]
                 batch_size=batch_size,
                 shuffle=shuffle,
+                stratify=stratify,
                 lr=lr,
                 lr_patience=lr_patience,
                 lr_factor=lr_factor,

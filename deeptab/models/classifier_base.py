@@ -65,6 +65,7 @@ class SklearnBaseClassifier(SklearnBase):
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
+        stratify: bool = True,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
@@ -98,6 +99,9 @@ class SklearnBaseClassifier(SklearnBase):
             Number of samples per gradient update.
         shuffle : bool, default=True
             Whether to shuffle the training data before each epoch.
+        stratify : bool, default=True
+            Whether to stratify the validation split on `y` so the split keeps
+            the same class proportions. Set to False for a purely random split.
         lr : float, default=1e-3
             Learning rate for the optimizer.
         lr_patience : int, default=10
@@ -158,6 +162,7 @@ class SklearnBaseClassifier(SklearnBase):
             random_state=random_state,
             batch_size=batch_size,
             shuffle=shuffle,
+            stratify=stratify,
             lr=lr,
             lr_patience=lr_patience,
             lr_factor=lr_factor,
@@ -182,6 +187,7 @@ class SklearnBaseClassifier(SklearnBase):
         random_state: int = 101,
         batch_size: int = 128,
         shuffle: bool = True,
+        stratify: bool = True,
         patience: int = 15,
         monitor: str = "val_loss",
         mode: str = "min",
@@ -224,6 +230,10 @@ class SklearnBaseClassifier(SklearnBase):
             Number of samples per gradient update.
         shuffle : bool, default=True
             Whether to shuffle the training data before each epoch.
+        stratify : bool, default=True
+            Whether to stratify the validation split on `y` so the split keeps
+            the same class proportions. Set to False for a purely random split.
+            When a `TrainerConfig` is set, its `stratify` value takes precedence.
         patience : int, default=10
             Number of epochs with no improvement on the validation loss to wait before early stopping.
         monitor : str, default="val_loss"
@@ -301,6 +311,7 @@ class SklearnBaseClassifier(SklearnBase):
             random_state=random_state,
             batch_size=batch_size,
             shuffle=shuffle,
+            stratify=stratify,
             patience=patience,
             monitor=monitor,
             mode=mode,

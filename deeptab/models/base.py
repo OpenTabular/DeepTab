@@ -8,7 +8,7 @@ import numpy as np
 from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
 
-from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, SplitConfig, TrainerConfig
+from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
 from deeptab.core.exceptions import (
     DataError,
@@ -46,7 +46,7 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
         ("preprocessing_config", preprocessing_config, PreprocessingConfig),
         ("trainer_config", trainer_config, TrainerConfig),
     )
-    known_config_types = (BaseModelConfig, PreprocessingConfig, TrainerConfig, SplitConfig)
+    known_config_types = (BaseModelConfig, PreprocessingConfig, TrainerConfig)
     for slot_name, value, expected_cls in slots:
         if value is None:
             continue

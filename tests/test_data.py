@@ -331,6 +331,54 @@ class TestTabularDataModuleContract:
         datamodule.preprocess_data(X, y)
         assert datamodule.X_train is not None
 
+    def test_datamodule_stratify_defaults_to_true(self):
+        """The stratify flag defaults to True and is stored on the datamodule."""
+        from pretab.preprocessor import Preprocessor
+
+        preprocessor = Preprocessor()
+        datamodule = TabularDataModule(
+            preprocessor=preprocessor,
+            batch_size=32,
+            shuffle=True,
+            regression=False,
+        )
+
+        assert datamodule.stratify is True
+
+    def test_datamodule_stratify_false_allows_singleton_class(self):
+        """With stratify=False a class with a single member no longer blocks the split.
+
+        Stratified splitting raises when the least-populated class has fewer
+        members than the number of splits, so a singleton class is a clean way
+        to prove the flag actually switches stratification off.
+        """
+        from pretab.preprocessor import Preprocessor
+
+        # 20 rows: class 0 (x10), class 1 (x9), class 2 (x1 -> singleton).
+        X = pd.DataFrame({"f": list(range(20))})
+        y = np.array([0] * 10 + [1] * 9 + [2])
+
+        stratified = TabularDataModule(
+            preprocessor=Preprocessor(),
+            batch_size=4,
+            shuffle=True,
+            regression=False,
+            stratify=True,
+        )
+        with pytest.raises(ValueError):
+            stratified.preprocess_data(X, y)
+
+        unstratified = TabularDataModule(
+            preprocessor=Preprocessor(),
+            batch_size=4,
+            shuffle=True,
+            regression=False,
+            stratify=False,
+        )
+        unstratified.preprocess_data(X, y)
+        assert unstratified.X_train is not None
+        assert unstratified.X_val is not None
+
     def test_datamodule_setup_creates_datasets(self, regression_data):
         """Test setup() creates train and val datasets."""
         from pretab.preprocessor import Preprocessor

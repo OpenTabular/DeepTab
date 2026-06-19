@@ -25,10 +25,9 @@ Each config has a complete, authoritative field reference. Use the table below a
 | `<Model>Config`       | Shared fields in `BaseModelConfig`, plus model-specific fields on each [Model Zoo](../model_zoo/stable/index) page and the API reference for that config class |
 | `PreprocessingConfig` | The [Preprocessing Config](#preprocessing-config) table below                                                                                                  |
 | `TrainerConfig`       | The [Trainer Config](#trainer-config) table below                                                                                                              |
-| `SplitConfig`         | The [Split Config](#split-config) table below                                                                                                                  |
 
 ```{tip}
-At runtime you can list the fields of any config without leaving Python: `MambularConfig().get_params(deep=False)` returns the field-to-value mapping, and the same call works on `PreprocessingConfig`, `TrainerConfig`, and `SplitConfig`.
+At runtime you can list the fields of any config without leaving Python: `MambularConfig().get_params(deep=False)` returns the field-to-value mapping, and the same call works on `PreprocessingConfig` and `TrainerConfig`.
 ```
 
 ### Keeping each config in the right slot
@@ -58,15 +57,15 @@ The warning only fires for a recognised DeepTab config sitting in the wrong slot
 
 ### Passing a field to the wrong config
 
-A related mistake is putting the right kind of value on the wrong config, for example a model field such as `d_model` on a `SplitConfig`, or a trainer field such as `lr` on a `PreprocessingConfig`. This case does not need a DeepTab warning because it already fails fast and clearly through the underlying machinery.
+A related mistake is putting the right kind of value on the wrong config, for example a model field such as `d_model` on a `TrainerConfig`, or a trainer field such as `lr` on a `PreprocessingConfig`. This case does not need a DeepTab warning because it already fails fast and clearly through the underlying machinery.
 
 Each config is a dataclass, so an unknown field is rejected the moment you build it:
 
 ```python
-from deeptab.configs import SplitConfig
+from deeptab.configs import TrainerConfig
 
-SplitConfig(d_model=64)
-# TypeError: SplitConfig.__init__() got an unexpected keyword argument 'd_model'
+TrainerConfig(d_model=64)
+# TypeError: TrainerConfig.__init__() got an unexpected keyword argument 'd_model'
 ```
 
 The same protection applies through `set_params`, where scikit-learn validates the nested field name:
@@ -182,6 +181,7 @@ Valid fields:
 | `batch_size`                        | Batch size for train/validation/prediction loaders.                                                                                                                   |
 | `val_size`                          | Fraction held out when no explicit validation set is passed.                                                                                                          |
 | `shuffle`                           | Whether to shuffle the training dataloader.                                                                                                                           |
+| `stratify`                          | Whether to stratify the validation split on `y` for classification. Ignored for regression. Default `True`.                                                           |
 | `patience`, `monitor`, `mode`       | Early-stopping settings. `monitor` and `mode` also apply to the LR scheduler.                                                                                         |
 | `lr`, `lr_patience`, `lr_factor`    | Learning rate and `ReduceLROnPlateau` scheduler defaults.                                                                                                             |
 | `weight_decay`                      | Optimizer weight decay (L2 penalty).                                                                                                                                  |
@@ -240,41 +240,90 @@ watched `val_loss` in `min` mode regardless of what early stopping was
 configured to use.
 ```
 
-## Split Config
+### Registry lifecycle
 
-`SplitConfig` groups the train/validation split parameters into one value object instead of leaving them as loose `fit()` keywords. It is handy when several estimators should share the exact same splitting policy.
+The optimizer, scheduler, and loss registries are plain in-memory dictionaries that live for the lifetime of the Python process. DeepTab fills them with its built-in entries at import time, and any name you add joins the same process-global table.
+
+| Stage                 | Optimizer / scheduler                                             | Loss                                        | Metric                                                              |
+| --------------------- | ----------------------------------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
+| Register              | `register_optimizer(name, cls)` / `register_scheduler(name, cls)` | Subclass `BaseLoss` with a `name=` keyword  | No registry API; pass metric instances to `evaluate(metrics={...})` |
+| Look up               | `available_optimizers()` / `available_schedulers()`               | `BaseLoss.available()`                      | `METRIC_REGISTRY` holds the per-task defaults                       |
+| Re-register same name | Raises `ValueError` unless `override=True`                        | Silently replaces the previous class        | Not applicable                                                      |
+| Deregister            | `unregister_optimizer(name)` / `unregister_scheduler(name)`       | No deregister API                           | Not applicable                                                      |
+| Process restart       | Built-ins return on import; your entries are gone                 | Built-ins return on import; re-import yours | Defaults rebuilt on import                                          |
+
+**After you register**, the name is usable immediately, everywhere that accepts an `optimizer_type`, `scheduler_type`, or `loss_fct` string, for the rest of that process:
 
 ```python
-from deeptab.configs import SplitConfig
+from deeptab.training.optimizers import register_optimizer, available_optimizers
 
-split = SplitConfig(
-    val_size=0.15,    # fraction held out when no explicit validation set is passed
-    random_state=42,  # seed for the shuffle and split; same seed reproduces the partition
-    shuffle=True,     # shuffle before splitting
-    stratify=True,    # preserve class proportions (classification only)
-)
+register_optimizer("muon", MyMuonOptimizer)
+print("muon" in available_optimizers())          # True
+TrainerConfig(optimizer_type="muon", lr=1e-3)    # resolves now
 ```
 
-| Field          | Default | Meaning                                                        |
-| -------------- | ------- | -------------------------------------------------------------- |
-| `val_size`     | `0.2`   | Validation fraction used when no `X_val` is given.             |
-| `random_state` | `101`   | Seed controlling the shuffle and split.                        |
-| `shuffle`      | `True`  | Shuffle before splitting; `False` keeps the split order-based. |
-| `stratify`     | `False` | Preserve class proportions in classification splits.           |
-
-Apply it by passing its fields into `fit()`, which accepts `val_size`, `random_state`, and `shuffle` directly:
+**Registering the same name again** is where the registries differ. Optimizers and schedulers refuse to clobber an existing entry unless you opt in:
 
 ```python
-model.fit(
-    X, y,
-    val_size=split.val_size,
-    random_state=split.random_state,
-    shuffle=split.shuffle,
-)
+register_optimizer("muon", MyMuonOptimizer)                 # ValueError: already registered
+register_optimizer("muon", MyMuonOptimizer, override=True)  # OK, replaces the entry
+```
+
+A loss registers itself the moment its class body runs, so re-importing or redefining a `BaseLoss` subclass with the same `name` silently overwrites the earlier one. There is no `override` flag and no error:
+
+```python
+from deeptab.training.losses import BaseLoss
+
+class FocalLoss(BaseLoss, name="focal"):   # replaces the built-in "focal" in this process
+    ...
+```
+
+**Deregistering** applies only to optimizers and schedulers, and only to names you added. Built-ins are protected:
+
+```python
+from deeptab.training.optimizers import unregister_optimizer
+
+unregister_optimizer("muon")                   # removes your entry
+unregister_optimizer("muon", missing_ok=True)  # idempotent: no error if already gone
+unregister_optimizer("adam")                   # ValueError: built-in, cannot be removed
+```
+
+```{important}
+Nothing in any registry is persisted to disk. When the interpreter restarts, only DeepTab's built-ins come back automatically at import; every custom optimizer, scheduler, or loss you registered must be registered again. Put your `register_*` calls (and your `BaseLoss` subclass definitions) in a module that is imported at the top of every training script, so they are present in each new process and in each worker when training with multiple processes (DDP).
 ```
 
 ```{note}
-For classification, DeepTab already stratifies the internal split on `y` automatically, and it skips stratification for regression where a continuous target cannot be stratified. When you provide your own `X_val` and `y_val`, no split happens at all, so these fields do not apply.
+Metrics work differently: there is no `register_metric` function. `METRIC_REGISTRY` only holds the per-task default lists. To use a custom metric, subclass `DeepTabMetric` and pass an instance straight to `evaluate(metrics={"my_metric": MyMetric()})`; nothing is registered, so nothing needs cleanup.
+```
+
+## Controlling the validation split
+
+When you do not pass an explicit validation set, DeepTab holds one out from the training data. The split is governed by `TrainerConfig` fields, so the split policy lives in the same place as the rest of the training settings.
+
+```python
+from deeptab.configs import TrainerConfig
+
+trainer_config = TrainerConfig(
+    val_size=0.15,    # fraction held out when no explicit validation set is passed
+    shuffle=True,     # shuffle before splitting
+    stratify=True,    # keep class proportions in the split (classification only)
+)
+```
+
+| Field      | Default | Meaning                                                                                                    |
+| ---------- | ------- | ---------------------------------------------------------------------------------------------------------- |
+| `val_size` | `0.2`   | Validation fraction used when no `X_val` is given.                                                         |
+| `shuffle`  | `True`  | Shuffle before splitting; `False` keeps the split order-based.                                             |
+| `stratify` | `True`  | Stratify the split on `y` so train and validation keep the same class proportions. Ignored for regression. |
+
+The seed for the split comes from the estimator's `random_state` (or the `random_state` you pass to `fit()`), so the same seed always reproduces the same partition.
+
+```{important}
+`stratify` applies to classification only. A continuous regression target cannot be stratified, so the flag is ignored there. With `stratify=True` (the default) a classification split keeps the class balance of the full set; set `stratify=False` to draw a purely random split, which is useful for very small or rare-class datasets where stratification would otherwise fail.
+```
+
+```{note}
+When you provide your own `X_val` and `y_val`, no internal split happens at all, so `val_size`, `shuffle`, and `stratify` do not apply.
 ```
 
 ## Observability Config
@@ -315,7 +364,7 @@ model = MambularClassifier(
 model.fit(X_train, y_train)
 ```
 
-If `trainer_config` is provided, `fit()` uses its `max_epochs`, `batch_size`, `val_size`, `shuffle`, `patience`, `monitor`, `mode`, and `checkpoint_path` unless overridden by explicit `fit()` arguments in legacy paths.
+If `trainer_config` is provided, `fit()` takes its `max_epochs`, `batch_size`, `val_size`, `shuffle`, `stratify`, `patience`, `monitor`, `mode`, and `checkpoint_path`, overriding the matching `fit()` arguments.
 
 ## Hyperparameter Search
 

@@ -31,6 +31,9 @@ class TabularDataModule(pl.LightningDataModule):
             Random seed for reproducibility in data splitting.
         regression: bool, optional
             Whether the problem is regression (True) or classification (False).
+        stratify: bool, optional
+            Whether to stratify the validation split on the labels for
+            classification tasks. Ignored for regression. Defaults to True.
     """
 
     def __init__(
@@ -43,6 +46,7 @@ class TabularDataModule(pl.LightningDataModule):
         y_val=None,
         val_size=0.2,
         random_state=101,
+        stratify=True,
         sampler=None,
         **dataloader_kwargs,
     ):
@@ -59,6 +63,8 @@ class TabularDataModule(pl.LightningDataModule):
             if `X_val` and `y_val` are None.
             random_state (int, optional): Random seed for reproducibility in data splitting.
             regression (bool, optional): Whether the problem is regression (True) or classification (False).
+            stratify (bool, optional): Whether to stratify the validation split on the labels for
+            classification tasks. Ignored for regression. Defaults to True.
         """
         super().__init__()
         self.preprocessor = preprocessor
@@ -72,6 +78,7 @@ class TabularDataModule(pl.LightningDataModule):
         self.val_size = val_size
         self.random_state = random_state
         self.regression = regression
+        self.stratify = stratify
         self.sampler = sampler
         self._train_sample_weights = None
         if self.regression:
@@ -128,8 +135,9 @@ class TabularDataModule(pl.LightningDataModule):
         if X_val is None or y_val is None:
             split_data = [X_train, y_train]
 
-            # Determine stratify parameter for classification tasks
-            stratify = y_train if not self.regression else None
+            # Stratify classification splits on the labels when enabled; a
+            # continuous regression target cannot be stratified.
+            stratify = y_train if (self.stratify and not self.regression) else None
 
             if embeddings_train is not None:
                 if not isinstance(embeddings_train, list):
@@ -207,7 +215,7 @@ class TabularDataModule(pl.LightningDataModule):
         if len(weights) != len(y_full):
             raise ValueError(f"sample_weight has length {len(weights)} but X has {len(y_full)} rows.")
         # Same random_state + stratify + test_size reproduce the X/y partition exactly.
-        stratify = y_full if not self.regression else None
+        stratify = y_full if (self.stratify and not self.regression) else None
         train_weights, _ = train_test_split(weights, test_size=val_size, random_state=random_state, stratify=stratify)
         return train_weights
 

@@ -58,6 +58,7 @@ class TestTrainerConfig:
         assert cfg.batch_size == 128
         assert cfg.val_size == 0.2
         assert cfg.shuffle is True
+        assert cfg.stratify is True
         assert cfg.patience == 15
         assert cfg.monitor == "val_loss"
         assert cfg.mode == "min"

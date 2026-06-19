@@ -544,13 +544,6 @@ class TestMisplacedConfigWarning:
         with pytest.warns(ConfigWarning, match="trainer_config.*expects a TrainerConfig"):
             MLPClassifier(trainer_config=PreprocessingConfig())
 
-    def test_split_config_in_wrong_slot_warns(self):
-        from deeptab.configs import SplitConfig
-        from deeptab.models import MLPClassifier
-
-        with pytest.warns(ConfigWarning, match="trainer_config.*expects a TrainerConfig"):
-            MLPClassifier(trainer_config=SplitConfig())
-
     def test_correct_slots_emit_no_misplacement_warning(self):
         from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
         from deeptab.models import MLPClassifier

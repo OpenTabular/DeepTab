@@ -19,7 +19,7 @@ model.fit(X, y)
   -> restore best checkpoint after training
 ```
 
-Classification splits are stratified automatically. Regression splits are random.
+Classification splits are stratified automatically. Regression splits are random. You can turn stratification off with `TrainerConfig(stratify=False)`; see the [Config System](config_system) page for the split settings.
 
 ---
 
@@ -310,12 +310,13 @@ model.fit(
 
 ### Classifier-only arguments
 
-| Argument           | Default | Purpose                                                                                    |
-| ------------------ | ------- | ------------------------------------------------------------------------------------------ |
-| `class_weight`     | `None`  | `"balanced"`, a `{label: weight}` mapping, or an array to reweight the loss for imbalance. |
-| `loss_fct`         | `None`  | An `nn.Module` or registered loss name (`"focal"`, `"bce"`, `"cross_entropy"`).            |
-| `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                           |
-| `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.               |
+| Argument           | Default | Purpose                                                                                                                                                                   |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `stratify`         | `True`  | Stratify the validation split on `y` so train and validation keep the same class proportions. Set to `False` for a purely random split. Ignored when `X_val` is provided. |
+| `class_weight`     | `None`  | `"balanced"`, a `{label: weight}` mapping, or an array to reweight the loss for imbalance.                                                                                |
+| `loss_fct`         | `None`  | An `nn.Module` or registered loss name (`"focal"`, `"bce"`, `"cross_entropy"`).                                                                                           |
+| `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                                                                                                          |
+| `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.                                                                                              |
 
 ### LSS-only argument
 
