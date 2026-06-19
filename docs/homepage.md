@@ -34,7 +34,7 @@ v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API stays
 
 - **Split-config API**: separate model, preprocessing, and training configuration objects, so each concern can be tuned on its own. This is the first thing you reach for in v2.
 - **New models**: AutoInt, ENODE, and TabR (stable); Tangos, Trompt, and ModernNCA (experimental).
-- **Observability**: `ObservabilityConfig` adds structured lifecycle logging and one-line MLflow or TensorBoard tracking, opt-in and silent by default.
+- **Observability**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, opt-in and silent by default.
 - **Deployment-safe inference**: `InferenceModel` exposes a read-only prediction surface with schema validation, so a served model cannot be re-fitted by accident.
 - **Self-describing artifacts**: a single `.deeptab` save format bundles the architecture, feature schema, preprocessing, and versions with the weights.
 - **Registry-driven training**: optimizers, schedulers, and losses are selectable by name through `TrainerConfig` and extensible at runtime.

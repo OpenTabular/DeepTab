@@ -47,7 +47,7 @@ v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API (`Mam
 
 ### Training and evaluation
 
-- **Observability and experiment tracking**: `ObservabilityConfig` adds structured lifecycle logging and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree. It is opt-in and silent by default.
+- **Observability and experiment tracking**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree. It is opt-in and silent by default.
 - **Registry-driven training**: Every `torch.optim` optimizer, learning-rate scheduler, and loss is selectable by name through `TrainerConfig`, and you can register your own at runtime.
 - **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry.
 - **Reproducibility**: `set_seed` and `seed_context` seed Python, NumPy, and PyTorch across CPU, CUDA, and MPS, including the DataLoader and sampler generators.
