@@ -71,36 +71,47 @@ Regression Metrics
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 15 20 35
+   :widths: 28 12 16 12 32
 
    * - Class
      - ``name``
      - ``higher_is_better``
+     - Default
      - Notes
    * - :class:`MeanSquaredError`
      - ``mse``
      - ``False``
+     -
      - sklearn-backed; lower = better
    * - :class:`RootMeanSquaredError`
      - ``rmse``
      - ``False``
-     - Same units as target; default for regression
+     - ✓
+     - Same units as target; primary regression metric
    * - :class:`MeanAbsoluteError`
      - ``mae``
      - ``False``
+     - ✓
      - Robust to outliers
    * - :class:`R2Score`
      - ``r2``
      - ``True``
+     - ✓
      - 1.0 = perfect; **higher = better**
    * - :class:`MeanAbsolutePercentageError`
      - ``mape``
      - ``False``
+     -
      - % scale; avoid when targets near zero
    * - :class:`PinballLoss`
      - ``pinball``
      - ``False``
+     -
      - Quantile regression; tau in (0, 1)
+
+The **Default** column marks the metrics returned by ``get_default_metrics("regression")``
+and reported by ``model.evaluate()`` when no ``metrics`` argument is given; the
+first row (RMSE) is the primary metric used for HPO and model selection.
 
 All regression metrics accept 2-D LSS parameter arrays and extract the first
 column (predicted mean) automatically.
@@ -110,40 +121,62 @@ Classification Metrics
 
 .. list-table::
    :header-rows: 1
-   :widths: 30 20 20 30
+   :widths: 26 14 14 10 14 22
 
    * - Class
      - ``name``
      - ``higher_is_better``
+     - Default
+     - Input
      - Notes
    * - :class:`Accuracy`
      - ``accuracy``
      - ``True``
+     - ✓
+     - labels
      - sklearn-backed; argmax of probability array
    * - :class:`F1Score`
      - ``f1``
      - ``True``
+     -
+     - labels
      - ``average`` param: binary / macro / weighted
    * - :class:`AUROC`
      - ``auroc``
      - ``True``
-     - Requires probability scores
+     - ✓
+     - proba
+     - Ranking-based; threshold-free
    * - :class:`AUPRC`
      - ``auprc``
      - ``True``
+     -
+     - proba
      - Better than AUROC for imbalanced data
    * - :class:`LogLoss`
      - ``log_loss``
      - ``False``
-     - Cross-entropy; requires probability scores
+     - ✓
+     - proba
+     - Cross-entropy over class probabilities
    * - :class:`BrierScore`
      - ``brier``
      - ``False``
+     -
+     - proba
      - MSE of probability; binary only
    * - :class:`ExpectedCalibrationError`
      - ``ece``
      - ``False``
+     -
+     - proba
      - 0 = perfectly calibrated; custom implementation
+
+The **Default** column marks the metrics returned by ``get_default_metrics("classification")``.
+The **Input** column shows which prediction ``model.evaluate()`` feeds each
+metric: ``proba`` metrics (``auroc``, ``auprc``, ``log_loss``, ``brier``, ``ece``)
+receive the 2-D ``predict_proba`` output, while ``labels`` metrics receive the
+1-D ``predict`` output. The dispatch is automatic, keyed on the metric ``name``.
 
 Distributional / LSS Metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
