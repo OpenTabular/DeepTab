@@ -179,11 +179,13 @@ html_show_sourcelink = False
 autodoc_default_options = {
     "members": True,
     "inherited-members": True,
-    # Exclude sklearn's inherited metadata-routing boilerplate. Their docstrings
-    # contain :ref:`metadata_routing`, which only resolves in sklearn's own
-    # Sphinx build and otherwise emits "undefined label" warnings here. They are
-    # not part of DeepTab's public API surface.
+    # Exclude inherited boilerplate from third-party base classes. Their
+    # docstrings contain :ref: targets (e.g. :ref:`metadata_routing`,
+    # :ref:`nn-init-doc`) that only resolve in the originating project's own
+    # Sphinx build and otherwise emit "undefined label" warnings here. None of
+    # these are part of DeepTab's public API surface.
     "exclude-members": (
+        # scikit-learn metadata-routing boilerplate
         "set_output,"
         "get_metadata_routing,"
         "set_fit_request,"
@@ -193,7 +195,14 @@ autodoc_default_options = {
         "set_score_request,"
         "set_partial_fit_request,"
         "set_transform_request,"
-        "set_inverse_transform_request"
+        "set_inverse_transform_request,"
+        # torch.nn.Module inherited methods (on distribution classes)
+        "apply,"
+        "eval,"
+        "requires_grad_,"
+        # Lightning DataModule inherited hooks (on TabularDataModule)
+        "prepare_data,"
+        "predict_dataloader"
     ),
 }
 
