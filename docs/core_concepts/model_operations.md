@@ -112,15 +112,23 @@ loaded.input_columns_          # ordered feature names
 
 ### The feature schema
 
-`feature_schema_` is the model's data contract. When the preprocessor fits, DeepTab records each feature's name, the preprocessing applied to it, its output dimension, and, for categorical columns, its category list. It tracks numerical, categorical, and embedding features separately.
+`feature_schema_` is the model's data contract. When the preprocessor fits, DeepTab records the exact column order, which features are numerical, categorical, or embedding, and the per-feature information the architecture needs to size its layers.
 
 ```python
 loaded.feature_schema_
 # {
-#   "numerical_features":   {"age": {...}, "income": {...}},
-#   "categorical_features": {"city": {..., "categories": ["NYC", "Boston", ...]}},
-#   "embedding_features":   None,
-#   "dimensions": {"num_numerical_features": 2, "num_categorical_features": 1, ...},
+#   "column_order":   ["age", "income", "city"],
+#   "feature_groups": {
+#       "numerical":   ["age", "income"],
+#       "categorical": ["city"],
+#       "embedding":   [],
+#   },
+#   "feature_info": {            # per-feature details used to build the network
+#       "num": {"age": {...}, "income": {...}},
+#       "cat": {"city": {...}},
+#       "emb": {},
+#   },
+#   "schema": {...},             # full preprocessing-derived schema snapshot
 # }
 ```
 
