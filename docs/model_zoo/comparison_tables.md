@@ -4,6 +4,8 @@ Architectural comparison and computational characteristics of DeepTab's model zo
 
 ```{note}
 **Focus on architecture:** This document emphasizes computational complexity, architectural design, and qualitative comparisons. Quantitative performance benchmarks will be added when systematic experiments are completed.
+
+**Scope:** The tables below cover the 15 stable models. The 3 experimental models (ModernNCA, Tangos, Trompt) are documented separately under [Model Tiers](../core_concepts/model_tiers).
 ```
 
 ```{seealso}
@@ -25,9 +27,9 @@ The table below reports dominant forward-pass scaling for a batch. It is a pract
 |                        | AutoInt        | `d_model=128`, `n_layers=4`, `n_heads=8`               | Feature self-attention $O(B \cdot L \cdot P^2 \cdot D)$; key-value compression reduces constants                               | $O(B \cdot L \cdot P^2)$ attention maps                          | [Song et al. 2019](https://arxiv.org/abs/1810.11921)                                                                                    |
 | **Residual Networks**  | ResNet         | `layer_sizes=[256,128,32]`, `num_blocks=3`             | Dense layers: $O(B \cdot \sum_\ell d_{\ell-1} d_\ell)$                                                                         | Linear in batch and hidden width                                 | [He et al. 2016](https://arxiv.org/abs/1512.03385), [Gorishniy et al. 2021](https://arxiv.org/abs/2106.11959)                           |
 |                        | TabR           | `d_main=256`, `context_size=96`                        | Candidate encoding plus exact/FAISS nearest-neighbor search $O(B \cdot N_c \cdot D)$ and context mixing $O(B \cdot C \cdot D)$ | Candidate cache $O(N_c \cdot D)$                                 | [Gorishniy et al. 2023](https://arxiv.org/abs/2307.14338)                                                                               |
-| **Tree-Based**         | NODE           | `num_layers=4`, `layer_dim=128`, `depth=6`             | Soft oblivious trees evaluate all splits/leaves: $O(B \cdot L \cdot T \cdot (P \cdot D_t + D_t \cdot 2^{D_t}))$                | Path/leaf activations $O(B \cdot T \cdot 2^{D_t})$               | [Popov et al. 2019](https://arxiv.org/abs/1909.06312)                                                                                   |
+| **Tree-Inspired**      | NODE           | `num_layers=4`, `layer_dim=128`, `depth=6`             | Soft oblivious trees evaluate all splits/leaves: $O(B \cdot L \cdot T \cdot (P \cdot D_t + D_t \cdot 2^{D_t}))$                | Path/leaf activations $O(B \cdot T \cdot 2^{D_t})$               | [Popov et al. 2019](https://arxiv.org/abs/1909.06312)                                                                                   |
 |                        | ENODE          | `d_model=8`, `num_layers=4`, `layer_dim=64`, `depth=6` | NODE-style soft tree evaluation with learned embeddings                                                                        | Path/leaf activations $O(B \cdot T \cdot 2^{D_t})$               | [Popov et al. 2019](https://arxiv.org/abs/1909.06312)                                                                                   |
-|                        | NDTF           | `n_ensembles=12`, random depths 4 to 16                | Neural decision forest evaluates internal nodes and leaf probabilities for each tree                                           | Leaf probabilities scale with $O(B \cdot E \cdot 2^{D_t})$       | [Kontschieder et al. 2015](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) |
+|                        | NDTF           | `n_ensembles=12`, random depths 4 to 15                | Neural decision forest evaluates internal nodes and leaf probabilities for each tree                                           | Leaf probabilities scale with $O(B \cdot E \cdot 2^{D_t})$       | [Kontschieder et al. 2015](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) |
 | **Other**              | MLP            | `layer_sizes=[256,128,32]`                             | Dense layers: $O(B \cdot \sum_\ell d_{\ell-1} d_\ell)$                                                                         | Linear in batch and hidden width                                 | Standard MLP baseline                                                                                                                   |
 |                        | TabM           | `layer_sizes=[256,256,128]`, `ensemble_size=32`        | MLP-style dense compute with parameter-efficient batch ensembling                                                              | Linear in batch, hidden width, and active ensemble outputs       | [Gorishniy et al. 2024](https://arxiv.org/abs/2410.24210), [Wen et al. 2020](https://arxiv.org/abs/2002.06715)                          |
 |                        | TabulaRNN      | `d_model=128`, `n_layers=4`                            | Recurrent feature-sequence processing $O(B \cdot L \cdot P \cdot D^2)$ for standard RNN-style cells                            | $O(B \cdot P \cdot D)$ activations                               | [Thielmann & Samiee 2024](https://arxiv.org/abs/2411.17207)                                                                             |
@@ -58,7 +60,7 @@ The "DeepTab Default Shape" column is taken from the current model config defaul
 - **State Space Models:** Selective SSM/Mamba-style sequence models adapted to tabular features.
 - **Transformers:** Self-attention mechanisms for feature and/or row interactions.
 - **Residual Networks:** Deep feedforward MLPs with skip connections.
-- **Tree-Based:** Differentiable decision trees with gradient optimization.
+- **Tree-Inspired:** Differentiable decision trees with gradient optimization.
 - **Other:** Standard architectures (MLP, parameter-efficient ensembles, RNNs).
 ```
 
@@ -78,12 +80,12 @@ The "DeepTab Default Shape" column is taken from the current model config defaul
 
 **Attention mechanisms for feature and row interactions**
 
-| Model          | Attention Scope    | Default Hidden Dim | Key Feature                                       | Best Use Case                           |
-| -------------- | ------------------ | ------------------ | ------------------------------------------------- | --------------------------------------- |
-| FTTransformer  | All feature tokens | 128                | Feature tokenization                              | Feature interactions                    |
-| TabTransformer | Categorical tokens | 128                | Contextual categorical embeddings                 | Categorical-heavy data                  |
-| SAINT          | Row + column       | 128                | Intersample attention and contrastive pretraining | Semi-supervised or row-context settings |
-| AutoInt        | All feature tokens | 128                | Self-attentive feature interaction learning       | Automatic interaction modeling          |
+| Model          | Attention Scope    | Default Hidden Dim | Key Feature                                 | Best Use Case                           |
+| -------------- | ------------------ | ------------------ | ------------------------------------------- | --------------------------------------- |
+| FTTransformer  | All feature tokens | 128                | Feature tokenization                        | Feature interactions                    |
+| TabTransformer | Categorical tokens | 128                | Contextual categorical embeddings           | Categorical-heavy data                  |
+| SAINT          | Row + column       | 128                | Intersample (row) plus column attention     | Semi-supervised or row-context settings |
+| AutoInt        | All feature tokens | 128                | Self-attentive feature interaction learning | Automatic interaction modeling          |
 
 ### Tree-Inspired
 
@@ -93,7 +95,7 @@ The "DeepTab Default Shape" column is taken from the current model config defaul
 | ----- | ------------------------------ | ---------------------------------- | ------------------------------------------- | -------------------------------------- |
 | NODE  | Oblivious differentiable trees | 4 layers, 128 trees/layer, depth 6 | Soft routing over oblivious trees           | Interpretable tree-inspired modeling   |
 | ENODE | Embedded NODE variant          | 4 layers, 64 trees/layer, depth 6  | Feature embeddings before NODE-style blocks | Tree-inspired modeling with embeddings |
-| NDTF  | Neural decision tree forest    | 12 trees, random depths 4 to 16    | Multiple neural decision trees              | Tree ensemble-style experiments        |
+| NDTF  | Neural decision tree forest    | 12 trees, random depths 4 to 15    | Multiple neural decision trees              | Tree ensemble-style experiments        |
 
 ### Residual Networks
 
