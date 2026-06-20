@@ -1,6 +1,6 @@
 # DeepTab: Tabular Deep Learning Made Simple
 
-DeepTab is a Python library for deep learning on tabular data, built on PyTorch and Lightning with a scikit-learn compatible API. It provides 15 neural architectures, including State Space Models (Mamba), Transformers, attention, retrieval, and tree-inspired networks, each available as a classifier, a regressor, and a distributional (`LSS`) model for uncertainty estimation. Preprocessing, training, and evaluation run through the standard `fit`/`predict`/`evaluate` workflow, so one code path serves day-to-day modeling, architecture research (via runtime registries and custom-model base classes), and production deployment (via schema-validated, read-only inference artifacts).
+**DeepTab** is a Python library for deep learning on tabular data, built on PyTorch and Lightning with a scikit-learn compatible API. It offers 15 neural architectures, from Mamba-inspired state space models and Transformers to tree ensembles and MLP baselines, each available as a classifier, regressor, or distributional (`LSS`) model. One `fit`/`predict`/`evaluate` workflow covers everyday modeling, architecture research, and production deployment.
 
 ```python
 from deeptab.models import MambularClassifier
