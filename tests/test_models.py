@@ -2,8 +2,8 @@
 End-to-end behavioural tests for the sklearn-compatible model API.
 
 Tests cover fit → predict → evaluate for all 15 stable models across all
-three task variants (Classifier, Regressor, LSS).  A small synthetic dataset
-keeps CI fast.
+three task variants (Classifier, Regressor, LSS), plus smoke coverage for the
+3 experimental models.  A small synthetic dataset keeps CI fast.
 """
 
 import platform
@@ -60,6 +60,17 @@ from deeptab.models import (
     TabulaRNNClassifier,
     TabulaRNNLSS,
     TabulaRNNRegressor,
+)
+from deeptab.models.experimental import (
+    ModernNCAClassifier,
+    ModernNCALSS,
+    ModernNCARegressor,
+    TangosClassifier,
+    TangosLSS,
+    TangosRegressor,
+    TromptClassifier,
+    TromptLSS,
+    TromptRegressor,
 )
 
 _macos_arm64 = platform.system() == "Darwin" and platform.machine() == "arm64"
@@ -405,3 +416,75 @@ def test_tabtransformer_fit_predict(cls, task, classification_data_with_cat, reg
     preds = model.predict(X_test)
     assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected shape"
     assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+
+# ---------------------------------------------------------------------------
+# Experimental models — smoke coverage only
+#
+# These ship under ``deeptab.models.experimental`` and are subject to change.
+# We do not test them as exhaustively as the stable lineup, but we do confirm
+# that fit -> predict -> evaluate works end-to-end for every task variant so we
+# can reliably claim the experimental models run without issues.
+# ---------------------------------------------------------------------------
+
+EXPERIMENTAL_CLASSIFIERS = [ModernNCAClassifier, TangosClassifier, TromptClassifier]
+EXPERIMENTAL_REGRESSORS = [ModernNCARegressor, TangosRegressor, TromptRegressor]
+EXPERIMENTAL_LSS_MODELS = [ModernNCALSS, TangosLSS, TromptLSS]
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_CLASSIFIERS)
+def test_experimental_classifier_fit_predict_evaluate(cls, classification_data):
+    X_train, X_test, y_train, y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.classes_, np.unique(y_train))
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert set(preds).issubset(set(range(N_CLASSES))), f"{cls.__name__}.predict returned out-of-range labels"
+
+    proba = model.predict_proba(X_test)
+    assert proba.shape == (len(X_test), N_CLASSES), f"{cls.__name__}.predict_proba returned unexpected shape"
+    np.testing.assert_allclose(
+        proba.sum(axis=1),
+        np.ones(len(X_test)),
+        atol=1e-5,
+        err_msg=f"{cls.__name__}.predict_proba rows do not sum to 1",
+    )
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_REGRESSORS)
+def test_experimental_regressor_fit_predict_evaluate(cls, regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_LSS_MODELS)
+def test_experimental_lss_fit_predict_evaluate(cls, regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+
+    preds = model.predict(X_test)
+    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected first dimension"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"

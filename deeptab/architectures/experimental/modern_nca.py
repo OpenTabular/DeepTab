@@ -11,6 +11,67 @@ from deeptab.nn.normalization import get_normalization_layer
 
 
 class ModernNCA(BaseModel):
+    """Differentiable Neighborhood Component Analysis for tabular data.
+
+    ModernNCA revisits classic Neighborhood Component Analysis with modern
+    tabular deep-learning components. Each row is mapped into a learned
+    representation by an encoder and optional residual post-encoder blocks.
+    Predictions are formed by comparing a query row to a set of candidate
+    (training) rows in that representation space and taking a
+    temperature-scaled, softmax-weighted aggregate over the neighbors.
+
+    The aggregation target depends on the task:
+
+    - **Classification / regression:** the softmax weights are applied to the
+      candidate *labels* (one-hot for classification, raw targets for
+      regression), so the prediction is a soft nearest-neighbor vote.
+    - **Distributional (LSS):** raw labels cannot describe a distribution, so
+      the softmax weights are instead applied to the candidate *representations*
+      and the pooled neighbor representation is decoded by ``tabular_head`` into
+      the distribution parameters expected by the chosen family.
+
+    Because predictions depend on candidate rows, the model sets
+    ``uses_candidates = True`` and exposes candidate-aware
+    :meth:`train_with_candidates`, :meth:`validate_with_candidates`, and
+    :meth:`predict_with_candidates` methods. The plain :meth:`forward` exists
+    only for baseline compatibility.
+
+    Parameters
+    ----------
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
+    num_classes : int, optional (default=1)
+        The output dimension. ``1`` for scalar regression, the number of
+        classes for classification, or the distribution parameter count for
+        distributional (LSS) models.
+    config : ModernNCAConfig, optional (default=ModernNCAConfig())
+        Configuration object defining model hyperparameters.
+    **kwargs : dict
+        Additional arguments for the base model, including the ``lss`` flag.
+
+    Attributes
+    ----------
+    returns_ensemble : bool
+        Whether the model returns an ensemble of predictions. Always ``False``.
+    uses_candidates : bool
+        Marks the model as candidate-aware so the training loop supplies
+        candidate rows. Always ``True``.
+    T : float
+        Temperature used to scale distances before the softmax.
+    sample_rate : float
+        Proportion of candidate rows sampled during training.
+    embedding_layer : EmbeddingLayer or None
+        Optional embedding layer for categorical and embedding features.
+    encoder : nn.Linear
+        Linear encoder mapping raw feature dimensions to ``config.dim``.
+    post_encoder : nn.Sequential or None
+        Optional residual blocks applied after the encoder.
+    tabular_head : MLPhead
+        Output head used for the plain forward pass and for decoding pooled
+        neighbor representations in the distributional (LSS) path.
+    """
+
     def __init__(
         self,
         feature_information: tuple,
@@ -106,17 +167,24 @@ class ModernNCA(BaseModel):
         candidate_x = torch.cat([x, candidate_x], dim=0)
         candidate_y = torch.cat([targets, candidate_y], dim=0)
 
+        # Compute distances
+        distances = torch.cdist(x, candidate_x, p=2) / self.T
+        # remove the label of training index
+        distances = distances.fill_diagonal_(torch.inf)
+        distances = F.softmax(-distances, dim=-1)
+
+        if self.hparams.lss:
+            # Labels cannot describe a distribution, so pool neighbor
+            # representations and decode them into distribution parameters.
+            context = torch.mm(distances, candidate_x)
+            return self.tabular_head(context)
+
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
             candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
 
-        # Compute distances
-        distances = torch.cdist(x, candidate_x, p=2) / self.T
-        # remove the label of training index
-        distances = distances.fill_diagonal_(torch.inf)
-        distances = F.softmax(-distances, dim=-1)
         logits = torch.mm(distances, candidate_y)
         eps = 1e-7
         if self.hparams.num_classes > 1:
@@ -145,15 +213,21 @@ class ModernNCA(BaseModel):
             x = self.post_encoder(x)
             candidate_x = self.post_encoder(candidate_x)
 
+        # Compute distances
+        distances = torch.cdist(x, candidate_x, p=2) / self.T
+        distances = F.softmax(-distances, dim=-1)
+
+        if self.hparams.lss:
+            # Labels cannot describe a distribution, so pool neighbor
+            # representations and decode them into distribution parameters.
+            context = torch.mm(distances, candidate_x)
+            return self.tabular_head(context)
+
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
             candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
-
-        # Compute distances
-        distances = torch.cdist(x, candidate_x, p=2) / self.T
-        distances = F.softmax(-distances, dim=-1)
 
         # Compute logits
         logits = torch.mm(distances, candidate_y)
@@ -184,15 +258,21 @@ class ModernNCA(BaseModel):
             x = self.post_encoder(x)
             candidate_x = self.post_encoder(candidate_x)
 
+        # Compute distances
+        distances = torch.cdist(x, candidate_x, p=2) / self.T
+        distances = F.softmax(-distances, dim=-1)
+
+        if self.hparams.lss:
+            # Labels cannot describe a distribution, so pool neighbor
+            # representations and decode them into distribution parameters.
+            context = torch.mm(distances, candidate_x)
+            return self.tabular_head(context)
+
         # One-hot encode if classification
         if self.hparams.num_classes > 1:
             candidate_y = F.one_hot(candidate_y, num_classes=self.hparams.num_classes).to(x.dtype)
         elif len(candidate_y.shape) == 1:
             candidate_y = candidate_y.unsqueeze(-1)
-
-        # Compute distances
-        distances = torch.cdist(x, candidate_x, p=2) / self.T
-        distances = F.softmax(-distances, dim=-1)
 
         # Compute logits
         logits = torch.mm(distances, candidate_y)
