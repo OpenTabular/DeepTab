@@ -1,46 +1,69 @@
-.. mamba-tabular documentation master file, created by
-   sphinx-quickstart on Mon May  6 16:16:57 2024.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
 .. include:: homepage.md
    :parser: myst_parser.sphinx_
 
 .. toctree::
-   :name: Getting Started
    :caption: Getting Started
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
-   overview
-   installation
-   key_concepts
+   getting_started/overview
+   getting_started/installation
+   getting_started/quickstart
+   getting_started/faq
 
 .. toctree::
-   :name: Examples
-   :caption: Examples
-   :maxdepth: 2
+   :caption: Core Concepts
+   :maxdepth: 1
    :hidden:
 
-   examples/classification
-   examples/regression
-   examples/distributional
-   examples/experimental
+   core_concepts/sklearn_api
+   core_concepts/model_tiers
+   core_concepts/custom_models
+   core_concepts/config_system
+   core_concepts/observability
+   core_concepts/training_and_evaluation
+   core_concepts/model_operations
+   core_concepts/inference
 
 .. toctree::
-   :name: API Reference
+   :caption: Tutorials
+   :maxdepth: 1
+   :hidden:
+
+   tutorials/skewed_regression
+   tutorials/imbalance_classification
+   tutorials/uncertainty_quantification
+   tutorials/hpo
+   tutorials/advanced_training
+   tutorials/observability
+   tutorials/model_efficiency
+   tutorials/experimental
+
+.. toctree::
+   :caption: Model Zoo
+   :maxdepth: 1
+   :hidden:
+
+   model_zoo/stable/index
+   model_zoo/experimental/index
+   model_zoo/comparison_tables
+   model_zoo/efficiency
+   model_zoo/recommended_configs
+
+.. toctree::
    :caption: API Reference
-   :maxdepth: 2
+   :maxdepth: 1
    :hidden:
 
    api/models/index
-   api/base_models/index
-   api/data_utils/index
    api/configs/index
-
+   api/data/index
+   api/distributions/index
+   api/metrics/index
+   api/training/index
 
 .. toctree::
-   :name: Developer Guide
    :caption: Developer Guide
    :maxdepth: 1
    :hidden:
@@ -48,8 +71,8 @@
    developer_guide/contributing
    developer_guide/testing
    developer_guide/documentation
-   developer_guide/release
    developer_guide/versioning
    developer_guide/ci_cd
+   developer_guide/release
    developer_guide/model_promotion_policy
    developer_guide/support_matrix

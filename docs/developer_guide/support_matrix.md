@@ -6,13 +6,13 @@ This page lists the officially supported versions of Python and core dependencie
 
 ## Python
 
-| Version | Status                                                                                            |
-| ------- | ------------------------------------------------------------------------------------------------- |
-| 3.10    | Supported                                                                                         |
-| 3.11    | Supported                                                                                         |
-| 3.12    | Supported                                                                                         |
-| 3.13    | Supported                                                                                         |
-| 3.14+   | Not yet supported — `scipy` wheels unavailable. Will be added once dependency support catches up. |
+| Version | Status                                                                                           |
+| ------- | ------------------------------------------------------------------------------------------------ |
+| 3.10    | Supported                                                                                        |
+| 3.11    | Supported                                                                                        |
+| 3.12    | Supported                                                                                        |
+| 3.13    | Supported                                                                                        |
+| 3.14+   | Not yet supported. `scipy` wheels unavailable; will be added once dependency support catches up. |
 
 ---
 
@@ -32,7 +32,7 @@ The table below shows the range of versions supported by the package metadata (`
 
 | Package                                              | Minimum | Upper bound | Notes                                                      |
 | ---------------------------------------------------- | ------- | ----------- | ---------------------------------------------------------- |
-| [PyTorch](https://pytorch.org/)                      | 2.2.2   | < 2.8.0     | Pinned range; update when a new PyTorch stable is released |
+| [PyTorch](https://pytorch.org/)                      | 2.2.2   | < 2.10.0    | Pinned range; update when a new PyTorch stable is released |
 | [Lightning](https://lightning.ai/)                   | 2.3.3   | < 3.0       |                                                            |
 | [NumPy](https://numpy.org/)                          | 2.0.0   | < 3.0       | NumPy 1.x is **not** supported                             |
 | [pandas](https://pandas.pydata.org/)                 | 2.0.3   | < 3.0       |                                                            |

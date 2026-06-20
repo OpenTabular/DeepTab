@@ -14,7 +14,7 @@ This runs:
 poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
 ```
 
-The `-W` flag treats every Sphinx warning as a build error; `-keep-going` collects all warnings before stopping so you can fix them in one pass. Open `docs/_build/html/index.html` in a browser to preview the result.
+The `-W` flag treats every Sphinx warning as a build error; `--keep-going` collects all warnings before stopping so you can fix them in one pass. Open `docs/_build/html/index.html` in a browser to preview the result.
 
 ## Directory layout
 
@@ -25,10 +25,10 @@ docs/
 ├── _static/
 │   └── custom.css           # Theme overrides and syntax highlight palette
 ├── homepage.md              # Landing page content
-├── overview.md
-├── installation.md
-├── key_concepts.md
-├── examples/                # Tutorial pages
+├── getting_started/         # Initial onboarding
+├── core_concepts/           # Deep-dive concept guides
+├── tutorials/               # Hands-on tutorials with notebooks
+├── model_zoo/               # Model documentation and comparisons
 ├── api/                     # Auto-generated API reference
 └── developer_guide/         # This section
 ```
@@ -83,7 +83,7 @@ def fit(self, X, y, val_size=0.2):
 Sphinx raises a warning when `autodoc` documents the same symbol more than once. If a class is re-exported from a package `__init__`, add `:noindex:` to the second occurrence's directive:
 
 ```rst
-.. autoclass:: deeptab.models.TabNet
+.. autoclass:: deeptab.models.MLPClassifier
    :noindex:
 ```
 
@@ -93,7 +93,7 @@ Use fenced code blocks with a language tag for syntax highlighting:
 
 ````markdown
 ```python
-model = TabNet()
+model = MLPClassifier()
 model.fit(X_train, y_train)
 ```
 ````

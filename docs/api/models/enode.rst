@@ -1,38 +1,21 @@
 ENODE
 =====
 
-Extended Neural Oblivious Decision Ensembles. ENODE builds on :doc:`node` by
-adding explicit feature embedding layers before the decision ensemble. These
-embedding layers transform raw input features into richer representations before
-they are fed into the differentiable decision trees, improving performance when
-the raw feature space is noisy or heterogeneous.
+Enhanced Neural Oblivious Decision Ensembles with improved feature representations.
 
-When to Use
------------
-
-Upgrade from NODE when raw feature quality is poor, the data is heterogeneous,
-or vanilla NODE underfits. The embedding layers add a small representational
-overhead that often pays off on real-world datasets.
-
-Limitations
------------
-
-- Inherits the same fundamental limitations as NODE (high memory, slow training).
-- Increased model size compared to plain NODE.
-- May be harder to interpret than NODE because the input to the decision
-  ensemble is no longer the raw feature space.
+For detailed usage, configuration examples, and performance notes, see :doc:`../../model_zoo/stable/enode`.
 
 API Reference
 -------------
 
 .. currentmodule:: deeptab.models
 
-.. autoclass:: ENODERegressor
+.. autoclass:: ENODEClassifier
    :members:
    :undoc-members:
    :noindex:
 
-.. autoclass:: ENODEClassifier
+.. autoclass:: ENODERegressor
    :members:
    :undoc-members:
    :noindex:

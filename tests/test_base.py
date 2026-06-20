@@ -5,43 +5,47 @@ import os
 import pytest
 import torch
 
-from deeptab.base_models.utils import BaseModel
+from deeptab.core import BaseModel
 
 # Paths for models and configs
-MODEL_MODULE_PATH = "deeptab.base_models"
-CONFIG_MODULE_PATH = "deeptab.configs"
+MODEL_MODULE_PATH = "deeptab.architectures"
+_CONFIG_SEARCH_PATHS = [
+    "deeptab.configs.models",
+    "deeptab.configs.experimental",
+]
 EXCLUDED_CLASSES = {"TabR"}
 
-# Discover all models
+# Discover all models (stable + experimental)
 model_classes = []
-for filename in os.listdir(os.path.dirname(__file__) + "/../deeptab/base_models"):
-    if filename.endswith(".py") and filename not in [
-        "__init__.py",
-        "basemodel.py",
-        "lightning_wrapper.py",
-        "bayesian_tabm.py",
-    ]:
-        module_name = f"{MODEL_MODULE_PATH}.{filename[:-3]}"
-        module = importlib.import_module(module_name)
-
-        for name, obj in inspect.getmembers(module, inspect.isclass):
-            if issubclass(obj, BaseModel) and obj is not BaseModel and obj.__name__ not in EXCLUDED_CLASSES:
-                model_classes.append(obj)
+_arch_root = os.path.dirname(__file__) + "/../deeptab/architectures"
+_scan = [(MODEL_MODULE_PATH, _arch_root), (MODEL_MODULE_PATH + ".experimental", _arch_root + "/experimental")]
+for _mod_prefix, _dir in _scan:
+    for filename in os.listdir(_dir):
+        if filename.endswith(".py") and filename != "__init__.py":
+            module_name = f"{_mod_prefix}.{filename[:-3]}"
+            module = importlib.import_module(module_name)
+            for name, obj in inspect.getmembers(module, inspect.isclass):
+                if issubclass(obj, BaseModel) and obj is not BaseModel and obj.__name__ not in EXCLUDED_CLASSES:
+                    model_classes.append(obj)
 
 
 def get_model_config(model_class):
     """Dynamically load the correct config class for each model."""
     model_name = model_class.__name__  # e.g., "Mambular"
-    config_class_name = f"Default{model_name}Config"  # e.g., "DefaultMambularConfig"
+    config_class_name = f"{model_name}Config"  # e.g., "MambularConfig"
 
-    try:
-        config_module = importlib.import_module(f"{CONFIG_MODULE_PATH}.{model_name.lower()}_config")
-        config_class = getattr(config_module, config_class_name)
-        return config_class()  # Instantiate config
-    except (ModuleNotFoundError, AttributeError) as e:
-        pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}: {e}")
+    for base_path in _CONFIG_SEARCH_PATHS:
+        try:
+            config_module = importlib.import_module(f"{base_path}.{model_name.lower()}_config")
+            config_class = getattr(config_module, config_class_name)
+            return config_class()
+        except (ModuleNotFoundError, AttributeError):
+            continue
+
+    pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}")
 
 
+@pytest.mark.smoke
 @pytest.mark.parametrize("model_class", model_classes)
 def test_model_inherits_base_model(model_class):
     """Test that each model correctly inherits from BaseModel."""

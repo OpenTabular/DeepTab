@@ -1,14 +1,18 @@
-from ..base_models.node import NODE
-from ..configs.node_config import DefaultNODEConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from deeptab.architectures.node import NODE
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
+from ..configs.models.node_config import NODEConfig
+from ._docstring import generate_docstring
 
 
 class NODERegressor(SklearnBaseRegressor):
+    _model_cls = NODE
+    _config_cls = NODEConfig
+
     __doc__ = generate_docstring(
-        DefaultNODEConfig,
+        NODEConfig,
         model_description="""
         Neural Oblivious Decision Ensemble (NODE) Regressor. Slightly different with a MLP as a tabular task specific head. This class extends the SklearnBaseRegressor class and uses the NODE model
         with the default NODE configuration.
@@ -22,13 +26,13 @@ class NODERegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=NODE, config=DefaultNODEConfig, **kwargs)
-
 
 class NODEClassifier(SklearnBaseClassifier):
+    _model_cls = NODE
+    _config_cls = NODEConfig
+
     __doc__ = generate_docstring(
-        DefaultNODEConfig,
+        NODEConfig,
         model_description="""
         Neural Oblivious Decision Ensemble (NODE) Classifier. Slightly different with a MLP as a tabular task specific head.
         This class extends the SklearnBaseClassifier class and uses the NODE model
@@ -43,13 +47,13 @@ class NODEClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=NODE, config=DefaultNODEConfig, **kwargs)
-
 
 class NODELSS(SklearnBaseLSS):
+    _model_cls = NODE
+    _config_cls = NODEConfig
+
     __doc__ = generate_docstring(
-        DefaultNODEConfig,
+        NODEConfig,
         model_description="""
         Neural Oblivious Decision Ensemble (NODE) for distributional regression. Slightly different with a MLP as a tabular task specific head.
         This class extends the SklearnBaseLSS class and uses the NODE model
@@ -63,6 +67,3 @@ class NODELSS(SklearnBaseLSS):
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(self, **kwargs):
-        super().__init__(model=NODE, config=DefaultNODEConfig, **kwargs)

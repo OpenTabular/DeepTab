@@ -1,10 +1,30 @@
-from . import base_models, data_utils, models, utils
+from . import configs, data, distributions, metrics, models
 from ._version import __version__
+from .core.exceptions import (
+    ConfigWarning,
+    DataWarning,
+    DeepTabError,
+    DeepTabWarning,
+    NotFittedError,
+    PerformanceWarning,
+)
+from .core.inference import InferenceModel
+from .core.reproducibility import seed_context, set_seed
 
 __all__ = [
+    "ConfigWarning",
+    "DataWarning",
+    "DeepTabError",
+    "DeepTabWarning",
+    "InferenceModel",
+    "NotFittedError",
+    "PerformanceWarning",
     "__version__",
-    "base_models",
-    "data_utils",
+    "configs",
+    "data",
+    "distributions",
+    "metrics",
     "models",
-    "utils",
+    "seed_context",
+    "set_seed",
 ]

@@ -24,11 +24,11 @@ The model's public constructor signature must be consistent with other stable es
 A model page must exist under `docs/api/models/` and include:
 
 - A one-paragraph description of the architecture.
-- A **When to use** section — what problem or data type this model is suited for.
-- A **Limitations** section — known failure modes, dataset-size requirements, or computational constraints.
+- A **When to use** section: what problem or data type this model is suited for.
+- A **Limitations** section: known failure modes, dataset-size requirements, or computational constraints.
 - A full parameter table generated from the config docstring.
 
-All public methods must have docstrings that pass `make doctest`.
+All public methods must have docstrings that render without warnings under `just docs`.
 
 ### 3. End-to-end Example
 
@@ -54,7 +54,7 @@ No open GitHub issues labelled `bug` for the model may describe a failure in a c
 
 ### 7. Registry
 
-A config class must exist in `deeptab/configs/` and be exported from `deeptab/configs/__init__.py`. The model must be exported from `deeptab/models/experimental/__init__.py` while experimental, or from `deeptab/models/__init__.py` once stable, and listed in `deeptab/utils/config_mapper.py`. The `MODEL_REGISTRY` in `deeptab/models/_registry.py` must contain an entry with the correct `status` and `import_path`.
+A config class must exist in `deeptab/configs/` and be exported from `deeptab/configs/__init__.py`. The model must be exported from `deeptab/models/experimental/__init__.py` while experimental, or from `deeptab/models/__init__.py` once stable. The `MODEL_REGISTRY` in `deeptab/core/registry.py` must contain a `ModelInfo` entry with the correct `status` and `import_path`.
 
 ## Promotion PR
 
@@ -64,7 +64,7 @@ Open a PR titled `feat(<model-name>): promote to stable`. The PR must:
 2. Update relative imports in the moved file (reduce one `..` level).
 3. Remove the model from `deeptab/models/experimental/__init__.py` and its `__all__`.
 4. Add the model to `deeptab/models/__init__.py` imports and `__all__`.
-5. Update `MODEL_REGISTRY` in `deeptab/models/_registry.py`: change `status` to `"stable"` and `import_path` to `"deeptab.models"`.
+5. Update `MODEL_REGISTRY` in `deeptab/core/registry.py`: change `status` to `"stable"` and `import_path` to `"deeptab.models"`.
 6. Remove any `.. experimental::` admonition from the model's doc page.
 7. Remove the experimental badge from the API reference entry.
 8. Add the model to the changelog under `### Promoted to Stable`.

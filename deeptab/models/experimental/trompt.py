@@ -1,14 +1,18 @@
-from ...base_models.trompt import Trompt
-from ...configs.trompt_config import DefaultTromptConfig
-from ...utils.docstring_generator import generate_docstring
-from ..utils.sklearn_base_classifier import SklearnBaseClassifier
-from ..utils.sklearn_base_lss import SklearnBaseLSS
-from ..utils.sklearn_base_regressor import SklearnBaseRegressor
+from deeptab.architectures.experimental.trompt import Trompt
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
+from ...configs.experimental.trompt_config import TromptConfig
+from .._docstring import generate_docstring
 
 
 class TromptRegressor(SklearnBaseRegressor):
+    _model_cls = Trompt
+    _config_cls = TromptConfig
+
     __doc__ = generate_docstring(
-        DefaultTromptConfig,
+        TromptConfig,
         model_description="""
         Trompt regressor. This class extends the SklearnBaseRegressor
         class and uses the Trompt model with the default Trompt
@@ -16,49 +20,49 @@ class TromptRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models.experimental import TromptRegressor
-        >>> model = TromptRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TromptConfig
+        >>> model = TromptRegressor(model_config=TromptConfig(d_model=64))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=Trompt, config=DefaultTromptConfig, **kwargs)
-
 
 class TromptClassifier(SklearnBaseClassifier):
+    _model_cls = Trompt
+    _config_cls = TromptConfig
+
     __doc__ = generate_docstring(
-        DefaultTromptConfig,
+        TromptConfig,
         """Trompt Classifier. This class extends the SklearnBaseClassifier class
         and uses the Trompt model with the default Trompt configuration.""",
         examples="""
         >>> from deeptab.models.experimental import TromptClassifier
-        >>> model = TromptClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TromptConfig
+        >>> model = TromptClassifier(model_config=TromptConfig(d_model=64))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=Trompt, config=DefaultTromptConfig, **kwargs)
-
 
 class TromptLSS(SklearnBaseLSS):
+    _model_cls = Trompt
+    _config_cls = TromptConfig
+
     __doc__ = generate_docstring(
-        DefaultTromptConfig,
+        TromptConfig,
         """Trompt for distributional regression.
         This class extends the SklearnBaseLSS class and uses the
         Trompt model with the default Trompt configuration.""",
         examples="""
         >>> from deeptab.models.experimental import TromptLSS
-        >>> model = TromptLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import TromptConfig
+        >>> model = TromptLSS(model_config=TromptConfig(d_model=64))
         >>> model.fit(X_train, y_train, family="normal")
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(self, **kwargs):
-        super().__init__(model=Trompt, config=DefaultTromptConfig, **kwargs)

@@ -1,14 +1,18 @@
-from ..base_models.tabtransformer import TabTransformer
-from ..configs.tabtransformer_config import DefaultTabTransformerConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from deeptab.architectures.tabtransformer import TabTransformer
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
+from ..configs.models.tabtransformer_config import TabTransformerConfig
+from ._docstring import generate_docstring
 
 
 class TabTransformerRegressor(SklearnBaseRegressor):
+    _model_cls = TabTransformer
+    _config_cls = TabTransformerConfig
+
     __doc__ = generate_docstring(
-        DefaultTabTransformerConfig,
+        TabTransformerConfig,
         model_description="""
         TabTransformer regressor. This class extends the SklearnBaseRegressor class and uses the TabTransformer model
         with the default TabTransformer configuration.
@@ -22,13 +26,13 @@ class TabTransformerRegressor(SklearnBaseRegressor):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=TabTransformer, config=DefaultTabTransformerConfig, **kwargs)
-
 
 class TabTransformerClassifier(SklearnBaseClassifier):
+    _model_cls = TabTransformer
+    _config_cls = TabTransformerConfig
+
     __doc__ = generate_docstring(
-        DefaultTabTransformerConfig,
+        TabTransformerConfig,
         model_description="""
         TabTransformer classifier. This class extends the SklearnBaseClassifier class and uses the TabTransformer model
         with the default TabTransformer configuration.
@@ -42,13 +46,13 @@ class TabTransformerClassifier(SklearnBaseClassifier):
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=TabTransformer, config=DefaultTabTransformerConfig, **kwargs)
-
 
 class TabTransformerLSS(SklearnBaseLSS):
+    _model_cls = TabTransformer
+    _config_cls = TabTransformerConfig
+
     __doc__ = generate_docstring(
-        DefaultTabTransformerConfig,
+        TabTransformerConfig,
         model_description="""
         TabTransformer for distributional regression. This class extends the SklearnBaseLSS class and uses the TabTransformer model
         with the default TabTransformer configuration.
@@ -61,6 +65,3 @@ class TabTransformerLSS(SklearnBaseLSS):
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(self, **kwargs):
-        super().__init__(model=TabTransformer, config=DefaultTabTransformerConfig, **kwargs)

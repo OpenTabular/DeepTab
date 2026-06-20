@@ -1,420 +1,414 @@
 <div align="center">
-    <img src="./docs/images/logo/deeptab-v1.png" width="550"/>
+    <img src="./docs/images/logo/deeptab-v1.png" width="900"/>
 
 [![PyPI](https://img.shields.io/pypi/v/deeptab)](https://pypi.org/project/deeptab)
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
+[![Python](https://img.shields.io/pypi/pyversions/deeptab)](https://pypi.org/project/deeptab)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/OpenTabular/DeepTab/blob/main/LICENSE)
 [![docs build](https://readthedocs.org/projects/deeptab/badge/?version=latest)](https://deeptab.readthedocs.io/en/latest/?badge=latest)
 [![docs](https://img.shields.io/badge/docs-latest-blue)](https://deeptab.readthedocs.io/en/latest/)
-[![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/deeptab/issues)
+[![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/DeepTab/issues)
 
-[📘Documentation](https://deeptab.readthedocs.io/en/latest/index.html) |
-[🛠️Installation](https://deeptab.readthedocs.io/en/latest/installation.html) |
-[Models](https://deeptab.readthedocs.io/en/latest/api/models/index.html) |
-[🤔Report Issues](https://github.com/OpenTabular/deeptab/issues)
+[📘 Documentation](https://deeptab.readthedocs.io) |
+[🚀 Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/quickstart.html) |
+[🎯 Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) |
+[📖 Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html) |
+[🤔 Report Issues](https://github.com/OpenTabular/DeepTab/issues)
 
 </div>
 
-<div style="text-align: center;">
-    <h1>DeepTab: Tabular Deep Learning Made Simple</h1>
-</div>
+# DeepTab: Tabular Deep Learning Made Simple
 
-deeptab is a Python library for tabular deep learning. It includes models that leverage the Mamba (State Space Model) architecture, as well as other popular models like TabTransformer, FTTransformer, TabM and tabular ResNets. Check out our paper `Mambular: A Sequential Model for Tabular Deep Learning`, available [here](https://arxiv.org/abs/2408.06291). Also check out our paper introducing [TabulaRNN](https://arxiv.org/pdf/2411.17207) and analyzing the efficiency of NLP inspired tabular models.
+**DeepTab** is a Python library for deep learning on tabular data, built on PyTorch and Lightning with a scikit-learn compatible API. It offers 15 neural architectures, from Mamba-inspired state space models and Transformers to tree ensembles and MLP baselines, each available as a classifier, regressor, or distributional (`LSS`) model. One `fit`/`predict`/`evaluate` workflow covers everyday modeling, architecture research, and production deployment.
 
-<h3>⚡ What's New ⚡</h3>
-<ul>
-  <li>New Models: `Tangos`, `AutoInt`, `Trompt`, `ModernNCA`</li>
-  <li>Pretraining optionality for suitable models.</li>
-  <li>Individual preprocessing: preprocess each feature differently, use pre-trained models for categorical encoding</li>
-  <li>Extract latent representations of tables</li>
-  <li>Use embeddings as inputs</li>
-  <li>Define custom training metrics</li>
-</ul>
+## Why DeepTab?
 
-<h3> Table of Contents </h3>
+- **Familiar interface.** A scikit-learn `fit`/`predict`/`evaluate` API that drops into existing pipelines, including `GridSearchCV`.
+- **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are built in.
+- **One model, three tasks.** Every architecture ships as a classifier, a regressor, and a distributional (`LSS`) variant for uncertainty quantification.
+- **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
+- **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.
 
-- [🏃 Quickstart](#-quickstart)
-- [📖 Introduction](#-introduction)
-- [🤖 Models](#-models)
-- [📚 Documentation](#-documentation)
-- [🛠️ Installation](#️-installation)
-- [🚀 Usage](#-usage)
-- [💻 Implement Your Own Model](#-implement-your-own-model)
-- [🏷️ Citation](#️-citation)
-- [License](#license)
+## ⚡ What's New in v2.0
 
-# 🏃 Quickstart
+v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API (`MambularClassifier().fit(...)`) is largely unchanged, but the internal package layout, configuration objects, and import paths have moved.
 
-Similar to any sklearn model, deeptab models can be fit as easy as this:
+> **⚠️ Upgrading from v1?** Packages were reorganised, the `Default<Arch>Config` classes were renamed to `<Arch>Config`, and the data modules were renamed to `TabularDataModule` / `TabularDataset`. Code that only uses the high-level estimators mostly keeps working; code that imported internal modules needs updating. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html) for v1 support and upgrade notes.
+
+### Configuration and data
+
+- **Split-config API**: The model, preprocessing, and training each have their own configuration object, so you can tune one concern without disturbing the others. This is the first thing you reach for in v2.
+- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract, with stratified splitting controlled through `TrainerConfig`.
+
+### Models
+
+- **New stable models**: AutoInt, ENODE, and TabR.
+- **New experimental models**: Tangos, Trompt, and ModernNCA, under evaluation for promotion.
+
+### Training and evaluation
+
+- **Observability and experiment tracking**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree. It is opt-in and silent by default.
+- **Registry-driven training**: Every `torch.optim` optimizer, learning-rate scheduler, and loss is selectable by name through `TrainerConfig`, and you can register your own at runtime.
+- **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry.
+- **Reproducibility**: `set_seed` and `seed_context` seed Python, NumPy, and PyTorch across CPU, CUDA, and MPS, including the DataLoader and sampler generators.
+
+### Deployment
+
+- **Deployment-safe inference**: `InferenceModel` wraps a fitted estimator in a read-only prediction surface with schema validation and task-type enforcement. Training methods are deliberately absent, so a served model cannot be re-fitted by accident.
+- **Self-describing artifacts**: save and load go through a single `.deeptab` format that bundles the architecture, feature schema, preprocessing, task type, and package versions alongside the weights, so a saved model carries everything needed to reload it.
+
+### Documentation
+
+- **Rebuilt from the ground up**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
+- **End-to-end tutorials**: runnable [walkthroughs with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html) covering imbalanced classification, skewed regression, uncertainty quantification, hyperparameter tuning, and observability.
+
+## 🏃 Quickstart
 
 ```python
 from deeptab.models import MambularClassifier
-# Initialize and fit your model
-model = MambularClassifier()
 
-# X can be a dataframe or something that can be easily transformed into a pd.DataFrame as a np.array
-model.fit(X, y, max_epochs=150, lr=1e-04)
+# Initialize and fit (sklearn-compatible)
+model = MambularClassifier()
+model.fit(X_train, y_train, max_epochs=50)
+
+# Predict
+predictions = model.predict(X_test)
+probabilities = model.predict_proba(X_test)
 ```
 
-# 📖 Introduction
+> **That's it!** DeepTab handles preprocessing, batching, and training automatically.
 
-deeptab is a Python package that brings the power of advanced deep learning architectures to tabular data, offering a suite of models for regression, classification, and distributional regression tasks. Designed with ease of use in mind, deeptab models adhere to scikit-learn's `BaseEstimator` interface, making them highly compatible with the familiar scikit-learn ecosystem. This means you can fit, predict, and evaluate using deeptab models just as you would with any traditional scikit-learn model, but with the added performance and flexibility of deep learning.
+> **Works with pandas & numpy:** Pass DataFrames or arrays, and DeepTab auto-detects feature types.
 
-# 🤖 Models
+## Available Models
 
-| Model            | Description                                                                                                                                                                                                 |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Mambular`       | A sequential model using Mamba blocks specifically designed for various tabular data tasks introduced [here](https://arxiv.org/abs/2408.06291).                                                             |
-| `TabM`           | Batch Ensembling for a MLP as introduced by [Gorishniy et al.](https://arxiv.org/abs/2410.24210)                                                                                                            |
-| `NODE`           | Neural Oblivious Decision Ensembles as introduced by [Popov et al.](https://arxiv.org/abs/1909.06312)                                                                                                       |
-| `FTTransformer`  | A model leveraging transformer encoders, as introduced by [Gorishniy et al.](https://arxiv.org/abs/2106.11959), for tabular data.                                                                           |
-| `MLP`            | A classical Multi-Layer Perceptron (MLP) model for handling tabular data tasks.                                                                                                                             |
-| `ResNet`         | An adaptation of the ResNet architecture for tabular data applications.                                                                                                                                     |
-| `TabTransformer` | A transformer-based model for tabular data introduced by [Huang et al.](https://arxiv.org/abs/2012.06678), enhancing feature learning capabilities.                                                         |
-| `MambaTab`       | A tabular model using a Mamba-Block on a joint input representation described [here](https://arxiv.org/abs/2401.08867) . Not a sequential model.                                                            |
-| `TabulaRNN`      | A Recurrent Neural Network for Tabular data, introduced [here](https://arxiv.org/pdf/2411.17207).                                                                                                           |
-| `MambAttention`  | A combination between Mamba and Transformers, also introduced [here](https://arxiv.org/pdf/2411.17207).                                                                                                     |
-| `NDTF`           | A neural decision forest using soft decision trees. See [Kontschieder et al.](https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html) for inspiration. |
-| `SAINT`          | Improve neural networs via Row Attention and Contrastive Pre-Training, introduced [here](https://arxiv.org/pdf/2106.01342).                                                                                 |
-| `AutoInt`        | Automatic Feature Interaction Learning via Self-Attentive Neural Networks introduced [here](https://arxiv.org/abs/1810.11921).                                                                              |
-| `Trompt`         | Trompt: Towards a Better Deep Neural Network for Tabular Data introduced [here](https://arxiv.org/abs/2305.18446).                                                                                          |
-| `Tangos`         | Tangos: Regularizing Tabular Neural Networks through Gradient Orthogonalization and Specialization introduced [here](https://openreview.net/pdf?id=n6H86gW8u0d).                                            |
-| `ModernNCA`      | Revisiting Nearest Neighbor for Tabular Data: A Deep Tabular Baseline Two Decades Later introduced [here](https://arxiv.org/abs/2407.03257).                                                                |
-| `TabR`           | TabR: Tabular Deep Learning Meets Nearest Neighbors in 2023 [here](https://arxiv.org/abs/2307.14338)                                                                                                        |
+DeepTab provides 15 stable architectures across five families: State Space Models (Mambular, MambaTab, MambAttention), Transformers (FTTransformer, TabTransformer, SAINT, AutoInt), residual networks (ResNet, TabR), tree-inspired models (NODE, ENODE, NDTF), and general baselines (MLP, TabM, TabulaRNN). Three experimental models (ModernNCA, Tangos, Trompt) are under evaluation for promotion.
 
-All models are available for `regression`, `classification` and distributional regression, denoted by `LSS`.
-Hence, they are available as e.g. `MambularRegressor`, `MambularClassifier` or `MambularLSS`
+> **See the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html) for detailed comparisons, complexity analysis, and selection guidance.**
 
-# 📚 Documentation
+### Stable Models
 
-You can find the deeptab API documentation [here](https://deeptab.readthedocs.io/en/latest/).
+| Category               | Model                                      | Architecture                        | Best For                               |
+| ---------------------- | ------------------------------------------ | ----------------------------------- | -------------------------------------- |
+| **State Space Models** | **[Mambular][mambular-paper]**             | Stacked Mamba over feature tokens   | General-purpose tabular modeling       |
+|                        | **[MambaTab][mambatab-paper]**             | Lightweight Mamba SSM               | Small datasets and fast training       |
+|                        | **MambAttention**                          | Mamba with feature attention        | Feature-interaction-heavy data         |
+| **Transformers**       | **[FTTransformer][fttransformer-paper]**   | Feature Tokenizer + Transformer     | Strong attention-based baseline        |
+|                        | **[TabTransformer][tabtransformer-paper]** | Transformer over categorical tokens | Categorical-heavy data                 |
+|                        | **[SAINT][saint-paper]**                   | Row and column attention            | Small or label-scarce datasets         |
+|                        | **[AutoInt][autoint-paper]**               | Self-attentive feature interactions | Automatic high-order interactions      |
+| **Residual Networks**  | **[ResNet][resnet-paper]**                 | Residual MLP                        | Fast dense baseline                    |
+|                        | **[TabR][tabr-paper]**                     | Retrieval-augmented MLP/kNN         | Large datasets with neighbor signal    |
+| **Tree-Inspired**      | **[NODE][node-paper]**                     | Neural oblivious decision ensembles | Differentiable tree inductive bias     |
+|                        | **ENODE**                                  | Embedded NODE-style soft trees      | Tree-inspired modeling with embeddings |
+|                        | **[NDTF][ndtf-paper]**                     | Neural decision tree forest         | Differentiable forest experiments      |
+| **Other**              | **MLP**                                    | Feedforward dense network           | Fastest baseline                       |
+|                        | **[TabM][tabm-paper]**                     | Parameter-efficient ensemble MLP    | Strong efficient baseline              |
+|                        | **TabulaRNN**                              | Recurrent feature-sequence model    | Sequential feature modeling            |
 
-# 🛠️ Installation
+[mambular-paper]: https://arxiv.org/abs/2408.06291
+[mambatab-paper]: https://arxiv.org/abs/2401.08867
+[fttransformer-paper]: https://arxiv.org/abs/2106.11959
+[resnet-paper]: https://arxiv.org/abs/2106.11959
+[tabtransformer-paper]: https://arxiv.org/abs/2012.06678
+[saint-paper]: https://arxiv.org/abs/2106.01342
+[autoint-paper]: https://arxiv.org/abs/1810.11921
+[tabr-paper]: https://arxiv.org/abs/2307.14338
+[node-paper]: https://arxiv.org/abs/1909.06312
+[ndtf-paper]: https://openaccess.thecvf.com/content_iccv_2015/html/Kontschieder_Deep_Neural_Decision_ICCV_2015_paper.html
+[tabm-paper]: https://arxiv.org/abs/2410.24210
 
-Install deeptab using pip:
+### Experimental Models ⚠️
 
-```sh
+> **⚠️ API Not Stable:** Experimental models may change in minor releases. Always pin exact version: `deeptab==x.y.z`
+
+- **ModernNCA**: Neighborhood Component Analysis (metric learning)
+- **Tangos**: Gradient orthogonalization approach
+- **Trompt**: Prompt-based learning for tabular data
+
+### Task Variants
+
+All models come in three variants:
+
+- `*Classifier`: Classification (binary & multi-class)
+- `*Regressor`: Regression (point estimates)
+- `*LSS`: Distributional regression (full distribution prediction)
+
+> **Consistent API:** All models use the same interface, so you can swap architectures without changing code.
+
+## 📚 Documentation
+
+**Full documentation:** [deeptab.readthedocs.io](https://deeptab.readthedocs.io)
+
+### Quick Links
+
+- **[Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html)**: Installation, quickstart, FAQ
+- **[Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html)**: sklearn API, config system, preprocessing, training
+- **[Tutorials](https://deeptab.readthedocs.io/en/latest/tutorials/index.html)**: Classification, regression, LSS (with Google Colab)
+- **[Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html)**: Model selection, comparisons, recommended configs
+- **[API Reference](https://deeptab.readthedocs.io/en/latest/api/index.html)**: Complete API documentation
+
+## 🛠️ Installation
+
+**Basic installation:**
+
+```bash
 pip install deeptab
 ```
 
-If you want to use the original mamba and mamba2 implementations, additionally install mamba-ssm via:
+**With experiment tracking and structured logging:**
 
-```sh
+```bash
+pip install 'deeptab[tracking]'   # MLflow + TensorBoard loggers
+pip install 'deeptab[logs]'       # structured logging via structlog
+pip install 'deeptab[all]'        # every optional backend
+```
+
+**Faster Mamba models (optional CUDA kernels):**
+
+```bash
 pip install mamba-ssm
 ```
 
-Be careful to use the correct torch and cuda versions:
+> **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
 
-```sh
-pip install torch==2.0.0+cu118 torchvision==0.15.0+cu118 torchaudio==2.0.0+cu118 -f https://download.pytorch.org/whl/cu118/torch_stable.html
-pip install mamba-ssm
-```
+> **Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
 
-# 🚀 Usage
+> **Requirements:** Python 3.10+, PyTorch 2.2+, Lightning 2.3.3+
 
-<h2> Preprocessing </h2>
+> **GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
-deeptab uses pretab preprocessing: https://github.com/OpenTabular/PreTab
+## Usage
 
-Hence, datatypes etc. are detected automatically and all preprocessing methods from pretab as well as from Sklearn.preprocessing are available.
-Additionally, you can specify that each feature is preprocessed differently, according to your requirements, by setting the `feature_preprocessing={}`argument during model initialization.
-For an overview over all available methods: [pretab](https://github.com/OpenTabular/PreTab)
-
-<h3> Data Type Detection and Transformation </h3>
-
-- **Ordinal & One-Hot Encoding**: Automatically transforms categorical data into numerical formats using continuous ordinal encoding or one-hot encoding. Includes options for transforming outputs to `float` for compatibility with downstream models.
-- **Binning**: Discretizes numerical features into bins, with support for both fixed binning strategies and optimal binning derived from decision tree models.
-- **MinMax**: Scales numerical data to a specific range, such as [-1, 1], using Min-Max scaling or similar techniques.
-- **Standardization**: Centers and scales numerical features to have a mean of zero and unit variance for better compatibility with certain models.
-- **Quantile Transformations**: Normalizes numerical data to follow a uniform or normal distribution, handling distributional shifts effectively.
-- **Spline Transformations**: Captures nonlinearity in numerical features using spline-based transformations, ideal for complex relationships.
-- **Piecewise Linear Encodings (PLE)**: Captures complex numerical patterns by applying piecewise linear encoding, suitable for data with periodic or nonlinear structures.
-- **Polynomial Features**: Automatically generates polynomial and interaction terms for numerical features, enhancing the ability to capture higher-order relationships.
-- **Box-Cox & Yeo-Johnson Transformations**: Performs power transformations to stabilize variance and normalize distributions.
-- **Custom Binning**: Enables user-defined bin edges for precise discretization of numerical data.
-- **Pre-trained Encoding**: Use sentence transformers to encode categorical features.
-
-<h2> Fit a Model </h2>
-Fitting a model in deeptab is as simple as it gets. All models in deeptab are sklearn BaseEstimators. Thus the `.fit` method is implemented for all of them. Additionally, this allows for using all other sklearn inherent methods such as their built in hyperparameter optimization tools.
+### Basic Workflow
 
 ```python
 from deeptab.models import MambularClassifier
-# Initialize and fit your model
+from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
+
+# 1. Initialize with configuration (optional - defaults work well!)
+model_config = MambularConfig(d_model=64, n_layers=6)
+prep_config = PreprocessingConfig(numerical_preprocessing="quantile")
+trainer_config = TrainerConfig(lr=1e-4, batch_size=256)
+
 model = MambularClassifier(
-    d_model=64,
-    n_layers=4,
-    numerical_preprocessing="ple",
-    n_bins=50,
-    d_conv=8
+    model_config=model_config,
+    preprocessing_config=prep_config,
+    trainer_config=trainer_config
 )
 
-# X can be a dataframe or something that can be easily transformed into a pd.DataFrame as a np.array
-model.fit(X, y, max_epochs=150, lr=1e-04)
+# 2. Fit (X can be pandas DataFrame or numpy array)
+model.fit(X_train, y_train, max_epochs=50)
+
+# 3. Predict
+predictions = model.predict(X_test)
+probabilities = model.predict_proba(X_test)
+
+# 4. Evaluate
+metrics = model.evaluate(X_test, y_test)
+# Regression:      {"rmse": …, "mae": …, "r2": …}
+# Classification:  {"accuracy": …, "auroc": …, "log_loss": …}
+# LSS (normal):    {"crps": …, "rmse": …, "mae": …}
 ```
 
-Predictions are also easily obtained:
+> **💡 Tip:** Start with defaults (`MambularClassifier()`) and tune only if needed. See [Recommended Configs](https://deeptab.readthedocs.io/en/latest/model_zoo/recommended_configs.html) for guidance.
+
+### Hyperparameter Tuning
+
+DeepTab models are sklearn-compatible, so you can use `GridSearchCV`:
 
 ```python
-# simple predictions
-preds = model.predict(X)
+from sklearn.model_selection import GridSearchCV
+from deeptab.models import MambularClassifier
 
-# Predict probabilities
-preds = model.predict_proba(X)
-```
-
-Get latent representations for each feature:
-
-```python
-# simple encoding
-model.encode(X)
-```
-
-Use unstructured data:
-
-```python
-# load pretrained models
-image_model = ...
-nlp_model = ...
-
-# create embeddings
-img_embs = image_model.encode(images)
-txt_embs = nlp_model.encode(texts)
-
-# fit model on tabular data and unstructured data
-model.fit(X_train, y_train, embeddings=[img_embs, txt_embs])
-```
-
-<h3> Hyperparameter Optimization</h3>
-Since all of the models are sklearn base estimators, you can use the built-in hyperparameter optimizatino from sklearn.
-
-```python
-from sklearn.model_selection import RandomizedSearchCV
-
-param_dist = {
-    'd_model': randint(32, 128),
-    'n_layers': randint(2, 10),
-    'lr': uniform(1e-5, 1e-3)
+param_grid = {
+    "model_config__d_model": [64, 128, 256],
+    "model_config__n_layers": [4, 6, 8],
+    "trainer_config__lr": [1e-4, 5e-4, 1e-3],
 }
 
-random_search = RandomizedSearchCV(
-    estimator=model,
-    param_distributions=param_dist,
-    n_iter=50,  # Number of parameter settings sampled
-    cv=5,       # 5-fold cross-validation
-    scoring='accuracy',  # Metric to optimize
-    random_state=42
+search = GridSearchCV(
+    MambularClassifier(),
+    param_grid,
+    cv=5,
+    scoring="accuracy"
 )
-
-fit_params = {"max_epochs":5, "rebuild":False}
-
-# Fit the model
-random_search.fit(X, y, **fit_params)
-
-# Best parameters and score
-print("Best Parameters:", random_search.best_params_)
-print("Best Score:", random_search.best_score_)
+search.fit(X_train, y_train)
+print(f"Best params: {search.best_params_}")
+print(f"Best score: {search.best_score_}")
 ```
 
-Note, that using this, you can also optimize the preprocessing. Just specify the necessary parameters when specifying the preprocessor arguments you want to optimize:
+> **Built-in HPO:** Every estimator exposes `optimize_hparams()`, which runs Gaussian process Bayesian optimization (via [scikit-optimize](https://scikit-optimize.github.io/)) over a search space derived from the model config. See the [HPO Tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/hpo.html).
 
-```python
-param_dist = {
-    'd_model': randint(32, 128),
-    'n_layers': randint(2, 10),
-    'lr': uniform(1e-5, 1e-3),
-    "numerical_preprocessing": ["ple", "standardization", "box-cox"]
-}
+### Distributional Regression (LSS)
 
-```
-
-Since we have early stopping integrated and return the best model with respect to the validation loss, setting max_epochs to a large number is sensible.
-
-Or use the built-in bayesian hpo simply by running:
-
-```python
-best_params = model.optimize_hparams(X, y)
-```
-
-This automatically sets the search space based on the default config from `deeptab.configs`. See the documentation for all params with regard to `optimize_hparams()`. However, the preprocessor arguments are fixed and cannot be optimized here.
-
-<h2> ⚖️ Distributional Regression with MambularLSS </h2>
-
-MambularLSS allows you to model the full distribution of a response variable, not just its mean. This is crucial when understanding variability, skewness, or kurtosis is important. All deeptab models are available as distributional models.
-
-<h3> Key Features of MambularLSS: </h3>
-
-- **Full Distribution Modeling**: Predicts the entire distribution, not just a single value, providing richer insights.
-- **Customizable Distribution Types**: Supports various distributions (e.g., Gaussian, Poisson, Binomial) for different data types.
-- **Location, Scale, Shape Parameters**: Predicts key distributional parameters for deeper insights.
-- **Enhanced Predictive Uncertainty**: Offers more robust predictions by modeling the entire distribution.
-
-<h3> Available Distribution Classes: </h3>
-
-- **normal**: For continuous data with a symmetric distribution.
-- **poisson**: For count data within a fixed interval.
-- **gamma**: For skewed continuous data, often used for waiting times.
-- **beta**: For data bounded between 0 and 1, like proportions.
-- **dirichlet**: For multivariate data with correlated components.
-- **studentt**: For data with heavier tails, useful with small samples.
-- **negativebinom**: For over-dispersed count data.
-- **inversegamma**: Often used as a prior in Bayesian inference.
-- **johnsonsu**: Four parameter distribution defining location, scale, kurtosis and skewness.
-- **categorical**: For data with more than two categories.
-- **Quantile**: For quantile regression using the pinball loss.
-
-These distribution classes make MambularLSS versatile in modeling various data types and distributions.
-
-<h3> Getting Started with MambularLSS: </h3>
-
-To integrate distributional regression into your workflow with `MambularLSS`, start by initializing the model with your desired configuration, similar to other deeptab models:
+Predict a full distribution instead of a single point estimate:
 
 ```python
 from deeptab.models import MambularLSS
 
-# Initialize the MambularLSS model
-model = MambularLSS(
-    dropout=0.2,
-    d_model=64,
-    n_layers=8,
+# Choose a distribution family when you fit
+model = MambularLSS()
+model.fit(X_train, y_train, family="normal", max_epochs=50)
 
+# predict() returns the estimated distribution parameters per sample
+# (for "normal", that is the location and scale)
+params = model.predict(X_test)
+
+# Evaluate with proper scoring rules selected for the family
+metrics = model.evaluate(X_test, y_test)
+```
+
+> **Available families:** `normal`, `lognormal`, `studentt`, `gamma`, `beta`, `tweedie`, `poisson`, `zip`, `negativebinom`, `dirichlet`, `mog`, `quantile`, and more. Each family auto-selects appropriate evaluation metrics (CRPS, deviances, NLL).
+
+> **Prediction intervals:** Turn the predicted parameters into calibrated intervals as shown in the [Uncertainty Quantification tutorial](https://deeptab.readthedocs.io/en/latest/tutorials/uncertainty_quantification.html).
+
+## Advanced Features
+
+### Preprocessing
+
+DeepTab includes comprehensive preprocessing powered by [PreTab](https://github.com/OpenTabular/PreTab):
+
+```python
+from deeptab.configs import PreprocessingConfig
+from deeptab.models import MambularClassifier
+
+prep_config = PreprocessingConfig(
+    numerical_preprocessing="ple",  # Piecewise linear encoding
+    n_bins=50                       # Number of bins for the encoding
 )
 
-# Fit the model to your data
-model.fit(
-    X,
-    y,
-    max_epochs=150,
-    lr=1e-04,
-    patience=10,
-    family="normal" # define your distribution
-    )
-
+model = MambularClassifier(preprocessing_config=prep_config)
+model.fit(X_train, y_train, max_epochs=50)
 ```
 
-# 💻 Implement Your Own Model
+> **Features:**
+>
+> - **Automatic detection:** Feature types detected from data
+> - **Type-aware:** Separate strategies for numerical and categorical features
+> - **Methods:** PLE, quantile transform, splines, standardization, min-max, and robust scaling
+> - **Pre-trained encodings:** Transfer learning for categorical features
 
-deeptab allows users to easily integrate their custom models into the existing logic. This process is designed to be straightforward, making it simple to create a PyTorch model and define its forward pass. Instead of inheriting from `nn.Module`, you inherit from deeptab's `BaseModel`. Each deeptab model takes three main arguments: the number of classes (e.g., 1 for regression or 2 for binary classification), `cat_feature_info`, and `num_feature_info` for categorical and numerical feature information, respectively. Additionally, you can provide a config argument, which can either be a custom configuration or one of the provided default configs.
+> **Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
 
-One of the key advantages of using deeptab is that the inputs to the forward passes are lists of tensors. While this might be unconventional, it is highly beneficial for models that treat different data types differently. For example, the TabTransformer model leverages this feature to handle categorical and numerical data separately, applying different transformations and processing steps to each type of data.
+### Observability & Experiment Tracking
 
-Here's how you can implement a custom model with deeptab:
+DeepTab can record what happens during training without you writing any callbacks. Pass an `ObservabilityConfig` when you build a model, and each run captures its hyperparameters, lifecycle events, and final metrics in one self-contained folder.
 
-1. **First, define your config:**  
-   The configuration class allows you to specify hyperparameters and other settings for your model. This can be done using a simple dataclass.
+```python
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.models import MambularClassifier
 
-   ```python
-   from dataclasses import dataclass
-   from deeptab.configs import BaseConfig
+obs = ObservabilityConfig(
+    experiment_name="churn_baseline",
+    structured_logging=True,          # human-readable console + JSON event log
+    experiment_trackers=["mlflow"],   # also supports "tensorboard"
+)
 
-   @dataclass
-   class MyConfig(BaseConfig):
-       lr: float = 1e-04
-       lr_patience: int = 10
-       weight_decay: float = 1e-06
-       n_layers: int = 4
-       pooling_method:str = "avg
-
-   ```
-
-2. **Second, define your model:**  
-   Define your custom model just as you would for an `nn.Module`. The main difference is that you will inherit from `BaseModel` and use the provided feature information to construct your layers. To integrate your model into the existing API, you only need to define the architecture and the forward pass.
-
-   ```python
-   from deeptab.base_models.utils import BaseModel
-   from deeptab.utils.get_feature_dimensions import get_feature_dimensions
-   import torch
-   import torch.nn
-
-   class MyCustomModel(BaseModel):
-       def __init__(
-           self,
-           feature_information: tuple,
-           num_classes: int = 1,
-           config=None,
-           **kwargs,
-       ):
-            super().__init__(**kwargs)
-            self.save_hyperparameters(ignore=["feature_information"])
-            self.returns_ensemble = False
-
-            # embedding layer
-            self.embedding_layer = EmbeddingLayer(
-                *feature_information,
-                config=config,
-            )
-
-           input_dim = np.sum(
-                [len(info) * self.hparams.d_model for info in feature_information]
-            )
-
-           self.linear = nn.Linear(input_dim, num_classes)
-
-       def forward(self, *data) -> torch.Tensor:
-            x = self.embedding_layer(*data)
-            B, S, D = x.shape
-            x = x.reshape(B, S * D)
-
-
-           # Pass through linear layer
-           output = self.linear(x)
-           return output
-   ```
-
-3. **Leverage the deeptab API:**  
-   You can build a regression, classification, or distributional regression model that can leverage all of deeptab's built-in methods by using the following:
-
-   ```python
-   from deeptab.models.utils import SklearnBaseRegressor
-
-   class MyRegressor(SklearnBaseRegressor):
-       def __init__(self, **kwargs):
-           super().__init__(model=MyCustomModel, config=MyConfig, **kwargs)
-   ```
-
-4. **Train and evaluate your model:**  
-   You can now fit, evaluate, and predict with your custom model just like with any other deeptab model. For classification or distributional regression, inherit from `SklearnBaseClassifier` or `SklearnBaseLSS` respectively.
-
-   ```python
-   regressor = MyRegressor(numerical_preprocessing="ple")
-   regressor.fit(X_train, y_train, max_epochs=50)
-
-   regressor.evaluate(X_test, y_test)
-   ```
-
-# 🤝 Contributing
-
-We welcome contributions! This project uses [Conventional Commits](https://www.conventionalcommits.org/) and automated semantic versioning.
-
-**Quick Start for Contributors:**
-
-```bash
-# Install dependencies with pre-commit hooks
-just install
-
-# Make your changes and commit using the interactive tool
-just commit
-
-# Or commit manually following conventional commits format
-git commit -m "feat(models): add new model architecture"
+model = MambularClassifier(observability_config=obs)
+model.fit(X_train, y_train, max_epochs=50)
 ```
 
-See our [Contributing Guide](docs/contributing.md) for detailed guidelines and [Conventional Commits Reference](CONVENTIONAL_COMMITS.md) for commit message formatting.
+Every fit produces a tidy, reproducible run directory:
 
-# 🏷️ Citation
+```text
+deeptab_runs/
+  runs/churn_baseline/20260611_174830_8f3a2c/
+    config.yaml       # estimator hyperparameters
+    lifecycle.jsonl   # structured event log
+    summary.json      # final metrics
+    checkpoints/best.ckpt
+  tensorboard/...
+  mlflow/...
+```
 
-If you find this project useful in your research, please consider cite:
+> **Tune the noise:** `verbosity` controls how much is emitted (`0` silent, `1` milestones, `2` detailed, `3` debug). The default keeps notebooks quiet.
 
-```BibTeX
+> **🔬 For researchers:** Lifecycle events such as `fit.started`, `model.created`, and `train.completed` carry structured metadata (sample counts, parameter counts, best validation loss), so you can script experiment sweeps and compare runs programmatically.
+
+> **📖 Learn more:** [Observability](https://deeptab.readthedocs.io/en/latest/core_concepts/observability.html)
+
+### Custom Models
+
+Implement your own architecture with DeepTab's base classes. A model is three
+small pieces: a dataclass **config** (subclassing `BaseModelConfig`), a PyTorch
+**architecture** (subclassing `BaseModel`), and one **estimator** per task that
+binds them via `_model_cls` / `_config_cls`:
+
+```python
+from dataclasses import dataclass, field
+
+import torch
+import torch.nn as nn
+
+from deeptab.configs import BaseModelConfig, TrainerConfig
+from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.models import SklearnBaseRegressor
+
+
+@dataclass
+class MyCustomConfig(BaseModelConfig):
+    layer_sizes: list = field(default_factory=lambda: [128, 64])
+    dropout: float = 0.1
+
+
+class MyCustomModel(BaseModel):
+    def __init__(
+        self,
+        feature_information: tuple,  # (num_info, cat_info, embedding_info)
+        num_classes: int = 1,
+        config: MyCustomConfig = MyCustomConfig(),  # noqa: B008
+        **kwargs,
+    ):
+        super().__init__(config=config, **kwargs)
+        self.save_hyperparameters(ignore=["feature_information"])
+
+        # Input width is derived from the data, never hard-coded.
+        input_dim = get_feature_dimensions(*feature_information)
+
+        layers: list[nn.Module] = []
+        prev = input_dim
+        for size in self.hparams.layer_sizes:
+            layers += [nn.Linear(prev, size), nn.ReLU(), nn.Dropout(self.hparams.dropout)]
+            prev = size
+        layers.append(nn.Linear(prev, num_classes))
+        self.layers = nn.Sequential(*layers)
+
+    def forward(self, *data) -> torch.Tensor:
+        # data == (num_features, cat_features, embeddings)
+        x = torch.cat([t for group in data for t in group], dim=1)
+        return self.layers(x)
+
+
+class MyRegressor(SklearnBaseRegressor):
+    _model_cls = MyCustomModel
+    _config_cls = MyCustomConfig
+
+
+# Use like any other DeepTab model
+model = MyRegressor(
+    model_config=MyCustomConfig(layer_sizes=[256, 128]),
+    trainer_config=TrainerConfig(lr=1e-3),
+)
+model.fit(X_train, y_train, max_epochs=50)
+```
+
+> **📖 Learn more:** [Custom Models](https://deeptab.readthedocs.io/en/latest/core_concepts/custom_models.html) walks through configs, embeddings, and the `*Classifier` / `*Regressor` / `*LSS` variants.
+
+> **🛠️ Developer Guide:** See [Contributing](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) for architecture guidelines.
+
+## 🏷️ Citation
+
+If you use DeepTab in your research, please cite:
+
+```bibtex
 @article{thielmann2024mambular,
   title={Mambular: A Sequential Model for Tabular Deep Learning},
   author={Thielmann, Anton Frederik and Kumar, Manish and Weisser, Christoph and Reuter, Arik and S{\"a}fken, Benjamin and Samiee, Soheila},
   journal={arXiv preprint arXiv:2408.06291},
   year={2024}
 }
-```
 
-If you use TabulaRNN please consider to cite:
-
-```BibTeX
 @article{thielmann2024efficiency,
   title={On the Efficiency of NLP-Inspired Methods for Tabular Deep Learning},
   author={Thielmann, Anton Frederik and Samiee, Soheila},
@@ -423,6 +417,15 @@ If you use TabulaRNN please consider to cite:
 }
 ```
 
-# License
+## 📄 License
 
-The entire codebase is under MIT license.
+DeepTab is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+
+## 🤝 Contributing
+
+Contributions are welcome. See the [Contributing Guide](https://deeptab.readthedocs.io/en/latest/developer_guide/contributing.html) to get started, and please follow our [Code of Conduct](https://github.com/OpenTabular/DeepTab/blob/main/CODE_OF_CONDUCT.md).
+
+## 📞 Support
+
+- **Issues:** [GitHub Issues](https://github.com/OpenTabular/DeepTab/issues)
+- **Discussions:** [GitHub Discussions](https://github.com/OpenTabular/DeepTab/discussions)

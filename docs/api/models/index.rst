@@ -5,184 +5,88 @@
 Models
 ======
 
-This module provides classes for the Mambular models that adhere to scikit-learn's `BaseEstimator` interface.
+Scikit-learn compatible estimators for tabular deep learning. Every model
+implements the ``BaseEstimator`` interface and ships in three task variants:
 
-Mambular
---------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MambularClassifier`                 Multi-class and binary classification tasks with a sequential Mambular Model.
-:class:`MambularRegressor`                  Regression tasks with a sequential Mambular Model.
-:class:`MambularLSS`                        Various statistical distribution families for different types of regression and classification tasks.
-=======================================    =======================================================================================================
+- **Classifier**: binary and multi-class classification
+- **Regressor**: point-estimate regression
+- **LSS**: distributional regression (Location, Scale, Shape)
 
-FTTransformer
+.. code-block:: python
+
+    from deeptab.models import MambularClassifier
+
+    model = MambularClassifier()
+    model.fit(X_train, y_train, max_epochs=50)
+    predictions = model.predict(X_test)
+    probabilities = model.predict_proba(X_test)
+    metrics = model.evaluate(X_test, y_test)
+
+For model descriptions, comparisons, and tuned configurations, see the
+:doc:`../../model_zoo/stable/index`.
+
+Stable Models
 -------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`FTTransformerClassifier`            FT transformer for classification tasks.
-:class:`FTTransformerRegressor`            FT transformer for regression tasks.
-:class:`FTTransformerLSS`                  Various statistical distribution families for different types of regression and classification tasks.
-=======================================    =======================================================================================================
 
-MLP Models
-----------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MLPClassifier`                      Multi-class and binary classification tasks.
-:class:`MLPRegressor`                       MLP for regression tasks.
-:class:`MLPLSS`                             Various statistical distribution families for different types of regression and classification tasks.
-=======================================    =======================================================================================================
+Each architecture provides ``Classifier``, ``Regressor``, and ``LSS`` variants.
 
-TabTransformer
---------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`TabTransformerClassifier`           TabTransformer for classification tasks.
-:class:`TabTransformerRegressor`            TabTransformer for regression tasks.
-:class:`TabTransformerLSS`                  TabTransformer for distributional tasks.
-=======================================    =======================================================================================================
-
-ResNet
-------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`ResNetClassifier`                   Multi-class and binary classification tasks using ResNet.
-:class:`ResNetRegressor`                    Regression tasks using ResNet.
-:class:`ResNetLSS`                          Distributional tasks using ResNet.
-=======================================    =======================================================================================================
-
-MambaTab
---------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MambaTabClassifier`                 Multi-class and binary classification tasks using MambaTab.
-:class:`MambaTabRegressor`                  Regression tasks using MambaTab.
-:class:`MambaTabLSS`                        Distributional tasks using MambaTab.
-=======================================    =======================================================================================================
-
-MambaAttention
---------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`MambAttentionClassifier`            Multi-class and binary classification tasks using a Combination between Mamba and Attention layers.
-:class:`MambAttentionRegressor`             Regression tasks using sing a Combination between Mamba and Attention layers.
-:class:`MambAttentionLSS`                   Distributional tasks using sing a Combination between Mamba and Attention layers.
-=======================================    =======================================================================================================
-
-RNN Models Including LSTM and GRU
----------------------------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`TabulaRNNClassifier`                Multi-class and binary classification tasks using a RNN.
-:class:`TabulaRNNRegressor`                 Regression tasks using a RNN.
-:class:`TabulaRNNLSS`                       Distributional tasks using a RNN.
-=======================================    =======================================================================================================
-
-TabM
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`TabMClassifier`                     Multi-class and binary classification tasks using TabM - Batch Ensembling MLP.
-:class:`TabMRegressor`                      Regression tasks using TabM - Batch Ensembling MLP.
-:class:`TabMLSS`                            Distributional tasks using TabM - Batch Ensembling MLP.
-=======================================    =======================================================================================================
-
-NODE
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`NODEClassifier`                     Multi-class and binary classification tasks using Neural Oblivious Decision Ensembles.
-:class:`NODERegressor`                      Regression tasks using Neural Oblivious Decision Ensembles.
-:class:`NODELSS`                            Distributional tasks using Neural Oblivious Decision Ensembles.
-=======================================    =======================================================================================================
-
-NDTF
-----
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`NDTFClassifier`                     Multi-class and binary classification tasks using a Neural Decision Forest.
-:class:`NDTFRegressor`                      Regression tasks using a Neural Decision Forest
-:class:`NDTFLSS`                            Distributional tasks using a Neural Decision Forest.
-=======================================    =======================================================================================================
-
-SAINT
------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`SAINTClassifier`                    Multi-class and binary classification tasks using SAINT.
-:class:`SAINTRegressor`                     Regression tasks using SAINT.
-:class:`SAINTLSS`                           Distributional tasks using SAINT.
-=======================================    =======================================================================================================
-
-Base Classes
-------------
-=======================================    =======================================================================================================
-Modules                                     Description
-=======================================    =======================================================================================================
-:class:`SklearnBaseClassifier`              Base class for classification tasks.
-:class:`SklearnBaseLSS`                     Base class for distributional tasks.
-:class:`SklearnBaseRegressor`               Base class for regression tasks.
-=======================================    =======================================================================================================
+==================  ====================================================
+Architecture        Summary
+==================  ====================================================
+``Mambular``        Multi-layer Mamba. Strong default.
+``MambaTab``        Single Mamba block. Fast.
+``MambAttention``   Hybrid Mamba and attention.
+``FTTransformer``   Feature-tokenizer transformer.
+``TabTransformer``  Transformer for categorical-heavy data.
+``SAINT``           Row and column attention.
+``ResNet``          Residual MLP.
+``MLP``             Plain MLP baseline.
+``TabM``            Batch-ensembling MLP.
+``AutoInt``         Automatic feature interactions.
+``NODE``            Neural oblivious decision ensembles.
+``ENODE``           Enhanced NODE.
+``NDTF``            Neural decision tree forest.
+``TabR``            Retrieval-augmented model.
+``TabulaRNN``       RNN over feature sequences.
+==================  ====================================================
 
 Experimental Models
 -------------------
 
 .. warning::
 
-   Experimental models are available from ``deeptab.models.experimental``.
-   Their API may change without a deprecation cycle.
+   Experimental models live in ``deeptab.models.experimental``. Their API may
+   change without a deprecation cycle, so pin your DeepTab version when using
+   them.
 
-.. currentmodule:: deeptab.models.experimental
+==================  ====================================================
+Architecture        Summary
+==================  ====================================================
+``ModernNCA``       Modern neighborhood component analysis.
+``Tangos``          Tangent-based regularization.
+``Trompt``          Prompt-based transformer.
+==================  ====================================================
 
-=======================================    ===========================================================================
-Modules                                     Description
-=======================================    ===========================================================================
-:class:`ModernNCAClassifier`                ModernNCA for classification tasks.
-:class:`ModernNCARegressor`                 ModernNCA for regression tasks.
-:class:`ModernNCALSS`                       ModernNCA for distributional tasks.
-:class:`TangosClassifier`                   Tangos for classification tasks.
-:class:`TangosRegressor`                    Tangos for regression tasks.
-:class:`TangosLSS`                          Tangos for distributional tasks.
-:class:`TromptClassifier`                   Trompt for classification tasks.
-:class:`TromptRegressor`                    Trompt for regression tasks.
-:class:`TromptLSS`                          Trompt for distributional tasks.
-=======================================    ===========================================================================
+Reference
+---------
 
 .. toctree::
    :maxdepth: 1
-   :caption: Stable Models
+   :caption: Model Reference
 
-   mlp
-   resnet
+   Models
+   autoint
+   enode
    fttransformer
-   tabtransformer
+   mambatab
+   mambattention
+   mambular
+   mlp
+   ndtf
+   node
+   resnet
    saint
    tabm
    tabr
-   node
-   ndtf
+   tabtransformer
    tabularrnn
-   mambular
-   mambatab
-   mambattention
-   enode
-   autoint
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Full API Reference
-
-   Models

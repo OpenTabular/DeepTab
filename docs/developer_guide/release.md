@@ -75,7 +75,7 @@ If you update any dependencies (e.g. to resolve security findings), regenerate t
 Then verify the change does not break any tests.
 ```
 
-**Security audit** — run `pip-audit` and resolve any vulnerability with an available fix before bumping the version:
+**Security audit:** run `pip-audit` and resolve any vulnerability with an available fix before bumping the version:
 
 ```bash
 poetry run pip-audit
@@ -163,7 +163,7 @@ Prefer `just commit` over a manual `git commit` to stay consistent with the conv
 Always run `--dry-run` first and review the proposed CHANGELOG entries carefully before applying the bump.
 ```
 
-**Step 1 — preview:**
+**Step 1, preview:**
 
 ```bash
 poetry run cz bump --dry-run
@@ -175,7 +175,7 @@ Inspect the output:
 - The CHANGELOG entries are complete and correctly classified
 - There are no duplicate entries (can happen when multiple commits share identical messages)
 
-**Step 2 — apply:**
+**Step 2, apply:**
 
 ```bash
 poetry run cz bump
@@ -187,7 +187,7 @@ This will:
 - Append the new section to `CHANGELOG.md`
 - Create a local commit: `bump: version X.Y.Z-1 → X.Y.Z`
 
-**Step 3 — review the bump commit:**
+**Step 3, review the bump commit:**
 
 ```bash
 git show HEAD
@@ -199,7 +199,7 @@ Check that `pyproject.toml` shows the correct version and that `CHANGELOG.md` re
 git push origin release/vX.Y.Z
 ```
 
-**For a release candidate** — set the version explicitly instead of using `cz bump`:
+**For a release candidate**, set the version explicitly instead of using `cz bump`:
 
 ```bash
 poetry version X.Y.ZrcN
@@ -212,7 +212,7 @@ See **[Versioning](versioning.md)** for the full SemVer rules and commit-type re
 
 ## 7. Tag and publish a release candidate
 
-RC tags are pushed **directly from the release branch** — no PR to `main` is required.
+RC tags are pushed **directly from the release branch**, with no PR to `main` required.
 
 ```bash
 git tag -a vX.Y.ZrcN -m "Release candidate vX.Y.ZrcN"
@@ -250,12 +250,12 @@ Pushing the tag triggers PyPI publication immediately and cannot be undone. Conf
 
 ## 10. Publish package
 
-The tag push automatically triggers the appropriate GitHub Actions workflow — see **[CI/CD](ci_cd.md)** for full details. In summary:
+The tag push automatically triggers the appropriate GitHub Actions workflow. See **[CI/CD](ci_cd.md)** for full details. In summary:
 
 - Stable tag (`vX.Y.Z`) → `publish-pypi.yml` → PyPI + GitHub Release
 - RC tag (`vX.Y.ZrcN`) → `publish-testpypi.yml` → TestPyPI + GitHub pre-release
 
-Both workflows use **OIDC Trusted Publishing** — no API tokens required.
+Both workflows use **OIDC Trusted Publishing**, so no API tokens are required.
 
 ## 11. GitHub Release
 

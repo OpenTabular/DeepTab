@@ -1,14 +1,18 @@
-from ..base_models.autoint import AutoInt
-from ..configs.autoint_config import DefaultAutoIntConfig
-from ..utils.docstring_generator import generate_docstring
-from .utils.sklearn_base_classifier import SklearnBaseClassifier
-from .utils.sklearn_base_lss import SklearnBaseLSS
-from .utils.sklearn_base_regressor import SklearnBaseRegressor
+from deeptab.architectures.autoint import AutoInt
+from deeptab.models.classifier_base import SklearnBaseClassifier
+from deeptab.models.lss_base import SklearnBaseLSS
+from deeptab.models.regressor_base import SklearnBaseRegressor
+
+from ..configs.models.autoint_config import AutoIntConfig
+from ._docstring import generate_docstring
 
 
 class AutoIntRegressor(SklearnBaseRegressor):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         model_description="""
         AutoInt regressor. This class extends the SklearnBaseRegressor
         class and uses the AutoInt model with the default AutoInt
@@ -16,49 +20,49 @@ class AutoIntRegressor(SklearnBaseRegressor):
         """,
         examples="""
         >>> from deeptab.models import AutoIntRegressor
-        >>> model = AutoIntRegressor(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntRegressor(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)
-
 
 class AutoIntClassifier(SklearnBaseClassifier):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         """AutoInt Classifier. This class extends the SklearnBaseClassifier class
         and uses the AutoInt model with the default AutoInt configuration.""",
         examples="""
         >>> from deeptab.models import AutoIntClassifier
-        >>> model = AutoIntClassifier(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntClassifier(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train)
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
 
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)
-
 
 class AutoIntLSS(SklearnBaseLSS):
+    _model_cls = AutoInt
+    _config_cls = AutoIntConfig
+
     __doc__ = generate_docstring(
-        DefaultAutoIntConfig,
+        AutoIntConfig,
         """AutoInt for distributional regression.
         This class extends the SklearnBaseLSS class and uses the
         AutoInt model with the default AutoInt configuration.""",
         examples="""
         >>> from deeptab.models import AutoIntLSS
-        >>> model = AutoIntLSS(d_model=64, n_layers=8)
+        >>> from deeptab.configs import AutoIntConfig
+        >>> model = AutoIntLSS(model_config=AutoIntConfig(d_model=64, n_layers=8))
         >>> model.fit(X_train, y_train, family="normal")
         >>> preds = model.predict(X_test)
         >>> model.evaluate(X_test, y_test)
         """,
     )
-
-    def __init__(self, **kwargs):
-        super().__init__(model=AutoInt, config=DefaultAutoIntConfig, **kwargs)

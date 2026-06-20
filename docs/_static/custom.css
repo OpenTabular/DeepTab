@@ -7,6 +7,260 @@
  */
 
 @import url("https://fonts.googleapis.com/css2?family=JetBrains+Mono:ital,wght@0,400;0,500;1,400&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
+
+/* ── Admonition blocks with icons ───────────────────────────────────────── */
+/* Base styling for all admonitions */
+.admonition {
+  border-left: 4px solid;
+  border-radius: 4px;
+  margin: 1.5rem 0;
+  padding: 0.75rem 1rem;
+  background: #f8f9fa;
+}
+
+html[data-theme="dark"] .admonition {
+  background: #1c1f24;
+}
+
+.admonition-title {
+  font-weight: 700;
+  font-size: 0.95rem;
+  margin: 0 0 0.5rem 0;
+  display: flex;
+  align-items: center;
+}
+
+.admonition-title::before {
+  content: "";
+  display: inline-block;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin-right: 0.5rem;
+  flex-shrink: 0;
+}
+
+/* Note - blue */
+.admonition.note {
+  border-left-color: #0969da;
+  background: #ddf4ff;
+}
+
+html[data-theme="dark"] .admonition.note {
+  background: #0d1117;
+  border-left-color: #58a6ff;
+}
+
+.admonition.note .admonition-title {
+  color: #0969da;
+}
+
+html[data-theme="dark"] .admonition.note .admonition-title {
+  color: #58a6ff;
+}
+
+.admonition.note .admonition-title::before {
+  content: "ℹ️";
+}
+
+/* Tip - green */
+.admonition.tip {
+  border-left-color: #1a7f37;
+  background: #dafbe1;
+}
+
+html[data-theme="dark"] .admonition.tip {
+  background: #0d1117;
+  border-left-color: #3fb950;
+}
+
+.admonition.tip .admonition-title {
+  color: #1a7f37;
+}
+
+html[data-theme="dark"] .admonition.tip .admonition-title {
+  color: #3fb950;
+}
+
+.admonition.tip .admonition-title::before {
+  content: "💡";
+}
+
+/* Important - purple */
+.admonition.important {
+  border-left-color: #8250df;
+  background: #fbefff;
+}
+
+html[data-theme="dark"] .admonition.important {
+  background: #0d1117;
+  border-left-color: #a371f7;
+}
+
+.admonition.important .admonition-title {
+  color: #8250df;
+}
+
+html[data-theme="dark"] .admonition.important .admonition-title {
+  color: #a371f7;
+}
+
+.admonition.important .admonition-title::before {
+  content: "⚡";
+}
+
+/* Warning - orange/yellow */
+.admonition.warning {
+  border-left-color: #bf8700;
+  background: #fff8c5;
+}
+
+html[data-theme="dark"] .admonition.warning {
+  background: #1c1810;
+  border-left-color: #d29922;
+}
+
+.admonition.warning .admonition-title {
+  color: #9a6700;
+}
+
+html[data-theme="dark"] .admonition.warning .admonition-title {
+  color: #d29922;
+}
+
+.admonition.warning .admonition-title::before {
+  content: "⚠️";
+}
+
+/* Caution - orange (similar to warning) */
+.admonition.caution {
+  border-left-color: #bf8700;
+  background: #fff8c5;
+}
+
+html[data-theme="dark"] .admonition.caution {
+  background: #1c1810;
+  border-left-color: #d29922;
+}
+
+.admonition.caution .admonition-title {
+  color: #9a6700;
+}
+
+html[data-theme="dark"] .admonition.caution .admonition-title {
+  color: #d29922;
+}
+
+.admonition.caution .admonition-title::before {
+  content: "⚠️";
+}
+
+/* Danger/Error - red */
+.admonition.danger,
+.admonition.error {
+  border-left-color: #cf222e;
+  background: #ffebe9;
+}
+
+html[data-theme="dark"] .admonition.danger,
+html[data-theme="dark"] .admonition.error {
+  background: #1c0f0f;
+  border-left-color: #f85149;
+}
+
+.admonition.danger .admonition-title,
+.admonition.error .admonition-title {
+  color: #cf222e;
+}
+
+html[data-theme="dark"] .admonition.danger .admonition-title,
+html[data-theme="dark"] .admonition.error .admonition-title {
+  color: #f85149;
+}
+
+.admonition.danger .admonition-title::before,
+.admonition.error .admonition-title::before {
+  content: "🚫";
+}
+
+/* Hint - teal */
+.admonition.hint {
+  border-left-color: #1b7c83;
+  background: #d1f0f3;
+}
+
+html[data-theme="dark"] .admonition.hint {
+  background: #0d1117;
+  border-left-color: #39c5cf;
+}
+
+.admonition.hint .admonition-title {
+  color: #1b7c83;
+}
+
+html[data-theme="dark"] .admonition.hint .admonition-title {
+  color: #39c5cf;
+}
+
+.admonition.hint .admonition-title::before {
+  content: "🔑";
+}
+
+/* Seealso - blue (similar to note) */
+.admonition.seealso {
+  border-left-color: #0969da;
+  background: #ddf4ff;
+}
+
+html[data-theme="dark"] .admonition.seealso {
+  background: #0d1117;
+  border-left-color: #58a6ff;
+}
+
+.admonition.seealso .admonition-title {
+  color: #0969da;
+}
+
+html[data-theme="dark"] .admonition.seealso .admonition-title {
+  color: #58a6ff;
+}
+
+.admonition.seealso .admonition-title::before {
+  content: "🔗";
+}
+
+/* Attention - orange/red */
+.admonition.attention {
+  border-left-color: #cf222e;
+  background: #ffebe9;
+}
+
+html[data-theme="dark"] .admonition.attention {
+  background: #1c0f0f;
+  border-left-color: #f85149;
+}
+
+.admonition.attention .admonition-title {
+  color: #cf222e;
+}
+
+html[data-theme="dark"] .admonition.attention .admonition-title {
+  color: #f85149;
+}
+
+.admonition.attention .admonition-title::before {
+  content: "❗";
+}
+
+/* Adjust paragraph spacing inside admonitions */
+.admonition p:last-child {
+  margin-bottom: 0;
+}
+
+.admonition ul:last-child,
+.admonition ol:last-child {
+  margin-bottom: 0;
+}
 
 /* ── Monospace font for all code ─────────────────────────────────────────── */
 code,
@@ -256,4 +510,112 @@ html[data-theme="dark"] #left-sidebar nav p.caption ~ p.caption {
 #content dl > dd > ol li {
   margin-top: 0.1rem;
   margin-bottom: 0.1rem;
+}
+
+/* ── Body text and heading contrast ─────────────────────────────────────── */
+/* Ensure body text has good contrast (not too gray) */
+#content {
+  color: #1f2937;
+  max-width: 860px;
+  font-family:
+    "Inter",
+    system-ui,
+    -apple-system,
+    sans-serif;
+}
+
+html[data-theme="dark"] #content {
+  color: #e5e7eb;
+}
+
+/* Make headings more prominent with better contrast */
+#content h1,
+#content h2,
+#content h3,
+#content h4 {
+  color: #111827;
+  font-weight: 700;
+}
+
+html[data-theme="dark"] #content h1,
+html[data-theme="dark"] #content h2,
+html[data-theme="dark"] #content h3,
+html[data-theme="dark"] #content h4 {
+  color: #f9fafb;
+}
+
+/* Section headings with emoji get extra spacing */
+#content h2,
+#content h3 {
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+}
+
+#content h1 {
+  margin-bottom: 1.5rem;
+}
+
+/* Paragraphs with good line height and spacing */
+#content p {
+  line-height: 1.7;
+  margin-bottom: 1rem;
+  color: #374151;
+}
+
+html[data-theme="dark"] #content p {
+  color: #d1d5db;
+}
+
+/* Strong/bold text more prominent */
+#content strong {
+  font-weight: 700;
+  color: #111827;
+}
+
+html[data-theme="dark"] #content strong {
+  color: #f3f4f6;
+}
+
+/* Links with better visibility */
+#content a {
+  color: #2563eb;
+  font-weight: 500;
+}
+
+html[data-theme="dark"] #content a {
+  color: #60a5fa;
+}
+
+#content a:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+html[data-theme="dark"] #content a:hover {
+  color: #93c5fd;
+}
+
+/* ── Autosummary table styling ───────────────────────────────────────────── */
+table.autosummary {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+table.autosummary td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: top;
+}
+
+html[data-theme="dark"] table.autosummary td {
+  border-bottom-color: #30363d;
+}
+
+table.autosummary td:first-child code {
+  font-weight: 600;
+  color: #8250df;
+}
+
+html[data-theme="dark"] table.autosummary td:first-child code {
+  color: #d2a8ff;
 }

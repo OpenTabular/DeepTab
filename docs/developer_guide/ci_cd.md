@@ -6,7 +6,7 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 
 | Workflow file          | Trigger                      | Purpose                                  |
 | ---------------------- | ---------------------------- | ---------------------------------------- |
-| `ci.yml`               | Push / PR → `main`           | Lint, type-check, build, and test        |
+| `ci.yml`               | Push / PR to `main`          | Lint, type-check, build, test, and cover |
 | `docs.yml`             | Push / PR (docs paths), tags | Build Sphinx docs; deploy to ReadTheDocs |
 | `build-check.yml`      | Manual (`workflow_dispatch`) | Dry-run build validation before tagging  |
 | `publish-testpypi.yml` | Push of `vX.Y.ZrcN` tag      | Publish release candidate to TestPyPI    |
@@ -14,33 +14,33 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 
 ---
 
-## ci.yml — Continuous integration
+## ci.yml (continuous integration)
 
 Runs on every push to `main` and every pull request targeting `main`. Cancels in-progress runs for the same branch via `concurrency`.
 
 ### Jobs
 
-**`lint`** — runs on `ubuntu-latest` / Python 3.10:
+**`lint`** runs on `ubuntu-latest` / Python 3.10:
 
 ```bash
 ruff check .          # style and correctness
 ruff format --check . # formatting (no changes applied)
 ```
 
-**`typecheck`** — runs on `ubuntu-latest` / Python 3.10:
+**`typecheck`** runs on `ubuntu-latest` / Python 3.10:
 
 ```bash
 pyright
 ```
 
-**`build`** — runs on `ubuntu-latest` / Python 3.10:
+**`build`** runs on `ubuntu-latest` / Python 3.10:
 
 ```bash
 poetry build
 twine check dist/*
 ```
 
-**`tests`** — runs across a full matrix:
+**`tests`** runs across a full matrix:
 
 | Dimension | Values                                            |
 | --------- | ------------------------------------------------- |
@@ -51,15 +51,27 @@ twine check dist/*
 pytest tests/ -v
 ```
 
-All jobs are independent; `fail-fast: false` ensures a failure in one matrix cell does not cancel the others.
+**`smoke`** runs on `ubuntu-latest` / Python 3.12 after `lint` passes. It runs only the fast sanity-check tests marked with `@pytest.mark.smoke`:
+
+```bash
+pytest tests/ -v -m smoke --tb=short
+```
+
+**`coverage`** runs on `ubuntu-latest` / Python 3.12 after `tests` pass. It measures branch coverage and uploads the report to [Codecov](https://codecov.io/gh/OpenTabular/DeepTab):
+
+```bash
+pytest tests/ --cov=deeptab --cov-branch --cov-report=xml:coverage.xml -q
+```
+
+The `lint`, `typecheck`, `build`, and `tests` jobs are independent and run in parallel, with `fail-fast: false` so a failure in one matrix cell does not cancel the others. The `smoke` job depends on `lint`, and `coverage` depends on `tests`.
 
 ---
 
-## docs.yml — Documentation build
+## docs.yml (documentation build)
 
 Runs on:
 
-- Every push to `main` (always, regardless of changed paths — needed so tag pushes rebuild docs).
+- Every push to `main` (always, regardless of changed paths, so tag pushes rebuild docs).
 - Pull requests that touch `docs/**`, `README.md`, `pyproject.toml`, or `deeptab/**`.
 - Every version tag (`v*`).
 
@@ -73,7 +85,7 @@ On `main` pushes, the built HTML is deployed to ReadTheDocs automatically via th
 
 ---
 
-## build-check.yml — Manual dry-run
+## build-check.yml (manual dry-run)
 
 A `workflow_dispatch`-only workflow. Builds the package with Poetry and validates it with `twine check` without publishing anywhere. Use it to validate a release candidate before tagging:
 
@@ -83,9 +95,9 @@ A `workflow_dispatch`-only workflow. Builds the package with Poetry and validate
 
 ---
 
-## publish-testpypi.yml — Release candidate publishing
+## publish-testpypi.yml (release candidate publishing)
 
-Triggered by any tag matching `v*.*.*rc*`. Uses [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/) — no `PYPI_TOKEN` secret is required.
+Triggered by any tag matching `v*.*.*rc*`. Uses [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required.
 
 Steps:
 
@@ -97,7 +109,7 @@ The `pypi-publish` GitHub Environment is required; it must have the `v*rc*` tag 
 
 ---
 
-## publish-pypi.yml — Stable release publishing
+## publish-pypi.yml (stable release publishing)
 
 Triggered by any tag matching `v*.*.*` that does **not** contain `rc` (stable only). Also uses OIDC trusted publishing.
 
@@ -120,5 +132,5 @@ See the [Release process](release.md) page for the full end-to-end procedure inc
 act push --job tests
 ```
 
-3. Keep job names consistent — they are displayed in PR status checks and on the Actions tab.
+3. Keep job names consistent, since they are displayed in PR status checks and on the Actions tab.
 4. Pin third-party actions to a full commit SHA or a tagged version (e.g. `actions/checkout@v4`) and keep them up to date via `just update` (which runs `pre-commit autoupdate`).

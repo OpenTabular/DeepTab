@@ -1,38 +1,21 @@
 NDTF
 ====
 
-Neural Decision Tree Forest. An ensemble of differentiable soft decision trees
-where routing probabilities at each node are learned via sigmoid activations.
-A path-probability regularisation term (controlled by ``lamda``) penalises
-over-confident or imbalanced routing, encouraging diverse tree usage across the
-forest.
+Neural Decision Tree Forest. Differentiable tree ensemble architecture.
 
-When to Use
------------
-
-When interpretability through decision paths is desirable alongside neural
-gradient optimisation. Useful as an alternative to NODE when a forest structure
-(multiple independent trees) is preferred over oblivious ensembles.
-
-Limitations
------------
-
-- Sensitive to the ``temperature`` and ``lamda`` regularisation hyperparameters.
-- Can underfit with too few trees (``n_ensembles``) or overfit with too many.
-- Less effective for very high-dimensional data where feature selection at each
-  split becomes noisy.
+For detailed usage, configuration examples, and performance notes, see :doc:`../../model_zoo/stable/ndtf`.
 
 API Reference
 -------------
 
 .. currentmodule:: deeptab.models
 
-.. autoclass:: NDTFRegressor
+.. autoclass:: NDTFClassifier
    :members:
    :undoc-members:
    :noindex:
 
-.. autoclass:: NDTFClassifier
+.. autoclass:: NDTFRegressor
    :members:
    :undoc-members:
    :noindex:

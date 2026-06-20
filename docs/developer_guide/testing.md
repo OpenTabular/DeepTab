@@ -1,5 +1,7 @@
 # Testing
 
+[![codecov](https://codecov.io/gh/OpenTabular/DeepTab/branch/main/graph/badge.svg)](https://codecov.io/gh/OpenTabular/DeepTab)
+
 DeepTab uses [pytest](https://docs.pytest.org/) with [pytest-cov](https://pytest-cov.readthedocs.io/) for test coverage. The test suite runs against all supported Python versions and operating systems on every push and pull request.
 
 ## Running the test suite
@@ -18,7 +20,7 @@ To run a single file or a specific test:
 
 ```bash
 poetry run pytest tests/test_models.py -v
-poetry run pytest tests/test_models.py::test_tabnet_fit -v
+poetry run pytest tests/test_models.py::test_classifier_fit_predict_shape -v
 ```
 
 To print live log output and stop on the first failure:
@@ -26,16 +28,6 @@ To print live log output and stop on the first failure:
 ```bash
 poetry run pytest tests/ -x -s
 ```
-
-## Test files
-
-| File                          | What it covers                                                        |
-| ----------------------------- | --------------------------------------------------------------------- |
-| `tests/test_models.py`        | End-to-end fit/predict cycle for every model                          |
-| `tests/test_base.py`          | Shared base-class behaviour (sklearn API, `set_params`, `get_params`) |
-| `tests/test_configs.py`       | Config dataclass validation and default values                        |
-| `tests/test_model_exports.py` | ONNX export and TorchScript tracing                                   |
-| `tests/test_save_load.py`     | Checkpoint save / load round-trips                                    |
 
 ## Writing new tests
 
@@ -80,8 +72,10 @@ All 12 combinations run in parallel with `fail-fast: false`, so a failure in one
 
 ## Pre-push checks
 
-The pre-commit configuration includes a push-stage hook that runs the full test suite before `git push`. This is installed automatically by `just install`. To run it manually:
+The pre-commit configuration includes a push-stage hook that runs `pyright` type checking before `git push`. This is installed automatically by `just install`. To run it manually:
 
 ```bash
 just check
 ```
+
+The full test suite is not part of the push hook; it runs in CI on every push and pull request. Run `just test` locally before pushing if your change touches model or training code.

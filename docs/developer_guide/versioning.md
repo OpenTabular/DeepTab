@@ -16,11 +16,15 @@ MAJOR.MINOR.PATCH
 
 Release candidates use the suffix `rcN`, e.g. `1.8.0rc1`.
 
-The version is defined **in one place only** — `pyproject.toml` — and read at runtime via `importlib.metadata`:
+The version is defined **in one place only**, `pyproject.toml`, and read at runtime via `importlib.metadata` in `deeptab/_version.py`:
 
 ```python
-from importlib.metadata import version
-__version__ = version("deeptab")
+from importlib.metadata import PackageNotFoundError, version
+
+try:
+    __version__ = version("deeptab")
+except PackageNotFoundError:
+    __version__ = "0+unknown"
 ```
 
 ## Commit types and their effect
@@ -90,4 +94,4 @@ The changelog format groups changes under the commit types (`feat`, `fix`, `perf
 
 ## Tags
 
-All release tags follow the format `vMAJOR.MINOR.PATCH` (or `vMAJOR.MINOR.PATCHrcN` for RCs). Tags are what trigger the PyPI publish workflows — see the [Release process](release.md) page for the full end-to-end procedure.
+All release tags follow the format `vMAJOR.MINOR.PATCH` (or `vMAJOR.MINOR.PATCHrcN` for RCs). Tags are what trigger the PyPI publish workflows. See the [Release process](release.md) page for the full end-to-end procedure.
