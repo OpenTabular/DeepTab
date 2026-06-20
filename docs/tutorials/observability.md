@@ -55,33 +55,6 @@ tutorial is about. Raising those loggers to `ERROR` keeps the output focused; De
 events are emitted separately and are unaffected.
 
 ```python
-import logging
-import warnings
-
-warnings.filterwarnings("ignore", message=".*n_quantiles.*")
-warnings.filterwarnings("ignore", message=".*does not have many workers.*")
-warnings.filterwarnings("ignore", message=".*have no logger configured.*")
-warnings.filterwarnings("ignore", message=".*lr_patience.*")
-warnings.filterwarnings("ignore", message=".*Checkpoint directory.*")
-warnings.filterwarnings("ignore", message=".*logging interval.*")
-warnings.filterwarnings("ignore", message=".*IProgress not found.*")
-
-# Lightning prints a device banner and a parameter-count table on every fit.
-# They are useful in isolation but drown out the observability messages this
-# tutorial is about, so raise these loggers to ERROR. DeepTab's own events are
-# emitted separately and are unaffected.
-for _name in (
-    "lightning",
-    "lightning.pytorch",
-    "lightning.pytorch.callbacks.model_summary",
-    "lightning.pytorch.utilities.rank_zero",
-    "lightning.pytorch.accelerators",
-    "pytorch_lightning",
-):
-    logging.getLogger(_name).setLevel(logging.ERROR)
-```
-
-```python
 import contextlib
 import json
 import os

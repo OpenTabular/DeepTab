@@ -107,21 +107,6 @@ RANDOM_STATE = 42
 For a quick demonstration these tutorials train with very low `max_epochs` and `patience` (5 and 2). Treat these as placeholders and choose values that match your own compute budget and problem. As a starting point, at least `max_epochs=100` and `patience=10` are recommended for meaningful results.
 ```
 
-```python
-import logging
-import warnings
-
-# These tutorials use small synthetic datasets and short training runs, which
-# surfaces a few non-actionable framework messages. Quieten them so the output
-# stays focused on the tutorial; none of them affect correctness.
-warnings.filterwarnings("ignore", message=".*n_quantiles.*")
-warnings.filterwarnings("ignore", message=".*does not have many workers.*")
-warnings.filterwarnings("ignore", message=".*have no logger configured.*")
-warnings.filterwarnings("ignore", message=".*lr_patience.*")
-warnings.filterwarnings("ignore", message=".*Checkpoint directory.*")
-logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
-```
-
 We use the MLP estimators throughout. They train quickly, which keeps the search
 affordable, and they expose a compact, easy-to-read search space. Everything here
 works identically for any other DeepTab estimator (FT-Transformer, ResNet, TabM,

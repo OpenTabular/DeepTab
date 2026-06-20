@@ -56,21 +56,6 @@ from deeptab.training.losses import (
 For a quick demonstration these tutorials train with very low `max_epochs` and `patience` (5 and 2). Treat these as placeholders and choose values that match your own compute budget and problem. As a starting point, at least `max_epochs=100` and `patience=10` are recommended for meaningful results.
 ```
 
-```python
-import logging
-import warnings
-
-# These tutorials use small synthetic datasets and short training runs, which
-# surfaces a few non-actionable framework messages. Quieten them so the output
-# stays focused on the tutorial; none of them affect correctness.
-warnings.filterwarnings("ignore", message=".*n_quantiles.*")
-warnings.filterwarnings("ignore", message=".*does not have many workers.*")
-warnings.filterwarnings("ignore", message=".*have no logger configured.*")
-warnings.filterwarnings("ignore", message=".*lr_patience.*")
-warnings.filterwarnings("ignore", message=".*Checkpoint directory.*")
-logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
-```
-
 ## Data
 
 We create a **binary** dataset with a 10:1 imbalance ratio: roughly 1 090
@@ -572,7 +557,7 @@ exact imbalance strategy behind each run is recorded alongside its metrics:
 
 ```text
 deeptab_runs/
-  runs/imbalance_focal_sampler/20260611_174830_8f3a2c/
+  runs/imbalance_focal_sampler/{date}_{time}_{run_id}/
     config.yaml       # estimator hyperparameters, including the focal loss
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
@@ -606,13 +591,13 @@ loaded = MambularClassifier.load("imbalanced_clf.deeptab")
 original_pred = clf_combined.predict(X_test)
 loaded_pred   = loaded.predict(X_test)
 assert (original_pred == loaded_pred).all(), "Predictions differ after reload!"
-print("Predictions match ✓")
+print("Predictions match")
 
 # Verify original probabilities
 original_proba = clf_combined.predict_proba(X_test)
 loaded_proba   = loaded.predict_proba(X_test)
 np.testing.assert_allclose(original_proba, loaded_proba, atol=1e-5)
-print("Probabilities match ✓")
+print("Probabilities match")
 
 # Verify loss is preserved
 orig_loss   = clf_combined.task_model.loss_fct
