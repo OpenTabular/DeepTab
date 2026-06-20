@@ -37,7 +37,7 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
         Name of the calling method (used in error messages).
     """
     # Reject 1-D input early: sklearn convention requires 2-D feature arrays.
-    _arr = np.asarray(X) if not isinstance(X, (pd.DataFrame, pd.Series)) else X
+    _arr = np.asarray(X) if not isinstance(X, pd.DataFrame | pd.Series) else X
     if getattr(_arr, "ndim", 2) == 1:
         raise ValueError(
             "Expected 2D array, got 1D array instead.\n"

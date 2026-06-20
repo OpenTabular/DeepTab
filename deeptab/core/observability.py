@@ -231,9 +231,9 @@ def write_run_config(run_dir: str, params: dict[str, Any]) -> None:
 
     def _to_primitive(v: Any) -> Any:
         """Recursively convert *v* to a YAML/JSON-safe primitive."""
-        if v is None or isinstance(v, (bool, int, float, str)):
+        if v is None or isinstance(v, bool | int | float | str):
             return v
-        if isinstance(v, (list, tuple)):
+        if isinstance(v, list | tuple):
             return [_to_primitive(x) for x in v]
         if isinstance(v, dict):
             return {str(k): _to_primitive(vv) for k, vv in v.items()}
