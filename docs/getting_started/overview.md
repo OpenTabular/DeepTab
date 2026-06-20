@@ -6,15 +6,13 @@ DeepTab brings modern deep learning to tabular data with a clean scikit-learn in
 
 DeepTab provides 15 stable neural architectures for tabular data:
 
-| Family                 | Models                               | Notes                                                    |
-| ---------------------- | ------------------------------------ | -------------------------------------------------------- |
-| **State Space Models** | Mambular, MambaTab, MambAttention    | Flagship models; linear feature-sequence scaling         |
-| **Transformers**       | FTTransformer, TabTransformer, SAINT | Full feature or row attention                            |
-| **Tree-inspired**      | NODE, ENODE, NDTF                    | Differentiable soft-tree structures                      |
-| **Residual networks**  | ResNet, TabR                         | Skip-connection MLP and retrieval-augmented              |
-| **Sequential**         | TabulaRNN, TabM                      | RNN feature processing and parameter-efficient ensembles |
-| **Attention-based**    | AutoInt                              | Automatic feature interaction learning                   |
-| **Baseline**           | MLP                                  | Fast dense baseline                                      |
+| Family                 | Models                                        | Notes                                                      |
+| ---------------------- | --------------------------------------------- | ---------------------------------------------------------- |
+| **State Space Models** | Mambular, MambaTab, MambAttention             | Mamba-inspired; linear feature-sequence scaling            |
+| **Transformers**       | FTTransformer, TabTransformer, SAINT, AutoInt | Feature, row, and self-attention over feature interactions |
+| **Residual networks**  | ResNet, TabR                                  | Skip-connection MLP and retrieval-augmented                |
+| **Tree-inspired**      | NODE, ENODE, NDTF                             | Differentiable soft-tree structures                        |
+| **General baselines**  | MLP, TabM, TabulaRNN                          | Dense, parameter-efficient ensemble, and recurrent         |
 
 **Plus 3 experimental models:** ModernNCA, Trompt, Tangos
 
