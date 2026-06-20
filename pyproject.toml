@@ -41,7 +41,7 @@ all = ["structlog", "mlflow", "tensorboard"]
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0"
 pytest-cov = "^4.1"
-ruff = ">=0.3"
+ruff = "0.15.12"       # keep in sync with .pre-commit-config.yaml ruff rev
 pre-commit = "^3.6"
 docformatter = "^1.4"
 commitizen = "^3.29.1"
@@ -65,6 +65,7 @@ lxml-html-clean = ">=0.4.4"
 pydata-sphinx-theme = "0.15.2"
 sphinx-design = "*"
 sphinxcontrib-mermaid = "*"
+sphinxext-opengraph = "*"
 
 
 [tool.poetry.urls]
