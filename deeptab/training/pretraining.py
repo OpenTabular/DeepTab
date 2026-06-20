@@ -53,6 +53,47 @@ def _validate_pretrainable_model(
 
 
 class ContrastivePretrainer(pl.LightningModule):
+    """Lightning module for contrastive pretraining of feature embeddings.
+
+    Wraps an architecture's embedding and encoder layers and trains them with a
+    label-aware contrastive objective: representations of rows with similar
+    targets (k nearest neighbors in label space) are pulled together while
+    dissimilar rows are pushed apart, using a cosine embedding loss. The
+    pretrained embedding weights can then be loaded into a fresh estimator to
+    warm-start supervised training.
+
+    Parameters
+    ----------
+    base_model : BaseModel
+        The architecture instance whose embeddings are pretrained. Must expose
+        ``embedding_layer``, ``encode()`` and, when ``pool_sequence`` is set,
+        ``pool_sequence()``.
+    k_neighbors : int, optional (default=5)
+        Number of label-space neighbors treated as positives per anchor.
+    temperature : float, optional (default=0.1)
+        Unused with the cosine embedding loss; reserved for a future InfoNCE
+        objective. A non-default value raises a ``FutureWarning``.
+    lr : float, optional (default=1e-4)
+        Learning rate for the Adam optimizer.
+    regression : bool, optional (default=True)
+        Whether the target is continuous. Controls how neighbors are selected.
+    margin : float, optional (default=0.5)
+        Margin for the cosine embedding loss applied to negative pairs.
+    use_positive : bool, optional (default=True)
+        Whether to include the positive (pull-together) term in the loss.
+    use_negative : bool, optional (default=True)
+        Whether to include the negative (push-apart) term in the loss.
+    pool_sequence : bool, optional (default=True)
+        Whether to pool the sequence dimension of the encoded representation.
+
+    Attributes
+    ----------
+    estimator : BaseModel
+        The wrapped architecture being pretrained.
+    loss_fn : nn.CosineEmbeddingLoss
+        The contrastive loss function.
+    """
+
     def __init__(
         self,
         base_model,
@@ -264,6 +305,48 @@ def pretrain_embeddings(
     use_negative=True,
     pool_sequence=True,
 ):
+    """Contrastively pretrain an architecture's embeddings and save them to disk.
+
+    Validates that *base_model* supports pretraining, runs the
+    :class:`ContrastivePretrainer` for ``pretrain_epochs`` epochs over
+    *train_dataloader*, and writes the resulting embedding state dict to
+    *save_path*. The saved weights can later be loaded via
+    ``base_model.load_embedding_state_dict()`` to warm-start supervised
+    training.
+
+    Parameters
+    ----------
+    base_model : BaseModel
+        The architecture instance whose embeddings are pretrained. Must expose
+        ``embedding_layer``, ``encode()``, ``get_embedding_state_dict()`` and,
+        when ``pool_sequence`` is set, ``pool_sequence()``.
+    train_dataloader : torch.utils.data.DataLoader
+        Dataloader yielding training batches for the contrastive objective.
+    pretrain_epochs : int, optional (default=5)
+        Number of pretraining epochs.
+    k_neighbors : int, optional (default=5)
+        Number of label-space neighbors treated as positives per anchor.
+    temperature : float, optional (default=0.1)
+        Unused with the cosine embedding loss; reserved for a future InfoNCE
+        objective.
+    save_path : str, optional (default="pretrained_embeddings.pth")
+        Path to write the pretrained embedding state dict to.
+    regression : bool, optional (default=True)
+        Whether the target is continuous. Controls how neighbors are selected.
+    lr : float, optional (default=1e-3)
+        Learning rate for the Adam optimizer.
+    use_positive : bool, optional (default=True)
+        Whether to include the positive (pull-together) term in the loss.
+    use_negative : bool, optional (default=True)
+        Whether to include the negative (push-apart) term in the loss.
+    pool_sequence : bool, optional (default=True)
+        Whether to pool the sequence dimension of the encoded representation.
+
+    Raises
+    ------
+    ~deeptab.core.exceptions.ArchitectureRequirementError
+        If *base_model* does not expose the interface required for pretraining.
+    """
     _validate_pretrainable_model(
         base_model,
         pool_sequence=pool_sequence,

@@ -11,6 +11,22 @@ import torch.nn as nn
 
 
 class ImportanceGetter(nn.Module):  # Figure 3 part 1
+    """Prompt-to-column importance module used by Trompt.
+
+    Combines learned prompt embeddings with the current representation to
+    produce a softmax distribution of importances over feature columns
+    (Figure 3, part 1 of the Trompt paper).
+
+    Parameters
+    ----------
+    P : int
+        Number of prompts.
+    C : int
+        Number of feature columns.
+    d : int
+        Embedding dimension.
+    """
+
     def __init__(self, P, C, d):
         super().__init__()
         self.colemb = nn.Parameter(torch.empty(C, d))
@@ -37,6 +53,29 @@ class ImportanceGetter(nn.Module):  # Figure 3 part 1
 
 
 def get_feature_dimensions(num_feature_info, cat_feature_info, embedding_info):
+    """Compute the total flattened input dimension across all feature groups.
+
+    Sums the per-feature output dimensions of the numerical, categorical, and
+    embedding feature groups. Architectures that do not use a sequence
+    embedding layer use this to size their first linear layer.
+
+    Parameters
+    ----------
+    num_feature_info : dict
+        Mapping of numerical feature name to its info dict, each containing a
+        ``"dimension"`` key.
+    cat_feature_info : dict
+        Mapping of categorical feature name to its info dict, each containing a
+        ``"dimension"`` key.
+    embedding_info : dict
+        Mapping of embedding feature name to its info dict, each containing a
+        ``"dimension"`` key.
+
+    Returns
+    -------
+    int
+        The total input dimension summed across all three feature groups.
+    """
     input_dim = 0
     for _, feature_info in num_feature_info.items():
         input_dim += feature_info["dimension"]

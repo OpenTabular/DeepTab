@@ -13,6 +13,52 @@ from ..configs.models.tabr_config import TabRConfig
 
 
 class TabR(BaseModel):
+    """Retrieval-augmented network for tabular data.
+
+    TabR augments a feedforward predictor with a differentiable retrieval
+    module. Each query row is encoded into a representation, the most similar
+    candidate (training) rows are retrieved with a nearest-neighbor search over
+    those representations, and their encoded labels are aggregated by
+    attention-style weights to form a context vector that is added back to the
+    query representation before the predictor head.
+
+    Because predictions depend on candidate rows, the model sets
+    ``uses_candidates = True`` and exposes candidate-aware
+    :meth:`train_with_candidates`, :meth:`validate_with_candidates`, and
+    :meth:`predict_with_candidates` methods. The plain :meth:`forward` exists
+    only for baseline compatibility, using the batch itself as context.
+
+    Parameters
+    ----------
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
+    num_classes : int, optional (default=1)
+        The output dimension. ``1`` for scalar regression, the number of
+        classes for classification, or the distribution parameter count for
+        distributional (LSS) models.
+    lss : bool, optional (default=False)
+        Whether the model is a distributional (LSS) model.
+    config : TabRConfig, optional (default=TabRConfig())
+        Configuration object defining model hyperparameters.
+    **kwargs : dict
+        Additional arguments for the base model.
+
+    Attributes
+    ----------
+    returns_ensemble : bool
+        Whether the model returns an ensemble of predictions. Always ``False``.
+    uses_candidates : bool
+        Marks the model as candidate-aware so the training loop supplies
+        candidate rows. Always ``True``.
+    embedding_layer : EmbeddingLayer or None
+        Optional embedding layer for categorical and embedding features.
+    label_encoder : nn.Module
+        Encodes candidate labels before they are aggregated into the context.
+    search_index : faiss.Index or None
+        Nearest-neighbor index over candidate representations, created lazily.
+    """
+
     delu = None
     faiss = None
     faiss_torch_utils = None
@@ -127,6 +173,12 @@ class TabR(BaseModel):
         self.reset_parameters()
 
     def reset_parameters(self):
+        """Initialize the label encoder weights.
+
+        Uses He-style uniform initialization for the linear label encoder used
+        in regression and distributional (LSS) tasks, and uniform
+        initialization for the embedding label encoder used in classification.
+        """
         if isinstance(self.label_encoder, nn.Linear):  # if num_classes==1
             bound = 1 / math.sqrt(2.0)  # He initialization (common for layers with ReLU activation)
             nn.init.uniform_(self.label_encoder.weight, -bound, bound)  # type: ignore[code]
@@ -178,8 +230,17 @@ class TabR(BaseModel):
         return x, k
 
     def forward(self, *data):
-        """
-        Standard forward pass without candidate selection (for baseline compatibility).
+        """Standard forward pass without candidate selection (for baseline compatibility).
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model.
         """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
@@ -202,7 +263,27 @@ class TabR(BaseModel):
         return self.head(x)
 
     def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
-        """TabR-style training forward pass selecting candidates."""
+        """TabR-style training forward pass selecting candidates.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        targets : Tensor
+            Targets for the query rows, concatenated with the candidate pool so
+            each query can retrieve neighbors from its own batch.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model.
+        """
         assert targets is not None  # noqa: S101
 
         if self.hparams.use_embeddings:
@@ -298,7 +379,24 @@ class TabR(BaseModel):
         return x
 
     def validate_with_candidates(self, *data, candidate_x, candidate_y):
-        """Validation forward pass with TabR-style candidate selection."""
+        """Validation forward pass with TabR-style candidate selection.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape
@@ -371,7 +469,24 @@ class TabR(BaseModel):
         return x
 
     def predict_with_candidates(self, *data, candidate_x, candidate_y):
-        """Prediction forward pass with TabR-style candidate selection."""
+        """Prediction forward pass with TabR-style candidate selection.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape

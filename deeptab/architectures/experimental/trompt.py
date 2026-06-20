@@ -10,6 +10,42 @@ from deeptab.nn.normalization import get_normalization_layer
 
 
 class Trompt(BaseModel):
+    """Prompt-based network for tabular data.
+
+    Trompt iterates over a number of cycles, each using a learned set of
+    prompts to derive feature importances and a per-cycle representation
+    through a :class:`TromptCell`, then decoding it with a
+    :class:`TromptDecoder`. The per-cycle outputs are stacked and returned as
+    an ensemble, which the training loop can average or supervise jointly.
+
+    Parameters
+    ----------
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
+    num_classes : int, optional (default=1)
+        The output dimension. ``1`` for scalar regression, the number of
+        classes for classification, or the distribution parameter count for
+        distributional (LSS) models.
+    config : TromptConfig, optional (default=TromptConfig())
+        Configuration object defining model hyperparameters.
+    **kwargs : dict
+        Additional arguments for the base model.
+
+    Attributes
+    ----------
+    returns_ensemble : bool
+        Whether the model returns an ensemble of predictions. Always ``True``.
+    cells : nn.ModuleList
+        One :class:`TromptCell` per cycle.
+    decoder : TromptDecoder
+        Decodes each cycle's representation into predictions.
+    init_rec : nn.Parameter
+        Learned initial prompt representation shared across rows.
+    n_cycles : int
+        Number of prompt cycles.
+    """
+
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)

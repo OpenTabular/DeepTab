@@ -10,6 +10,45 @@ from ..configs.models.tabm_config import TabMConfig
 
 
 class TabM(BaseModel):
+    """Parameter-efficient MLP ensemble for tabular data.
+
+    TabM trains an implicit ensemble of MLPs that share most of their weights
+    through batch-ensembling layers, giving the accuracy benefits of an
+    ensemble at a fraction of the parameter and compute cost. The per-member
+    predictions can be returned as an ensemble or averaged into a single
+    prediction.
+
+    Parameters
+    ----------
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
+    num_classes : int, optional (default=1)
+        The output dimension. ``1`` for scalar regression, the number of
+        classes for classification, or the distribution parameter count for
+        distributional (LSS) models.
+    config : TabMConfig, optional (default=TabMConfig())
+        Configuration object defining model hyperparameters.
+    **kwargs : dict
+        Additional arguments for the base model.
+
+    Attributes
+    ----------
+    returns_ensemble : bool
+        Whether the model returns an ensemble of predictions. ``True`` unless
+        ``average_ensembles`` is set, in which case member predictions are
+        averaged and a single prediction is returned.
+    embedding_layer : EmbeddingLayer or None
+        Optional embedding layer for categorical and embedding features.
+    layers : nn.ModuleList
+        The batch-ensembled MLP layers including normalization, activation,
+        and dropout.
+    norm_f : nn.Module or None
+        Optional normalization layer applied within the network.
+    final_layer : nn.Module
+        The output layer producing per-member or averaged predictions.
+    """
+
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)

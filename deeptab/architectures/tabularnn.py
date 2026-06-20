@@ -12,6 +12,43 @@ from ..configs.models.tabularnn_config import TabulaRNNConfig
 
 
 class TabulaRNN(BaseModel):
+    """Recurrent network for tabular data.
+
+    TabulaRNN treats the embedded features of a row as a sequence and processes
+    them with a convolutional RNN, combining the pooled recurrent output with a
+    linear projection of the mean feature embedding before the prediction head.
+    This lets the model capture interactions across the feature sequence.
+
+    Parameters
+    ----------
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
+    num_classes : int, optional (default=1)
+        The output dimension. ``1`` for scalar regression, the number of
+        classes for classification, or the distribution parameter count for
+        distributional (LSS) models.
+    config : TabulaRNNConfig, optional (default=TabulaRNNConfig())
+        Configuration object defining model hyperparameters.
+    **kwargs : dict
+        Additional arguments for the base model.
+
+    Attributes
+    ----------
+    returns_ensemble : bool
+        Whether the model returns an ensemble of predictions. Always ``False``.
+    rnn : ConvRNN
+        The convolutional recurrent block applied to the feature sequence.
+    embedding_layer : EmbeddingLayer
+        Embedding layer for numerical, categorical, and embedding features.
+    linear : nn.Linear
+        Projects the mean feature embedding into the feedforward dimension.
+    norm_f : nn.Module or None
+        Optional normalization layer applied before the head.
+    tabular_head : MLPhead
+        The final output head.
+    """
+
     def __init__(
         self,
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
@@ -54,10 +91,8 @@ class TabulaRNN(BaseModel):
 
         Parameters
         ----------
-        num_features : Tensor
-            Tensor containing the numerical features.
-        cat_features : Tensor
-            Tensor containing the categorical features.
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings.
 
         Returns
         -------

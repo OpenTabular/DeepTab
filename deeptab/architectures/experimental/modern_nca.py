@@ -123,7 +123,18 @@ class ModernNCA(BaseModel):
         )
 
     def forward(self, *data):
-        """Standard forward pass without candidate selection (for baseline compatibility)."""
+        """Standard forward pass without candidate selection (for baseline compatibility).
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape
@@ -136,7 +147,30 @@ class ModernNCA(BaseModel):
         return self.tabular_head(x)
 
     def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
-        """NCA-style training forward pass selecting candidates."""
+        """NCA-style training forward pass selecting candidates.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        targets : Tensor
+            Targets for the query rows, concatenated with the candidate pool so
+            each query can attend to its own batch.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model. For classification and
+            regression these are softmax-weighted candidate labels; for
+            distributional (LSS) models these are the decoded distribution
+            parameters.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape
@@ -193,7 +227,27 @@ class ModernNCA(BaseModel):
         return logits
 
     def validate_with_candidates(self, *data, candidate_x, candidate_y):
-        """Validation forward pass with NCA-style candidate selection."""
+        """Validation forward pass with NCA-style candidate selection.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model. For classification and
+            regression these are softmax-weighted candidate labels; for
+            distributional (LSS) models these are the decoded distribution
+            parameters.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape
@@ -238,7 +292,27 @@ class ModernNCA(BaseModel):
         return logits
 
     def predict_with_candidates(self, *data, candidate_x, candidate_y):
-        """Prediction forward pass with candidate selection."""
+        """Prediction forward pass with candidate selection.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the query rows.
+        candidate_x : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings for
+            the candidate (training) rows.
+        candidate_y : Tensor
+            Targets for the candidate rows.
+
+        Returns
+        -------
+        Tensor
+            The output predictions of the model. For classification and
+            regression these are softmax-weighted candidate labels; for
+            distributional (LSS) models these are the decoded distribution
+            parameters.
+        """
         if self.hparams.use_embeddings:
             x = self.embedding_layer(*data)
             B, S, D = x.shape

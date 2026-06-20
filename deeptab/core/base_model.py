@@ -219,6 +219,31 @@ class BaseModel(nn.Module):
             raise ValueError(f"Invalid pooling method: {self.hparams.pooling_method}")
 
     def encode(self, data, grad=False):
+        """Produce contextualized embeddings for a batch of features.
+
+        Runs the embedding layer followed by the model's contextualizing block
+        (one of ``mamba``, ``rnn``, ``lstm``, or ``encoder``). Used for
+        pretraining and feature extraction.
+
+        Parameters
+        ----------
+        data : tuple
+            Input tuple of tensors of num_features, cat_features, embeddings.
+        grad : bool, optional (default=False)
+            Whether to compute embeddings with gradients enabled. When
+            ``False`` the forward pass runs under ``torch.no_grad()``.
+
+        Returns
+        -------
+        Tensor
+            The contextualized embeddings.
+
+        Raises
+        ------
+        ValueError
+            If the model has no embedding layer or does not generate
+            contextualized embeddings.
+        """
         if not hasattr(self, "embedding_layer"):
             raise ValueError("The model does not have an embedding layer")
 

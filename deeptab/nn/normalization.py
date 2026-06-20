@@ -1,29 +1,22 @@
-from deeptab.nn.blocks.common import (
-    BatchNorm,
-    GroupNorm,
-    InstanceNorm,
-    LayerNorm,
-    LearnableLayerScaling,
-    RMSNorm,
-)
+from deeptab.nn.blocks.common import BatchNorm, GroupNorm, InstanceNorm, LayerNorm, LearnableLayerScaling, RMSNorm
 
 
 def get_normalization_layer(config):
     """Function to return the appropriate normalization layer based on the configuration.
 
-    Parameters:
-    -----------
+    Parameters
+    ----------
     config : BaseModelConfig
         Configuration object containing the parameters for the model including normalization.
 
-    Returns:
-    --------
-    nn.Module:
+    Returns
+    -------
+    nn.Module
         The normalization layer as per the config.
 
-    Raises:
-    -------
-    ValueError:
+    Raises
+    ------
+    ValueError
         If an unsupported normalization layer is specified in the config.
     """
 
