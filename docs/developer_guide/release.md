@@ -1,6 +1,6 @@
 # Build and Release
 
-The document outlines the steps to build and release the `deeptab` package. It is assumed that all feature branches and PRs for the release have been reviewed, approved, and merged into `main` before starting this process.
+The document outlines the steps to build and release `deeptab` package. It is assumed that all feature branches and PRs for the release have been reviewed, approved, and merged into `main` before starting this process.
 
 ## Release workflow
 
