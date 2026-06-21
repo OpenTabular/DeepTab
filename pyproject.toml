@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "deeptab"
 
-version = "1.8.0"
+version = "2.0.0rc1"
 
 
 description = "A python package for tabular deep learning."
@@ -180,3 +180,5 @@ version_provider = "poetry"
 tag_format = "v$version"
 update_changelog_on_bump = true
 major_version_zero = false
+prerelease_offset = 1
+changelog_merge_prerelease = true

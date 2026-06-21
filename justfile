@@ -50,3 +50,23 @@ check:
 # create a conventional commit using commitizen
 commit:
     poetry run cz commit
+
+# audit installed dependencies for known vulnerabilities
+audit:
+    poetry run pip-audit
+
+# preview the next stable version bump (pass extra cz args, e.g. `just bump-preview --increment MAJOR`)
+bump-preview *args:
+    poetry run cz bump --dry-run {{ args }}
+
+# apply the next stable version bump (updates version, CHANGELOG, commit, and tag)
+bump *args:
+    poetry run cz bump {{ args }}
+
+# preview the next release-candidate bump (pass extra cz args, e.g. `just bump-rc-preview --increment MAJOR`)
+bump-rc-preview *args:
+    poetry run cz bump --prerelease rc --dry-run {{ args }}
+
+# apply the next release-candidate bump (rcN; updates version, CHANGELOG, commit, and tag)
+bump-rc *args:
+    poetry run cz bump --prerelease rc {{ args }}
