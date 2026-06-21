@@ -22,8 +22,8 @@ flowchart TD
     QAP -->|Yes| D["Build docs: just docs"]:::setup
     D --> E[Commit changes &#38; push branch]:::git
     E --> F{Release type?}:::decision
-    F -->|RC| RC1["just bump-rc-preview<br/>then just bump-rc"]:::setup
-    F -->|Stable| ST1["just bump-preview<br/>then just bump"]:::setup
+    F -->|RC| RC1["just bump-rc-preview<br/>then just bump-rc<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
+    F -->|Stable| ST1["just bump-preview<br/>then just bump<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
     RC1 --> RC2["git push --follow-tags<br/>(pushes vX.Y.ZrcN)"]:::git
     RC2 --> RC3[CI: publish-testpypi.yml]:::ci
     RC3 --> RC4[TestPyPI + GitHub pre-release]:::rc
@@ -68,9 +68,9 @@ Only **bug fixes and documentation changes** belong on the release branch. New f
 ```
 
 ```{warning}
-If you update any dependencies (e.g. to resolve security findings), regenerate the lock file immediately:
+If you update any dependencies (e.g. to resolve security findings), upgrade the specific package (this also rewrites `poetry.lock`):
 
-    poetry update <package>
+    poetry update <package>   # no just recipe: targets a single package
 
 Then verify the change does not break any tests.
 ```
@@ -167,20 +167,20 @@ Always run `--dry-run` first and review the proposed version and CHANGELOG entri
 
 The following Commitizen settings in `pyproject.toml` shape this behaviour:
 
-| Setting | Value | Effect |
-| --- | --- | --- |
-| `prerelease_offset` | `1` | Prereleases start at `rc1` (not the default `rc0`) |
+| Setting                      | Value  | Effect                                                                                        |
+| ---------------------------- | ------ | --------------------------------------------------------------------------------------------- |
+| `prerelease_offset`          | `1`    | Prereleases start at `rc1` (not the default `rc0`)                                            |
 | `changelog_merge_prerelease` | `true` | On the stable bump, all `rcN` CHANGELOG sections are rolled up into a single `vX.Y.Z` section |
-| `update_changelog_on_bump` | `true` | `CHANGELOG.md` is regenerated automatically on every bump |
+| `update_changelog_on_bump`   | `true` | `CHANGELOG.md` is regenerated automatically on every bump                                     |
 
 The bump commands are wrapped in `just` recipes so the correct Commitizen flags are applied consistently:
 
-| Recipe | Wraps | Use for |
-| --- | --- | --- |
-| `just bump-rc-preview` | `cz bump --prerelease rc --dry-run` | Preview an RC bump |
-| `just bump-rc` | `cz bump --prerelease rc` | Apply an RC bump |
-| `just bump-preview` | `cz bump --dry-run` | Preview a stable bump |
-| `just bump` | `cz bump` | Apply a stable bump |
+| Recipe                 | Wraps                               | Use for               |
+| ---------------------- | ----------------------------------- | --------------------- |
+| `just bump-rc-preview` | `cz bump --prerelease rc --dry-run` | Preview an RC bump    |
+| `just bump-rc`         | `cz bump --prerelease rc`           | Apply an RC bump      |
+| `just bump-preview`    | `cz bump --dry-run`                 | Preview a stable bump |
+| `just bump`            | `cz bump`                           | Apply a stable bump   |
 
 Each recipe forwards extra arguments to Commitizen, so flags such as `--increment MAJOR` can be appended directly (e.g. `just bump-rc-preview --increment MAJOR`).
 
