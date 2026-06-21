@@ -217,7 +217,7 @@ git push --follow-tags origin release/vX.Y.Z
 ```
 
 ```{note}
-`--follow-tags` pushes the annotated `vX.Y.ZrcN` tag along with the branch in one step, which triggers `publish-testpypi.yml`. See **[Tag and publish a release candidate](#7-tag-and-publish-a-release-candidate)** below if you prefer to push the tag separately.
+`--follow-tags` pushes the annotated `vX.Y.ZrcN` tag along with the branch in one step, which triggers `publish-testpypi.yml`. See step 7, **Tag and publish a release candidate**, below if you prefer to push the tag separately.
 ```
 
 ### 6b. Stable bump
