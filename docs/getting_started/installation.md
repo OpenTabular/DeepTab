@@ -46,6 +46,20 @@ Recommended accelerator: mps
 The report covers the CPU core count, CUDA GPUs, the Apple Silicon MPS backend,
 and the `accelerator` value DeepTab would pick by default.
 
+DeepTab already selects the best available accelerator, so you usually set
+nothing. For portable scripts you can make this explicit with `accelerator="auto"`,
+which uses a GPU when present and falls back to the CPU otherwise:
+
+```python
+# Uses CUDA or MPS when available, otherwise CPU
+model.fit(X_train, y_train, accelerator="auto", max_epochs=100)
+```
+
+```{tip}
+Pin a specific backend (`"gpu"`, `"cuda"`, `"mps"`, or `"cpu"`) only to force
+one. Unlike `"auto"`, those raise an error if the device is not present.
+```
+
 ### NVIDIA GPUs (CUDA)
 
 ```python

@@ -57,18 +57,20 @@ These are starting points, not rules. For the detailed comparison by dataset siz
 
 ### Do I need a GPU?
 
-No, but it helps significantly for larger datasets and more complex architectures. The short answer:
+No, DeepTab runs on CPU. Whether a GPU helps depends on your dataset more than on any single rule: the number of rows, the number of features (and how dense or high-cardinality they are), the model's per-batch cost, the batch size, and how many epochs you train all interact. The [Model Zoo Comparison Tables](../model_zoo/comparison_tables) give the per-model cost driver and rough crossover points; treat the guidance below as a starting heuristic, not a hard threshold.
 
-- **MLP, ResNet, TabM, MambaTab**: train comfortably on CPU up to ~100K to 500K rows.
-- **Mambular, TabulaRNN, TabTransformer, NODE**: CPU is fine up to ~10K to 20K rows; GPU recommended beyond that.
-- **FTTransformer, AutoInt, MambAttention, ENODE, NDTF, TabR**: GPU recommended above ~5K to 10K rows.
-- **SAINT**: GPU strongly recommended above ~2K rows (row attention makes every batch expensive).
+As a practical rule, reach for a GPU when several of these hold at once:
 
-For a full per-model breakdown including the cost driver for each architecture, see the [Model Zoo Comparison Tables](../model_zoo/comparison_tables) in the Model Zoo.
+- **Dense, wide data**: many numerical features per row, so each forward and backward pass does substantially more matrix work that parallelises well on a GPU.
+- **Long training runs**: more than ~100 epochs, where even a modest per-epoch speedup compounds into a large wall-clock difference.
+- **Larger batch sizes**: bigger batches expose more parallelism, which a GPU can absorb while a CPU saturates. Conversely, very small batches may not fill the device and can erase the benefit.
+- **Attention- or sequence-heavy architectures**: models whose cost grows faster than linearly with features or rows (for example `SAINT`'s row attention, or the transformer and recurrent families) hit the GPU-recommended regime at much smaller dataset sizes than `MLP`, `ResNet`, `TabM`, or `MambaTab`.
+
+For small datasets, short runs, or the lightweight models above, CPU is usually fine and avoids data-transfer overhead. When in doubt, profile one configuration both ways and compare wall-clock time per epoch.
 
 ### How do I know if my GPU is being used?
 
-Print the hardware DeepTab can see:
+Use two checks. First, see what hardware DeepTab can detect:
 
 ```python
 from deeptab import print_hardware_info
@@ -76,28 +78,71 @@ from deeptab import print_hardware_info
 print_hardware_info()
 ```
 
-The report lists the CPU, any CUDA GPUs, the Apple Silicon MPS backend, and the `accelerator` DeepTab would pick by default. DeepTab uses the first available GPU automatically. If a GPU is listed but you're not seeing speedups, make sure you're training on a reasonably large dataset, since small batches may not benefit from GPU parallelism.
+The report lists the CPU, any CUDA GPUs, the Apple Silicon MPS backend, and the `accelerator` DeepTab would pick by default. This only tells you what is _available_, not what a given run actually used.
+
+To confirm what a fitted estimator is _really_ running on, inspect its runtime info after `fit`:
+
+```python
+model.fit(X, y)
+
+info = model.runtime_info()
+print(info["accelerator"])   # e.g. "CUDAAccelerator", "MPSAccelerator", "CPUAccelerator"
+print(info["root_device"])   # e.g. "cuda:0", "mps:0", "cpu"
+print(info["device"])        # device the model parameters live on
+print(info["num_devices"])   # number of devices in use
+```
+
+`model.summary()` prints the same device, precision, and accelerator fields in a readable block.
+
+```{warning}
+By default DeepTab lets Lightning auto-select the best available accelerator, but an explicit `accelerator=` you pass to `fit()` always wins. If you accidentally pass `accelerator="cpu"`, training stays on the CPU even when a GPU is present, and `runtime_info()["accelerator"]` will report `"CPUAccelerator"`. Drop the argument (or set `accelerator="auto"`) to let DeepTab use the GPU.
+```
 
 ### Can I use DeepTab with PyTorch dataloaders?
 
 ```{note}
-The high-level API uses `TabularDataModule` internally, but you can access `TabularDataset` directly for custom data loading.
+For normal training you never build a `DataLoader` yourself: `model.fit(...)` constructs the `TabularDataModule` and its loaders internally. Reach for this lower-level path only when you need behaviour the estimator does not expose, such as a custom or weighted sampler, or running DeepTab data through your own training/evaluation loop.
 ```
 
-Yes. The internal `TabularDataModule` creates PyTorch `DataLoader` instances. If you need custom data loading logic, you can use `TabularDataset` directly:
+Yes. The estimator does not accept a custom `DataLoader` directly, but after `fit` the fitted data module exposes a ready-to-use, preprocessed `TabularDataset`. You can wrap that dataset in any `DataLoader` (with your own sampler) and run the fitted network on the batches yourself.
 
 ```python
-from deeptab.data import TabularDataset
-from torch.utils.data import DataLoader
+import torch
+from torch.utils.data import DataLoader, WeightedRandomSampler
+from deeptab.models import MambularClassifier
 
-dataset = TabularDataset(
-    cat_features_list=[...],
-    num_features_list=[...],
-    embeddings_list=None,
-    labels=labels,
-)
+model = MambularClassifier()
+model.fit(X_train, y_train, max_epochs=1)   # fits the preprocessor and builds the network
 
-dataloader = DataLoader(dataset, batch_size=128, shuffle=True)
+# The fitted data module holds the preprocessed training dataset
+dm = model._data_module
+dm.setup("fit")
+dataset = dm.train_dataset                  # a TabularDataset of preprocessed tensors
+
+# Wrap it in your own DataLoader, e.g. to oversample minority classes
+sampler = WeightedRandomSampler(sample_weights, num_samples=len(dataset))
+dataloader = DataLoader(dataset, batch_size=128, sampler=sampler)
+```
+
+Each item is a `((num_features, cat_features, embeddings), label)` tuple, the same format DeepTab uses internally, so the default `DataLoader` collation batches it without a custom `collate_fn`. Feed those batches into the fitted network for a custom training or scoring loop:
+
+```python
+net = model._task_model                     # the LightningModule (internal API)
+device = next(net.parameters()).device
+net.eval()
+
+with torch.no_grad():
+    for (num_features, cat_features, embeddings), labels in dataloader:
+        num_features = [t.to(device) for t in num_features]
+        cat_features = [t.to(device) for t in cat_features]
+        embeddings = [t.to(device) for t in embeddings] if embeddings else None
+
+        logits = net(num_features, cat_features, embeddings)
+        # compute your own loss / metrics, or collect predictions ...
+```
+
+```{warning}
+`model._data_module` and `model._task_model` are internal attributes and may change between releases. For standard training and inference, prefer the estimator API (`fit`, `predict`, `evaluate`), which manages preprocessing, batching, and device placement for you.
 ```
 
 ## Data and preprocessing
@@ -424,12 +469,12 @@ The estimator API handles this automatically.
 
 ### What's the difference between Mambular and MambaTab?
 
-Both use Mamba (State Space Model) blocks, but differ in how they process features:
+Both use Mamba (State Space Model) blocks, but differ in how they present features to the block:
 
-- **Mambular**: Sequential model. Processes features one at a time in sequence, learning dependencies between features.
-- **MambaTab**: Joint model. Applies Mamba to a concatenated representation of all features at once.
+- **Mambular**: embeds each feature into its own token, then runs Mamba over that sequence of feature tokens and pools the result. Modelling features as a sequence lets it capture richer interactions between them, at a higher compute cost.
+- **MambaTab**: concatenates all features and projects them through a single linear layer into one representation before the Mamba block. This is lighter and faster, but models feature interactions less explicitly.
 
-Mambular tends to work better for datasets where feature order matters or where you want to learn sequential dependencies.
+Mambular is the stronger general-purpose choice, reach for MambaTab when you want a more compact, faster Mamba-based model.
 
 ### When should I use distributional regression (LSS)?
 
