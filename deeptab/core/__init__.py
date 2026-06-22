@@ -18,6 +18,7 @@ from .exceptions import (
     NotFittedError,
     PerformanceWarning,
 )
+from .hardware import print_hardware_info
 from .inference import InferenceModel
 from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
 from .registry import MODEL_REGISTRY, ModelInfo
@@ -67,6 +68,7 @@ __all__ = [
     "get_feature_dimensions",
     "load_state_dict",
     "make_random_batches",
+    "print_hardware_info",
     "restore_loaded_metadata",
     "save_state_dict",
     "seed_context",

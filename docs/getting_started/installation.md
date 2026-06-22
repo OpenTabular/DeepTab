@@ -2,7 +2,6 @@
 
 ```{important}
 **Requirements:** Python 3.10+ | PyTorch 2.2+ (auto-installed)
-**Installation time:** ~2 minutes
 ```
 
 ## Quick Install
@@ -20,15 +19,40 @@ import deeptab
 print(deeptab.__version__)  # e.g., "2.0.0"
 ```
 
-## GPU Support
+## Hardware Support
 
-DeepTab automatically detects and uses your GPU, with no configuration needed.
+DeepTab automatically detects and uses your accelerator, with no configuration
+needed. It supports NVIDIA GPUs through CUDA and Apple Silicon through the MPS
+backend, and falls back to the CPU when neither is present.
 
-**Verify GPU:**
+**Inspect what DeepTab can see:**
+
+```python
+from deeptab import print_hardware_info
+
+print_hardware_info()
+```
+
+```text
+DeepTab hardware report
+-----------------------
+Platform: Darwin (arm64), Python 3.11.8, PyTorch 2.2.0
+CPU: 14 logical cores
+CUDA: not available
+MPS (Apple Silicon): available
+Recommended accelerator: mps
+```
+
+The report covers the CPU core count, CUDA GPUs, the Apple Silicon MPS backend,
+and the `accelerator` value DeepTab would pick by default.
+
+### NVIDIA GPUs (CUDA)
 
 ```python
 import torch
-print(f"GPU available: {torch.cuda.is_available()}")
+
+print(f"CUDA available: {torch.cuda.is_available()}")
+print(f"GPU count: {torch.cuda.device_count()}")
 ```
 
 ```{warning}
@@ -46,6 +70,25 @@ See [PyTorch installation guide](https://pytorch.org/get-started/locally/) for y
 
 ```bash
 export CUDA_VISIBLE_DEVICES=0,1  # Use specific GPUs
+```
+
+### Apple Silicon (MPS)
+
+On M-series Macs, DeepTab uses the Metal Performance Shaders (MPS) backend.
+MPS ships with the standard PyTorch build, so no extra install step is needed.
+
+```python
+import torch
+
+print(f"MPS available: {torch.backends.mps.is_available()}")
+print(f"MPS built: {torch.backends.mps.is_built()}")
+```
+
+```{note}
+`is_available()` reports `True` only on macOS 12.3+ with Apple Silicon and a
+PyTorch build that includes MPS. When it returns `False` but `is_built()` is
+`True`, the backend is present but the OS or hardware does not support it, and
+DeepTab runs on the CPU.
 ```
 
 ## Development Installation
@@ -87,11 +130,12 @@ model = FTTransformerClassifier(
 )
 ```
 
-**Training slow?** Check GPU is being used:
+**Training slow?** Check which accelerator DeepTab detected:
 
 ```python
-import torch
-assert torch.cuda.is_available(), "GPU not detected"
+from deeptab import print_hardware_info
+
+print_hardware_info()  # "Recommended accelerator" should not be cpu
 ```
 
 **Module not found?** Verify correct environment:
