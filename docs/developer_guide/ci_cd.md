@@ -16,54 +16,22 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 
 ## ci.yml (continuous integration)
 
-Runs on every push to `main` and every pull request targeting `main`. Cancels in-progress runs for the same branch via `concurrency`.
+Runs on every push to `main` and every pull request targeting `main`. In-progress runs for the same branch are cancelled via `concurrency`.
 
-### Jobs
+| Job         | Runner / Python | What it does                               | Depends on |
+| ----------- | --------------- | ------------------------------------------ | ---------- |
+| `lint`      | ubuntu / 3.10   | `ruff check .` and `ruff format --check .` | -          |
+| `typecheck` | ubuntu / 3.10   | `pyright`                                  | -          |
+| `build`     | ubuntu / 3.10   | `poetry build` and `twine check dist/*`    | -          |
+| `tests`     | full matrix     | `pytest tests/ -v`                         | -          |
+| `smoke`     | ubuntu / 3.12   | `pytest tests/ -m smoke --tb=short`        | `lint`     |
+| `coverage`  | ubuntu / 3.12   | branch coverage uploaded to Codecov        | `tests`    |
 
-**`lint`** runs on `ubuntu-latest` / Python 3.10:
+The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix covers every supported Python and OS combination listed in the [Support Matrix](support_matrix.md).
 
-```bash
-ruff check .          # style and correctness
-ruff format --check . # formatting (no changes applied)
+```{note}
+The two Python versions are intentional. Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.10) so they catch code that relies on newer syntax or stdlib than we promise to support. The fast single-version gates (`smoke`, `coverage`) use a recent version (3.12), since they check behavior rather than compatibility. Full compatibility is verified by the `tests` matrix.
 ```
-
-**`typecheck`** runs on `ubuntu-latest` / Python 3.10:
-
-```bash
-pyright
-```
-
-**`build`** runs on `ubuntu-latest` / Python 3.10:
-
-```bash
-poetry build
-twine check dist/*
-```
-
-**`tests`** runs across a full matrix:
-
-| Dimension | Values                                            |
-| --------- | ------------------------------------------------- |
-| OS        | `ubuntu-latest`, `macos-latest`, `windows-latest` |
-| Python    | `3.10`, `3.11`, `3.12`, `3.13`                    |
-
-```bash
-pytest tests/ -v
-```
-
-**`smoke`** runs on `ubuntu-latest` / Python 3.12 after `lint` passes. It runs only the fast sanity-check tests marked with `@pytest.mark.smoke`:
-
-```bash
-pytest tests/ -v -m smoke --tb=short
-```
-
-**`coverage`** runs on `ubuntu-latest` / Python 3.12 after `tests` pass. It measures branch coverage and uploads the report to [Codecov](https://codecov.io/gh/OpenTabular/DeepTab):
-
-```bash
-pytest tests/ --cov=deeptab --cov-branch --cov-report=xml:coverage.xml -q
-```
-
-The `lint`, `typecheck`, `build`, and `tests` jobs are independent and run in parallel, with `fail-fast: false` so a failure in one matrix cell does not cancel the others. The `smoke` job depends on `lint`, and `coverage` depends on `tests`.
 
 ---
 
@@ -95,42 +63,21 @@ A `workflow_dispatch`-only workflow. Builds the package with Poetry and validate
 
 ---
 
-## publish-testpypi.yml (release candidate publishing)
+## Publishing (publish-testpypi.yml / publish-pypi.yml)
 
-Triggered by any tag matching `v*.*.*rc*`. Uses [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required.
+Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Each builds with `poetry build`, publishes, then creates a GitHub release.
 
-Steps:
+| Workflow               | Tag pattern        | Target                                             | Release type |
+| ---------------------- | ------------------ | -------------------------------------------------- | ------------ |
+| `publish-testpypi.yml` | `v*.*.*rc*`        | [TestPyPI](https://test.pypi.org/project/deeptab/) | Pre-release  |
+| `publish-pypi.yml`     | `v*.*.*` (no `rc`) | [PyPI](https://pypi.org/project/deeptab/)          | Release      |
 
-1. Build the package with `poetry build`.
-2. Publish to [TestPyPI](https://test.pypi.org/project/deeptab/).
-3. Create a GitHub pre-release via `gh release create`.
-
-The `pypi-publish` GitHub Environment is required; it must have the `v*rc*` tag pattern in its protection rules.
-
----
-
-## publish-pypi.yml (stable release publishing)
-
-Triggered by any tag matching `v*.*.*` that does **not** contain `rc` (stable only). Also uses OIDC trusted publishing.
-
-Steps:
-
-1. Build the package with `poetry build`.
-2. Publish to [PyPI](https://pypi.org/project/deeptab/).
-3. Create a GitHub release with auto-generated release notes.
-
-See the [Release process](release.md) page for the full end-to-end procedure including when and how to push these tags.
+The `pypi-publish` GitHub Environment must allow the matching tag pattern in its protection rules. See the [Release process](release.md) page for when and how to push these tags.
 
 ---
 
 ## Adding or modifying a workflow
 
 1. Edit the relevant YAML file in `.github/workflows/`.
-2. Use [act](https://github.com/nektos/act) to test locally before pushing:
-
-```bash
-act push --job tests
-```
-
-3. Keep job names consistent, since they are displayed in PR status checks and on the Actions tab.
-4. Pin third-party actions to a full commit SHA or a tagged version (e.g. `actions/checkout@v4`) and keep them up to date via `just update` (which runs `pre-commit autoupdate`).
+2. Keep job names consistent, since they appear in PR status checks and on the Actions tab.
+3. Pin third-party actions to a tagged version or full commit SHA (e.g. `actions/checkout@v4`) and keep them current via `just update` (which runs `pre-commit autoupdate`).

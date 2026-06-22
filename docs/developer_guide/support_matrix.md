@@ -4,45 +4,20 @@ This page lists the officially supported versions of Python and core dependencie
 
 ---
 
-## Python
+## Python and Operating Systems
 
-| Version | Status                                                                                           |
-| ------- | ------------------------------------------------------------------------------------------------ |
-| 3.10    | Supported                                                                                        |
-| 3.11    | Supported                                                                                        |
-| 3.12    | Supported                                                                                        |
-| 3.13    | Supported                                                                                        |
-| 3.14+   | Not yet supported. `scipy` wheels unavailable; will be added once dependency support catches up. |
+| Category | Supported                                      | Notes                                                           |
+| -------- | ---------------------------------------------- | --------------------------------------------------------------- |
+| Python   | 3.10, 3.11, 3.12, 3.13                         | 3.14+ pending `scipy` wheels; added once dependencies catch up. |
+| OS       | Linux, macOS, Windows (all `*-latest` runners) |                                                                 |
 
 ---
 
-## Operating Systems
+## Core Dependencies and Policy
 
-| OS                       | Status    |
-| ------------------------ | --------- |
-| Linux (ubuntu-latest)    | Supported |
-| macOS (macos-latest)     | Supported |
-| Windows (windows-latest) | Supported |
+The authoritative version constraints live in [`pyproject.toml`](https://github.com/OpenTabular/deeptab/blob/main/pyproject.toml) under `[tool.poetry.dependencies]`, which is updated on every release. Treat that file as the source of truth; the list below names the core packages and the policy that governs their bounds.
 
----
-
-## Core Dependencies
-
-The table below shows the range of versions supported by the package metadata (`pyproject.toml`). The lower bound is the minimum version that has been tested; the upper bound is what Poetry's caret/range constraint allows.
-
-| Package                                              | Minimum | Upper bound | Notes                                                      |
-| ---------------------------------------------------- | ------- | ----------- | ---------------------------------------------------------- |
-| [PyTorch](https://pytorch.org/)                      | 2.2.2   | < 2.10.0    | Pinned range; update when a new PyTorch stable is released |
-| [Lightning](https://lightning.ai/)                   | 2.3.3   | < 3.0       |                                                            |
-| [NumPy](https://numpy.org/)                          | 2.0.0   | < 3.0       | NumPy 1.x is **not** supported                             |
-| [pandas](https://pandas.pydata.org/)                 | 2.0.3   | < 3.0       |                                                            |
-| [scikit-learn](https://scikit-learn.org/)            | 1.3.2   | < 2.0       |                                                            |
-| [torchmetrics](https://torchmetrics.readthedocs.io/) | 1.5.2   | < 2.0       |                                                            |
-| [scipy](https://scipy.org/)                          | 1.15.0  | < 2.0       |                                                            |
-
----
-
-## Policy
+- **PyTorch, Lightning, NumPy, pandas, scikit-learn, torchmetrics, scipy** are the pinned core dependencies. NumPy 1.x is **not** supported.
 
 DeepTab follows a rolling support window, similar to [SPEC 0](https://scientific-python.org/specs/spec-0000/) used by the broader scientific Python ecosystem:
 
@@ -51,15 +26,3 @@ DeepTab follows a rolling support window, similar to [SPEC 0](https://scientific
 - **PyTorch**: support the current stable release and the one prior. The upper bound in `pyproject.toml` is updated when a new PyTorch stable is released and CI passes.
 
 When a version is dropped, it is announced in the release notes and the `pyproject.toml` lower bound is bumped in the same minor release.
-
----
-
-## Updating the Matrix
-
-When CI is extended to cover a new Python or dependency version:
-
-1. Update `pyproject.toml` (the `[tool.poetry.dependencies]` version constraint).
-2. Update `.github/workflows/ci.yml` (`matrix.python-version` or equivalent).
-3. Update the table on this page to reflect the new status.
-
-All three changes should land in the same PR so the docs and the CI are always in sync.

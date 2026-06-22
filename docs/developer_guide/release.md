@@ -87,43 +87,22 @@ Vulnerabilities with no upstream fix available should be noted and tracked as kn
 
 Run all checks in the order shown below. **Each step must pass cleanly before proceeding to the next.**
 
-### 3.1 Linting
+## 3. Quality checks
 
-```bash
-just lint
-```
+Run these in order. **Each must pass cleanly before proceeding to the next.**
 
-Runs `ruff check --fix` and auto-corrects fixable issues. Review and manually resolve any remaining errors.
-
-### 3.2 Formatting
-
-```bash
-just format
-```
-
-Runs `ruff format` to ensure consistent code style across the codebase.
-
-### 3.3 Pre-commit hooks
-
-```bash
-just check
-```
-
-Runs all pre-commit hooks across all files: ruff lint/format, prettier (YAML/Markdown/JSON), and Pyright type checking.
+| Step   | Command       | What it does                                                          |
+| ------ | ------------- | --------------------------------------------------------------------- |
+| Lint   | `just lint`   | `ruff check --fix`; review and resolve any errors it cannot auto-fix. |
+| Format | `just format` | `ruff format` for consistent code style.                              |
+| Hooks  | `just check`  | All pre-commit hooks across all files: ruff, prettier, and Pyright.   |
+| Tests  | `just test`   | Full test suite with coverage.                                        |
 
 ```{important}
 If `just check` modifies any files, stage and commit them before continuing:
 
     git add -u && git commit -m "style: apply pre-commit formatting"
 ```
-
-### 3.4 Unit tests
-
-```bash
-just test
-```
-
-Runs the full test suite with coverage reporting.
 
 ```{warning}
 A test failure at this stage must be fixed on the release branch before proceeding. Do not skip, suppress, or comment out failing tests.
@@ -287,12 +266,12 @@ Pushing the tag triggers PyPI publication immediately and cannot be undone. Conf
 
 ## 10. Publish package
 
-The tag push automatically triggers the appropriate GitHub Actions workflow. See **[CI/CD](ci_cd.md)** for full details. In summary:
+The tag push automatically triggers the appropriate GitHub Actions workflow. Both use **OIDC Trusted Publishing**, so no API tokens are required. See **[CI/CD](ci_cd.md)** for full details.
 
-- Stable tag (`vX.Y.Z`) → `publish-pypi.yml` → PyPI + GitHub Release
-- RC tag (`vX.Y.ZrcN`) → `publish-testpypi.yml` → TestPyPI + GitHub pre-release
-
-Both workflows use **OIDC Trusted Publishing**, so no API tokens are required.
+| Tag pushed  | Workflow               | Result                        |
+| ----------- | ---------------------- | ----------------------------- |
+| `vX.Y.Z`    | `publish-pypi.yml`     | PyPI + GitHub Release         |
+| `vX.Y.ZrcN` | `publish-testpypi.yml` | TestPyPI + GitHub pre-release |
 
 ## 11. GitHub Release
 

@@ -15,46 +15,17 @@ A model enters the codebase as experimental. A maintainer promotes it to stable 
 
 ## Promotion Requirements
 
-### 1. Public API
+Every criterion below must be met before promotion. Each is objective and reviewable.
 
-The model's public constructor signature must be consistent with other stable estimators in `deeptab/models/`. Parameter names must follow existing conventions (e.g. `n_layers`, `d_model`, `dropout`). `__init__` must accept a config object from `deeptab/configs/` with all config fields reflected as constructor kwargs.
-
-### 2. Documentation
-
-A model page must exist under `docs/api/models/` and include:
-
-- A one-paragraph description of the architecture.
-- A **When to use** section: what problem or data type this model is suited for.
-- A **Limitations** section: known failure modes, dataset-size requirements, or computational constraints.
-- A full parameter table generated from the config docstring.
-
-All public methods must have docstrings that render without warnings under `just docs`.
-
-### 3. End-to-end Example
-
-At least one runnable example must exist in `examples/` or `docs/examples/` that demonstrates loading data, constructing the model, fitting, and predicting. The example must run to completion without error against the current main branch.
-
-### 4. Save / Load Support
-
-If save/load is part of the stable core contract for the task type, the model must be saveable and reloadable via the standard DeepTab mechanism, with a round-trip test confirming identical predictions before and after reload.
-
-### 5. Tests
-
-A behavioral test must exist (in a dedicated file or in `tests/test_base.py`) covering:
-
-- Fit on a small synthetic dataset.
-- Predict returning an array of the expected shape and dtype.
-- Config serialization round-trip.
-
-All tests must pass in CI (`just test`).
-
-### 6. No Open Critical Bugs
-
-No open GitHub issues labelled `bug` for the model may describe a failure in a core workflow (fit, predict, save/load). Known limitations that are not bugs must be documented in the model's Limitations section.
-
-### 7. Registry
-
-A config class must exist in `deeptab/configs/` and be exported from `deeptab/configs/__init__.py`. The model must be exported from `deeptab/models/experimental/__init__.py` while experimental, or from `deeptab/models/__init__.py` once stable. The `MODEL_REGISTRY` in `deeptab/core/registry.py` must contain a `ModelInfo` entry with the correct `status` and `import_path`.
+| #   | Requirement        | What it means                                                                                                                                                                                    |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | Public API         | Constructor matches stable-estimator conventions (`n_layers`, `d_model`, `dropout`, ...) and takes a `deeptab/configs/` config with every field mirrored as a kwarg.                             |
+| 2   | Documentation      | A page under `docs/api/models/` with architecture summary, **When to use**, **Limitations**, and a generated parameter table. All public methods render docstrings without `just docs` warnings. |
+| 3   | End-to-end example | A runnable example in `examples/` or `docs/examples/` covering load → construct → fit → predict, passing against current `main`.                                                                 |
+| 4   | Save / Load        | If save/load is part of the task's stable contract, the model round-trips via the standard mechanism with a test asserting identical predictions.                                                |
+| 5   | Tests              | A behavioral test covering fit on synthetic data, predict shape/dtype, and config serialization round-trip. All pass in CI (`just test`).                                                        |
+| 6   | No critical bugs   | No open `bug` issues describing a failure in fit, predict, or save/load. Non-bug limitations are documented in the Limitations section.                                                          |
+| 7   | Registry           | Config class exported from `deeptab/configs/__init__.py`; model exported from the experimental package; `MODEL_REGISTRY` entry present with correct `status` and `import_path`.                  |
 
 ## Promotion PR
 
