@@ -1,20 +1,37 @@
-[tool.poetry]
+[project]
 name = "deeptab"
-
 version = "2.0.0rc1"
-
-
 description = "A python package for tabular deep learning."
-authors = ["Anton Thielmann", "Manish Kumar", "Christoph Weisser"]
+authors = [
+  { name = "Anton Thielmann" },
+  { name = "Manish Kumar" },
+  { name = "Christoph Weisser" },
+]
 readme = "README.md"
+requires-python = ">=3.10,<3.14"
+dynamic = ["dependencies"]
+
+[project.optional-dependencies]
+logs = ["structlog>=24.0,<27.0"]
+mlflow = ["mlflow>=2.10,<4.0"]
+tensorboard = ["tensorboard>=2.14,<3.0"]
+tracking = ["mlflow>=2.10,<4.0", "tensorboard>=2.14,<3.0"]
+all = ["structlog>=24.0,<27.0", "mlflow>=2.10,<4.0", "tensorboard>=2.14,<3.0"]
+
+[project.urls]
+homepage = "https://github.com/OpenTabular/deeptab"
+documentation = "https://deeptab.readthedocs.io/"
+repository = "https://github.com/OpenTabular/deeptab"
+package = "https://pypi.org/project/deeptab/"
+
+[tool.poetry]
 packages = [{ include = "deeptab" }]
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.14"
 numpy = "^2.0.0"
 pandas = "^2.0.3"
 lightning = "^2.3.3"
@@ -30,16 +47,6 @@ scipy = "^1.15.0"
 pretab = "^0.0.1"
 delu = "*"
 faiss-cpu = "*"
-structlog = { version = "*", optional = true }
-mlflow = { version = "*", optional = true }
-tensorboard = { version = "*", optional = true }
-
-[tool.poetry.extras]
-logs = ["structlog"]
-mlflow = ["mlflow"]
-tensorboard = ["tensorboard"]
-tracking = ["mlflow", "tensorboard"]
-all = ["structlog", "mlflow", "tensorboard"]
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0"
@@ -69,13 +76,6 @@ pydata-sphinx-theme = "0.15.2"
 sphinx-design = "*"
 sphinxcontrib-mermaid = "*"
 sphinxext-opengraph = "*"
-
-
-[tool.poetry.urls]
-homepage = "https://github.com/OpenTabular/deeptab"
-documentation = "https://deeptab.readthedocs.io/"
-repository = "https://github.com/OpenTabular/deeptab"
-package = "https://pypi.org/project/deeptab/"
 
 
 # test configuration
@@ -179,7 +179,7 @@ max-doc-length = 120
 # Commitizen configuration
 [tool.commitizen]
 name = "cz_conventional_commits"
-version_provider = "poetry"
+version_provider = "pep621"
 tag_format = "v$version"
 update_changelog_on_bump = true
 major_version_zero = false
