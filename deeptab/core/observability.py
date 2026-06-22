@@ -300,12 +300,9 @@ def build_structlog_logger(config: ObservabilityConfig, run_dir: str | None = No
     ImportError
         If ``structlog`` is not installed, with an actionable install hint.
     """
-    try:
-        import structlog  # type: ignore[import-untyped]
-    except ImportError as exc:
-        raise ImportError(
-            "structlog is required when structured_logging=True. Install it with: pip install 'deeptab[logs]'"
-        ) from exc
+    from deeptab.core.optional_deps import require_structlog
+
+    structlog = require_structlog()
 
     import json
     import os
@@ -458,16 +455,15 @@ def build_lightning_loggers(
     """
     import os
 
+    from deeptab.core.optional_deps import require_mlflow, require_tensorboard
+
     loggers: list[Any] = []
 
     for tracker in config.experiment_trackers:
         if tracker == "mlflow":
-            try:
-                from lightning.pytorch.loggers import MLFlowLogger
-            except ImportError as exc:
-                raise ImportError(
-                    "MLflow logging requires the mlflow package. Install it with: pip install 'deeptab[mlflow]'"
-                ) from exc
+            require_mlflow()
+            from lightning.pytorch.loggers import MLFlowLogger
+
             # Ensure the artifact location directory exists
             if config.mlflow_artifact_location:
                 os.makedirs(config.mlflow_artifact_location, exist_ok=True)
@@ -482,13 +478,9 @@ def build_lightning_loggers(
             )
 
         elif tracker == "tensorboard":
-            try:
-                from lightning.pytorch.loggers import TensorBoardLogger
-            except ImportError as exc:
-                raise ImportError(
-                    "TensorBoard logging requires the tensorboard package. "
-                    "Install it with: pip install 'deeptab[tensorboard]'"
-                ) from exc
+            require_tensorboard()
+            from lightning.pytorch.loggers import TensorBoardLogger
+
             loggers.append(
                 TensorBoardLogger(
                     save_dir=config.tensorboard_save_dir,
