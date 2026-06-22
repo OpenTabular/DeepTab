@@ -9,6 +9,23 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ---
 
+## v2.0.0rc2 (2026-06-22)
+
+### Feat
+
+- **hardware**: add print_hardware_info for CPU/CUDA/MPS detection
+
+### Fix
+
+- **sklearn_compat**: satisfy pandas typing in ensure_dataframe
+- **training**: register custom torchmetrics via nn.ModuleDict so state moves to device
+- **sklearn_compat**: cast pandas category columns to object in ensure_dataframe
+
+### Refactor
+
+- **models**: drop legacy flat-kwargs constructor
+- **core**: centralize optional-dependency
+
 ## v2.0.0rc1 (2026-06-21)
 
 ### BREAKING CHANGE
