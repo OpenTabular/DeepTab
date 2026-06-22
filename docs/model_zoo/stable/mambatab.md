@@ -22,13 +22,13 @@ features -> concat -> Linear(input_dim, d_model) -> LayerNorm -> activation -> M
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Input path | `torch.cat(...)` | Uses raw/preprocessed feature tensors directly. |
-| Projection | `initial_layer` | Maps input vector to `d_model`. |
-| Normalization | `LayerNorm` | Stabilizes projected representation. |
-| Head | `MLPhead` | Produces predictions. |
-| Mamba block | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Instantiated in `__init__`, but not called in the current `forward`. |
+| Component     | DeepTab implementation                            | Role                                                                 |
+| ------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| Input path    | `torch.cat(...)`                                  | Uses raw/preprocessed feature tensors directly.                      |
+| Projection    | `initial_layer`                                   | Maps input vector to `d_model`.                                      |
+| Normalization | `LayerNorm`                                       | Stabilizes projected representation.                                 |
+| Head          | `MLPhead`                                         | Produces predictions.                                                |
+| Mamba block   | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Instantiated in `__init__`, but not called in the current `forward`. |
 
 ## Implementation Notes
 
@@ -49,7 +49,7 @@ model = MambaTabRegressor(
         head_layer_sizes=[128],
         head_dropout=0.1,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -57,13 +57,13 @@ model = MambaTabRegressor(
 
 Key settings in the current forward path:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `32` to `128` | Width of the projected representation. |
-| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm. |
-| `head_layer_sizes` | `[]` to `[256, 128]` | Extra MLPhead capacity. |
-| `head_dropout` | `0.0` to `0.3` | Head regularization. |
-| `axis` | `1` or `0` | Temporary unsqueeze axis before normalization. |
+| Setting                | Typical range              | Effect                                         |
+| ---------------------- | -------------------------- | ---------------------------------------------- |
+| `d_model`              | `32` to `128`              | Width of the projected representation.         |
+| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm.              |
+| `head_layer_sizes`     | `[]` to `[256, 128]`       | Extra MLPhead capacity.                        |
+| `head_dropout`         | `0.0` to `0.3`             | Head regularization.                           |
+| `axis`                 | `1` or `0`                 | Temporary unsqueeze axis before normalization. |
 
 ## When To Use
 

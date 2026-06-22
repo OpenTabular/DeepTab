@@ -27,12 +27,12 @@ ndtf
 tabr
 ```
 
-| Family | Models | Use when |
-| --- | --- | --- |
-| MLP and residual baselines | [MLP](mlp), [ResNet](resnet), [TabM](tabm) | You need strong, fast baselines or parameter-efficient ensembles. |
-| Transformer and attention models | [FTTransformer](fttransformer), [TabTransformer](tabtransformer), [SAINT](saint), [AutoInt](autoint) | Feature interactions are important and the dataset is large enough to support attention layers. |
-| State-space and recurrent sequence models | [Mambular](mambular), [MambaTab](mambatab), [MambAttention](mambattention), [TabulaRNN](tabularnn) | You want to treat columns as a sequence and compare Mamba/RNN-style inductive biases. |
-| Neural tree and retrieval models | [NODE](node), [ENODE](enode), [NDTF](ndtf), [TabR](tabr) | You want differentiable tree structure, ensemble behavior, or train-set retrieval at prediction time. |
+| Family                                    | Models                                                                                               | Use when                                                                                              |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| MLP and residual baselines                | [MLP](mlp), [ResNet](resnet), [TabM](tabm)                                                           | You need strong, fast baselines or parameter-efficient ensembles.                                     |
+| Transformer and attention models          | [FTTransformer](fttransformer), [TabTransformer](tabtransformer), [SAINT](saint), [AutoInt](autoint) | Feature interactions are important and the dataset is large enough to support attention layers.       |
+| State-space and recurrent sequence models | [Mambular](mambular), [MambaTab](mambatab), [MambAttention](mambattention), [TabulaRNN](tabularnn)   | You want to treat columns as a sequence and compare Mamba/RNN-style inductive biases.                 |
+| Neural tree and retrieval models          | [NODE](node), [ENODE](enode), [NDTF](ndtf), [TabR](tabr)                                             | You want differentiable tree structure, ensemble behavior, or train-set retrieval at prediction time. |
 
 ## Selection Guide
 
@@ -52,7 +52,7 @@ from deeptab.models import MLPClassifier
 
 model = MLPClassifier(
     model_config=MLPConfig(layer_sizes=[256, 128, 32], dropout=0.2),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -65,11 +65,11 @@ predictions = model.predict(X_test)
 
 DeepTab 2.x separates model, preprocessing, and training settings:
 
-| Config object | Contains |
-| --- | --- |
-| `*Config` model configs | Architecture fields such as width, depth, dropout, embeddings, heads, pooling, and ensemble size. |
-| `PreprocessingConfig` | Numerical/categorical preprocessing choices such as standard scaling, quantile transforms, bins, and categorical encoding. |
-| `TrainerConfig` | Optimizer and training-loop settings such as learning rate, batch size, epochs, patience, and weight decay. |
+| Config object           | Contains                                                                                                                   |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `*Config` model configs | Architecture fields such as width, depth, dropout, embeddings, heads, pooling, and ensemble size.                          |
+| `PreprocessingConfig`   | Numerical/categorical preprocessing choices such as standard scaling, quantile transforms, bins, and categorical encoding. |
+| `TrainerConfig`         | Optimizer and training-loop settings such as learning rate, batch size, epochs, patience, and weight decay.                |
 
 ## Research Context
 

@@ -24,14 +24,14 @@ features -> optional EmbeddingLayer -> flatten/concat -> Linear blocks -> output
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Feature input | `torch.cat(...)` or `EmbeddingLayer` | Builds the vector consumed by the MLP. |
-| Hidden stack | `nn.Linear` layers from `layer_sizes` | Learns nonlinear feature interactions. |
-| Normalization | `batch_norm`, `layer_norm` | Stabilizes training when enabled. |
-| Activation | `activation` or `nn.GLU()` | Controls nonlinear transformation. |
-| Skip connections | `skip_connections` | Adds residual connections only when shapes match. |
-| Output head | Final `nn.Linear` | Produces logits or regression outputs. |
+| Component        | DeepTab implementation                | Role                                              |
+| ---------------- | ------------------------------------- | ------------------------------------------------- |
+| Feature input    | `torch.cat(...)` or `EmbeddingLayer`  | Builds the vector consumed by the MLP.            |
+| Hidden stack     | `nn.Linear` layers from `layer_sizes` | Learns nonlinear feature interactions.            |
+| Normalization    | `batch_norm`, `layer_norm`            | Stabilizes training when enabled.                 |
+| Activation       | `activation` or `nn.GLU()`            | Controls nonlinear transformation.                |
+| Skip connections | `skip_connections`                    | Adds residual connections only when shapes match. |
+| Output head      | Final `nn.Linear`                     | Produces logits or regression outputs.            |
 
 ## Implementation Notes
 
@@ -51,7 +51,7 @@ model = MLPClassifier(
         dropout=0.2,
         skip_connections=False,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -59,13 +59,13 @@ model = MLPClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `layer_sizes` | `[128, 64]` to `[512, 256, 128]` | Main capacity control. |
-| `dropout` | `0.0` to `0.5` | Regularization; increase on small/noisy data. |
-| `use_embeddings` | `False` or `True` | Enables feature token embeddings before flattening. |
-| `d_model` | `16` to `128` | Embedding width when embeddings are used. |
-| `batch_norm`, `layer_norm` | `False` or `True` | Try when optimization is unstable. |
+| Setting                    | Typical range                    | Effect                                              |
+| -------------------------- | -------------------------------- | --------------------------------------------------- |
+| `layer_sizes`              | `[128, 64]` to `[512, 256, 128]` | Main capacity control.                              |
+| `dropout`                  | `0.0` to `0.5`                   | Regularization; increase on small/noisy data.       |
+| `use_embeddings`           | `False` or `True`                | Enables feature token embeddings before flattening. |
+| `d_model`                  | `16` to `128`                    | Embedding width when embeddings are used.           |
+| `batch_norm`, `layer_norm` | `False` or `True`                | Try when optimization is unstable.                  |
 
 ## When To Use
 

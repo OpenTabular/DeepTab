@@ -17,17 +17,17 @@ ModernNCA revisits Neighborhood Component Analysis (NCA) with modern tabular dee
 
 This makes ModernNCA useful when the target function is locally smooth in a representation space: rows with similar learned embeddings should have similar labels.
 
-| Property | DeepTab ModernNCA |
-| -------- | ----------------- |
-| Inductive bias | Local similarity / soft nearest-neighbor prediction |
-| Prediction form | Weighted candidate labels |
-| Training mode | Candidate-aware via `train_with_candidates` |
-| Inference cost | Pairwise distance to candidate rows |
-| Best baseline comparisons | TabR, TabM, ResNet, MLP |
+| Property                  | DeepTab ModernNCA                                   |
+| ------------------------- | --------------------------------------------------- |
+| Inductive bias            | Local similarity / soft nearest-neighbor prediction |
+| Prediction form           | Weighted candidate labels                           |
+| Training mode             | Candidate-aware via `train_with_candidates`         |
+| Inference cost            | Pairwise distance to candidate rows                 |
+| Best baseline comparisons | TabR, TabM, ResNet, MLP                             |
 
 ## Architectural Details
 
-For a query row \(x_i\) and candidate rows \(\{x_j, y_j\}\), ModernNCA learns an encoder \(\phi_\theta\):
+For a query row \(x*i\) and candidate rows \(\{x_j, y_j\}\), ModernNCA learns an encoder \(\phi*\theta\):
 
 ```text
 raw features
@@ -44,11 +44,11 @@ embedding z = phi(x)
 Distances are converted to candidate weights:
 
 \[
-d_{ij} = \frac{\|\phi_\theta(x_i) - \phi_\theta(x_j)\|_2}{T}
+d*{ij} = \frac{\|\phi*\theta(x*i) - \phi*\theta(x_j)\|\_2}{T}
 \]
 
 \[
-w_{ij} = \mathrm{softmax}_j(-d_{ij})
+w*{ij} = \mathrm{softmax}\_j(-d*{ij})
 \]
 
 For regression, the output is the weighted average of candidate targets. For classification, candidate labels are one-hot encoded and the weighted class probabilities are log-transformed before loss computation.
@@ -59,28 +59,28 @@ During training, DeepTab concatenates the current batch with a sampled subset of
 
 The implementation lives in `deeptab/architectures/experimental/modern_nca.py`.
 
-| Component | Implementation | Role |
-| --------- | -------------- | ---- |
-| Optional feature embedding | `EmbeddingLayer` when `use_embeddings=True` | Converts raw columns into per-feature representations |
-| Encoder | `nn.Linear(input_dim, config.dim)` | Projects the flattened row into metric space |
-| Post-encoder | Repeated BatchNorm -> Linear -> ReLU -> Dropout -> Linear blocks | Adds nonlinear representation capacity |
-| Candidate weighting | `torch.cdist` + `softmax(-distance / temperature)` | Differentiable neighbor weighting |
-| Candidate prediction | Matrix multiply between weights and candidate labels | Produces regression values or class probabilities |
-| Fallback head | `MLPhead` in `forward` | Allows non-candidate forward compatibility |
+| Component                  | Implementation                                                   | Role                                                  |
+| -------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------- |
+| Optional feature embedding | `EmbeddingLayer` when `use_embeddings=True`                      | Converts raw columns into per-feature representations |
+| Encoder                    | `nn.Linear(input_dim, config.dim)`                               | Projects the flattened row into metric space          |
+| Post-encoder               | Repeated BatchNorm -> Linear -> ReLU -> Dropout -> Linear blocks | Adds nonlinear representation capacity                |
+| Candidate weighting        | `torch.cdist` + `softmax(-distance / temperature)`               | Differentiable neighbor weighting                     |
+| Candidate prediction       | Matrix multiply between weights and candidate labels             | Produces regression values or class probabilities     |
+| Fallback head              | `MLPhead` in `forward`                                           | Allows non-candidate forward compatibility            |
 
 ## Configuration
 
-| Parameter | Default | Practical Effect |
-| --------- | ------- | ---------------- |
-| `dim` | `128` | Metric-space dimension after the encoder |
-| `d_block` | `512` | Hidden width inside residual post-encoder blocks |
-| `n_blocks` | `4` | Number of post-encoder blocks |
-| `dropout` | `0.1` | Regularization inside post-encoder blocks |
-| `temperature` | `0.75` | Softmax sharpness for candidate weighting |
-| `sample_rate` | `0.5` | Fraction of candidate rows sampled during training |
-| `embedding_type` | `"plr"` | Default embedding type when embeddings are enabled |
-| `n_frequencies` | `75` | PLR frequency count |
-| `frequencies_init_scale` | `0.045` | PLR initialization scale |
+| Parameter                | Default | Practical Effect                                   |
+| ------------------------ | ------- | -------------------------------------------------- |
+| `dim`                    | `128`   | Metric-space dimension after the encoder           |
+| `d_block`                | `512`   | Hidden width inside residual post-encoder blocks   |
+| `n_blocks`               | `4`     | Number of post-encoder blocks                      |
+| `dropout`                | `0.1`   | Regularization inside post-encoder blocks          |
+| `temperature`            | `0.75`  | Softmax sharpness for candidate weighting          |
+| `sample_rate`            | `0.5`   | Fraction of candidate rows sampled during training |
+| `embedding_type`         | `"plr"` | Default embedding type when embeddings are enabled |
+| `n_frequencies`          | `75`    | PLR frequency count                                |
+| `frequencies_init_scale` | `0.045` | PLR initialization scale                           |
 
 ```python
 from deeptab.configs import ModernNCAConfig, PreprocessingConfig, TrainerConfig
@@ -103,19 +103,19 @@ model = ModernNCAClassifier(
 
 ## Practical Guide
 
-| Dataset Condition | Recommendation |
-| ----------------- | -------------- |
-| Small to medium data | ModernNCA is worth testing; candidate distance cost is manageable |
-| Very large candidate pool | Reduce `sample_rate`, use smaller batches, or prefer TabR/parametric models |
-| Noisy labels | Increase `temperature` or regularization; very sharp neighbor weights can overfit |
-| Strong local clusters | ModernNCA may be competitive with retrieval models |
-| Latency-sensitive inference | Prefer MLP/ResNet/TabM unless candidate search is acceptable |
+| Dataset Condition           | Recommendation                                                                    |
+| --------------------------- | --------------------------------------------------------------------------------- |
+| Small to medium data        | ModernNCA is worth testing; candidate distance cost is manageable                 |
+| Very large candidate pool   | Reduce `sample_rate`, use smaller batches, or prefer TabR/parametric models       |
+| Noisy labels                | Increase `temperature` or regularization; very sharp neighbor weights can overfit |
+| Strong local clusters       | ModernNCA may be competitive with retrieval models                                |
+| Latency-sensitive inference | Prefer MLP/ResNet/TabM unless candidate search is acceptable                      |
 
 Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "model_config__dim": [64, 128, 256],
     "model_config__n_blocks": [2, 4, 6],
     "model_config__d_block": [256, 512],

@@ -73,10 +73,10 @@ from deeptab.data import TabularDataset
 from torch.utils.data import DataLoader
 
 dataset = TabularDataset(
-    cat_feature_list=[...],
-    num_feature_list=[...],
-    embedding_feature_list=None,
-    y=labels,
+    cat_features_list=[...],
+    num_features_list=[...],
+    embeddings_list=None,
+    labels=labels,
 )
 
 dataloader = DataLoader(dataset, batch_size=128, shuffle=True)

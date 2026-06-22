@@ -23,12 +23,12 @@ features -> optional embeddings -> initial Linear -> ResidualBlock x num_blocks 
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Input representation | Raw concatenation or `EmbeddingLayer` | Converts heterogeneous columns to a tensor. |
-| Initial projection | `nn.Linear(input_dim, layer_sizes[0])` | Sets hidden width. |
-| Residual body | `ResidualBlock` | Learns transformations with skip paths. |
-| Output layer | `nn.Linear(layer_sizes[-1], num_classes)` | Produces task outputs. |
+| Component            | DeepTab implementation                    | Role                                        |
+| -------------------- | ----------------------------------------- | ------------------------------------------- |
+| Input representation | Raw concatenation or `EmbeddingLayer`     | Converts heterogeneous columns to a tensor. |
+| Initial projection   | `nn.Linear(input_dim, layer_sizes[0])`    | Sets hidden width.                          |
+| Residual body        | `ResidualBlock`                           | Learns transformations with skip paths.     |
+| Output layer         | `nn.Linear(layer_sizes[-1], num_classes)` | Produces task outputs.                      |
 
 ## Implementation Notes
 
@@ -47,7 +47,7 @@ model = ResNetRegressor(
         dropout=0.2,
         norm=True,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -55,13 +55,13 @@ model = ResNetRegressor(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `layer_sizes` | `[128, 64]` to `[512, 256, 128]` | Width schedule. |
-| `num_blocks` | `2` to `5` | Depth of residual processing. |
-| `dropout` | `0.0` to `0.5` | Regularization. |
-| `norm` | `False` or `True` | Enables normalization inside residual blocks. |
-| `use_embeddings` | `False` or `True` | Useful for categorical-heavy data. |
+| Setting          | Typical range                    | Effect                                        |
+| ---------------- | -------------------------------- | --------------------------------------------- |
+| `layer_sizes`    | `[128, 64]` to `[512, 256, 128]` | Width schedule.                               |
+| `num_blocks`     | `2` to `5`                       | Depth of residual processing.                 |
+| `dropout`        | `0.0` to `0.5`                   | Regularization.                               |
+| `norm`           | `False` or `True`                | Enables normalization inside residual blocks. |
+| `use_embeddings` | `False` or `True`                | Useful for categorical-heavy data.            |
 
 ## When To Use
 

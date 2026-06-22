@@ -22,13 +22,13 @@ features -> Conv1d feature interaction -> NeuralDecisionTree x n_ensembles -> we
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Feature interaction | `nn.Conv1d` | Produces transformed feature inputs for trees. |
-| Tree ensemble | `nn.ModuleList[NeuralDecisionTree]` | Differentiable forest members. |
-| Random tree settings | sampled input dimensions, depths, temperatures | Adds diversity across trees. |
-| Ensemble weights | learnable `tree_weights` | Combines member predictions. |
-| Penalty path | `penalty_forward` | Returns prediction and scaled tree penalty. |
+| Component            | DeepTab implementation                         | Role                                           |
+| -------------------- | ---------------------------------------------- | ---------------------------------------------- |
+| Feature interaction  | `nn.Conv1d`                                    | Produces transformed feature inputs for trees. |
+| Tree ensemble        | `nn.ModuleList[NeuralDecisionTree]`            | Differentiable forest members.                 |
+| Random tree settings | sampled input dimensions, depths, temperatures | Adds diversity across trees.                   |
+| Ensemble weights     | learnable `tree_weights`                       | Combines member predictions.                   |
+| Penalty path         | `penalty_forward`                              | Returns prediction and scaled tree penalty.    |
 
 ## Implementation Notes
 
@@ -51,7 +51,7 @@ model = NDTFClassifier(
         node_sampling=0.3,
         lamda=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -59,13 +59,13 @@ model = NDTFClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `n_ensembles` | `4` to `24` | Number of neural trees. |
-| `min_depth`, `max_depth` | `3` to `16` | Tree depth distribution. |
-| `temperature` | `0.05` to `0.5` | Soft routing sharpness. |
-| `node_sampling` | `0.1` to `0.8` | Node-level sampling regularization. |
-| `penalty_factor` | `1e-10` to `1e-6` | Strength of tree penalty term. |
+| Setting                  | Typical range     | Effect                              |
+| ------------------------ | ----------------- | ----------------------------------- |
+| `n_ensembles`            | `4` to `24`       | Number of neural trees.             |
+| `min_depth`, `max_depth` | `3` to `16`       | Tree depth distribution.            |
+| `temperature`            | `0.05` to `0.5`   | Soft routing sharpness.             |
+| `node_sampling`          | `0.1` to `0.8`    | Node-level sampling regularization. |
+| `penalty_factor`         | `1e-10` to `1e-6` | Strength of tree penalty term.      |
 
 ## When To Use
 
