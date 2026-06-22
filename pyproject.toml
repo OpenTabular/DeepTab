@@ -30,6 +30,9 @@ scipy = "^1.15.0"
 pretab = "^0.0.1"
 delu = "*"
 faiss-cpu = "*"
+structlog = { version = "*", optional = true }
+mlflow = { version = "*", optional = true }
+tensorboard = { version = "*", optional = true }
 
 [tool.poetry.extras]
 logs = ["structlog"]
