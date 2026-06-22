@@ -65,11 +65,11 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     if cat_cols:
         if not bool_cols:
             df = df.copy()
-        df[cat_cols] = df[cat_cols].astype(object)
+        df = df.astype(dict.fromkeys(cat_cols, "object"))
 
     # Catch any other dtype that is neither numeric nor object/string
     bad_cols = [
-        (c, dt)
+        (str(c), dt)
         for c, dt in df.dtypes.items()
         if not (
             pd.api.types.is_numeric_dtype(dt) or pd.api.types.is_object_dtype(dt) or pd.api.types.is_string_dtype(dt)
