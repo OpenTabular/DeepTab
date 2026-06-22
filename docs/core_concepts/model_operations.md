@@ -24,23 +24,23 @@ predictions = loaded.predict(X_test)
 ```
 
 ```{tip}
-Use the class that matches the saved model type. Using the wrong class will raise an error with a clear message pointing to the mismatch.
+`load()` reconstructs whatever model type was saved, regardless of which estimator class you call it on. Calling `MLPRegressor.load("classifier.deeptab")` still returns an `MLPClassifier`. Calling `load()` from the matching class keeps the intent clear, but the returned object always has the saved type.
 ```
 
 ### What is inside the artifact
 
 The bundle saved to disk is a PyTorch-serialised dictionary containing:
 
-| Key                     | Contents                                                                  |
-| ----------------------- | ------------------------------------------------------------------------- |
-| `task_model_state_dict` | Neural network weights (Lightning module state dict)                      |
-| `preprocessor`          | Fitted `pretab.Preprocessor` object                                       |
-| `feature_info`          | Numerical, categorical, and embedding feature metadata                    |
-| `config`                | Model config dataclass used during training                               |
-| `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks         |
-| `input_columns`         | Ordered list of column names, for feature-name validation at predict time |
-| `classes_`              | Class labels for classifiers                                              |
-| `versions`              | Python, PyTorch, Lightning, NumPy, pandas, scikit-learn versions          |
+| Key                     | Contents                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `task_model_state_dict` | Neural network weights (Lightning module state dict)                                                                           |
+| `preprocessor`          | Fitted `pretab.Preprocessor` object                                                                                            |
+| `feature_info`          | Numerical, categorical, and embedding feature metadata                                                                         |
+| `config`                | Model config dataclass used during training                                                                                    |
+| `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks                                                              |
+| `input_columns`         | Ordered list of column names, for feature-name validation at predict time                                                      |
+| `classes_`              | Class labels for classifiers                                                                                                   |
+| `versions`              | Python, platform, and key package versions (`deeptab`, `torch`, `lightning`, `numpy`, `pandas`, `scikit-learn`, `pretab`, ...) |
 
 ### Why everything lives in one bundle
 
@@ -142,7 +142,7 @@ The schema grows with the number of features, not the number of rows. It is the 
 
 ## Model Inspection
 
-All DeepTab estimators inherit `InspectionMixin`, which provides four read-only methods and one dry-run profiler. They are safe to call before or after fitting.
+All DeepTab estimators inherit `InspectionMixin`, which provides four read-only methods and one dry-run profiler. `describe()`, `summary()`, and `runtime_info()` are safe to call before or after fitting; `parameter_table()` requires a built model and raises otherwise.
 
 ### `describe()`: structured dict
 
@@ -151,15 +151,19 @@ Returns a structured snapshot of the estimator and its fitted state:
 ```python
 info = model.describe()
 # {
-#   "estimator":      "MLPClassifier",
-#   "architecture":   "MLP",
-#   "task":           "classification",
-#   "built":          True,
-#   "fitted":         True,
-#   "model_config":   "MLPConfig",
-#   "feature_counts": {"numerical": 8, "categorical": 2, "embedding": 0, "total": 10},
-#   "num_classes":    2,
-#   "parameters":     {"total": 45312, "trainable": 45312, "non_trainable": 0},
+#   "estimator":            "MLPClassifier",
+#   "architecture":         "MLP",
+#   "task":                 "classification",
+#   "built":                True,
+#   "fitted":               True,
+#   "model_config":         "MLPConfig",
+#   "preprocessing_config": "PreprocessingConfig",
+#   "trainer_config":       "TrainerConfig",
+#   "feature_counts":       {"numerical": 8, "categorical": 2, "embedding": 0, "total": 10},
+#   "num_classes":          3,
+#   "family":               None,
+#   "returns_ensemble":     False,
+#   "parameters":           {"total": 45312, "trainable": 45312, "non_trainable": 0},
 # }
 ```
 
@@ -180,9 +184,11 @@ print(model.summary())
 #   Features: 10 total (8 numerical, 2 categorical, 0 embedding)
 #   Parameters: 45,312 total, 45,312 trainable, 0 non-trainable
 #   Device: cpu
-#   Precision: None
-#   Accelerator: None
+#   Precision: 32-true
+#   Accelerator: CPUAccelerator
 ```
+
+The `Device`, `Precision`, and `Accelerator` lines appear only once a trainer is attached (after building or fitting); they are omitted when the value is unknown.
 
 ### `parameter_table()`: per-parameter DataFrame
 
@@ -208,8 +214,8 @@ info = model.runtime_info()
 #   "fitted":       True,
 #   "device":       "cpu",
 #   "dtype":        "float32",
-#   "precision":    None,
-#   "accelerator":  None,
+#   "precision":    "32-true",
+#   "accelerator":  "CPUAccelerator",
 #   "max_epochs":   100,
 #   "current_epoch": 87,
 #   "batch_size":   64,

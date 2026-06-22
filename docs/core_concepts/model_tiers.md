@@ -49,37 +49,19 @@ guide.
 
 ## Choosing a Tier
 
-Use stable models when:
+| Consideration      | Stable                                 | Experimental                             |
+| ------------------ | -------------------------------------- | ---------------------------------------- |
+| Primary use        | Production and long-running projects   | Prototyping and research comparisons     |
+| Reproducibility    | Stable across minor releases           | Requires pinning an exact version        |
+| API stability      | Compatible within a major version      | May introduce breaking changes           |
+| Maintenance burden | Lower; safe baseline for collaborators | Higher; tracks recent, evolving research |
+| Goal               | Reliable deployment                    | Early evaluation and research feedback   |
 
-- the code will run in production;
-- experiments need long-term reproducibility;
-- collaborators need a lower-maintenance baseline;
-- APIs must remain stable across minor releases.
-
-Use experimental models when:
-
-- you are evaluating recent architectures;
-- you can pin DeepTab to an exact version;
-- breaking changes are acceptable;
-- the goal is research feedback rather than deployment.
-
-## Version Pinning
-
-For stable-only projects, pin a compatible range:
-
-```text
-deeptab>=2.0,<3.0
+```{note}
+**Version pinning.** For stable-only projects, pin a compatible range such as
+`deeptab>=2.0,<3.0`. For projects that use experimental models, pin the exact
+version (`deeptab==2.0.0`), since their APIs may change between releases.
 ```
-
-For experimental-model projects, pin the exact version:
-
-```text
-deeptab==2.0.0
-```
-
-## Documentation Policy
-
-Stable model docs should document both the paper idea and the actual DeepTab implementation. Experimental docs should be even more explicit about implementation differences, config limitations, and expected API volatility.
 
 ## Next Steps
 

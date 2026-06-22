@@ -6,6 +6,20 @@ DeepTab can record what happens during training without you writing a single cal
 Observability is entirely opt-in. Estimators created without an `ObservabilityConfig` train exactly as before and emit nothing, so notebooks stay quiet by default.
 ```
 
+The default `pip install deeptab` does not include the observability backends. Install the extra you need:
+
+```bash
+pip install 'deeptab[logs]'         # structlog (structured logging)
+pip install 'deeptab[tensorboard]'  # TensorBoard tracker
+pip install 'deeptab[mlflow]'       # MLflow tracker
+pip install 'deeptab[tracking]'     # TensorBoard + MLflow
+pip install 'deeptab[all]'          # structlog + TensorBoard + MLflow
+```
+
+```{note}
+Each backend is loaded lazily, so a missing package raises only when you enable the matching feature.
+```
+
 ---
 
 ## Attaching observability
@@ -18,7 +32,7 @@ from deeptab.models import MambularClassifier
 
 obs = ObservabilityConfig(
     experiment_name="churn_baseline",
-    structured_logging=True,          # human-readable console + JSON event log
+    structured_logging=True,          # console event log (add log_to_file=True for JSONL)
     experiment_trackers=["mlflow"],   # also supports "tensorboard"
 )
 
@@ -46,12 +60,12 @@ Every output path is derived from `root_dir`, producing a single organised tree 
 
 ```text
 deeptab_runs/
-  runs/churn_baseline/20260611_174830_8f3a2c/
+  runs/churn_baseline/20260611_174830_8f3a2c1d/
     config.yaml       # estimator hyperparameters
     lifecycle.jsonl   # structured event log (when log_to_file=True)
     summary.json      # final metrics
-    checkpoints/best.ckpt
-  tensorboard/churn_baseline/20260611_174830_8f3a2c/
+    checkpoints/best_model.ckpt
+  tensorboard/churn_baseline/20260611_174830_8f3a2c1d/
     events.out.tfevents...
   mlflow/
     backend/mlflow.db
@@ -66,23 +80,23 @@ The run identifier combines a timestamp and a short hash, so concurrent or repea
 
 `ObservabilityConfig` is a dataclass. All fields are optional and resolve sensible defaults relative to `root_dir`.
 
-| Field                      | Default          | Purpose                                                                        |
-| -------------------------- | ---------------- | ------------------------------------------------------------------------------ |
-| `root_dir`                 | `"deeptab_runs"` | Base directory for all observability outputs.                                  |
-| `experiment_name`          | `"default"`      | Logical label used to group related runs.                                      |
-| `structured_logging`       | `False`          | Enable structured runtime logging via `structlog`.                             |
-| `log_to_console`           | `True`           | Stream compact human-readable output to stdout.                                |
-| `log_to_file`              | `False`          | Write a per-run `lifecycle.jsonl` inside the run directory.                    |
-| `verbosity`                | `1`              | Which lifecycle events are emitted when `structured_logging=True` (see below). |
-| `experiment_trackers`      | `[]`             | Lightning loggers to activate: `"tensorboard"`, `"mlflow"`, or both.           |
-| `tensorboard_save_dir`     | `""`             | Resolved to `<root_dir>/tensorboard` when empty.                               |
-| `tensorboard_name`         | `"deeptab"`      | Sub-directory label inside the TensorBoard save dir.                           |
-| `mlflow_experiment_name`   | `"deeptab"`      | Name of the MLflow experiment.                                                 |
-| `mlflow_tracking_uri`      | `""`             | Resolved to a local SQLite store under `<root_dir>/mlflow` when empty.         |
-| `mlflow_artifact_location` | `""`             | Resolved to `<root_dir>/mlflow/artifacts` when empty.                          |
-| `mlflow_run_name`          | `None`           | Human-readable label for the MLflow run.                                       |
-| `mlflow_log_model`         | `True`           | Upload model checkpoints as MLflow artifacts.                                  |
-| `logger`                   | `None`           | A user-provided Lightning logger appended alongside any built-in trackers.     |
+| Field                      | Default          | Purpose                                                                               |
+| -------------------------- | ---------------- | ------------------------------------------------------------------------------------- |
+| `root_dir`                 | `"deeptab_runs"` | Base directory for all observability outputs.                                         |
+| `experiment_name`          | `"default"`      | Logical label used to group related runs.                                             |
+| `structured_logging`       | `False`          | Enable structured runtime logging via `structlog`.                                    |
+| `log_to_console`           | `True`           | Stream compact human-readable output to stdout.                                       |
+| `log_to_file`              | `False`          | Write a per-run `lifecycle.jsonl` inside the run directory.                           |
+| `verbosity`                | `1`              | Which lifecycle events are emitted when `structured_logging=True` (see below).        |
+| `experiment_trackers`      | `[]`             | Lightning loggers to activate: `"tensorboard"`, `"mlflow"`, or both.                  |
+| `tensorboard_save_dir`     | `""`             | Resolved to `<root_dir>/tensorboard` when empty.                                      |
+| `tensorboard_name`         | `"deeptab"`      | Reserved label field; the TensorBoard sub-directory currently uses `experiment_name`. |
+| `mlflow_experiment_name`   | `"deeptab"`      | Name of the MLflow experiment.                                                        |
+| `mlflow_tracking_uri`      | `""`             | Resolved to a local SQLite store under `<root_dir>/mlflow` when empty.                |
+| `mlflow_artifact_location` | `""`             | Resolved to `<root_dir>/mlflow/artifacts` when empty.                                 |
+| `mlflow_run_name`          | `None`           | Human-readable label for the MLflow run.                                              |
+| `mlflow_log_model`         | `True`           | Upload model checkpoints as MLflow artifacts.                                         |
+| `logger`                   | `None`           | A user-provided Lightning logger appended alongside any built-in trackers.            |
 
 ```{note}
 `experiment_trackers` is a list, not a single string. Pass `["tensorboard"]`, `["mlflow"]`, or `["mlflow", "tensorboard"]` to activate one or both.
@@ -135,11 +149,15 @@ from deeptab.core.observability import ObservabilityConfig
 
 obs = ObservabilityConfig(
     logger=WandbLogger(project="churn"),   # your existing tracker
-    experiment_trackers=["tensorboard"],   # optional: keep DeepTab trackers too
+    experiment_trackers=["tensorboard"],   # needed for the custom logger to attach
 )
 
 model = MambularClassifier(observability_config=obs)
 model.fit(X_train, y_train, max_epochs=50)
+```
+
+```{warning}
+A custom `logger` is only attached when `experiment_trackers` has at least one entry. With an empty `experiment_trackers`, DeepTab suppresses all Lightning loggers (so no stray `lightning_logs/` directory is created) and the `logger` is dropped. Keep at least one tracker active, such as `["tensorboard"]` above, for your logger to be picked up.
 ```
 
 ```{note}

@@ -19,6 +19,22 @@ import deeptab
 print(deeptab.__version__)  # e.g., "2.0.0"
 ```
 
+## Optional Dependencies
+
+The default install keeps the core small. Observability backends (structured logging and experiment trackers) ship as extras, so install only what you need:
+
+```bash
+pip install 'deeptab[logs]'         # structlog (structured logging)
+pip install 'deeptab[tensorboard]'  # TensorBoard tracker
+pip install 'deeptab[mlflow]'       # MLflow tracker
+pip install 'deeptab[tracking]'     # TensorBoard + MLflow
+pip install 'deeptab[all]'          # structlog + TensorBoard + MLflow
+```
+
+```{note}
+These backends are loaded lazily. Without the matching extra, DeepTab trains normally and raises only when you enable that specific feature. See the [Observability](../core_concepts/observability) guide for usage.
+```
+
 ## Hardware Support
 
 DeepTab automatically detects and uses your accelerator, with no configuration

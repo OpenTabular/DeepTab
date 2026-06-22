@@ -213,13 +213,15 @@ class MyEmbeddedModel(BaseModel):
 
 ## Checklist
 
-- [ ] Config is a `@dataclass` subclassing `BaseModelConfig`.
-- [ ] Mutable config defaults use `field(default_factory=...)`.
-- [ ] Architecture subclasses `BaseModel` and calls `super().__init__(config=config, **kwargs)`.
-- [ ] Constructor calls `self.save_hyperparameters(ignore=["feature_information"])`.
-- [ ] Input width comes from `get_feature_dimensions(...)` or an `EmbeddingLayer`, never a hard-coded value.
-- [ ] `forward` returns raw outputs (no final softmax/sigmoid).
-- [ ] Each estimator sets `_model_cls` and `_config_cls`.
+| Piece        | Requirement                                                                                    |
+| ------------ | ---------------------------------------------------------------------------------------------- |
+| Config       | A `@dataclass` subclassing `BaseModelConfig`.                                                  |
+| Config       | Mutable defaults use `field(default_factory=...)`.                                             |
+| Architecture | Subclasses `BaseModel` and calls `super().__init__(config=config, **kwargs)`.                  |
+| Architecture | Constructor calls `self.save_hyperparameters(ignore=["feature_information"])`.                 |
+| Architecture | Input width comes from `get_feature_dimensions(...)` or an `EmbeddingLayer`, never hard-coded. |
+| Architecture | `forward` returns raw outputs (no final softmax/sigmoid).                                      |
+| Estimator    | Each estimator sets `_model_cls` and `_config_cls`.                                            |
 
 ## Next Steps
 
