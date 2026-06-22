@@ -19,6 +19,10 @@ jobs:
   publish:
     runs-on: ubuntu-latest
     environment: pypi-publish
+    # The "v*.*.*" trigger also matches RC tags (e.g. v2.0.0rc2), so guard
+    # against publishing pre-releases to real PyPI. RC tags are handled by
+    # publish-testpypi.yml instead.
+    if: ${{ !contains(github.ref_name, 'rc') }}
 
     steps:
       - name: Checkout code
