@@ -24,6 +24,8 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     - Empty DataFrames raise :exc:`~deeptab.core.exceptions.EmptyDataError`.
     - ``bool`` columns are silently cast to ``int8``; they represent valid binary
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
+    - ``category`` columns are silently cast to ``object`` so they are detected and
+      preprocessed as categorical features (the underlying categories are kept).
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
     - Columns where every value is NaN issue a
@@ -55,6 +57,15 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     if bool_cols:
         df = df.copy()
         df[bool_cols] = df[bool_cols].astype("int8")
+
+    # category → object: treat pandas categoricals as categorical features.
+    # The dtype detector downstream keys off object/string dtype, so cast here
+    # while preserving the underlying category values.
+    cat_cols = [c for c, dt in df.dtypes.items() if isinstance(dt, pd.CategoricalDtype)]
+    if cat_cols:
+        if not bool_cols:
+            df = df.copy()
+        df[cat_cols] = df[cat_cols].astype(object)
 
     # Catch any other dtype that is neither numeric nor object/string
     bad_cols = [
