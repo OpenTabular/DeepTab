@@ -39,7 +39,6 @@ model.fit(X_train, y_train, max_epochs=50)
 
 # Evaluate on test set
 metrics = model.evaluate(X_test, y_test)
-# Returns e.g. {"accuracy": 0.91, "auroc": 0.96, "log_loss": 0.28}
 print(f"Test accuracy: {metrics['accuracy']:.3f}")
 
 # Make predictions
@@ -87,7 +86,6 @@ X_train, X_test, y_train, y_test = train_test_split(
 model = FTTransformerRegressor()
 model.fit(X_train, y_train, max_epochs=50)
 
-# Evaluate (returns RMSE, MAE, R² for regression)
 metrics = model.evaluate(X_test, y_test)
 print(f"Test RMSE: {metrics['rmse']:.3f}")
 
@@ -250,9 +248,39 @@ Use the `.deeptab` extension for saved models. DeepTab accepts any extension but
 
 Note: `save()` writes a fitted estimator artifact, not just neural-network weights. The artifact includes the architecture/config, trained weights, fitted preprocessing state, feature schema and column order, task metadata such as classifier `classes_`, and package versions for debugging reloads across environments.
 
-## Going further
+## Inference guide
 
-These examples cover the core workflow. For hyperparameter optimisation, custom optimizers and schedulers, cross-validation, working with embeddings, comparing architectures, and debugging, see the [Tutorials](../tutorials/imbalance_classification), [Core Concepts](../core_concepts/training_and_evaluation), and the [FAQ](faq).
+For serving a fitted model, DeepTab provides `InferenceModel`, a read-only wrapper built for production. It loads an artifact, validates incoming data against the training schema, and predicts, while deliberately hiding `fit` and other training methods so deployment code cannot retrain a model by accident.
+
+```python
+from deeptab import InferenceModel
+
+# Load a saved artifact (one type, regardless of the architecture inside)
+model = InferenceModel.from_path("my_model.deeptab")
+
+# Validate new data against the training schema, then predict
+X_valid = model.validate_input(X_new)
+predictions = model.predict(X_valid)
+
+# Task-specific outputs
+probabilities = model.predict_proba(X_valid)   # classifiers only
+params = model.predict_params(X_valid)         # LSS models only
+```
+
+`validate_input` checks that the expected columns are present, reorders them to the training order, and reports missing or unexpected columns with clear messages. You can also wrap an already-fitted estimator without going through disk using `InferenceModel.from_estimator(estimator)`.
+
+```{note}
+`InferenceModel` exposes only the prediction method that matches the task: `predict_proba` for classifiers and `predict_params` for `LSS` models. Calling the wrong one raises a clear error, so serving code never branches on the concrete model class.
+```
+
+If you only need a quick prediction during experimentation, calling `predict` on the fitted estimator directly works too:
+
+```python
+predictions = model.predict(X_new)         # estimator or InferenceModel
+metrics = trained_estimator.evaluate(X_new, y_new)
+```
+
+See [Inference and deployment](../core_concepts/inference) for the full production contract, schema-validation options, and introspection helpers.
 
 ## Next steps
 
@@ -263,4 +291,4 @@ Now that you've run your first models, explore:
 - **[API Reference](../api/models/index)**: Full documentation of all models and configs
 - **[FAQ](faq)**: Answers to common questions
 
-For questions or issues, check the [FAQ](faq) or open an issue on [GitHub](https://github.com/OpenTabular/DeepTab/issues).
+For questions or issues, open an issue on [GitHub](https://github.com/OpenTabular/DeepTab/issues).

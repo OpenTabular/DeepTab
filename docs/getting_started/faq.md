@@ -6,21 +6,36 @@ Frequently asked questions about DeepTab and troubleshooting common issues.
 
 ### What's the difference between DeepTab v1 and v2?
 
-Version 2.0 introduces a fully typed data layer (`TabularDataset`, `TabularDataModule`, `FeatureSchema`, `TabularBatch`) that makes it easier to work with tabular data at a lower level. The high-level estimator API remains unchanged and is still the recommended interface for most users.
+v2.0 is a ground-up restructuring of DeepTab. The high-level estimator workflow stays familiar, but the package layout, configuration objects, and import paths have changed. Three things affect existing code:
 
-Key changes in v2.0:
+1. **Import paths** were reorganised under the `deeptab` namespace.
+2. **Config classes** dropped their `Default` prefix (`DefaultMambularConfig` is now `MambularConfig`) and settings are split across `MambularConfig` (architecture), `PreprocessingConfig` (feature handling), and `TrainerConfig` (training).
+3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset`; the old `Mambular*` aliases are deprecated.
 
-- **Automatic stratification** for classification tasks
-- **Typed batch containers** with device management
-- **Feature schema tracking** with metadata
-- **Consistent label shapes** across tasks
-- Deprecated `MambularDataset`/`MambularDataModule` aliases (use `TabularDataset`/`TabularDataModule`)
+The split-config API is the main thing you reach for day to day. In v1 every option was a flat keyword argument on the estimator; in v2 the same options live in dedicated config objects, while `fit`, `predict`, and `evaluate` behave exactly as before.
 
-```{important}
-**Note on v1 support**: DeepTab v1 is no longer supported following the v2.0 release. The changes in package structure and API design were substantial enough that maintaining backward compatibility would have compromised the improvements in v2. If you're using v1 in production, we recommend planning a migration to v2. Pin your dependency to `deeptab<2.0` if you need to continue using v1, but be aware that no bug fixes or security updates will be provided for the v1 branch.
+```python
+# v1: settings passed as flat keyword arguments
+model = MambularClassifier(d_model=128, n_layers=4, numerical_preprocessing="ple")
 ```
 
-See the [Overview](overview) for details on the new data API.
+```python
+# v2: settings grouped into focused config objects
+from deeptab.configs import MambularConfig, PreprocessingConfig
+
+model = MambularClassifier(
+    model_config=MambularConfig(d_model=128, n_layers=4),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),
+)
+```
+
+You only pass the configs you want to change; `MambularClassifier()` uses sensible defaults for all three.
+
+```{important}
+v2.0 is not backward compatible with v1, and v1 is no longer maintained. If you need to stay on v1, pin `deeptab<2.0`, but note that the v1 branch receives no bug fixes or security updates.
+```
+
+See the [Overview](overview) for the full v2 data API, and the [homepage](../homepage) for the complete list of new features.
 
 ### Which model should I use?
 
@@ -28,15 +43,17 @@ See the [Overview](overview) for details on the new data API.
 When in doubt, start with `MambularClassifier` or `MambularRegressor`.
 ```
 
-Mambular tends to work well across a variety of tabular problems. For a full selection guide by dataset size, feature type, and compute constraints, see the [Model Comparison](../model_zoo/comparison_tables) page.
+Mambular tends to work well across a variety of tabular problems.
 
-Quick pointers:
+| Goal                            | Try                  |
+| ------------------------------- | -------------------- |
+| Strong general-purpose baseline | `TabM` or `Mambular` |
+| Many categorical features       | `TabTransformer`     |
+| Fastest baseline                | `MLP` or `ResNet`    |
+| Uncertainty estimates           | any `LSS` variant    |
+| Interpretability                | `NODE` or `NDTF`     |
 
-- **Strong general-purpose baseline** → `TabM` or `Mambular`
-- **Many categorical features** → `TabTransformer`
-- **Fastest baseline** → `MLP` or `ResNet`
-- **Uncertainty estimates** → any `LSS` variant
-- **Interpretability** → `NODE` or `NDTF`
+These are starting points, not rules. For the detailed comparison by dataset size, feature mix, and compute budget, see the [Model Comparison](../model_zoo/comparison_tables) page.
 
 ### Do I need a GPU?
 
@@ -51,14 +68,15 @@ For a full per-model breakdown including the cost driver for each architecture, 
 
 ### How do I know if my GPU is being used?
 
-Check CUDA availability:
+Print the hardware DeepTab can see:
 
 ```python
-import torch
-print(f"CUDA available: {torch.cuda.is_available()}")
+from deeptab import print_hardware_info
+
+print_hardware_info()
 ```
 
-DeepTab will automatically use the first available GPU. If CUDA is available but you're not seeing speedups, ensure you're training on a reasonably large dataset, since small batches may not benefit from GPU parallelism.
+The report lists the CPU, any CUDA GPUs, the Apple Silicon MPS backend, and the `accelerator` DeepTab would pick by default. DeepTab uses the first available GPU automatically. If a GPU is listed but you're not seeing speedups, make sure you're training on a reasonably large dataset, since small batches may not benefit from GPU parallelism.
 
 ### Can I use DeepTab with PyTorch dataloaders?
 
@@ -112,7 +130,7 @@ model = MambularClassifier()
 model.fit(df, y, max_epochs=50)
 ```
 
-The pretab preprocessor (used internally) applies median imputation for numerical features and mode imputation for categoricals by default.
+The internal [PreTab](https://github.com/OpenTabular/PreTab) preprocessor imputes missing values as part of fitting, so you do not need a separate imputation step. The exact strategy follows the configured `PreprocessingConfig`; with the defaults it uses PreTab's built-in imputation for numerical and categorical features.
 
 ### Can I use NumPy arrays instead of DataFrames?
 
@@ -182,24 +200,36 @@ model.fit(df, y, max_epochs=50)
 
 ### How do I speed up training?
 
-```{tip}
-Combine GPU acceleration with larger batch sizes and early stopping for fastest training.
+Start by checking what hardware DeepTab is actually using, then adjust the parts that matter most.
+
+**1. Confirm you are on an accelerator.** Print the detected hardware:
+
+```python
+from deeptab import print_hardware_info
+
+print_hardware_info()
 ```
 
-Several options:
+If the recommended accelerator is `cpu` but you expect a GPU, install a CUDA-enabled PyTorch build (see the [installation guide](installation)). DeepTab uses the first available GPU automatically, but you can also force it explicitly:
 
-1. **Use a GPU**: install CUDA-enabled PyTorch
-2. **Increase batch size**: larger batches are more efficient when memory allows (`TrainerConfig(batch_size=...)`)
-3. **Reduce epochs**: rely on early stopping instead of a fixed epoch count
-4. **Use multi-worker data loading**: pass `num_workers` through `dataloader_kwargs` in `fit()`
+```python
+model.fit(X_train, y_train, accelerator="gpu", max_epochs=100)
+```
+
+**2. Use a batch size that keeps the accelerator busy.** GPUs and MPS only pay off with larger batches. Try 256 or more; on very small datasets (under ~1K rows) the CPU can be faster because of transfer overhead.
+
+**3. Check the learning rate.** Training that crawls for many epochs is often a learning-rate problem, not a hardware one. The default is conservative; a slightly higher rate can converge in far fewer epochs. Raise it carefully and watch the loss.
+
+**4. Lean on early stopping instead of a fixed epoch count**, and speed up data loading with extra workers.
 
 ```python
 from deeptab.configs import TrainerConfig
 
 model = MambularClassifier(
     trainer_config=TrainerConfig(
-        batch_size=512,   # Larger batch size
-        patience=10,      # Early stopping
+        batch_size=512,   # keep the accelerator busy
+        lr=1e-3,          # raise from the default if convergence is slow
+        patience=10,      # stop once the validation metric plateaus
     )
 )
 
@@ -207,24 +237,30 @@ model = MambularClassifier(
 model.fit(X_train, y_train, dataloader_kwargs={"num_workers": 4}, max_epochs=100)
 ```
 
-### Training is slow on GPU
-
 ```{note}
-GPUs need larger batch sizes to show a speedup over CPU. Small batches or datasets may run faster on CPU.
+A GPU is not always faster. For small datasets or tiny batches the transfer overhead can outweigh the speedup, and the CPU may win. Benchmark both on your data.
 ```
 
-Ensure you're using GPU:
+```{warning}
+Raising the learning rate too far makes training unstable and the loss can diverge. If that happens, lower it again and see [Training is unstable (loss explodes)](#training-is-unstable-loss-explodes).
+```
+
+### How do I use multiple GPUs?
+
+Pass Lightning's multi-device arguments straight through `fit()`. Set `devices` to the number of GPUs (or a list of indices) and choose a `strategy` such as `"ddp"`:
 
 ```python
-import torch
-print(torch.cuda.is_available())  # Should be True
+model = MambularClassifier()
+model.fit(
+    X_train, y_train,
+    accelerator="gpu",
+    devices=2,            # or [0, 1] to pick specific GPUs
+    strategy="ddp",       # distributed data parallel
+    max_epochs=100,
+)
 ```
 
-If True but still slow:
-
-- **Small batches**: GPU efficiency requires larger batches (try 256+)
-- **Small dataset**: for < 1K samples, CPU may be faster due to transfer overhead
-- **CPU bottleneck**: increase `num_workers` via `dataloader_kwargs` in `fit()` for faster data loading
+For finer control over the distributed setup, drive `TabularDataModule` with your own Lightning module (advanced usage).
 
 ### How do I use early stopping?
 
@@ -384,7 +420,7 @@ batch = batch.to("cuda")  # Move entire batch
 
 The estimator API handles this automatically.
 
-## Model-specific
+## Choosing a model
 
 ### What's the difference between Mambular and MambaTab?
 
@@ -522,84 +558,38 @@ between releases.
 
 ### Can I use custom loss functions?
 
-Not directly through the estimator API. If you need custom losses, use `TabularDataModule` with a custom Lightning module.
+Yes, for classifiers. Pass `loss_fct` to `fit()`: either an `nn.Module` instance, which is used as-is, or a registered loss name such as `"focal"`, `"bce"`, or `"cross_entropy"`, which is built and combined with any `class_weight` you set.
+
+```python
+import torch.nn as nn
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier()
+
+# A custom nn.Module loss
+model.fit(X_train, y_train, loss_fct=nn.CrossEntropyLoss(label_smoothing=0.1))
+
+# Or a registered loss by name (here combined with class weighting)
+model.fit(X_train, y_train, loss_fct="focal", class_weight="balanced")
+```
+
+```{note}
+When `loss_fct` is an `nn.Module`, it is used as given and `class_weight` is ignored. Regressors use the task default loss; to swap the loss for a regression model, drive `TabularDataModule` with a custom Lightning module.
+```
 
 ### How do I extract learned features?
 
-Access intermediate representations:
+Use the public `encode()` method on a fitted model. It runs the backbone and returns dense representations as a tensor of shape `(n_samples, embedding_dim)`, which you can feed into clustering, similarity search, or another downstream model.
 
 ```python
 model = MambularClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
-# The raw architecture lives on the fitted Lightning module (internal API)
-architecture = model._task_model.estimator
+embeddings = model.encode(X_test)   # torch.Tensor, shape (n_samples, embedding_dim)
+print(embeddings.shape)
 ```
 
-This is an advanced use case. See the source code for details.
-
-### Can I use multiple GPUs?
-
-DeepTab uses the first available GPU by default. For multi-GPU training, use Lightning's distributed strategies directly with `TabularDataModule` (advanced usage).
-
-## Contributing and support
-
-### How do I report a bug?
-
-Open an issue on [GitHub](https://github.com/OpenTabular/DeepTab/issues) with:
-
-- DeepTab version (`import deeptab; print(deeptab.__version__)`)
-- Python version
-- PyTorch version
-- Minimal reproducible example
-- Full error traceback
-
-### How do I request a feature?
-
-Open a feature request on [GitHub](https://github.com/OpenTabular/DeepTab/issues) describing:
-
-- The use case
-- Why existing features don't solve it
-- Proposed API (if applicable)
-
-### How do I contribute?
-
-See the [Contributing guide](../developer_guide/contributing) for:
-
-- Setting up the development environment
-- Running tests
-- Code style guidelines
-- Submitting pull requests
-
-### Where can I get help?
-
-- Check this FAQ first
-- Search [GitHub issues](https://github.com/OpenTabular/DeepTab/issues)
-- Open a new issue for bugs or questions
-- Join discussions on the GitHub repo
-
-## Performance comparisons
-
-### How does DeepTab compare to XGBoost?
-
-It depends on the dataset:
-
-- **Small datasets (< 1K samples)**: XGBoost often wins
-- **Large datasets (> 10K samples)**: DeepTab competitive or better, especially with complex feature interactions
-- **Categorical-heavy data**: XGBoost may be more efficient
-- **Need for uncertainty**: DeepTab LSS models provide distributional predictions
-
-Use both and compare on your specific data. DeepTab makes experimentation easy.
-
-### Is DeepTab faster than training PyTorch manually?
-
-No, DeepTab uses PyTorch under the hood. It provides convenience, not speed improvements. However, it does:
-
-- Apply sensible defaults (early stopping, LR scheduling)
-- Handle device management automatically
-- Provide efficient data loading
-
-So while not "faster", it helps you get to a working model more quickly.
+If you also passed external `embeddings` at fit time, supply them again with `model.encode(X_test, embeddings=...)` so the rows stay aligned.
 
 ## Still have questions?
 
