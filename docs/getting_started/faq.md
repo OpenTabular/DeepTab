@@ -35,7 +35,7 @@ You only pass the configs you want to change; `MambularClassifier()` uses sensib
 v2.0 is not backward compatible with v1, and v1 is no longer maintained. If you need to stay on v1, pin `deeptab<2.0`, but note that the v1 branch receives no bug fixes or security updates.
 ```
 
-See the [Overview](overview) for the full v2 data API, and the [homepage](../homepage) for the complete list of new features.
+See the [Overview](overview) for the full v2 data API, and the [homepage](../index) for the complete list of new features.
 
 ### Which model should I use?
 
