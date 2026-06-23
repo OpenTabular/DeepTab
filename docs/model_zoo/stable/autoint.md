@@ -1,5 +1,7 @@
 # AutoInt
 
+**Available as:** `AutoIntClassifier`, `AutoIntRegressor`, `AutoIntLSS` — import from `deeptab.models`.
+
 ## Overview
 
 AutoInt learns feature interactions with stacked multi-head self-attention layers. It treats tabular columns as feature tokens, repeatedly attends across tokens, flattens the final token sequence, and predicts with a linear head.

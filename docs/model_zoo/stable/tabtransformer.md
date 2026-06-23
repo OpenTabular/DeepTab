@@ -1,5 +1,7 @@
 # TabTransformer
 
+**Available as:** `TabTransformerClassifier`, `TabTransformerRegressor`, `TabTransformerLSS` — import from `deeptab.models`.
+
 ## Overview
 
 TabTransformer uses self-attention to contextualize categorical feature embeddings. DeepTab's implementation follows that core idea: categorical and external embedding features pass through a Transformer encoder, while numerical features are normalized and concatenated afterward before the prediction head.

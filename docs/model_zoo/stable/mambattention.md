@@ -1,5 +1,7 @@
 # MambAttention
 
+**Available as:** `MambAttentionClassifier`, `MambAttentionRegressor`, `MambAttentionLSS` — import from `deeptab.models`.
+
 ## Overview
 
 MambAttention is a hybrid model that alternates Mamba-style sequence processing with multi-head attention over feature tokens. It is useful for testing whether state-space layers and explicit attention provide complementary inductive biases.

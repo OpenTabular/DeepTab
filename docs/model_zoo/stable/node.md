@@ -1,5 +1,7 @@
 # NODE
 
+**Available as:** `NODEClassifier`, `NODERegressor`, `NODELSS` — import from `deeptab.models`.
+
 ## Overview
 
 NODE implements Neural Oblivious Decision Ensembles: differentiable oblivious decision trees trained inside a neural network. It is a useful bridge between tree-based inductive bias and gradient-based deep learning.

@@ -1,5 +1,7 @@
 # Trompt
 
+**Available as:** `TromptClassifier`, `TromptRegressor`, `TromptLSS` — import from `deeptab.models.experimental`.
+
 **Trompt** is a prompt-inspired tabular architecture. It uses learnable prompt/prototype records and feature-importance maps to repeatedly aggregate column representations, producing one prediction per cycle.
 
 ```{warning}

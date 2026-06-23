@@ -1,5 +1,7 @@
 # ENODE
 
+**Available as:** `ENODEClassifier`, `ENODERegressor`, `ENODELSS` — import from `deeptab.models`.
+
 ## Overview
 
 ENODE is DeepTab's enhanced NODE variant. It keeps differentiable oblivious tree layers but operates on embedded feature tokens and aggregates the learned tree representation before a compact prediction head.

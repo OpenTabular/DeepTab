@@ -64,56 +64,6 @@ The "DeepTab Default Shape" column is taken from the current model config defaul
 - **Other:** Standard architectures (MLP, parameter-efficient ensembles, RNNs).
 ```
 
-## Architecture Categories
-
-### State Space Models (SSMs)
-
-**Feature-sequence models with linear sequence-length scaling in the Mamba blocks**
-
-| Model         | Default Layers | Default Hidden Dim | Key Feature                              | Best Use Case                             |
-| ------------- | -------------- | ------------------ | ---------------------------------------- | ----------------------------------------- |
-| Mambular      | 4 Mamba layers | 64                 | Stacked Mamba blocks over feature tokens | General-purpose tabular sequence modeling |
-| MambaTab      | 1 Mamba layer  | 64                 | Lightweight Mamba block                  | Small datasets, speed                     |
-| MambAttention | Hybrid         | 64                 | Mamba blocks plus feature attention      | Complex feature interactions              |
-
-### Transformer-Based
-
-**Attention mechanisms for feature and row interactions**
-
-| Model          | Attention Scope    | Default Hidden Dim | Key Feature                                 | Best Use Case                           |
-| -------------- | ------------------ | ------------------ | ------------------------------------------- | --------------------------------------- |
-| FTTransformer  | All feature tokens | 128                | Feature tokenization                        | Feature interactions                    |
-| TabTransformer | Categorical tokens | 128                | Contextual categorical embeddings           | Categorical-heavy data                  |
-| SAINT          | Row + column       | 128                | Intersample (row) plus column attention     | Semi-supervised or row-context settings |
-| AutoInt        | All feature tokens | 128                | Self-attentive feature interaction learning | Automatic interaction modeling          |
-
-### Tree-Inspired
-
-**Differentiable tree and forest structures**
-
-| Model | Tree Type                      | Default Shape                      | Key Feature                                 | Best Use Case                          |
-| ----- | ------------------------------ | ---------------------------------- | ------------------------------------------- | -------------------------------------- |
-| NODE  | Oblivious differentiable trees | 4 layers, 128 trees/layer, depth 6 | Soft routing over oblivious trees           | Interpretable tree-inspired modeling   |
-| ENODE | Embedded NODE variant          | 4 layers, 64 trees/layer, depth 6  | Feature embeddings before NODE-style blocks | Tree-inspired modeling with embeddings |
-| NDTF  | Neural decision tree forest    | 12 trees, random depths 4 to 15    | Multiple neural decision trees              | Tree ensemble-style experiments        |
-
-### Residual Networks
-
-**Deep feedforward networks with skip connections**
-
-| Model  | Default Shape                                   | Key Feature                    | Best Use Case                                  |
-| ------ | ----------------------------------------------- | ------------------------------ | ---------------------------------------------- |
-| ResNet | 3 residual blocks, `[256, 128, 32]` layer sizes | Residual blocks                | Fast baseline                                  |
-| TabR   | `d_main=256`, `context_size=96`                 | Retrieval-augmented prediction | Larger datasets with useful neighbor structure |
-
-### Other Architectures
-
-| Model     | Type                         | Default Shape                                      | Key Feature                   | Best Use Case               |
-| --------- | ---------------------------- | -------------------------------------------------- | ----------------------------- | --------------------------- |
-| MLP       | Feedforward                  | `[256, 128, 32]` layer sizes                       | Simple dense baseline         | Fastest baseline            |
-| TabM      | Parameter-efficient ensemble | `[256, 256, 128]` layer sizes, 32 ensemble members | Batch ensembling              | Strong efficient baseline   |
-| TabulaRNN | RNN                          | `d_model=128`, 4 recurrent layers                  | Sequential feature processing | Sequential feature modeling |
-
 ## Model Selection by Use Case
 
 ```{note}
@@ -157,27 +107,6 @@ The "DeepTab Default Shape" column is taken from the current model config defaul
 | **LSS (Distributional)** | Mambular, FTTransformer, MambAttention     | MambaTab               | ENODE             | All models support LSS mode                                  |
 
 **Special cases:** For quantile regression, use any model in LSS mode with an appropriate distribution family.
-
-## Recommended Decision Tree
-
-```
-Start Here
-|
-|- Dataset size <5K? -> Use MambaTab, ResNet, MLP, or TabM with regularization
-|
-|- Need tree-inspired interpretability? -> Use NODE, ENODE, or NDTF
-|
-|- Memory constrained (<8GB)? -> Prefer Mambular, MambaTab, MLP, ResNet, or TabM
-|
-|- Inference latency critical? -> Avoid retrieval/large attention; use MLP, ResNet, TabM, or Mamba variants
-|
-|- >60% categorical features? -> Consider TabTransformer
-|
-|- Need retrieval from similar training examples? -> Consider TabR
-|
-`- General purpose -> Mambular or TabM
-   `- Alternative -> FTTransformer when GPU memory and feature count permit
-```
 
 ## Hardware Requirements by Model
 

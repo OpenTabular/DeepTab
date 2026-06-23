@@ -1,5 +1,7 @@
 # MambaTab
 
+**Available as:** `MambaTabClassifier`, `MambaTabRegressor`, `MambaTabLSS` — import from `deeptab.models`.
+
 ## Overview
 
 MambaTab is exposed as a stable Mamba-family model, but the current DeepTab forward path behaves as a lightweight projected-feature network: it concatenates input features, projects them to `d_model`, normalizes and activates the representation, then predicts with `MLPhead`.
@@ -33,6 +35,8 @@ features -> concat -> Linear(input_dim, d_model) -> LayerNorm -> activation -> M
 ## Implementation Notes
 
 The presence of Mamba-related config fields (`d_state`, `d_conv`, `expand_factor`, `mamba_version`, `bidirectional`) does not mean they affect the current forward pass. They configure the instantiated `self.mamba` module, but that module is not applied before the head.
+
+`mamba_version="mamba-torch"` (the default) selects DeepTab's local `Mamba` block; any other value selects `MambaOriginal`. Either way, the chosen block is built in `__init__` but skipped by `forward`, so this setting has no effect in the current release.
 
 This distinction matters for research comparisons: document the DeepTab version and verify the forward path if you report MambaTab as a state-space model.
 

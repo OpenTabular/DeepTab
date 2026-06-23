@@ -1,5 +1,7 @@
 # TabulaRNN
 
+**Available as:** `TabulaRNNClassifier`, `TabulaRNNRegressor`, `TabulaRNNLSS` — import from `deeptab.models`.
+
 ## Overview
 
 TabulaRNN treats tabular columns as a sequence and processes feature tokens with recurrent layers plus depthwise convolution. It is useful when you want a sequence-model baseline that is simpler than Mamba and different from self-attention.

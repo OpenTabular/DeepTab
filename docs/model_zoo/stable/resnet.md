@@ -1,5 +1,7 @@
 # ResNet
 
+**Available as:** `ResNetClassifier`, `ResNetRegressor`, `ResNetLSS` — import from `deeptab.models`.
+
 ## Overview
 
 ResNet is DeepTab's residual feed-forward architecture for tabular data. It keeps the simplicity and speed of an MLP while adding residual blocks that make deeper nonlinear transformations easier to optimize.

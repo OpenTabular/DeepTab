@@ -1,5 +1,7 @@
 # MLP
 
+**Available as:** `MLPClassifier`, `MLPRegressor`, `MLPLSS` — import from `deeptab.models`.
+
 ## Overview
 
 MLP is DeepTab's plain feed-forward baseline for tabular data. It is the first model to include in most studies because it is fast, easy to tune, and makes very few assumptions beyond the quality of preprocessing and feature encoding.

@@ -1,5 +1,7 @@
 # NDTF
 
+**Available as:** `NDTFClassifier`, `NDTFRegressor`, `NDTFLSS` — import from `deeptab.models`.
+
 ## Overview
 
 NDTF is DeepTab's neural decision tree forest. It builds an ensemble of differentiable decision trees, applies a convolutional feature interaction layer before the trees, and combines tree predictions with learnable ensemble weights.
@@ -32,7 +34,7 @@ features -> Conv1d feature interaction -> NeuralDecisionTree x n_ensembles -> we
 
 ## Implementation Notes
 
-The first tree receives the full input dimension. Remaining trees receive randomly sampled prefix dimensions. Tree depths are sampled between `min_depth` and `max_depth`, and temperatures are jittered around the configured `temperature`.
+The first tree receives the full input dimension. Remaining trees receive randomly sampled prefix dimensions. Tree depths are sampled with `np.random.randint(min_depth, max_depth)`, so the upper bound is exclusive: with the defaults `min_depth=4` and `max_depth=16`, sampled depths range from 4 to 15 (inclusive). Temperatures are jittered around the configured `temperature`.
 
 `penalty_forward` returns `(prediction, penalty_factor * penalty)`, which can be used by the training module when penalty-aware training is enabled.
 

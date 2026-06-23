@@ -1,5 +1,7 @@
 # Mambular
 
+**Available as:** `MambularClassifier`, `MambularRegressor`, `MambularLSS` — import from `deeptab.models`.
+
 ## Overview
 
 Mambular treats tabular columns as a sequence of feature tokens and processes that sequence with Mamba-style state-space blocks. It is DeepTab's main stable state-space model for tabular data.

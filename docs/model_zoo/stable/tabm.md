@@ -1,5 +1,7 @@
 # TabM
 
+**Available as:** `TabMClassifier`, `TabMRegressor`, `TabMLSS` — import from `deeptab.models`.
+
 ## Overview
 
 TabM is a parameter-efficient ensemble model for tabular data. Instead of training many independent networks, it uses BatchEnsemble-style linear layers with shared weights and member-specific scaling factors.

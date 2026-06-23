@@ -10,8 +10,8 @@ Each tutorial is Colab-ready and works through a complete problem from data to r
 - **[Skewed-Target Regression](skewed_regression)**: Regression on a right-skewed target
 - **[Imbalanced Classification](imbalance_classification)**: An end-to-end classification workflow
 - **[Uncertainty Quantification](uncertainty_quantification)**: Prediction intervals with LSS models
-- **[Hyperparameter Optimisation](hpo)**: Tuning models efficiently
-- **[Advanced Training and Inference](advanced_training)**: Optimizers, schedulers, and production inference
-- **[Observability and Logging](observability)**: Run directories and experiment trackers
-- **[Model Efficiency](model_efficiency)**: Runtime and memory benchmarking
-- **[Experimental Models](experimental)**: Working with cutting-edge architectures
+- **[Hyperparameter Optimization](hpo)**: Tuning models efficiently
+- **[Advanced Training and Production Inference](advanced_training)**: Optimizers, schedulers, and production inference
+- **[Observability: Logging, Tracking, and Run Directories](observability)**: Run directories and experiment trackers
+- **[Model Efficiency Benchmarking](model_efficiency)**: Runtime and memory benchmarking
+- **[Experimental Models: Evaluating Research-Stage Architectures](experimental)**: Working with cutting-edge architectures

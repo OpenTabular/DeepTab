@@ -1,5 +1,7 @@
 # FTTransformer
 
+**Available as:** `FTTransformerClassifier`, `FTTransformerRegressor`, `FTTransformerLSS` — import from `deeptab.models`.
+
 ## Overview
 
 FTTransformer is a feature-token Transformer for tabular data. It represents each column as a token, applies Transformer encoder layers over the feature sequence, pools the sequence, and predicts with an MLP head.

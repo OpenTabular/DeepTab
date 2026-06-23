@@ -1,5 +1,7 @@
 # TabR
 
+**Available as:** `TabRClassifier`, `TabRRegressor`, `TabRLSS` — import from `deeptab.models`.
+
 ## Overview
 
 TabR is a retrieval-augmented tabular model. It encodes the current row and candidate training rows into a latent space, retrieves nearest candidate contexts with FAISS, mixes candidate labels into the representation, and predicts with a neural head.

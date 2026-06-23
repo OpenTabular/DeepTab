@@ -1,5 +1,7 @@
 # SAINT
 
+**Available as:** `SAINTClassifier`, `SAINTRegressor`, `SAINTLSS` — import from `deeptab.models`.
+
 ## Overview
 
 SAINT is an attention architecture for tabular data that combines feature-wise attention with row-wise attention. In DeepTab, SAINT embeds all supported feature types, applies a row/column Transformer block, pools the resulting sequence, and predicts with an MLP head.
