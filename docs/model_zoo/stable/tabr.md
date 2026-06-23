@@ -24,14 +24,14 @@ candidate labels + key differences -> retrieved context -> predictor -> output
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Optional tokenizer | `EmbeddingLayer` | Embeds features before retrieval when `use_embeddings=True`. |
-| Encoder | `linear`, `blocks0`, `K` | Builds row representation and retrieval key. |
-| Candidate search | `faiss.IndexFlatL2` or `GpuIndexFlatL2` | Retrieves nearest candidate keys. |
-| Label encoder | `nn.Linear` or `nn.Embedding` | Converts candidate labels to vectors. |
-| Context transform | `T(k - context_k)` | Adjusts retrieved values by query-context difference. |
-| Predictor | `blocks1`, `head` | Produces task output. |
+| Component          | DeepTab implementation                  | Role                                                         |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------ |
+| Optional tokenizer | `EmbeddingLayer`                        | Embeds features before retrieval when `use_embeddings=True`. |
+| Encoder            | `linear`, `blocks0`, `K`                | Builds row representation and retrieval key.                 |
+| Candidate search   | `faiss.IndexFlatL2` or `GpuIndexFlatL2` | Retrieves nearest candidate keys.                            |
+| Label encoder      | `nn.Linear` or `nn.Embedding`           | Converts candidate labels to vectors.                        |
+| Context transform  | `T(k - context_k)`                      | Adjusts retrieved values by query-context difference.        |
+| Predictor          | `blocks1`, `head`                       | Produces task output.                                        |
 
 ## Implementation Notes
 
@@ -62,14 +62,14 @@ model = TabRRegressor(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_main` | `128` to `512` | Retrieval and predictor representation width. |
-| `context_size` | `32` to `256` | Number of neighbors used per query. |
-| `encoder_n_blocks` | `0` to `2` | Query/candidate encoder depth. |
-| `predictor_n_blocks` | `1` to `3` | Post-retrieval predictor depth. |
-| `candidate_encoding_batch_size` | `0` or positive int | Chunked candidate encoding. |
-| `memory_efficient` | `False` or `True` | Reduces memory at extra compute cost. |
+| Setting                         | Typical range       | Effect                                        |
+| ------------------------------- | ------------------- | --------------------------------------------- |
+| `d_main`                        | `128` to `512`      | Retrieval and predictor representation width. |
+| `context_size`                  | `32` to `256`       | Number of neighbors used per query.           |
+| `encoder_n_blocks`              | `0` to `2`          | Query/candidate encoder depth.                |
+| `predictor_n_blocks`            | `1` to `3`          | Post-retrieval predictor depth.               |
+| `candidate_encoding_batch_size` | `0` or positive int | Chunked candidate encoding.                   |
+| `memory_efficient`              | `False` or `True`   | Reduces memory at extra compute cost.         |
 
 ## When To Use
 

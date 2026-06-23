@@ -24,13 +24,13 @@ feature tokens -> TransformerEncoder x n_layers -> pooling -> optional norm -> M
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Creates one vector per input feature. |
+| Component     | DeepTab implementation          | Role                                                   |
+| ------------- | ------------------------------- | ------------------------------------------------------ |
+| Tokenizer     | `EmbeddingLayer`                | Creates one vector per input feature.                  |
 | Encoder block | `CustomTransformerEncoderLayer` | Multi-head attention plus feed-forward transformation. |
-| Encoder stack | `nn.TransformerEncoder` | Repeats the block `n_layers` times. |
-| Pooling | `pooling_method`, `use_cls` | Reduces feature tokens to one representation. |
-| Head | `MLPhead` | Task-specific prediction head. |
+| Encoder stack | `nn.TransformerEncoder`         | Repeats the block `n_layers` times.                    |
+| Pooling       | `pooling_method`, `use_cls`     | Reduces feature tokens to one representation.          |
+| Head          | `MLPhead`                       | Task-specific prediction head.                         |
 
 ## Implementation Notes
 
@@ -61,13 +61,13 @@ model = FTTransformerClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `64` to `256` | Token width and main capacity driver. |
-| `n_layers` | `2` to `6` | Transformer depth. |
-| `n_heads` | `4` to `8` | Attention heads; must divide `d_model`. |
-| `transformer_dim_feedforward` | `2x` to `4x d_model` | Feed-forward capacity. |
-| `pooling_method` | `"avg"` or `"cls"` | Sequence aggregation strategy. |
+| Setting                       | Typical range        | Effect                                  |
+| ----------------------------- | -------------------- | --------------------------------------- |
+| `d_model`                     | `64` to `256`        | Token width and main capacity driver.   |
+| `n_layers`                    | `2` to `6`           | Transformer depth.                      |
+| `n_heads`                     | `4` to `8`           | Attention heads; must divide `d_model`. |
+| `transformer_dim_feedforward` | `2x` to `4x d_model` | Feed-forward capacity.                  |
+| `pooling_method`              | `"avg"` or `"cls"`   | Sequence aggregation strategy.          |
 
 ## When To Use
 

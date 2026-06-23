@@ -24,13 +24,13 @@ feature tokens -> optional shuffle -> Mamba/Attention hybrid stack -> pooling ->
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Builds one token per input feature. |
-| Mamba blocks | `ResidualBlock` inside `MambAttn` | Local/selective state-space sequence processing. |
-| Attention blocks | `nn.MultiheadAttention` | Explicit global token mixing. |
-| Hybrid schedule | `n_mamba_per_attention`, `n_attention_layers`, `last_layer` | Controls where attention is inserted. |
-| Head | `MLPhead` | Final task prediction. |
+| Component        | DeepTab implementation                                      | Role                                             |
+| ---------------- | ----------------------------------------------------------- | ------------------------------------------------ |
+| Tokenizer        | `EmbeddingLayer`                                            | Builds one token per input feature.              |
+| Mamba blocks     | `ResidualBlock` inside `MambAttn`                           | Local/selective state-space sequence processing. |
+| Attention blocks | `nn.MultiheadAttention`                                     | Explicit global token mixing.                    |
+| Hybrid schedule  | `n_mamba_per_attention`, `n_attention_layers`, `last_layer` | Controls where attention is inserted.            |
+| Head             | `MLPhead`                                                   | Final task prediction.                           |
 
 ## Implementation Notes
 
@@ -61,13 +61,13 @@ model = MambAttentionClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `n_layers` | `2` to `6` | Mamba-block budget. |
-| `n_attention_layers` | `1` to `3` | Number of explicit attention insertions. |
-| `n_mamba_per_attention` | `1` to `3` | Frequency of attention layers. |
-| `last_layer` | `"attn"` or `"mamba"` | Final mixing type. |
-| `attn_dropout` | `0.0` to `0.3` | Attention regularization. |
+| Setting                 | Typical range         | Effect                                   |
+| ----------------------- | --------------------- | ---------------------------------------- |
+| `n_layers`              | `2` to `6`            | Mamba-block budget.                      |
+| `n_attention_layers`    | `1` to `3`            | Number of explicit attention insertions. |
+| `n_mamba_per_attention` | `1` to `3`            | Frequency of attention layers.           |
+| `last_layer`            | `"attn"` or `"mamba"` | Final mixing type.                       |
+| `attn_dropout`          | `0.0` to `0.3`        | Attention regularization.                |
 
 ## When To Use
 

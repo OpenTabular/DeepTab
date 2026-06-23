@@ -24,11 +24,11 @@ features -> optional embeddings -> BatchEnsemble MLP blocks -> ensemble output/h
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Feature path | `EmbeddingLayer` or raw concatenation | Builds model input. |
-| Ensemble layers | `LinearBatchEnsembleLayer` | Shared weight matrix with member-specific scaling. |
-| Final layer | `SNLinear` or `nn.Linear` | Produces per-member or averaged predictions. |
+| Component       | DeepTab implementation                    | Role                                                   |
+| --------------- | ----------------------------------------- | ------------------------------------------------------ |
+| Feature path    | `EmbeddingLayer` or raw concatenation     | Builds model input.                                    |
+| Ensemble layers | `LinearBatchEnsembleLayer`                | Shared weight matrix with member-specific scaling.     |
+| Final layer     | `SNLinear` or `nn.Linear`                 | Produces per-member or averaged predictions.           |
 | Ensemble output | `returns_ensemble=True` when not averaged | Lets the training wrapper handle ensemble predictions. |
 
 ## Implementation Notes
@@ -59,13 +59,13 @@ model = TabMClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `ensemble_size` | `8` to `64` | Number of virtual ensemble members. |
-| `layer_sizes` | `[128, 128]` to `[512, 256, 128]` | Shared MLP capacity. |
-| `model_type` | `"mini"` or `"full"` | Amount of member-specific scaling. |
-| `average_ensembles` | `False` or `True` | Return per-member outputs or average internally. |
-| `scaling_init` | `"ones"`, `"random-signs"`, `"normal"` | Diversity initialization for scaling factors. |
+| Setting             | Typical range                          | Effect                                           |
+| ------------------- | -------------------------------------- | ------------------------------------------------ |
+| `ensemble_size`     | `8` to `64`                            | Number of virtual ensemble members.              |
+| `layer_sizes`       | `[128, 128]` to `[512, 256, 128]`      | Shared MLP capacity.                             |
+| `model_type`        | `"mini"` or `"full"`                   | Amount of member-specific scaling.               |
+| `average_ensembles` | `False` or `True`                      | Return per-member outputs or average internally. |
+| `scaling_init`      | `"ones"`, `"random-signs"`, `"normal"` | Diversity initialization for scaling factors.    |
 
 ## When To Use
 
