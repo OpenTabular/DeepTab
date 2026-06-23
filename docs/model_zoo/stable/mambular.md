@@ -1,6 +1,6 @@
 # Mambular
 
-**Available as:** `MambularClassifier`, `MambularRegressor`, `MambularLSS` — import from `deeptab.models`.
+**Available as:** `MambularClassifier`, `MambularRegressor`, and `MambularLSS` in `deeptab.models`.
 
 ## Overview
 

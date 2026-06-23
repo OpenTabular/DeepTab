@@ -1,6 +1,6 @@
 # SAINT
 
-**Available as:** `SAINTClassifier`, `SAINTRegressor`, `SAINTLSS` — import from `deeptab.models`.
+**Available as:** `SAINTClassifier`, `SAINTRegressor`, and `SAINTLSS` in `deeptab.models`.
 
 ## Overview
 

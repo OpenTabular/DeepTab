@@ -1,6 +1,6 @@
 # NDTF
 
-**Available as:** `NDTFClassifier`, `NDTFRegressor`, `NDTFLSS` — import from `deeptab.models`.
+**Available as:** `NDTFClassifier`, `NDTFRegressor`, and `NDTFLSS` in `deeptab.models`.
 
 ## Overview
 

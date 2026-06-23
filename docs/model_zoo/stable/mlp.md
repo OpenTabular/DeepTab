@@ -1,6 +1,6 @@
 # MLP
 
-**Available as:** `MLPClassifier`, `MLPRegressor`, `MLPLSS` — import from `deeptab.models`.
+**Available as:** `MLPClassifier`, `MLPRegressor`, and `MLPLSS` in `deeptab.models`.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # MambAttention
 
-**Available as:** `MambAttentionClassifier`, `MambAttentionRegressor`, `MambAttentionLSS` — import from `deeptab.models`.
+**Available as:** `MambAttentionClassifier`, `MambAttentionRegressor`, and `MambAttentionLSS` in `deeptab.models`.
 
 ## Overview
 

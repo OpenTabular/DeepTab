@@ -1,6 +1,6 @@
 # FTTransformer
 
-**Available as:** `FTTransformerClassifier`, `FTTransformerRegressor`, `FTTransformerLSS` — import from `deeptab.models`.
+**Available as:** `FTTransformerClassifier`, `FTTransformerRegressor`, and `FTTransformerLSS` in `deeptab.models`.
 
 ## Overview
 

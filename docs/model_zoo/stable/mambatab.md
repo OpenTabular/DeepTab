@@ -1,6 +1,6 @@
 # MambaTab
 
-**Available as:** `MambaTabClassifier`, `MambaTabRegressor`, `MambaTabLSS` — import from `deeptab.models`.
+**Available as:** `MambaTabClassifier`, `MambaTabRegressor`, and `MambaTabLSS` in `deeptab.models`.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # TabM
 
-**Available as:** `TabMClassifier`, `TabMRegressor`, `TabMLSS` — import from `deeptab.models`.
+**Available as:** `TabMClassifier`, `TabMRegressor`, and `TabMLSS` in `deeptab.models`.
 
 ## Overview
 

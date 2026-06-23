@@ -1,6 +1,6 @@
 # ResNet
 
-**Available as:** `ResNetClassifier`, `ResNetRegressor`, `ResNetLSS` — import from `deeptab.models`.
+**Available as:** `ResNetClassifier`, `ResNetRegressor`, and `ResNetLSS` in `deeptab.models`.
 
 ## Overview
 

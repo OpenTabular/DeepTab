@@ -1,6 +1,6 @@
 # TabTransformer
 
-**Available as:** `TabTransformerClassifier`, `TabTransformerRegressor`, `TabTransformerLSS` — import from `deeptab.models`.
+**Available as:** `TabTransformerClassifier`, `TabTransformerRegressor`, and `TabTransformerLSS` in `deeptab.models`.
 
 ## Overview
 

@@ -1,6 +1,6 @@
 # NODE
 
-**Available as:** `NODEClassifier`, `NODERegressor`, `NODELSS` — import from `deeptab.models`.
+**Available as:** `NODEClassifier`, `NODERegressor`, and `NODELSS` in `deeptab.models`.
 
 ## Overview
 

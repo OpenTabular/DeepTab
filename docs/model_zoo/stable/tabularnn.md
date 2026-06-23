@@ -1,6 +1,6 @@
 # TabulaRNN
 
-**Available as:** `TabulaRNNClassifier`, `TabulaRNNRegressor`, `TabulaRNNLSS` — import from `deeptab.models`.
+**Available as:** `TabulaRNNClassifier`, `TabulaRNNRegressor`, and `TabulaRNNLSS` in `deeptab.models`.
 
 ## Overview
 

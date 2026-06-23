@@ -1,6 +1,6 @@
 # ModernNCA
 
-**Available as:** `ModernNCAClassifier`, `ModernNCARegressor`, `ModernNCALSS` — import from `deeptab.models.experimental`.
+**Available as:** `ModernNCAClassifier`, `ModernNCARegressor`, and `ModernNCALSS` in `deeptab.models.experimental`.
 
 **ModernNCA** is a differentiable nearest-neighbor model for tabular data. It learns a neural representation of each row, compares query rows to candidate rows in that representation space, and predicts by a softmax-weighted average of candidate labels.
 

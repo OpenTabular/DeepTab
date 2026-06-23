@@ -1,6 +1,6 @@
 # Tangos
 
-**Available as:** `TangosClassifier`, `TangosRegressor`, `TangosLSS` — import from `deeptab.models.experimental`.
+**Available as:** `TangosClassifier`, `TangosRegressor`, and `TangosLSS` in `deeptab.models.experimental`.
 
 **Tangos** is an MLP-style tabular model with a gradient-attribution regularizer. It encourages hidden units to become specialized and diverse by penalizing latent-unit attributions with respect to input features.
 

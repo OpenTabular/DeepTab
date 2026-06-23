@@ -1,6 +1,6 @@
 # TabR
 
-**Available as:** `TabRClassifier`, `TabRRegressor`, `TabRLSS` — import from `deeptab.models`.
+**Available as:** `TabRClassifier`, `TabRRegressor`, and `TabRLSS` in `deeptab.models`.
 
 ## Overview
 

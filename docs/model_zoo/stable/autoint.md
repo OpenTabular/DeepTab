@@ -1,6 +1,6 @@
 # AutoInt
 
-**Available as:** `AutoIntClassifier`, `AutoIntRegressor`, `AutoIntLSS` — import from `deeptab.models`.
+**Available as:** `AutoIntClassifier`, `AutoIntRegressor`, and `AutoIntLSS` in `deeptab.models`.
 
 ## Overview
 

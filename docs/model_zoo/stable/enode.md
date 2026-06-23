@@ -1,6 +1,6 @@
 # ENODE
 
-**Available as:** `ENODEClassifier`, `ENODERegressor`, `ENODELSS` — import from `deeptab.models`.
+**Available as:** `ENODEClassifier`, `ENODERegressor`, and `ENODELSS` in `deeptab.models`.
 
 ## Overview
 
