@@ -177,6 +177,11 @@ def test_build_lightning_loggers_tensorboard_absent(monkeypatch):
 def test_build_lightning_loggers_user_logger_does_not_replace(monkeypatch):
     """User-provided logger is appended alongside built-in trackers."""
     user_logger = _FakeLogger()
+    # Stub the optional tensorboard import guard so the test does not depend on
+    # the 'tensorboard' package being installed in the environment.
+    fake_tb_mod = ModuleType("torch.utils.tensorboard")
+    fake_tb_mod.SummaryWriter = MagicMock()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch.utils.tensorboard", fake_tb_mod)
     # Mock TensorBoardLogger
     fake_tb = MagicMock()
     fake_lpl = MagicMock()

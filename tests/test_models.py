@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 from sklearn.model_selection import train_test_split
 
+from deeptab import set_seed
 from deeptab.models import (
     ENODELSS,
     MLPLSS,
@@ -434,6 +435,8 @@ EXPERIMENTAL_LSS_MODELS = [ModernNCALSS, TangosLSS, TromptLSS]
 
 @pytest.mark.parametrize("cls", EXPERIMENTAL_CLASSIFIERS)
 def test_experimental_classifier_fit_predict_evaluate(cls, classification_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
     X_train, X_test, y_train, y_test = classification_data
     model = cls()
     model.fit(X_train, y_train, **FIT_KWARGS)
@@ -460,6 +463,8 @@ def test_experimental_classifier_fit_predict_evaluate(cls, classification_data):
 
 @pytest.mark.parametrize("cls", EXPERIMENTAL_REGRESSORS)
 def test_experimental_regressor_fit_predict_evaluate(cls, regression_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
     X_train, X_test, y_train, y_test = regression_data
     model = cls()
     model.fit(X_train, y_train, **FIT_KWARGS)
@@ -476,6 +481,8 @@ def test_experimental_regressor_fit_predict_evaluate(cls, regression_data):
 
 @pytest.mark.parametrize("cls", EXPERIMENTAL_LSS_MODELS)
 def test_experimental_lss_fit_predict_evaluate(cls, regression_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
     X_train, X_test, y_train, y_test = regression_data
     model = cls()
     model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
