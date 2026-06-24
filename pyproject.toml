@@ -1,6 +1,6 @@
 [project]
 name = "deeptab"
-version = "2.0.0rc2"
+version = "2.0.0"
 description = "Tabular deep learning made simple: a scikit-learn compatible model zoo built on PyTorch and Lightning."
 authors = [
   { name = "Anton Thielmann" },

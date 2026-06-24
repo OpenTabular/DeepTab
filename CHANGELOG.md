@@ -9,6 +9,8 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ---
 
+## v2.0.0 (2026-06-24)
+
 ## v2.0.0rc2 (2026-06-22)
 
 ### Feat
