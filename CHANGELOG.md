@@ -11,29 +11,10 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ## v2.0.0 (2026-06-24)
 
-## v2.0.0rc2 (2026-06-22)
-
-### Feat
-
-- **hardware**: add print_hardware_info for CPU/CUDA/MPS detection
-
-### Fix
-
-- **sklearn_compat**: satisfy pandas typing in ensure_dataframe
-- **training**: register custom torchmetrics via nn.ModuleDict so state moves to device
-- **sklearn_compat**: cast pandas category columns to object in ensure_dataframe
-
-### Refactor
-
-- **models**: drop legacy flat-kwargs constructor
-- **core**: centralize optional-dependency
-
-## v2.0.0rc1 (2026-06-21)
-
 ### BREAKING CHANGE
 
 - internal package layout, configuration objects, and import
-paths have changed. See the migration guide for details.
+  paths have changed. See the migration guide for details.
 
 ### Feat
 
@@ -52,7 +33,7 @@ paths have changed. See the migration guide for details.
 - **training**: wire optimizer/scheduler registry into LightningModule and extend losses
 - **training**: add optimizer/scheduler registry with all torch.optim classes
 - **api**: export exception and warning types from deeptab and deeptab.core
-- **configs,models**: add __post_init__ validation using typed exceptions
+- **configs,models**: add **post_init** validation using typed exceptions
 - **core**: add exception hierarchy and message factories
 - **models**: wire evaluate() in lss_base, regressor_base, and classifier_base to new deeptab.metrics registry
 - **metrics**: add deeptab metrics ABC, regression, classification, lss
@@ -69,9 +50,9 @@ paths have changed. See the migration guide for details.
 - **data**: add stratified splitting for classification and schema property
 - **data**: add FeatureSchema and TabularBatch typed containers
 - **configs**: add SplitConfig for train/validation splitting parameters
-- **root**: expose configs, data, distributions, metrics, models in top-level __init__
-- **models**: add _docstring helper to centralize generate_docstring for all models
-- **models**: expose stable classes in __all__ and add __getattr__ shim for experimental
+- **root**: expose configs, data, distributions, metrics, models in top-level **init**
+- **models**: add \_docstring helper to centralize generate_docstring for all models
+- **models**: expose stable classes in **all** and add **getattr** shim for experimental
 - **models**: add split base classes for classifier, regressor, and LSS task variants
 - **configs**: add configs/core.py with shared base configuration definitions
 - **configs**: add configs/experimental sub module for ModernNCA, Tangos, Trompt
@@ -86,14 +67,18 @@ paths have changed. See the migration guide for details.
 - **architectures**: add architectures module with all stable model definitions
 - **nn**: add nn module with blocks, normalization, and initialization
 - **config**: split config into trainer, model and preprocessing config
-- **sklearn_parent**: implement split-config path in SklearnBase.__init__, get_params, set_params
-- **models**: add split config __init__ to all Classifier and Regressor wrappers
+- **sklearn_parent**: implement split-config path in SklearnBase.**init**, get_params, set_params
+- **models**: add split config **init** to all Classifier and Regressor wrappers
 - **base_models**: replace DefaultXXConfig with XXConfig in all base model constructors
-- **configs**: add *Config for all architectures
+- **configs**: add \*Config for all architectures
 - **configs**: add ENODEConfig architecture only config
+- **hardware**: add print_hardware_info for CPU/CUDA/MPS detection
 
 ### Fix
 
+- **sklearn_compat**: satisfy pandas typing in ensure_dataframe
+- **training**: register custom torchmetrics via nn.ModuleDict so state moves to device
+- **sklearn_compat**: cast pandas category columns to object in ensure_dataframe
 - **modernnca**: support LSS prediction and add experimental model tests
 - **models**: adapt child class to use class var, update docstring example
 - **transformer**: use batch_first attention to prevent cross-sample leakage
@@ -101,12 +86,12 @@ paths have changed. See the migration guide for details.
 - save default artificats to <run_dir>/artifacts/model.deeptab
 - pyright issues
 - resolve Pyright type errors in base, classifier_base, regressor_base, lss_base
-- **base**: add __sklearn_is_fitted__, use check_is_fitted
+- **base**: add **sklearn_is_fitted**, use check_is_fitted
 - **sklearn_compat**: raise ValueError for 1D array input in ensure_dataframe
 - **exceptions**: inherit EmptyDataError and ColumnCountError from ValueError for sklearn compat
 - add seed to DataLoader/sampler generators
 - data validation for parameters
-- **models**: read optimizer_type and preprocessor live from config in _build_model
+- **models**: read optimizer_type and preprocessor live from config in \_build_model
 - suppress unsupported dunderall
 - **test**: add typed error, fix preprocessing config
 - **architectures,distributions**: replace ValueError with typed exceptions
@@ -127,12 +112,14 @@ paths have changed. See the migration guide for details.
 
 ### Refactor
 
+- **models**: drop legacy flat-kwargs constructor
+- **core**: centralize optional-dependency
 - replace SplitConfig with TrainerConfig.stratify and refresh docs
 - **models**: adopt declarative class variable estimator pattern
 - **hpo**: rename mapper.py to search_space.py and fix lss_base error
-- **core**: update inspection and serialization for _ attribute rename
-- **models**: prefix non-constructor attributes with _ for sklearn compliance
-- extract _FitMixin, _PredictMixin, _SerializationMixin, _HyperparameterMixin, _ObservabilityMixin from SklearnBase
+- **core**: update inspection and serialization for \_ attribute rename
+- **models**: prefix non-constructor attributes with \_ for sklearn compliance
+- extract \_FitMixin, \_PredictMixin, \_SerializationMixin, \_HyperparameterMixin, \_ObservabilityMixin from SklearnBase
 - **configs**: remove legacy BaseConfig class
 - **distributions**: separate dist classes, add registry
 - consolidate save/load into core.serialization helpers
@@ -140,18 +127,18 @@ paths have changed. See the migration guide for details.
 - **data**: update datamodule and dataset internals
 - **models**: update imports to use TabularDataModule
 - **data**: rename to TabularDataset/TabularDataModule and move task-specific label logic to DataModule
-- **models**: replace **kwargs with explicit signatures in stable model constructors
-- **hpo**: add missing exports to hpo/__init__.py
+- **models**: replace \*\*kwargs with explicit signatures in stable model constructors
+- **hpo**: add missing exports to hpo/**init**.py
 - **models**: update training and hpo imports to go through package boundaries
 - **architectures**: update core imports to go through package boundary
-- **architectures**: add lazy __getattr__ boundary with TYPE_CHECKING guards
-- **nn**: expose public API via nn/__init__.py boundary
-- **training**: expose public API via training/__init__.py boundary
-- **core**: expose public API via core/__init__.py boundary
+- **architectures**: add lazy **getattr** boundary with TYPE_CHECKING guards
+- **nn**: expose public API via nn/**init**.py boundary
+- **training**: expose public API via training/**init**.py boundary
+- **core**: expose public API via core/**init**.py boundary
 - **architectures**: update config imports to use configs/models/ and configs/experimental/
 - **models**: update config imports to use configs/models/, configs/experimental/, and configs/core
 - **architectures**: update config imports to use configs/models/ and configs/experimental/
-- **configs**: update __init__ to import from core, models/, and experimental/
+- **configs**: update **init** to import from core, models/, and experimental/
 - **configs**: remove deprecated flat config files superseded by models/ and experimental/
 - **models**: update import paths in experimental ModernNCA, Tangos, Trompt modules
 - **models**: update import paths in ndtf, node, resnet, saint, tabm, tabr, tabtransformer, tabularnn
