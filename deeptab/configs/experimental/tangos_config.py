@@ -25,9 +25,9 @@ class TangosConfig(BaseModelConfig):
     skip_connections : bool, default=False
         Whether to use skip connections in the TANGOS.
     lamda1 : float, default=0.5
-        Weight on the task-specific orthogonality regularisation term.
+        Weight on the specialization regularisation term (multiplies ``spec_loss``).
     lamda2 : float, default=0.1
-        Weight on the cross-task specialisation regularisation term.
+        Weight on the orthogonalization regularisation term (multiplies ``orth_loss``).
     subsample : float, default=0.5
         Fraction of features subsampled for regularisation estimation.
     """

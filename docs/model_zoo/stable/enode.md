@@ -1,5 +1,7 @@
 # ENODE
 
+**Available as:** `ENODEClassifier`, `ENODERegressor`, and `ENODELSS` in `deeptab.models`.
+
 ## Overview
 
 ENODE is DeepTab's enhanced NODE variant. It keeps differentiable oblivious tree layers but operates on embedded feature tokens and aggregates the learned tree representation before a compact prediction head.
@@ -21,12 +23,12 @@ feature tokens -> ENODEDenseBlock -> mean over feature axis -> Linear/ReLU/Dropo
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Builds embedded feature tokens. |
-| Tree block | `ENODEDenseBlock` | Applies enhanced differentiable tree transformations. |
-| Aggregation | `x.mean(axis=1)` | Produces one row representation. |
-| Head | `nn.Linear -> ReLU -> Dropout -> nn.Linear` | Task output. |
+| Component   | DeepTab implementation                      | Role                                                  |
+| ----------- | ------------------------------------------- | ----------------------------------------------------- |
+| Tokenizer   | `EmbeddingLayer`                            | Builds embedded feature tokens.                       |
+| Tree block  | `ENODEDenseBlock`                           | Applies enhanced differentiable tree transformations. |
+| Aggregation | `x.mean(axis=1)`                            | Produces one row representation.                      |
+| Head        | `nn.Linear -> ReLU -> Dropout -> nn.Linear` | Task output.                                          |
 
 ## Implementation Notes
 
@@ -55,12 +57,12 @@ model = ENODERegressor(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `4` to `32` | Embedded feature width. |
-| `num_layers` | `2` to `6` | Number of tree layers. |
-| `layer_dim` | `32` to `128` | Tree-layer width. |
-| `depth` | `4` to `8` | Soft decision depth. |
+| Setting        | Typical range  | Effect                          |
+| -------------- | -------------- | ------------------------------- |
+| `d_model`      | `4` to `32`    | Embedded feature width.         |
+| `num_layers`   | `2` to `6`     | Number of tree layers.          |
+| `layer_dim`    | `32` to `128`  | Tree-layer width.               |
+| `depth`        | `4` to `8`     | Soft decision depth.            |
 | `head_dropout` | `0.0` to `0.5` | Prediction-head regularization. |
 
 ## When To Use

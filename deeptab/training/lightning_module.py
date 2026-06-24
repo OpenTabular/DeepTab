@@ -205,6 +205,17 @@ class TaskModel(pl.LightningModule):
         # Store custom metrics
         self.train_metrics = train_metrics or {}
         self.val_metrics = val_metrics or {}
+        # torchmetrics ``Metric`` objects are ``nn.Module`` subclasses that hold
+        # internal state tensors. Register them as submodules so Lightning moves
+        # that state to the training device; otherwise the state stays on CPU and
+        # raises a device-mismatch error on GPU/MPS. Plain-callable metrics carry
+        # no device state and are left untouched.
+        self._train_metric_modules = nn.ModuleDict(
+            {name: metric for name, metric in self.train_metrics.items() if isinstance(metric, nn.Module)}
+        )
+        self._val_metric_modules = nn.ModuleDict(
+            {name: metric for name, metric in self.val_metrics.items() if isinstance(metric, nn.Module)}
+        )
 
         # Scheduler / monitoring config
         self.scheduler_type = scheduler_type

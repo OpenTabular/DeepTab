@@ -329,7 +329,7 @@ Preprocessing is part of the model in tabular deep learning. Tune it explicitly.
 
 | Data Condition                       | Candidate Setting                                           | Notes                                                      |
 | ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| Roughly symmetric numerical features | `numerical_preprocessing="standard"`                        | Fast, simple, and easy to audit                            |
+| Roughly symmetric numerical features | `numerical_preprocessing="standardization"`                 | Fast, simple, and easy to audit                            |
 | Heavy tails/outliers/skew            | `numerical_preprocessing="quantile"`                        | Often robust for real-world tables                         |
 | Bounded features                     | `numerical_preprocessing="minmax"`                          | Use when scale bounds are meaningful                       |
 | Nonlinear numeric effects            | `numerical_preprocessing="ple"`, tune `n_bins`              | Connects to numerical feature embedding work               |
@@ -341,7 +341,7 @@ from deeptab.configs import PreprocessingConfig
 
 # Conservative baseline
 standard_prep = PreprocessingConfig(
-    numerical_preprocessing="standard",
+    numerical_preprocessing="standardization",
     categorical_preprocessing="int",
 )
 
@@ -371,7 +371,7 @@ Use small spaces first. Expand only after the baseline protocol is stable.
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "preprocessing_config__n_bins": [32, 64],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_layers": [2, 4, 6],
@@ -386,7 +386,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_layers": [2, 4, 6],
     "model_config__n_heads": [4, 8],
@@ -401,7 +401,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "model_config__layer_sizes": [[256, 128], [256, 256, 128], [512, 256, 128]],
     "model_config__ensemble_size": [8, 16, 32],
     "model_config__dropout": [0.0, 0.1, 0.2],
@@ -415,7 +415,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "model_config__d_main": [128, 256],
     "model_config__context_size": [32, 64, 96],
     "model_config__dropout0": [0.0, 0.2, 0.4],
@@ -429,7 +429,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
     "model_config__num_layers": [2, 4, 6],
     "model_config__layer_dim": [64, 128, 256],
     "model_config__depth": [4, 6, 8],

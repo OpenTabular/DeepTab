@@ -9,6 +9,133 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ---
 
+## v2.0.0 (2026-06-24)
+
+### BREAKING CHANGE
+
+- internal package layout, configuration objects, and import
+  paths have changed. See the migration guide for details.
+
+### Feat
+
+- DeepTab v2 API with split-config design (#400)
+- **config**: warn on misplaced config slots
+- **training**: add unregister_optimizer, unregister_scheduler with built-in protection
+- **inspection**: expose public read-only task_model property
+- **models**: thread observability_config through all estimators
+- **core**: add ObservabilityConfig
+- **models**: expose ObservabilityConfig on base estimator constructor
+- **models**: add observability mixin wiring ObservabilityConfig to base estimators
+- **models**: integrate ObservabilityConfig into fit mixin
+- **training**: rewrite configure_optimizers, add contrastive pretraining fixes, and cleanup
+- introduce IDataModule/ITaskModel protocols and default factories, wire into SklearnBase
+- **configs**: add optimizer/scheduler fields to TrainerConfig and InferenceModel support
+- **training**: wire optimizer/scheduler registry into LightningModule and extend losses
+- **training**: add optimizer/scheduler registry with all torch.optim classes
+- **api**: export exception and warning types from deeptab and deeptab.core
+- **configs,models**: add **post_init** validation using typed exceptions
+- **core**: add exception hierarchy and message factories
+- **models**: wire evaluate() in lss_base, regressor_base, and classifier_base to new deeptab.metrics registry
+- **metrics**: add deeptab metrics ABC, regression, classification, lss
+- add tweedie, inflated poissons, log normal etc. distribution
+- light weight inference wrapper
+- **serialization**: warn when save/load path lacks .deeptab extension
+- **inspection**: add profile() method for pre-training dry-run diagnostics
+- **training**: add class-imbalance loss registry and weighted sampling
+- **core**: add set_seed/seed_context reproducibility helpers
+- **core**: add sklearn_compat module and update serialization/core exports
+- add rich model artifact serialization metadata
+- model inspection api added
+- **data**: add optional TabularBatch return mode
+- **data**: add stratified splitting for classification and schema property
+- **data**: add FeatureSchema and TabularBatch typed containers
+- **configs**: add SplitConfig for train/validation splitting parameters
+- **root**: expose configs, data, distributions, metrics, models in top-level **init**
+- **models**: add \_docstring helper to centralize generate_docstring for all models
+- **models**: expose stable classes in **all** and add **getattr** shim for experimental
+- **models**: add split base classes for classifier, regressor, and LSS task variants
+- **configs**: add configs/core.py with shared base configuration definitions
+- **configs**: add configs/experimental sub module for ModernNCA, Tangos, Trompt
+- **configs**: add configs sub module with per-model config modules
+- **hpo**: add hpo module with get_search_space mapper
+- **metrics**: add metrics module stubs for classification, regression, distributional
+- **distributions**: add distributions module with 12 distribution classes
+- **data**: add data module with MambularDataModule, MambularDataset, batch, schema, split
+- **training**: add training module with lightning module, losses, optimizers, schedulers
+- **core**: add core module with BaseModel, registry, embeddings, pooling, serialization
+- **architectures**: add experimental sub-package with ModernNCA, Tangos, Trompt
+- **architectures**: add architectures module with all stable model definitions
+- **nn**: add nn module with blocks, normalization, and initialization
+- **config**: split config into trainer, model and preprocessing config
+- **sklearn_parent**: implement split-config path in SklearnBase.**init**, get_params, set_params
+- **models**: add split config **init** to all Classifier and Regressor wrappers
+- **base_models**: replace DefaultXXConfig with XXConfig in all base model constructors
+- **configs**: add \*Config for all architectures
+- **configs**: add ENODEConfig architecture only config
+- **hardware**: add print_hardware_info for CPU/CUDA/MPS detection
+
+### Fix
+
+- **sklearn_compat**: satisfy pandas typing in ensure_dataframe
+- **training**: register custom torchmetrics via nn.ModuleDict so state moves to device
+- **sklearn_compat**: cast pandas category columns to object in ensure_dataframe
+- **modernnca**: support LSS prediction and add experimental model tests
+- **models**: adapt child class to use class var, update docstring example
+- **transformer**: use batch_first attention to prevent cross-sample leakage
+- **hpo**: rebuild model per trial and map activation names to modules
+- save default artificats to <run_dir>/artifacts/model.deeptab
+- **base**: add **sklearn_is_fitted**, use check_is_fitted
+- **sklearn_compat**: raise ValueError for 1D array input in ensure_dataframe
+- **exceptions**: inherit EmptyDataError and ColumnCountError from ValueError for sklearn compat
+- add seed to DataLoader/sampler generators
+- data validation for parameters
+- **models**: read optimizer_type and preprocessor live from config in \_build_model
+- **test**: add typed error, fix preprocessing config
+- **architectures,distributions**: replace ValueError with typed exceptions
+- **docs**: remove dead cross-reference links and fix tables
+- **training**: apply distribution parameter transform before passing predictions to metrics
+- use r2 metric for regresion as default
+- use getattr for task_model access in InspectionMixin
+- enable side bar navigation for api reference
+- **tests**: update flat-kwarg error assertions to match native TypeError message
+- **tests**: update config lookup to search configs.models and configs.experimental
+- training parameter added
+- modernca config and model update
+- **lss**: use getattr fallback for lr/weight_decay in SklearnBaseLSS.fit()
+
+### Refactor
+
+- **models**: drop legacy flat-kwargs constructor
+- **core**: centralize optional-dependency
+- replace SplitConfig with TrainerConfig.stratify and refresh docs
+- **models**: adopt declarative class variable estimator pattern
+- **hpo**: rename mapper.py to search_space.py and fix lss_base error
+- **core**: update inspection and serialization for \_ attribute rename
+- **models**: prefix non-constructor attributes with \_ for sklearn compliance
+- extract \_FitMixin, \_PredictMixin, \_SerializationMixin, \_HyperparameterMixin, \_ObservabilityMixin from SklearnBase
+- **configs**: remove legacy BaseConfig class
+- **distributions**: separate dist classes, add registry
+- consolidate save/load into core.serialization helpers
+- **models**: update base classifier/regressor/lss model internals
+- **data**: update datamodule and dataset internals
+- **models**: update imports to use TabularDataModule
+- **data**: rename to TabularDataset/TabularDataModule and move task-specific label logic to DataModule
+- **models**: replace \*\*kwargs with explicit signatures in stable model constructors
+- **hpo**: add missing exports to hpo/**init**.py
+- **models**: update training and hpo imports to go through package boundaries
+- **architectures**: update core imports to go through package boundary
+- **architectures**: add lazy **getattr** boundary with TYPE_CHECKING guards
+- **nn**: expose public API via nn/**init**.py boundary
+- **training**: expose public API via training/**init**.py boundary
+- **core**: expose public API via core/**init**.py boundary
+- **architectures**: update config imports to use configs/models/ and configs/experimental/
+- **models**: update config imports to use configs/models/, configs/experimental/, and configs/core
+- **configs**: update **init** to import from core, models/, and experimental/
+- **configs**: remove deprecated flat config files superseded by models/ and experimental/
+- **models**: update import paths in experimental ModernNCA, Tangos, Trompt modules
+- **models**: update import paths in ndtf, node, resnet, saint, tabm, tabr, tabtransformer, tabularnn
+- **modules**: remove legacy arch_utils, base_models, data_utils, utils
+
 ## v1.8.0 (2026-05-24)
 
 ### Feat

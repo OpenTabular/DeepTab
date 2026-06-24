@@ -1,5 +1,7 @@
 # Trompt
 
+**Available as:** `TromptClassifier`, `TromptRegressor`, and `TromptLSS` in `deeptab.models.experimental`.
+
 **Trompt** is a prompt-inspired tabular architecture. It uses learnable prompt/prototype records and feature-importance maps to repeatedly aggregate column representations, producing one prediction per cycle.
 
 ```{warning}
@@ -19,13 +21,13 @@ In DeepTab, Trompt is implemented as a sequence of `TromptCell` modules. Each ce
 
 The model returns predictions from every cycle, so DeepTab treats Trompt as an ensemble-like model (`returns_ensemble=True`).
 
-| Property | DeepTab Trompt |
-| -------- | -------------- |
-| Inductive bias | Prompt/prototype-mediated feature aggregation |
-| Core representation | `P` latent prompt records of width `d_model` |
-| Repeated computation | `n_cycles` Trompt cells |
-| Output | One decoded prediction per cycle |
-| Best baseline comparisons | FTTransformer, Mambular, TabM |
+| Property                  | DeepTab Trompt                                |
+| ------------------------- | --------------------------------------------- |
+| Inductive bias            | Prompt/prototype-mediated feature aggregation |
+| Core representation       | `P` latent prompt records of width `d_model`  |
+| Repeated computation      | `n_cycles` Trompt cells                       |
+| Output                    | One decoded prediction per cycle              |
+| Best baseline comparisons | FTTransformer, Mambular, TabM                 |
 
 ## Architectural Details
 
@@ -63,15 +65,15 @@ Unlike FTTransformer, the current DeepTab Trompt implementation does not use a s
 
 The implementation lives in `deeptab/architectures/experimental/trompt.py` and `deeptab/nn/blocks/trompt.py`.
 
-| Component | Implementation | Role |
-| --------- | -------------- | ---- |
-| Feature encoder | `EmbeddingLayer` | Produces per-column embeddings |
-| Initial prompt records | `init_rec` parameter with shape `(P, d_model)` | Starting latent prompt state |
-| Cell stack | `nn.ModuleList(TromptCell(...))` repeated `n_cycles` times | Iterative prompt-feature aggregation |
-| Expander | `Expander(P)` | Expands feature embeddings into prompt slots |
-| Feature importance | `ImportanceGetter(P, C, d_model)` | Computes prompt-to-column weights |
-| Decoder | `TromptDecoder(d_model, num_classes)` | Converts prompt records to predictions |
-| Ensemble behavior | `returns_ensemble=True` | Training loss is accumulated across cycle outputs |
+| Component              | Implementation                                             | Role                                              |
+| ---------------------- | ---------------------------------------------------------- | ------------------------------------------------- |
+| Feature encoder        | `EmbeddingLayer`                                           | Produces per-column embeddings                    |
+| Initial prompt records | `init_rec` parameter with shape `(P, d_model)`             | Starting latent prompt state                      |
+| Cell stack             | `nn.ModuleList(TromptCell(...))` repeated `n_cycles` times | Iterative prompt-feature aggregation              |
+| Expander               | `Expander(P)`                                              | Expands feature embeddings into prompt slots      |
+| Feature importance     | `ImportanceGetter(P, C, d_model)`                          | Computes prompt-to-column weights                 |
+| Decoder                | `TromptDecoder(d_model, num_classes)`                      | Converts prompt records to predictions            |
+| Ensemble behavior      | `returns_ensemble=True`                                    | Training loss is accumulated across cycle outputs |
 
 ```{note}
 `n_cells` is present in `TromptConfig`, but the current DeepTab implementation constructs one `TromptCell` per cycle. Treat `n_cycles` and `P` as the primary practical controls.
@@ -79,12 +81,12 @@ The implementation lives in `deeptab/architectures/experimental/trompt.py` and `
 
 ## Configuration
 
-| Parameter | Default | Practical Effect |
-| --------- | ------- | ---------------- |
-| `d_model` | `128` | Width of feature and prompt representations |
-| `n_cycles` | `6` | Number of iterative prompt aggregation cycles |
-| `n_cells` | `4` | Config field retained from the Trompt design; limited direct effect in current implementation |
-| `P` | `128` | Number of prompt/prototype records |
+| Parameter  | Default | Practical Effect                                                                              |
+| ---------- | ------- | --------------------------------------------------------------------------------------------- |
+| `d_model`  | `128`   | Width of feature and prompt representations                                                   |
+| `n_cycles` | `6`     | Number of iterative prompt aggregation cycles                                                 |
+| `n_cells`  | `4`     | Config field retained from the Trompt design; limited direct effect in current implementation |
+| `P`        | `128`   | Number of prompt/prototype records                                                            |
 
 ```python
 from deeptab.configs import PreprocessingConfig, TrainerConfig, TromptConfig
@@ -105,19 +107,19 @@ model = TromptClassifier(
 
 ## Practical Guide
 
-| Dataset Condition | Recommendation |
-| ----------------- | -------------- |
-| Mixed feature types | Trompt can be worth testing because all features pass through `EmbeddingLayer` |
+| Dataset Condition                    | Recommendation                                                                               |
+| ------------------------------------ | -------------------------------------------------------------------------------------------- |
+| Mixed feature types                  | Trompt can be worth testing because all features pass through `EmbeddingLayer`               |
 | Need interpretable feature weighting | Inspect prompt-to-column weights conceptually, but internal tooling may require custom hooks |
-| Large feature count | Reduce `P` or `d_model`; importance maps scale with prompt slots and columns |
-| Need stable transformer baseline | Use FTTransformer |
-| Need strong efficient baseline | Use TabM |
+| Large feature count                  | Reduce `P` or `d_model`; importance maps scale with prompt slots and columns                 |
+| Need stable transformer baseline     | Use FTTransformer                                                                            |
+| Need strong efficient baseline       | Use TabM                                                                                     |
 
 Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standard", "quantile", "ple"],
+    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_cycles": [2, 4, 6],
     "model_config__P": [32, 64, 128],

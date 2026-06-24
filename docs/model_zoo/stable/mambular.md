@@ -1,5 +1,7 @@
 # Mambular
 
+**Available as:** `MambularClassifier`, `MambularRegressor`, and `MambularLSS` in `deeptab.models`.
+
 ## Overview
 
 Mambular treats tabular columns as a sequence of feature tokens and processes that sequence with Mamba-style state-space blocks. It is DeepTab's main stable state-space model for tabular data.
@@ -22,12 +24,12 @@ feature tokens -> optional shuffle -> Mamba/MambaOriginal -> pooling -> MLPhead
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Converts columns to a token sequence. |
+| Component      | DeepTab implementation     | Role                                               |
+| -------------- | -------------------------- | -------------------------------------------------- |
+| Tokenizer      | `EmbeddingLayer`           | Converts columns to a token sequence.              |
 | Sequence block | `Mamba` or `MambaOriginal` | Applies selective state-space sequence processing. |
-| Pooling | `pooling_method` | Reduces tokens to a row representation. |
-| Head | `MLPhead` | Task-specific prediction. |
+| Pooling        | `pooling_method`           | Reduces tokens to a row representation.            |
+| Head           | `MLPhead`                  | Task-specific prediction.                          |
 
 ## Implementation Notes
 
@@ -57,12 +59,12 @@ model = MambularClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `32` to `128` | Token width. |
-| `n_layers` | `2` to `6` | Number of Mamba blocks. |
-| `d_state` | `64` to `256` | State-space memory size. |
-| `d_conv` | `2` to `8` | Local convolution width inside Mamba. |
+| Setting         | Typical range     | Effect                                               |
+| --------------- | ----------------- | ---------------------------------------------------- |
+| `d_model`       | `32` to `128`     | Token width.                                         |
+| `n_layers`      | `2` to `6`        | Number of Mamba blocks.                              |
+| `d_state`       | `64` to `256`     | State-space memory size.                             |
+| `d_conv`        | `2` to `8`        | Local convolution width inside Mamba.                |
 | `bidirectional` | `False` or `True` | Whether to process feature order in both directions. |
 
 ## When To Use

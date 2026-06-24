@@ -87,24 +87,16 @@ Sphinx raises a warning when `autodoc` documents the same symbol more than once.
    :noindex:
 ```
 
-## Code blocks in pages
+## Code blocks and diagrams
 
-Use fenced code blocks with a language tag for syntax highlighting:
+Use fenced code blocks with a language tag for syntax highlighting (` ```python `, ` ```bash `). The `sphinxcontrib-mermaid` extension is enabled, so diagrams use a `{mermaid}` fence:
 
 ````markdown
 ```python
 model = MLPClassifier()
 model.fit(X_train, y_train)
 ```
-````
 
-For shell commands use ` ```bash ` or ` ```sh `.
-
-## Mermaid diagrams
-
-The `sphinxcontrib-mermaid` extension is enabled. Use a `mermaid` code fence:
-
-````markdown
 ```{mermaid}
 flowchart LR
     A[Start] --> B[End]

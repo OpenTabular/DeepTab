@@ -1,5 +1,7 @@
 # MambaTab
 
+**Available as:** `MambaTabClassifier`, `MambaTabRegressor`, and `MambaTabLSS` in `deeptab.models`.
+
 ## Overview
 
 MambaTab is exposed as a stable Mamba-family model, but the current DeepTab forward path behaves as a lightweight projected-feature network: it concatenates input features, projects them to `d_model`, normalizes and activates the representation, then predicts with `MLPhead`.
@@ -22,17 +24,19 @@ features -> concat -> Linear(input_dim, d_model) -> LayerNorm -> activation -> M
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Input path | `torch.cat(...)` | Uses raw/preprocessed feature tensors directly. |
-| Projection | `initial_layer` | Maps input vector to `d_model`. |
-| Normalization | `LayerNorm` | Stabilizes projected representation. |
-| Head | `MLPhead` | Produces predictions. |
-| Mamba block | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Instantiated in `__init__`, but not called in the current `forward`. |
+| Component     | DeepTab implementation                            | Role                                                                 |
+| ------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
+| Input path    | `torch.cat(...)`                                  | Uses raw/preprocessed feature tensors directly.                      |
+| Projection    | `initial_layer`                                   | Maps input vector to `d_model`.                                      |
+| Normalization | `LayerNorm`                                       | Stabilizes projected representation.                                 |
+| Head          | `MLPhead`                                         | Produces predictions.                                                |
+| Mamba block   | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Instantiated in `__init__`, but not called in the current `forward`. |
 
 ## Implementation Notes
 
 The presence of Mamba-related config fields (`d_state`, `d_conv`, `expand_factor`, `mamba_version`, `bidirectional`) does not mean they affect the current forward pass. They configure the instantiated `self.mamba` module, but that module is not applied before the head.
+
+`mamba_version="mamba-torch"` (the default) selects DeepTab's local `Mamba` block; any other value selects `MambaOriginal`. Either way, the chosen block is built in `__init__` but skipped by `forward`, so this setting has no effect in the current release.
 
 This distinction matters for research comparisons: document the DeepTab version and verify the forward path if you report MambaTab as a state-space model.
 
@@ -49,7 +53,7 @@ model = MambaTabRegressor(
         head_layer_sizes=[128],
         head_dropout=0.1,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standard"),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -57,13 +61,13 @@ model = MambaTabRegressor(
 
 Key settings in the current forward path:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `32` to `128` | Width of the projected representation. |
-| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm. |
-| `head_layer_sizes` | `[]` to `[256, 128]` | Extra MLPhead capacity. |
-| `head_dropout` | `0.0` to `0.3` | Head regularization. |
-| `axis` | `1` or `0` | Temporary unsqueeze axis before normalization. |
+| Setting                | Typical range              | Effect                                         |
+| ---------------------- | -------------------------- | ---------------------------------------------- |
+| `d_model`              | `32` to `128`              | Width of the projected representation.         |
+| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm.              |
+| `head_layer_sizes`     | `[]` to `[256, 128]`       | Extra MLPhead capacity.                        |
+| `head_dropout`         | `0.0` to `0.3`             | Head regularization.                           |
+| `axis`                 | `1` or `0`                 | Temporary unsqueeze axis before normalization. |
 
 ## When To Use
 

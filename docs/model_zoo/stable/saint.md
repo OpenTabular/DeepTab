@@ -1,5 +1,7 @@
 # SAINT
 
+**Available as:** `SAINTClassifier`, `SAINTRegressor`, and `SAINTLSS` in `deeptab.models`.
+
 ## Overview
 
 SAINT is an attention architecture for tabular data that combines feature-wise attention with row-wise attention. In DeepTab, SAINT embeds all supported feature types, applies a row/column Transformer block, pools the resulting sequence, and predicts with an MLP head.
@@ -22,13 +24,13 @@ feature tokens -> RowColTransformer -> pooling -> optional norm -> MLPhead
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Converts each input feature to a token. |
-| Column attention | `nn.MultiheadAttention` inside `RowColTransformer` | Models feature interactions within a row. |
-| Row attention | Flattened row representation inside `RowColTransformer` | Mixes sample-level context within a batch. |
-| Feed-forward blocks | LayerNorm + Linear + activation + dropout | Adds nonlinear token updates. |
-| Prediction head | `MLPhead` | Produces final outputs. |
+| Component           | DeepTab implementation                                  | Role                                       |
+| ------------------- | ------------------------------------------------------- | ------------------------------------------ |
+| Tokenizer           | `EmbeddingLayer`                                        | Converts each input feature to a token.    |
+| Column attention    | `nn.MultiheadAttention` inside `RowColTransformer`      | Models feature interactions within a row.  |
+| Row attention       | Flattened row representation inside `RowColTransformer` | Mixes sample-level context within a batch. |
+| Feed-forward blocks | LayerNorm + Linear + activation + dropout               | Adds nonlinear token updates.              |
+| Prediction head     | `MLPhead`                                               | Produces final outputs.                    |
 
 ## Implementation Notes
 
@@ -60,13 +62,13 @@ model = SAINTClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `64` to `192` | Token width. |
-| `n_layers` | `1` to `4` | Row/column attention depth. |
-| `n_heads` | `2` to `8` | Number of attention heads. |
-| `attn_dropout`, `ff_dropout` | `0.0` to `0.3` | Regularization. |
-| `pooling_method`, `use_cls` | `"cls"`/`True` or `"avg"`/`False` | Token aggregation behavior. |
+| Setting                      | Typical range                     | Effect                      |
+| ---------------------------- | --------------------------------- | --------------------------- |
+| `d_model`                    | `64` to `192`                     | Token width.                |
+| `n_layers`                   | `1` to `4`                        | Row/column attention depth. |
+| `n_heads`                    | `2` to `8`                        | Number of attention heads.  |
+| `attn_dropout`, `ff_dropout` | `0.0` to `0.3`                    | Regularization.             |
+| `pooling_method`, `use_cls`  | `"cls"`/`True` or `"avg"`/`False` | Token aggregation behavior. |
 
 ## When To Use
 

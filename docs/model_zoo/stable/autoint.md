@@ -1,5 +1,7 @@
 # AutoInt
 
+**Available as:** `AutoIntClassifier`, `AutoIntRegressor`, and `AutoIntLSS` in `deeptab.models`.
+
 ## Overview
 
 AutoInt learns feature interactions with stacked multi-head self-attention layers. It treats tabular columns as feature tokens, repeatedly attends across tokens, flattens the final token sequence, and predicts with a linear head.
@@ -21,12 +23,12 @@ feature tokens -> [LayerNorm -> MultiheadAttention -> residual -> Linear -> resi
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Builds feature tokens. |
-| Interaction layer | `nn.MultiheadAttention` | Learns pairwise and higher-order token interactions. |
-| Residual projection | `nn.Linear(d_model, d_model)` | Updates each attended token. |
-| Output head | `nn.Linear(d_model * n_inputs, num_classes)` | Uses all token states for prediction. |
+| Component           | DeepTab implementation                       | Role                                                 |
+| ------------------- | -------------------------------------------- | ---------------------------------------------------- |
+| Tokenizer           | `EmbeddingLayer`                             | Builds feature tokens.                               |
+| Interaction layer   | `nn.MultiheadAttention`                      | Learns pairwise and higher-order token interactions. |
+| Residual projection | `nn.Linear(d_model, d_model)`                | Updates each attended token.                         |
+| Output head         | `nn.Linear(d_model * n_inputs, num_classes)` | Uses all token states for prediction.                |
 
 ## Implementation Notes
 
@@ -55,12 +57,12 @@ model = AutoIntClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `d_model` | `64` to `256` | Token width. |
-| `n_layers` | `2` to `6` | Number of interaction layers. |
-| `n_heads` | `4` to `8` | Attention heads; must divide `d_model`. |
-| `attn_dropout` | `0.0` to `0.3` | Attention regularization. |
+| Setting                       | Typical range     | Effect                                          |
+| ----------------------------- | ----------------- | ----------------------------------------------- |
+| `d_model`                     | `64` to `256`     | Token width.                                    |
+| `n_layers`                    | `2` to `6`        | Number of interaction layers.                   |
+| `n_heads`                     | `4` to `8`        | Attention heads; must divide `d_model`.         |
+| `attn_dropout`                | `0.0` to `0.3`    | Attention regularization.                       |
 | `transformer_dim_feedforward` | Present in config | Not used by the current `AutoInt` architecture. |
 
 ## When To Use

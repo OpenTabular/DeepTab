@@ -1,5 +1,7 @@
 # NODE
 
+**Available as:** `NODEClassifier`, `NODERegressor`, and `NODELSS` in `deeptab.models`.
+
 ## Overview
 
 NODE implements Neural Oblivious Decision Ensembles: differentiable oblivious decision trees trained inside a neural network. It is a useful bridge between tree-based inductive bias and gradient-based deep learning.
@@ -21,13 +23,13 @@ features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Input representation | raw concatenation or `EmbeddingLayer` | Builds the vector consumed by trees. |
-| Differentiable trees | `deeptab.nn.blocks.node.DenseBlock` | Stacks NODE-style tree layers. |
-| Tree depth | `depth` | Controls number of soft splits per tree. |
-| Layer width | `layer_dim` | Number of trees/features per dense layer. |
-| Head | `MLPhead` | Maps tree representation to task output. |
+| Component            | DeepTab implementation                | Role                                      |
+| -------------------- | ------------------------------------- | ----------------------------------------- |
+| Input representation | raw concatenation or `EmbeddingLayer` | Builds the vector consumed by trees.      |
+| Differentiable trees | `deeptab.nn.blocks.node.DenseBlock`   | Stacks NODE-style tree layers.            |
+| Tree depth           | `depth`                               | Controls number of soft splits per tree.  |
+| Layer width          | `layer_dim`                           | Number of trees/features per dense layer. |
+| Head                 | `MLPhead`                             | Maps tree representation to task output.  |
 
 ## Implementation Notes
 
@@ -55,12 +57,12 @@ model = NODEClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `num_layers` | `2` to `6` | Number of dense tree layers. |
-| `layer_dim` | `64` to `256` | Width of each tree layer. |
-| `depth` | `4` to `8` | Soft decision depth. |
-| `tree_dim` | `1` to `3` | Output dimension per tree. |
+| Setting            | Typical range   | Effect                          |
+| ------------------ | --------------- | ------------------------------- |
+| `num_layers`       | `2` to `6`      | Number of dense tree layers.    |
+| `layer_dim`        | `64` to `256`   | Width of each tree layer.       |
+| `depth`            | `4` to `8`      | Soft decision depth.            |
+| `tree_dim`         | `1` to `3`      | Output dimension per tree.      |
 | `head_layer_sizes` | `[]` to `[128]` | Extra prediction-head capacity. |
 
 ## When To Use

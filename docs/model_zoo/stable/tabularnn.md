@@ -1,5 +1,7 @@
 # TabulaRNN
 
+**Available as:** `TabulaRNNClassifier`, `TabulaRNNRegressor`, and `TabulaRNNLSS` in `deeptab.models`.
+
 ## Overview
 
 TabulaRNN treats tabular columns as a sequence and processes feature tokens with recurrent layers plus depthwise convolution. It is useful when you want a sequence-model baseline that is simpler than Mamba and different from self-attention.
@@ -24,13 +26,13 @@ pooled recurrent state + projected mean -> optional norm -> MLPhead
 
 ## Main Building Blocks
 
-| Component | DeepTab implementation | Role |
-| --- | --- | --- |
-| Tokenizer | `EmbeddingLayer` | Builds sequence tokens. |
-| Local filter | depthwise `nn.Conv1d` inside `ConvRNN` | Adds local token mixing. |
-| Recurrent block | `RNN`, `LSTM`, `GRU`, `mLSTM`, or `sLSTM` | Sequential feature processing. |
-| Residual summary | `mean(x)` plus `linear` | Preserves direct feature-token information. |
-| Head | `MLPhead` | Final prediction. |
+| Component        | DeepTab implementation                    | Role                                        |
+| ---------------- | ----------------------------------------- | ------------------------------------------- |
+| Tokenizer        | `EmbeddingLayer`                          | Builds sequence tokens.                     |
+| Local filter     | depthwise `nn.Conv1d` inside `ConvRNN`    | Adds local token mixing.                    |
+| Recurrent block  | `RNN`, `LSTM`, `GRU`, `mLSTM`, or `sLSTM` | Sequential feature processing.              |
+| Residual summary | `mean(x)` plus `linear`                   | Preserves direct feature-token information. |
+| Head             | `MLPhead`                                 | Final prediction.                           |
 
 ## Implementation Notes
 
@@ -61,13 +63,13 @@ model = TabulaRNNClassifier(
 
 Key settings:
 
-| Setting | Typical range | Effect |
-| --- | --- | --- |
-| `model_type` | `"RNN"`, `"GRU"`, `"LSTM"` | Recurrent cell family. |
-| `d_model` | `64` to `192` | Feature-token width. |
-| `n_layers` | `1` to `4` | Recurrent depth. |
-| `dim_feedforward` | `128` to `512` | Hidden size consumed by the head. |
-| `d_conv` | `2` to `8` | Depthwise convolution width. |
+| Setting           | Typical range              | Effect                            |
+| ----------------- | -------------------------- | --------------------------------- |
+| `model_type`      | `"RNN"`, `"GRU"`, `"LSTM"` | Recurrent cell family.            |
+| `d_model`         | `64` to `192`              | Feature-token width.              |
+| `n_layers`        | `1` to `4`                 | Recurrent depth.                  |
+| `dim_feedforward` | `128` to `512`             | Hidden size consumed by the head. |
+| `d_conv`          | `2` to `8`                 | Depthwise convolution width.      |
 
 ## When To Use
 

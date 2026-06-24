@@ -16,16 +16,7 @@ MAJOR.MINOR.PATCH
 
 Release candidates use the suffix `rcN`, e.g. `1.8.0rc1`.
 
-The version is defined **in one place only**, `pyproject.toml`, and read at runtime via `importlib.metadata` in `deeptab/_version.py`:
-
-```python
-from importlib.metadata import PackageNotFoundError, version
-
-try:
-    __version__ = version("deeptab")
-except PackageNotFoundError:
-    __version__ = "0+unknown"
-```
+The version is defined **in one place only**, `pyproject.toml`, and read at runtime via `importlib.metadata` in `deeptab/_version.py`, so it never needs to be hard-coded in the package.
 
 ## Commit types and their effect
 
@@ -63,35 +54,19 @@ The `commit-msg` pre-commit hook validates every commit message against the conv
 
 ## Bumping the version
 
-On a `release/vX.Y.Z` branch, let commitizen determine the next version automatically:
+Version bumps are driven by [commitizen](https://commitizen-tools.github.io/commitizen/), wrapped in `just` recipes. Preview first with the `-preview` (dry-run) variant, then apply. Each apply recipe updates `version` in `pyproject.toml`, appends to `CHANGELOG.md`, and creates the bump commit and tag.
 
-```bash
-cz bump
-```
+| Goal              | Preview                | Apply          |
+| ----------------- | ---------------------- | -------------- |
+| Stable release    | `just bump-preview`    | `just bump`    |
+| Release candidate | `just bump-rc-preview` | `just bump-rc` |
 
-This command:
-
-1. Reads all conventional commits since the last tag.
-2. Determines the next version (`MAJOR`, `MINOR`, or `PATCH`).
-3. Updates `version` in `pyproject.toml`.
-4. Appends the new section to `CHANGELOG.md`.
-5. Creates a local commit `bump: version X.Y.Z-1 → X.Y.Z`.
-
-For a release candidate, set the version explicitly instead:
-
-```bash
-poetry version 1.8.0rc1
-poetry lock
-git add pyproject.toml poetry.lock CHANGELOG.md
-git commit -m "bump: version 1.7.0 → 1.8.0rc1"
-```
+The next version is inferred from the conventional commits since the last tag. To force a level when it is not auto-detected, append the increment, e.g. `just bump --increment MAJOR`.
 
 ## Changelog
 
-`CHANGELOG.md` at the repository root is the authoritative changelog. It is updated automatically by `cz bump` on stable releases. For release candidates, update it manually before tagging.
-
-The changelog format groups changes under the commit types (`feat`, `fix`, `perf`, etc.) and lists the subject line of every matching commit since the previous release.
+`CHANGELOG.md` at the repository root is the authoritative changelog, updated automatically by the bump recipes. Changes are grouped under their commit types (`feat`, `fix`, `perf`, ...) with the subject line of every matching commit since the previous release.
 
 ## Tags
 
-All release tags follow the format `vMAJOR.MINOR.PATCH` (or `vMAJOR.MINOR.PATCHrcN` for RCs). Tags are what trigger the PyPI publish workflows. See the [Release process](release.md) page for the full end-to-end procedure.
+Release tags follow `vMAJOR.MINOR.PATCH` (or `vMAJOR.MINOR.PATCHrcN` for RCs) and trigger the PyPI publish workflows. See the [Release process](release.md) page for the full end-to-end procedure.

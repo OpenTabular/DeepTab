@@ -24,7 +24,7 @@
 ## Why DeepTab?
 
 - **Familiar interface.** A scikit-learn `fit`/`predict`/`evaluate` API that drops into existing pipelines, including `GridSearchCV`.
-- **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are built in.
+- **Automatic preprocessing.** Feature-type detection, encoding, scaling, and missing-value handling are powered by [PreTab](https://github.com/OpenTabular/PreTab) and applied for you.
 - **One model, three tasks.** Every architecture ships as a classifier, a regressor, and a distributional (`LSS`) variant for uncertainty quantification.
 - **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
 - **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.

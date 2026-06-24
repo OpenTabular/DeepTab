@@ -6,33 +6,23 @@ DeepTab uses [pytest](https://docs.pytest.org/) with [pytest-cov](https://pytest
 
 ## Running the test suite
 
-```bash
-just test
-```
+| Goal                          | Command                                                |
+| ----------------------------- | ------------------------------------------------------ |
+| Full suite with coverage      | `just test`                                            |
+| A single file                 | `poetry run pytest tests/test_models.py -v`            |
+| A single test                 | `poetry run pytest tests/test_models.py::test_name -v` |
+| Live logs, stop on first fail | `poetry run pytest tests/ -x -s`                       |
 
-This expands to:
-
-```bash
-poetry run pytest --cov=deeptab tests/
-```
-
-To run a single file or a specific test:
-
-```bash
-poetry run pytest tests/test_models.py -v
-poetry run pytest tests/test_models.py::test_classifier_fit_predict_shape -v
-```
-
-To print live log output and stop on the first failure:
-
-```bash
-poetry run pytest tests/ -x -s
-```
+`just test` expands to `poetry run pytest --cov=deeptab tests/`.
 
 ## Writing new tests
 
-- Place tests in `tests/` using the `test_*.py` naming convention.
-- Prefer parametrize over copy-paste for variations of the same test:
+| Convention    | Guideline                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| Location      | Place tests in `tests/` using the `test_*.py` naming convention.                                |
+| Variations    | Use `@pytest.mark.parametrize` instead of copy-pasting near-identical tests.                    |
+| Data          | Use small synthetic datasets (`n=64`, `d=8`); never download external data.                     |
+| Trainer noise | Silence Lightning output with `logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)`. |
 
 ```python
 import pytest
@@ -42,33 +32,16 @@ def test_depth(n_layers):
     ...
 ```
 
-- Use small synthetic datasets (`n=64`, `d=8`) to keep tests fast. Avoid downloading external data in tests.
-- Models rely on PyTorch Lightning internally. To suppress verbose trainer output in tests, set:
-
-```python
-import logging
-logging.getLogger("lightning.pytorch").setLevel(logging.ERROR)
-```
-
 ## Coverage
 
-A coverage report is printed to the terminal after every `just test` run. To generate an interactive HTML report:
+A coverage report is printed after every `just test` run. For an interactive HTML report:
 
 ```bash
 poetry run pytest --cov=deeptab --cov-report=html tests/
 open htmlcov/index.html
 ```
 
-## CI test matrix
-
-The `ci.yml` workflow runs the full suite on every push to `main` and on every pull request, across:
-
-| Dimension  | Values                                            |
-| ---------- | ------------------------------------------------- |
-| **Python** | 3.10, 3.11, 3.12, 3.13                            |
-| **OS**     | `ubuntu-latest`, `macos-latest`, `windows-latest` |
-
-All 12 combinations run in parallel with `fail-fast: false`, so a failure in one combination does not cancel the others.
+The full suite also runs in CI across every supported Python and OS combination. See [CI/CD](ci_cd.md) for the matrix.
 
 ## Pre-push checks
 

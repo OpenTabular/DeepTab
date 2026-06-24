@@ -3,7 +3,7 @@
 DeepTab uses a split-config API. Architecture, preprocessing, and training settings are kept in separate dataclasses so experiments can change one layer without mixing concerns.
 
 ```{important}
-The model constructor accepts `model_config`, `preprocessing_config`, and `trainer_config`. Flat constructor arguments are legacy compatibility only; new documentation and experiments should use split configs.
+The model constructor accepts `model_config`, `preprocessing_config`, and `trainer_config`. All settings must go through these config objects; the flat constructor arguments from v1 are no longer accepted and raise a `TypeError`.
 ```
 
 ## The Three Config Layers
@@ -15,6 +15,38 @@ The model constructor accepts `model_config`, `preprocessing_config`, and `train
 | `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`                       |
 
 All three are optional. If omitted, DeepTab creates default config objects internally.
+
+### Moving from v1
+
+In v1, architecture, preprocessing, and training options were all passed as flat keyword arguments on the estimator. In v2 those same options live in three dedicated config objects. The estimator call is the only thing that changes; `fit`, `predict`, and `evaluate` behave exactly as before.
+
+```python
+# v1: every option flat on the estimator
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier(
+    d_model=128,
+    n_layers=4,
+    numerical_preprocessing="ple",
+    lr=1e-3,
+)
+```
+
+```python
+# v2: options grouped by concern
+from deeptab.models import MambularClassifier
+from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
+
+model = MambularClassifier(
+    model_config=MambularConfig(d_model=128, n_layers=4),
+    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),
+    trainer_config=TrainerConfig(lr=1e-3),
+)
+```
+
+```{tip}
+Each option moves to the config that owns its concern: architecture fields go to the model config, anything passed to `pretab.Preprocessor` goes to `PreprocessingConfig`, and training or optimizer fields go to `TrainerConfig`. The tables further down list which fields belong where.
+```
 
 ### Where to find every field
 

@@ -58,14 +58,14 @@ cfg = PreprocessingConfig(
 )
 ```
 
-| Field                                        | Purpose                                                                                                                          |
-| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_preprocessing`                    | Transform strategy: `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`, or `None`. |
-| `categorical_preprocessing`                  | Encoding strategy: `"int"`, `"one-hot"`, etc.                                                                                    |
-| `n_bins`                                     | Bins for binned / PLE-style transforms.                                                                                          |
-| `scaling_strategy`                           | Optional post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                         |
-| `binning_strategy`, `use_decision_tree_bins` | How bin edges are built.                                                                                                         |
-| `n_knots`, `degree`, `spline_implementation` | Spline preprocessing controls.                                                                                                   |
+| Field                                        | Purpose                                                                                                                                       |
+| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_preprocessing`                    | Transform strategy: `"standardization"`, `"quantile"`, `"ple"`, `"splines"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`, or `None`. |
+| `categorical_preprocessing`                  | Encoding strategy: `"int"`, `"one-hot"`, etc.                                                                                                 |
+| `n_bins`                                     | Bins for binned / PLE-style transforms.                                                                                                       |
+| `scaling_strategy`                           | Optional post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                      |
+| `binning_strategy`, `use_decision_tree_bins` | How bin edges are built.                                                                                                                      |
+| `n_knots`, `degree`, `spline_implementation` | Spline preprocessing controls.                                                                                                                |
 
 Practical starting points:
 

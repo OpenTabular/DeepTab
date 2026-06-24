@@ -1,153 +1,78 @@
 # Contribution Guidelines
 
-Thank you for considering contributing to our Python package! We appreciate your time and effort in helping us improve our project. Please take a moment to review the following guidelines to ensure a smooth and efficient contribution process.
+Thanks for contributing to DeepTab. This page covers environment setup, the local workflow, and what a pull request needs to pass review.
 
 ## Code of Conduct
 
-We kindly request all contributors to adhere to our Code of Conduct when participating in this project. It outlines our expectations for respectful and inclusive behavior within the community.
+All contributors are expected to follow the project [Code of Conduct](https://github.com/OpenTabular/DeepTab/blob/main/CODE_OF_CONDUCT.md), which sets the standard for respectful and inclusive participation.
 
-## Setting Up Development Environment
+## Setting up the development environment
 
-Before you start contributing to the project, you need to set up your development environment. This will allow you to make changes to the codebase, run tests, and build the documentation locally. The project uses `poetry` for dependency management and packaging. Along with that, `ruff` is used for source code formatting and linting.
+The project uses [Poetry](https://python-poetry.org/docs/) for dependency management and the [just](https://just.systems/man/en/) command runner for common tasks (`justfile` defines testing, building, and formatting).
 
-To set up the development environment for this Python package, follow these steps:
+1. Clone the repository:
 
-1. Clone the repository to your local machine using the command:
-
-```
+```bash
 git clone https://github.com/OpenTabular/DeepTab
-
 cd DeepTab
 ```
 
-2. Install tools required for setting up development environment:
+2. Install the prerequisites: `pip install poetry` and `just` (see the [just install guide](https://just.systems/man/en/packages.html), e.g. `brew install just`).
 
-- Install `poetry` for dependency management and packaging. You can install it using the following command or refer to the [official documentation](https://python-poetry.org/docs/) for more information.
+3. Install dependencies and register the pre-commit hooks:
 
-```
-pip install poetry
-```
-
-- Install `just` command runner. You can install it using the following command or refer to the [official documentation](https://just.systems/man/en/) for more information.
-
-`justfile` in the source directory is used to define and run common tasks like testing, building, and formatting the codebase.
-
-3. In case you are able to successfully install `poetry` and `just`, you can run the following command to install the dependencies and set up the development environment:
-
-```
-# it will install the dependencies as defined in the pyproject.toml file
-# it will also install the pre-commit hooks
-
+```bash
 just install
 ```
 
-In case you are not able to install `just`, you can follow the below steps to set up the development environment:
+Without `just`, run the same steps directly:
 
-```
-cd DeepTab
-
+```bash
 poetry install
-
 poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 ```
 
-If you need to update the documentation, please install the documentation dependencies:
+To work on the docs, also install the docs group with `poetry install --with docs`.
+
+## How to contribute
+
+1. Branch off `main` with a short, descriptive name.
+2. Make your changes, keeping each pull request to a single logical focus.
+3. Add or update tests, and run the full check suite locally before pushing:
 
 ```bash
-# Recommended: install via the docs dependency group
-poetry install --with docs
-
-# Alternative: install directly
-pip install -r docs/requirements_docs.txt
+just test     # full suite with coverage
+just check    # lint, format, type-check, all pre-commit hooks (what CI runs)
+just docs     # build HTML docs (warnings treated as errors)
 ```
 
-**Note:** You can also set up a virtual environment to isolate your development environment.
-
-## How to Contribute
-
-1. Create a new branch from `main` for your contributions. Please use descriptive and concise branch names.
-2. Make your desired changes or additions to the codebase.
-3. Ensure that your code adheres to [PEP8](https://peps.python.org/pep-0008/) coding style guidelines.
-4. Write appropriate tests for your changes and verify they pass:
-
-```bash
-just test
-```
-
-5. Update the documentation and examples, if necessary.
-6. Build the HTML documentation and verify it works as expected:
-
-```bash
-just docs
-```
-
-Verify the output under `docs/_build/html/`, where `index.html` is the entry point.
-
-7. Run the full local check suite before pushing (lint, format, type-check, and all pre-commit hooks):
-
-```bash
-just check
-```
-
-If `ruff-format` modifies any files, commit those changes before pushing:
-
-```bash
-git add -u
-git commit -m "style: apply ruff formatting"
-```
-
-8. Commit your changes following the Conventional Commits specification (see below):
-
-```bash
-just commit
-```
-
-9. Submit a pull request from your branch to `main` in the original repository.
-10. Wait for the maintainers to review your pull request. Address any feedback or comments if required.
-11. Once approved, your changes will be merged into the main codebase.
+4. Commit using Conventional Commits via `just commit`. If `just check` reformats files, commit those separately with `style: apply ruff formatting`.
+5. Open a pull request to `main`, reference any related issues, and address review feedback until approved and merged.
 
 ## Pre-commit Hooks
 
-This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. The hooks run at two stages:
+This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. `just install` registers all three hook types so each fires at the right time:
 
-- **commit**: `ruff` format and lint checks, plus general file hygiene hooks (trailing whitespace, end-of-file, merge conflicts).
-- **push**: `pyright` type checking, which is slower and so is deferred until push.
-
-A separate `commit-msg` hook validates that every commit message follows the Conventional Commits format.
-
-`just install` registers all three hook types (`commit-msg`, `pre-commit`, `pre-push`) so everything fires at the right time automatically.
+| Stage        | Hook                                                                    |
+| ------------ | ----------------------------------------------------------------------- |
+| `commit-msg` | Validates the message against Conventional Commits.                     |
+| `pre-commit` | `ruff` format and lint, plus file hygiene (whitespace, EOF, conflicts). |
+| `pre-push`   | `pyright` type checking (slower, so deferred to push). Also runs in CI. |
 
 ```{important}
-Run `just check` before opening a PR. It executes the commit and push stage hooks against every file in the repo, giving you the same signal CI will see.
+Run `just check` before opening a PR. It executes the commit and push stage hooks against every file, giving you the same signal CI will see.
 ```
 
-```bash
-# Lint and auto-fix with ruff
-just lint
+Individual recipes are available when you want to run one step:
 
-# Run the ruff formatter
-just format
+| Command       | Action                                          |
+| ------------- | ----------------------------------------------- |
+| `just lint`   | Lint and auto-fix with ruff.                    |
+| `just format` | Run the ruff formatter.                         |
+| `just types`  | Run the pyright type checker.                   |
+| `just check`  | Run all hooks across all files (commit + push). |
 
-# Run the pyright type checker
-just types
-
-# Run ALL hooks across ALL files (commit + push stages), equivalent to what CI checks
-just check
-```
-
-If pre-commit reports files that _would be reformatted_, run `just format`, stage the changes, and commit before pushing. Formatting-only changes should be committed separately with `style: apply ruff formatting`.
-
-### Type checking (pyright)
-
-Type checking with `pyright` runs automatically on `git push` via the pre-push hook (registered by `just install`). It also runs in CI as the `typecheck` job in `.github/workflows/ci.yml`.
-
-To run it manually at any time:
-
-```bash
-just types
-```
-
-Fix any reported errors before opening a PR.
+If pre-commit reports files that _would be reformatted_, run `just format` and commit the result separately with `style: apply ruff formatting`.
 
 ## Documentation
 
@@ -170,20 +95,16 @@ For the end-to-end release procedure (version bump, tags, PyPI publishing) see:
 
 ## Submitting Contributions
 
-When submitting your contributions, please ensure the following:
+Before requesting review, make sure your pull request:
 
-- Include a clear and concise description of the changes made in your pull request.
-- Reference any relevant issues or feature requests in the pull request description.
-- Make sure your code follows the project's coding style and conventions.
-- Include appropriate tests that cover your changes, ensuring they pass successfully.
-- Update the documentation if necessary to reflect the changes made.
-- Ensure that your pull request has a single, logical focus.
+- Has a clear description and references any related issues.
+- Keeps a single, logical focus.
+- Includes passing tests and updated docs for the changes made.
 
 ## Issue Tracker
 
-If you encounter any bugs, have feature requests, or need assistance, please visit our [Issue Tracker](https://github.com/OpenTabular/DeepTab/issues). Make sure to search for existing issues before creating a new one.
+Report bugs, request features, or ask for help on the [Issue Tracker](https://github.com/OpenTabular/DeepTab/issues). Search existing issues before opening a new one.
 
 ## License
 
-By contributing to this project, you agree that your contributions will be licensed under the LICENSE of the project.
-Please note that the above guidelines are subject to change, and the project maintainers hold the right to reject or request modifications to any contributions. Thank you for your understanding and support in making this project better!
+By contributing, you agree that your contributions are licensed under the project LICENSE.

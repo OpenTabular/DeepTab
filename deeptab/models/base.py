@@ -148,7 +148,6 @@ class SklearnBase(
         trainer_config=None,
         observability_config: ObservabilityConfig | None = None,
         random_state=None,
-        **kwargs,
     ):
         model_cls = type(self)._model_cls
         config_cls = type(self)._config_cls
@@ -202,28 +201,19 @@ class SklearnBase(
             self._optimizer_type = getattr(self.trainer_config, "optimizer_type", "Adam")
             self._optimizer_kwargs = {}
         else:
-            # ---- Legacy flat-kwargs path (backward compat) ----
+            # ---- No configs provided: fall back to defaults ----
             self.model_config = None
             self.preprocessing_config = None
             self.trainer_config = None
 
-            self._config_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in self._preprocessor_arg_names and not k.startswith("optimizer")
-            }
-            self.config = config_cls(**self._config_kwargs)
+            self._config_kwargs = {}
+            self.config = config_cls()
 
-            self._preprocessor_kwargs = {k: v for k, v in kwargs.items() if k in self._preprocessor_arg_names}
-            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+            self._preprocessor_kwargs = {}
+            self._preprocessor = Preprocessor()
 
-            self._optimizer_type = kwargs.get("optimizer_type", "Adam")
-            self._optimizer_kwargs = {
-                k: v
-                for k, v in kwargs.items()
-                if k not in ["lr", "weight_decay", "patience", "lr_patience", "optimizer_type"]
-                and k.startswith("optimizer_")
-            }
+            self._optimizer_type = "Adam"
+            self._optimizer_kwargs = {}
 
         self._estimator = model_cls
         self._task_model = None

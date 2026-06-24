@@ -1,6 +1,6 @@
 # Overview
 
-DeepTab brings modern deep learning to tabular data with a clean scikit-learn interface. No boilerplate PyTorch code, no manual data loaders, just `fit`, `predict`, and `evaluate`.
+DeepTab is a library for deep learning on tabular data with a scikit-learn compatible interface. It handles feature preprocessing, batching, and the training loop, so the workflow stays `fit`, `predict`, and `evaluate` instead of hand-written PyTorch code and data loaders. Every architecture supports three tasks: classification, regression, and distributional regression for uncertainty quantification.
 
 ## What is DeepTab?
 
@@ -14,15 +14,7 @@ DeepTab provides 15 stable neural architectures for tabular data:
 | **Tree-inspired**      | NODE, ENODE, NDTF                             | Differentiable soft-tree structures                        |
 | **General baselines**  | MLP, TabM, TabulaRNN                          | Dense, parameter-efficient ensemble, and recurrent         |
 
-**Plus 3 experimental models:** ModernNCA, Trompt, Tangos
-
-```{important}
-**All models support three tasks:**
-
-- Classification (binary/multiclass)
-- Regression (continuous)
-- Distributional regression (uncertainty quantification)
-```
+**Plus 3 experimental models:** ModernNCA, Tangos, Trompt
 
 **Example:**
 
@@ -69,55 +61,51 @@ search = GridSearchCV(FTTransformerClassifier(), param_grid, cv=5)
 search.fit(X, y)
 ```
 
-### Smart Defaults, Full Control
+### Defaults and Configuration
 
-```{note}
-**Automatic preprocessing:**
+With no configuration, DeepTab detects feature types, encodes and scales them, and imputes missing values during preprocessing. Training runs on a GPU when one is available, with early stopping and checkpointing enabled.
 
-- Feature type detection (numerical/categorical)
-- Missing value handling
-- Scaling and encoding
-- GPU utilization
-- Early stopping with checkpointing
-```
-
-**Configure when needed:**
+Each layer is configurable when you need it. Architecture, preprocessing, and training settings live in separate config objects, so you can change one without touching the others:
 
 ```python
 from deeptab.configs import ResNetConfig, PreprocessingConfig, TrainerConfig
+from deeptab.models import ResNetClassifier
 
 model = ResNetClassifier(
     model_config=ResNetConfig(d_model=128),
     preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
-    trainer_config=TrainerConfig(lr=1e-3, batch_size=256)
+    trainer_config=TrainerConfig(lr=1e-3, batch_size=256),
 )
 ```
 
-### Production-Ready
+### Built for real datasets
 
-DeepTab targets the data encountered in practice, not only clean benchmarks:
+Beyond the defaults above, DeepTab handles details that come up with real data:
 
-- Mixed numerical, categorical, and precomputed embedding features
+- Mixed numerical, categorical, and precomputed embedding features in a single model
 - Automatic stratified splits for classification, preserving class proportions
-- Built-in imputation of missing values during preprocessing
-- Mini-batch training that scales to large datasets
-- Single-device GPU acceleration by default, with other Lightning strategies (including multi-device training) available by forwarding trainer arguments to `fit()`
+- Mini-batch training that scales to datasets larger than a single batch
+- Multi-device and other Lightning training strategies, enabled by forwarding trainer arguments to `fit()`
 
 ## When to Use DeepTab
 
-DeepTab is well suited to:
+DeepTab and gradient-boosted trees (XGBoost, LightGBM, CatBoost) are complementary tools. The table below shows where each tends to be the stronger starting point.
 
-- Tabular data with a mix of numerical and categorical features
-- Datasets large enough for neural networks to be competitive, typically from a few thousand samples upward
-- Problems with complex feature interactions
-- Applications that require calibrated uncertainty through distributional regression
-- Workflows that integrate with the scikit-learn ecosystem
+| Situation                                                                  | Stronger starting point           |
+| -------------------------------------------------------------------------- | --------------------------------- |
+| Mixed numerical and categorical features                                   | DeepTab or gradient-boosted trees |
+| A few thousand samples or more                                             | DeepTab                           |
+| Complex feature interactions                                               | DeepTab                           |
+| Calibrated uncertainty through distributional regression                   | DeepTab (`*LSS` variants)         |
+| Classification, regression, and distributional models behind one interface | DeepTab                           |
+| Integration with scikit-learn pipelines and `GridSearchCV`                 | DeepTab or gradient-boosted trees |
+| Small datasets where overfitting is a risk                                 | Gradient-boosted trees            |
+| Data that does not fit in memory                                           | Gradient-boosted trees            |
+| Latency-critical inference                                                 | Gradient-boosted trees            |
 
-Gradient-boosted trees (XGBoost, LightGBM, CatBoost) remain a strong baseline and are often preferable for:
-
-- Small datasets, where neural networks are prone to overfitting
-- Data that does not fit in memory
-- Latency-critical inference, where tree ensembles are typically faster
+```{note}
+These are general guidelines, not strict rules. Results depend on the dataset, so when performance matters it is worth benchmarking DeepTab against a gradient-boosted baseline.
+```
 
 ## Next Steps
 

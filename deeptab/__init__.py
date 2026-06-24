@@ -8,6 +8,7 @@ from .core.exceptions import (
     NotFittedError,
     PerformanceWarning,
 )
+from .core.hardware import print_hardware_info
 from .core.inference import InferenceModel
 from .core.reproducibility import seed_context, set_seed
 
@@ -25,6 +26,7 @@ __all__ = [
     "distributions",
     "metrics",
     "models",
+    "print_hardware_info",
     "seed_context",
     "set_seed",
 ]

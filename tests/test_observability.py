@@ -158,24 +158,8 @@ def test_build_lightning_loggers_unknown_tracker_raises():
 
 def test_build_lightning_loggers_mlflow_absent(monkeypatch):
     """ImportError with install hint when mlflow is not installed."""
-    # Simulate mlflow being absent by blocking its import inside Lightning
-    real_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__  # type: ignore[attr-defined]
-
-    def _block_mlflow(name, *args, **kwargs):
-        if "MLFlowLogger" in name or (len(args) >= 3 and "MLFlowLogger" in str(args[2])):
-            raise ImportError("No module named 'mlflow'")
-        return real_import(name, *args, **kwargs)
-
-    # Use monkeypatch on the lightning loggers module directly
-    mock_module = MagicMock()
-    mock_module.MLFlowLogger.side_effect = ImportError("No module named 'mlflow'")
-
-    import lightning.pytorch.loggers as lpl
-
-    original_MLFlowLogger = getattr(lpl, "MLFlowLogger", None)
-
-    # Patch lightning.pytorch.loggers so that importing MLFlowLogger raises
-    monkeypatch.setitem(sys.modules, "lightning.pytorch.loggers", None)  # type: ignore[arg-type]
+    # The guard checks the actual ``mlflow`` package, so simulate its absence.
+    monkeypatch.setitem(sys.modules, "mlflow", None)  # type: ignore[arg-type]
     cfg = ObservabilityConfig(experiment_trackers=["mlflow"])
     with pytest.raises(ImportError, match="pip install 'deeptab\\[mlflow\\]'"):
         build_lightning_loggers(cfg)
@@ -183,7 +167,8 @@ def test_build_lightning_loggers_mlflow_absent(monkeypatch):
 
 def test_build_lightning_loggers_tensorboard_absent(monkeypatch):
     """ImportError with install hint when tensorboard is not installed."""
-    monkeypatch.setitem(sys.modules, "lightning.pytorch.loggers", None)  # type: ignore[arg-type]
+    # The guard checks ``torch.utils.tensorboard``, so simulate its absence.
+    monkeypatch.setitem(sys.modules, "torch.utils.tensorboard", None)  # type: ignore[arg-type]
     cfg = ObservabilityConfig(experiment_trackers=["tensorboard"])
     with pytest.raises(ImportError, match="pip install 'deeptab\\[tensorboard\\]'"):
         build_lightning_loggers(cfg)
@@ -192,6 +177,11 @@ def test_build_lightning_loggers_tensorboard_absent(monkeypatch):
 def test_build_lightning_loggers_user_logger_does_not_replace(monkeypatch):
     """User-provided logger is appended alongside built-in trackers."""
     user_logger = _FakeLogger()
+    # Stub the optional tensorboard import guard so the test does not depend on
+    # the 'tensorboard' package being installed in the environment.
+    fake_tb_mod = ModuleType("torch.utils.tensorboard")
+    fake_tb_mod.SummaryWriter = MagicMock()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "torch.utils.tensorboard", fake_tb_mod)
     # Mock TensorBoardLogger
     fake_tb = MagicMock()
     fake_lpl = MagicMock()
