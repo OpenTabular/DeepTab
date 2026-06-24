@@ -53,8 +53,27 @@ commit:
     poetry run cz commit
 
 # audit installed dependencies for known vulnerabilities
+# The advisories ignored below are not actionable for a release today. Review this
+# list on every release and drop an entry the moment a fix lands within our pins.
+#   pip (PYSEC-2026-196, CVE-2026-3219, CVE-2026-6357):
+#       the installer itself, dev tooling only, never shipped as a dependency.
+#   msgpack / starlette (GHSA-6v7p-g79w-8964, CVE-2026-54283, CVE-2026-54282):
+#       only pulled in through the optional [mlflow] extra, not the core install.
+#   torch / pytorch-lightning (PYSEC-2026-139, CVE-2025-3000, CVE-2025-3001,
+#       CVE-2026-31221): no published fix, or a fix only in a release above our
+#       current torch <2.10 upper bound.
 audit:
-    poetry run pip-audit
+    poetry run pip-audit \
+        --ignore-vuln PYSEC-2026-196 \
+        --ignore-vuln CVE-2026-3219 \
+        --ignore-vuln CVE-2026-6357 \
+        --ignore-vuln GHSA-6v7p-g79w-8964 \
+        --ignore-vuln CVE-2026-54283 \
+        --ignore-vuln CVE-2026-54282 \
+        --ignore-vuln PYSEC-2026-139 \
+        --ignore-vuln CVE-2025-3000 \
+        --ignore-vuln CVE-2025-3001 \
+        --ignore-vuln CVE-2026-31221
 
 # preview the next stable version bump (pass extra cz args, e.g. `just bump-preview --increment MAJOR`)
 bump-preview *args:
