@@ -55,8 +55,9 @@ things changed that affect existing code:
    `Mambular*` aliases are deprecated.
 
 If you need to stay on v1 for now, pin `deeptab<2.0`. Note that the v1 branch receives
-no bug fixes or security updates. See the [FAQ](getting_started/faq) for the full
-support policy and migration notes.
+no bug fixes or security updates. See the [migration guide](getting_started/migration)
+for a step-by-step upgrade walkthrough, and the [FAQ](getting_started/faq) for the
+full support policy.
 ```
 
 The high-level `fit`/`predict`/`evaluate` workflow is unchanged. In most cases only

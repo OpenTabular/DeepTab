@@ -11,6 +11,7 @@
    getting_started/installation
    getting_started/quickstart
    getting_started/faq
+   getting_started/migration
 
 .. toctree::
    :caption: Core Concepts
