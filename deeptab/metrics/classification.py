@@ -64,6 +64,21 @@ from sklearn.metrics import roc_auc_score as _auroc
 from .base import DeepTabMetric
 
 
+def _labels_from_predictions(y_pred: np.ndarray) -> np.ndarray:
+    """Resolve predictions to class labels.
+
+    2-D arrays are class probabilities (argmax). 1-D integer-valued arrays are
+    already labels; only 1-D fractional arrays are positive-class scores and
+    get thresholded at 0.5.
+    """
+    if y_pred.ndim == 2:
+        return np.argmax(y_pred, axis=1)
+    flat = y_pred.ravel()
+    if np.issubdtype(flat.dtype, np.integer) or np.array_equal(flat, np.round(flat)):
+        return flat.astype(int)
+    return (flat >= 0.5).astype(int)
+
+
 class Accuracy(DeepTabMetric):
     """Classification accuracy -- delegates to :func:`sklearn.metrics.accuracy_score`.
 
@@ -76,7 +91,7 @@ class Accuracy(DeepTabMetric):
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred)
-        labels = np.argmax(y_pred, axis=1) if y_pred.ndim == 2 else (y_pred.ravel() >= 0.5).astype(int)
+        labels = _labels_from_predictions(y_pred)
         return float(_accuracy(y_true, labels))
 
 
@@ -101,7 +116,7 @@ class F1Score(DeepTabMetric):
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred)
-        labels = np.argmax(y_pred, axis=1) if y_pred.ndim == 2 else (y_pred.ravel() >= 0.5).astype(int)
+        labels = _labels_from_predictions(y_pred)
         return float(_f1(y_true, labels, average=self.average, zero_division=0))  # type: ignore[arg-type]
 
     def __repr__(self) -> str:
@@ -217,8 +232,12 @@ class ExpectedCalibrationError(DeepTabMetric):
         bin_edges = np.linspace(0.0, 1.0, self.n_bins + 1)
         ece = 0.0
         n = len(y_true)
-        for lo, hi in itertools.pairwise(bin_edges):
-            mask = (confidence >= lo) & (confidence < hi)
+        for i, (lo, hi) in enumerate(itertools.pairwise(bin_edges)):
+            # The last bin is right-inclusive so confidence == 1.0 is counted.
+            if i == self.n_bins - 1:
+                mask = (confidence >= lo) & (confidence <= hi)
+            else:
+                mask = (confidence >= lo) & (confidence < hi)
             if mask.sum() == 0:
                 continue
             acc = correct[mask].mean()
