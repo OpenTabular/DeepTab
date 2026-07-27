@@ -110,6 +110,7 @@ class MambaTab(BaseModel):
 
         x = self.norm_f(x)
         x = self.embedding_activation(x)
+        x = self.mamba(x)
         if self.axis == 1:
             x = x.squeeze(1)
         else:
