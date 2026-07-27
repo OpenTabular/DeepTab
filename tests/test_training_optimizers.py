@@ -166,7 +166,7 @@ class TestNormalizeOptimizerKwargs:
         assert result == {"betas": (0.9, 0.95)}
 
     def test_non_prefixed_keys_excluded(self):
-        # Only keys that START with "optimizer_" are kept
+        # lr/weight_decay are reserved (passed explicitly by build_optimizer)
         result = normalize_optimizer_kwargs({"optimizer_eps": 1e-8, "lr": 1e-3})
         assert "eps" in result
         assert "lr" not in result
@@ -175,6 +175,42 @@ class TestNormalizeOptimizerKwargs:
         raw = {"optimizer_betas": (0.9, 0.99), "optimizer_eps": 1e-8}
         result = normalize_optimizer_kwargs(raw)
         assert result == {"betas": (0.9, 0.99), "eps": 1e-8}
+
+    def test_unprefixed_keys_pass_through(self):
+        """Regression test: TrainerConfig.optimizer_kwargs uses unprefixed keys.
+
+        They were previously filtered out entirely, so user optimizer settings
+        never reached the optimizer constructor.
+        """
+        result = normalize_optimizer_kwargs({"eps": 1e-1, "betas": (0.5, 0.6)})
+        assert result == {"eps": 1e-1, "betas": (0.5, 0.6)}
+
+    def test_reserved_keys_dropped_regardless_of_prefix(self):
+        result = normalize_optimizer_kwargs({"optimizer_lr": 1e-3, "weight_decay": 0.1, "eps": 1e-8})
+        assert result == {"eps": 1e-8}
+
+    def test_trainer_config_optimizer_kwargs_reach_the_optimizer(self):
+        """End-to-end regression test for the TrainerConfig path."""
+        import numpy as np
+        import pandas as pd
+
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPRegressor
+
+        rng = np.random.RandomState(0)
+        X = pd.DataFrame({"a": rng.randn(40)})
+        y = rng.randn(40)
+        model = MLPRegressor(
+            trainer_config=TrainerConfig(
+                max_epochs=1,
+                optimizer_type="AdamW",
+                optimizer_kwargs={"eps": 1e-1, "betas": (0.5, 0.6)},
+            )
+        )
+        model.fit(X, y, max_epochs=1, batch_size=16, accelerator="cpu")
+        group = model._task_model.trainer.optimizers[0].param_groups[0]
+        assert group["eps"] == 1e-1
+        assert group["betas"] == (0.5, 0.6)
 
 
 # ---------------------------------------------------------------------------
