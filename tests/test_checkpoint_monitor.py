@@ -5,6 +5,8 @@ hardcoded val_loss/min checkpoint silently returned the wrong weights for
 anyone monitoring a different metric.
 """
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -46,6 +48,7 @@ def test_early_stopping_and_checkpoint_agree():
     model = MLPRegressor()
     model.fit(X, y, monitor="train_loss_epoch", mode="min", max_epochs=1, batch_size=16, accelerator="cpu")
 
-    early = next(c for c in model._trainer.callbacks if isinstance(c, EarlyStopping))
-    ckpt = next(c for c in model._trainer.callbacks if isinstance(c, ModelCheckpoint))
+    callbacks = cast(Any, model._trainer).callbacks
+    early = next(c for c in callbacks if isinstance(c, EarlyStopping))
+    ckpt = next(c for c in callbacks if isinstance(c, ModelCheckpoint))
     assert (ckpt.monitor, ckpt.mode) == (early.monitor, early.mode)
