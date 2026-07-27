@@ -5,6 +5,8 @@ which invert when the validation loss is negative -- routine for LSS models
 whose val_loss is a mean NLL.
 """
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 
@@ -55,4 +57,4 @@ class TestValLossTracking:
         y = rng.randn(60)
         model = MLPRegressor()
         model.fit(X, y, max_epochs=2, batch_size=16, accelerator="cpu")
-        assert len(model._task_model.val_losses) == 2
+        assert len(cast(Any, model._task_model).val_losses) == 2
