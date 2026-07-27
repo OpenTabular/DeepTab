@@ -319,6 +319,26 @@ class TestClassificationMetrics:
         proba = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 0.0], [0.0, 1.0]])
         assert ExpectedCalibrationError()(y_true, proba) == pytest.approx(0.0)
 
+    def test_ece_counts_full_confidence(self):
+        """Regression test: confidence == 1.0 must fall into the last bin.
+
+        A model that is always wrong at 100% confidence has the worst
+        possible calibration (ECE = 1), not perfect calibration (ECE = 0).
+        """
+        y_true = np.array([0, 0, 0, 0])
+        proba = np.array([[0.0, 1.0]] * 4)
+        assert ExpectedCalibrationError()(y_true, proba) == pytest.approx(1.0)
+
+    def test_accuracy_1d_multiclass_labels(self):
+        """Regression test: 1-D integer labels must not be thresholded at 0.5."""
+        y = np.array([0, 1, 2, 2])
+        assert Accuracy()(y, np.array([0, 1, 2, 2])) == pytest.approx(1.0)
+
+    def test_f1_1d_multiclass_labels(self):
+        """Regression test: 1-D integer labels must not be thresholded at 0.5."""
+        y = np.array([0, 1, 2, 2])
+        assert F1Score(average="macro")(y, np.array([0, 1, 2, 2])) == pytest.approx(1.0)
+
     def test_f1_perfect(self):
         y = np.array([0, 1, 0, 1])
         proba = np.array([[0.9, 0.1], [0.1, 0.9], [0.9, 0.1], [0.1, 0.9]])
@@ -370,6 +390,20 @@ class TestDistributionalMetrics:
         y_true = np.abs(RNG.normal(1.0, 0.5, N)) + 0.1
         y_pred = np.abs(y_true + RNG.normal(0, 0.1, N)) + 0.1
         assert isinstance(GammaDeviance()(y_true, y_pred), float)
+
+    def test_gamma_deviance_matches_sklearn(self):
+        """Regression test: the log term's sign must match the deviance definition."""
+        from sklearn.metrics import mean_gamma_deviance
+
+        y_true = np.abs(RNG.normal(1.0, 0.5, N)) + 0.1
+        y_pred = np.abs(y_true + RNG.normal(0, 0.3, N)) + 0.1
+        assert GammaDeviance()(y_true, y_pred) == pytest.approx(mean_gamma_deviance(y_true, y_pred), rel=1e-6)
+
+    def test_gamma_deviance_nonnegative_for_overprediction(self):
+        """Regression test: deviance must not reward extreme over-prediction."""
+        y_true = np.array([1.0, 2.0, 3.0])
+        y_pred = np.full(3, 1000.0)
+        assert GammaDeviance()(y_true, y_pred) > 0.0
 
     def test_tweedie_deviance_nonneg(self, reg_data):
         y_true = np.abs(reg_data[0]) + 0.1
