@@ -415,9 +415,13 @@ class TaskModel(pl.LightningModule):
                 preds_transformed = self.family(preds)
             else:
                 preds_transformed = preds
+            # DeepTabMetric is documented as __call__(y_true, y_pred) and the
+            # shipped metrics are numpy-based, so detach/move to host first.
+            targets_np = labels.detach().cpu()
             for metric_name, metric_fn in self.train_metrics.items():
                 needs_raw = getattr(metric_fn, "needs_raw", False)
-                metric_value = metric_fn(preds if needs_raw else preds_transformed, labels)
+                preds_for_metric = (preds if needs_raw else preds_transformed).detach().cpu()
+                metric_value = metric_fn(targets_np, preds_for_metric)
                 self.log(
                     f"train_{metric_name}",
                     metric_value,
@@ -471,9 +475,13 @@ class TaskModel(pl.LightningModule):
                 preds_transformed = self.family(preds)
             else:
                 preds_transformed = preds
+            # DeepTabMetric is documented as __call__(y_true, y_pred) and the
+            # shipped metrics are numpy-based, so detach/move to host first.
+            targets_np = labels.detach().cpu()
             for metric_name, metric_fn in self.val_metrics.items():
                 needs_raw = getattr(metric_fn, "needs_raw", False)
-                metric_value = metric_fn(preds if needs_raw else preds_transformed, labels)
+                preds_for_metric = (preds if needs_raw else preds_transformed).detach().cpu()
+                metric_value = metric_fn(targets_np, preds_for_metric)
                 self.log(
                     f"val_{metric_name}",
                     metric_value,
