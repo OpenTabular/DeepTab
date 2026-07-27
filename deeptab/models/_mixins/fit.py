@@ -483,8 +483,10 @@ class _FitMixin:
         )
 
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",
-            mode="min",
+            # Track the same metric the user asked EarlyStopping to monitor —
+            # the best checkpoint's weights are restored after training.
+            monitor=monitor,
+            mode=mode,
             save_top_k=1,
             # Use the per-run checkpoints/ sub-directory when a run dir exists.
             # When no run dir is active (no observability config), use a temp
