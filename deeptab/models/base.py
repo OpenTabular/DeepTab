@@ -98,10 +98,8 @@ def _validate_fit_inputs(
         family_lower = family.lower()
         if family_lower in {"poisson", "negativebinom"} and (y_arr < 0).any():
             raise target_range_error(family, "non-negative")
-        if family_lower in {"gamma", "inversegaussian"} and (y_arr <= 0).any():
+        if family_lower in {"gamma", "inversegamma", "lognormal"} and (y_arr <= 0).any():
             raise target_range_error(family, "strictly positive")
-        if family_lower == "binomial" and not np.all((y_arr == 0) | (y_arr == 1)):
-            raise target_range_error(family, "binary (0 or 1)")
 
     # Warn about high-NaN columns
     if hasattr(X, "isna"):
@@ -368,7 +366,7 @@ class SklearnBase(
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state["task_model"] = None  # Avoid serializing the task model
+        state["_task_model"] = None  # Avoid serializing the Lightning module
         return state
 
     def __setstate__(self, state):

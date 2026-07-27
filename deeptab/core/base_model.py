@@ -267,7 +267,6 @@ class BaseModel(nn.Module):
                 if available_layer == "rnn":
                     embeddings, _ = layer(x)  # type: ignore[reportCallIssue]
                 else:
-                    embeddings = self.encoder(x)  # type: ignore[reportCallIssue]
                     embeddings = layer(x)  # type: ignore[reportCallIssue]
         else:
             x = self.embedding_layer(*data)  # type: ignore[reportCallIssue]
