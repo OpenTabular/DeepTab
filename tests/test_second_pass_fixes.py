@@ -1,5 +1,7 @@
 """Regression tests for the second-pass review findings."""
 
+from typing import cast
+
 import pandas as pd
 import pytest
 import torch
@@ -30,7 +32,7 @@ def test_sparsemax_does_not_mutate_input():
 
 def test_sparsemax_output_unchanged_by_the_fix():
     logits = torch.tensor([[1.0, 2.0, 3.0], [0.0, 0.0, 5.0]])
-    out = sparsemax(logits, dim=-1)
+    out = cast(torch.Tensor, sparsemax(logits, dim=-1))
     assert torch.allclose(out.sum(dim=-1), torch.ones(2), atol=1e-6)
     assert (out >= 0).all()
 
