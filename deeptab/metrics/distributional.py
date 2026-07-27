@@ -338,7 +338,7 @@ class GammaDeviance(DeepTabMetric):
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.clip(np.asarray(y_true, dtype=float).ravel(), 1e-9, None)
         mu = np.clip(_col(y_pred, 0), 1e-9, None)
-        return float(2.0 * np.mean(np.log(y_true / mu) + (y_true - mu) / mu))
+        return float(2.0 * np.mean(np.log(mu / y_true) + (y_true - mu) / mu))
 
 
 class TweedieDeviance(DeepTabMetric):
