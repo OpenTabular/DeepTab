@@ -505,11 +505,20 @@ class SklearnBaseLSS(SklearnBase):
 
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
 
-        # Process data in batches
+        # Process data in batches. preprocess_new_data yields
+        # (num_features, cat_features, embeddings) triples, and encode() takes the
+        # whole batch -- matching the base _PredictMixin.encode implementation.
+        was_training = self._task_model.training  # type: ignore[union-attr]
+        self._task_model.eval()  # type: ignore[union-attr]
         encoded_outputs = []
-        for num_features, cat_features in tqdm(data_loader):
-            embeddings = self._task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
-            encoded_outputs.append(embeddings)
+        try:
+            with torch.no_grad():
+                for batch in tqdm(data_loader):
+                    embeddings = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
+                    encoded_outputs.append(embeddings)
+        finally:
+            if was_training:
+                self._task_model.train()  # type: ignore[union-attr]
 
         # Concatenate all encoded outputs
         encoded_outputs = torch.cat(encoded_outputs, dim=0)

@@ -162,9 +162,18 @@ class _PredictMixin:
         encoded_dataset = self._data_module.preprocess_new_data(X, embeddings)
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
 
-        encoded_outputs = []
-        for batch in tqdm(data_loader):
-            emb = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
-            encoded_outputs.append(emb)
+        # Embeddings must be deterministic: without eval() dropout stays active
+        # after fit() and two calls on the same rows disagree.
+        was_training = self._task_model.training
+        self._task_model.eval()
+        try:
+            encoded_outputs = []
+            with torch.no_grad():
+                for batch in tqdm(data_loader):
+                    emb = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
+                    encoded_outputs.append(emb)
+        finally:
+            if was_training:
+                self._task_model.train()
 
         return torch.cat(encoded_outputs, dim=0)
