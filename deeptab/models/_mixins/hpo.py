@@ -162,10 +162,13 @@ class _HyperparameterMixin:
                 build_kwargs["embeddings_val"] = embeddings_val
             self.build_model(X, y, **build_kwargs)
 
+            # "50% worse than the best" — computed sign-safely, since val_loss
+            # can be negative (LSS NLL) and a plain *1.5 would then be *below*
+            # the best loss, pruning every trial.
             if prune_by_epoch:
-                early_pruning_threshold = best_epoch_val_loss * 1.5
+                early_pruning_threshold = best_epoch_val_loss + 0.5 * abs(best_epoch_val_loss)
             else:
-                early_pruning_threshold = best_val_loss * 1.5  # type: ignore[operator]
+                early_pruning_threshold = best_val_loss + 0.5 * abs(best_val_loss)  # type: ignore[operator]
 
             self._task_model.early_pruning_threshold = early_pruning_threshold  # type: ignore
             self._task_model.pruning_epoch = prune_epoch  # type: ignore
@@ -190,16 +193,24 @@ class _HyperparameterMixin:
 
             except Exception as e:
                 print(f"Error encountered during fit with hyperparameters {hyperparams}: {e}")
-                return best_val_loss * 100  # type: ignore[operator]
+                # Penalty must be much *worse* (higher) than the best loss even
+                # when the best loss is negative; best*100 would reward crashes.
+                return best_val_loss + 100.0 * abs(best_val_loss) + 1.0  # type: ignore[operator]
 
-        result = gp_minimize(_objective, param_space, n_calls=time, random_state=42)
+        _hpo_seed = getattr(self, "random_state", None)
+        result = gp_minimize(_objective, param_space, n_calls=time, random_state=42 if _hpo_seed is None else _hpo_seed)
 
         best_hparams = result.x  # type: ignore
         head_layer_sizes = [] if "head_layer_sizes" in self.config.__dataclass_fields__ else None
         layer_sizes = [] if "layer_sizes" in self.config.__dataclass_fields__ else None
 
+        best_head_layer_size_length = None
         for key, param_value in zip(param_names, best_hparams, strict=False):
-            if key.startswith("head_layer_size_") and head_layer_sizes is not None:
+            if key == "head_layer_size_length":
+                # Must be checked before the startswith() branch below, which
+                # would round the length to 0 and prepend it as a layer size.
+                best_head_layer_size_length = param_value
+            elif key.startswith("head_layer_size_") and head_layer_sizes is not None:
                 head_layer_sizes.append(round_to_nearest_16(param_value))
             elif key.startswith("layer_size_") and layer_sizes is not None:
                 layer_sizes.append(round_to_nearest_16(param_value))
@@ -209,6 +220,8 @@ class _HyperparameterMixin:
                 setattr(self.config, key, param_value)
 
         if head_layer_sizes is not None and head_layer_sizes:
+            if best_head_layer_size_length is not None:
+                head_layer_sizes = head_layer_sizes[:best_head_layer_size_length]
             self.config.head_layer_sizes = head_layer_sizes
         if layer_sizes is not None and layer_sizes:
             self.config.layer_sizes = layer_sizes
