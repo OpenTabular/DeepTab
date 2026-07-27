@@ -5,16 +5,18 @@ self.mamba, so the model trained as a linear layer with an MLP head while all
 Mamba parameters sat in the optimizer with no gradients.
 """
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 
 from deeptab.models import MambaTabRegressor
 
 
-def _backward_one_batch(model):
-    task = model._task_model
+def _backward_one_batch(model) -> Any:
+    task = cast(Any, model._task_model)
     task.zero_grad()
-    (num, cat, emb), labels = next(iter(model._data_module.train_dataloader()))
+    (num, cat, emb), labels = next(iter(cast(Any, model._data_module).train_dataloader()))
     preds = task(num, cat, emb)
     task.compute_loss(preds, labels).backward()
     return task
