@@ -100,6 +100,8 @@ def _validate_fit_inputs(
             raise target_range_error(family, "non-negative")
         if family_lower in {"gamma", "inversegamma", "lognormal"} and (y_arr <= 0).any():
             raise target_range_error(family, "strictly positive")
+        if family_lower == "binomial" and not np.all((y_arr == 0) | (y_arr == 1)):
+            raise target_range_error(family, "binary (0 or 1)")
 
     # Warn about high-NaN columns
     if hasattr(X, "isna"):

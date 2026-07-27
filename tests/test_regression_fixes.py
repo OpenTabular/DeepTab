@@ -9,7 +9,7 @@ import torch
 
 from deeptab.models import MambaTabRegressor, MLPRegressor, SAINTRegressor
 
-FIT_KW = dict(max_epochs=1, batch_size=16, accelerator="cpu")
+FIT_KW = {"max_epochs": 1, "batch_size": 16, "accelerator": "cpu"}
 
 
 def _make_data(n=60, seed=0):

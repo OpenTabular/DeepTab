@@ -20,12 +20,12 @@ class _DummyEstimator(nn.Module):
 
 
 def _make_task_model(**overrides):
-    kwargs = dict(
-        model_class=_DummyEstimator,
-        config=MLPConfig(),
-        feature_information=({}, {}, {}),
-        num_classes=1,
-    )
+    kwargs = {
+        "model_class": _DummyEstimator,
+        "config": MLPConfig(),
+        "feature_information": ({}, {}, {}),
+        "num_classes": 1,
+    }
     kwargs.update(overrides)
     return TaskModel(**kwargs)
 

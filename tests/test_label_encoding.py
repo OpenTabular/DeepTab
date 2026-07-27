@@ -12,7 +12,7 @@ import pytest
 
 from deeptab.models import MLPClassifier
 
-FIT_KW = dict(max_epochs=2, batch_size=16, accelerator="cpu")
+FIT_KW = {"max_epochs": 2, "batch_size": 16, "accelerator": "cpu"}
 
 
 def _make_X(n=80, seed=0):
