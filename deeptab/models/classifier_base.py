@@ -13,6 +13,24 @@ from deeptab.models.base import SklearnBase
 from deeptab.training.losses import build_classification_loss, compute_class_weights
 
 
+def _encode_labels(classes, y, name="y"):
+    """Map raw labels to contiguous ``0..K-1`` indices via the sorted class array.
+
+    The training pipeline (CrossEntropy / BCE targets) requires 0-indexed
+    integer labels, while ``predict`` maps model outputs back through
+    ``classes_``. This is the forward half of that round trip; it supports
+    arbitrary label values (strings, non-contiguous integers, ...).
+    """
+    y_arr = np.asarray(y).ravel()
+    encoded = np.searchsorted(classes, y_arr)
+    clipped = np.clip(encoded, 0, len(classes) - 1)
+    mismatch = classes[clipped] != y_arr
+    if np.any(mismatch):
+        unseen = np.unique(y_arr[mismatch])
+        raise ValueError(f"{name} contains labels not present in the training classes: {unseen.tolist()}")
+    return clipped.astype(np.int64)
+
+
 def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes):
     """Translate the imbalance-handling arguments into a ``(loss_fct, sampler)`` pair.
 
@@ -148,6 +166,12 @@ class SklearnBaseClassifier(SklearnBase):
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
         )
+
+        # Losses expect 0..K-1 targets; predict() maps indices back through
+        # classes_, so arbitrary label values round-trip correctly.
+        y = _encode_labels(self.classes_, y)
+        if y_val is not None:
+            y_val = _encode_labels(self.classes_, y_val, name="y_val")
 
         return super()._build_model(
             X,
@@ -297,6 +321,12 @@ class SklearnBaseClassifier(SklearnBase):
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
         )
+
+        # Losses expect 0..K-1 targets; predict() maps indices back through
+        # classes_, so arbitrary label values round-trip correctly.
+        y = _encode_labels(self.classes_, y)
+        if y_val is not None:
+            y_val = _encode_labels(self.classes_, y_val, name="y_val")
 
         return super().fit(
             X=X,
