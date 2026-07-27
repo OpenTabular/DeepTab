@@ -240,7 +240,8 @@ class TaskModel(pl.LightningModule):
                 if not self.loss_fct:
                     self.loss_fct = nn.CrossEntropyLoss()
             else:
-                self.loss_fct = nn.MSELoss()
+                if not self.loss_fct:
+                    self.loss_fct = nn.MSELoss()
 
         self.save_hyperparameters(ignore=["model_class", "loss_fct", "family"])
 

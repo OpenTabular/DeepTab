@@ -297,20 +297,31 @@ def normalize_optimizer_kwargs(optimizer_args: dict[str, Any] | None) -> dict[st
     >>> normalize_optimizer_kwargs(None)
     {}
 
-    >>> normalize_optimizer_kwargs({"lr": 1e-3})  # non-prefixed key is dropped
+    >>> normalize_optimizer_kwargs({"eps": 1e-6})  # unprefixed keys pass through
+    {'eps': 1e-06}
+
+    >>> normalize_optimizer_kwargs({"lr": 1e-3})  # lr/weight_decay are reserved
     {}
 
     Notes
     -----
+    ``lr`` and ``weight_decay`` (prefixed or not) are dropped because
+    :func:`build_optimizer` receives them as explicit arguments; forwarding
+    them here would raise a duplicate-keyword error.
+
     This function is called automatically by ``TaskModel.__init__``.  You
     only need to call it directly when building an optimizer outside of
     ``TaskModel``, e.g. in a custom training loop.
     """
     if not optimizer_args:
         return {}
-    return {
-        key.removeprefix("optimizer_"): value for key, value in optimizer_args.items() if key.startswith("optimizer_")
-    }
+    normalized: dict[str, Any] = {}
+    for key, value in optimizer_args.items():
+        key = key.removeprefix("optimizer_")
+        if key in ("lr", "weight_decay"):
+            continue
+        normalized[key] = value
+    return normalized
 
 
 def build_parameter_groups(
