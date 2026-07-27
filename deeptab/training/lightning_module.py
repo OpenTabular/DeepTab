@@ -577,6 +577,10 @@ class TaskModel(pl.LightningModule):
         loss exceeds the `early_pruning_threshold`, the training is stopped early by setting
         `self.trainer.should_stop` to True.
         """
+        # The sanity-check validation runs before training starts; recording it
+        # would shift every epoch_val_loss_at() lookup off by one.
+        if self.trainer.sanity_checking:
+            return
         val_loss = self.trainer.callback_metrics.get("val_loss")
         if val_loss is not None:
             val_loss_value = val_loss.item()
