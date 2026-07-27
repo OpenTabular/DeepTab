@@ -6,6 +6,8 @@ candidate_y)`` in TabR and ModernNCA, but ``test_step`` called it with
 raised TypeError. ``predict_step`` already used the singular names.
 """
 
+from typing import Any, cast
+
 import torch
 import torch.nn as nn
 
@@ -52,9 +54,10 @@ def _batch(batch_size=4):
 def test_test_step_passes_candidate_kwargs():
     task = _task_model()
     loss = task.test_step(_batch(), 0)
-    assert loss.isfinite()
-    assert task.estimator.seen["candidate_x"] is task.train_features
-    assert task.estimator.seen["candidate_y"] is task.train_targets
+    assert torch.as_tensor(loss).isfinite()
+    seen = cast(Any, task.estimator).seen
+    assert seen["candidate_x"] is task.train_features
+    assert seen["candidate_y"] is task.train_targets
 
 
 def test_predict_step_passes_candidate_kwargs():
@@ -62,4 +65,4 @@ def test_predict_step_passes_candidate_kwargs():
     # predict_step unpacks the batch as the data tuple itself (no labels).
     preds = task.predict_step(_batch()[0], 0)
     assert preds.shape == (4, 1)
-    assert task.estimator.seen["candidate_x"] is task.train_features
+    assert cast(Any, task.estimator).seen["candidate_x"] is task.train_features
