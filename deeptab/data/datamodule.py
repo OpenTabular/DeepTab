@@ -269,11 +269,14 @@ class TabularDataModule(pl.LightningDataModule):
                     if key in val_preprocessed_data:
                         val_emb_tensors.append(torch.tensor(val_preprocessed_data[key], dtype=torch.float32))
 
-            # Prepare labels with appropriate shape and dtype based on task
+            # Prepare labels with appropriate shape and dtype based on task.
+            # y is documented as (n_samples,) or (n_samples, n_targets); reshape
+            # rather than unsqueeze so an (n, 1) column vector does not become a
+            # 3-D label tensor that silently broadcasts against (B, 1) predictions.
             if self.regression:
                 # Regression: float32, shape (batch_size, 1)
-                train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
-                val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
+                train_labels = torch.tensor(self.y_train, dtype=torch.float32).reshape(-1, 1)
+                val_labels = torch.tensor(self.y_val, dtype=torch.float32).reshape(-1, 1)
             else:
                 # Classification: determine if binary or multiclass
                 num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
@@ -283,8 +286,8 @@ class TabularDataModule(pl.LightningDataModule):
                     val_labels = torch.tensor(self.y_val, dtype=torch.long).view(-1)
                 else:
                     # Binary: float32, shape (batch_size, 1)
-                    train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
-                    val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
+                    train_labels = torch.tensor(self.y_train, dtype=torch.float32).reshape(-1, 1)
+                    val_labels = torch.tensor(self.y_val, dtype=torch.float32).reshape(-1, 1)
 
             self.train_dataset = TabularDataset(
                 train_cat_tensors,
