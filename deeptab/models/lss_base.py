@@ -310,8 +310,10 @@ class SklearnBaseLSS(SklearnBase):
         )
 
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",  # Adjust according to your validation metric
-            mode="min",
+            # Track the same metric the user asked EarlyStopping to monitor —
+            # the best checkpoint's weights are restored after training.
+            monitor=monitor,
+            mode=mode,
             save_top_k=1,
             dirpath=checkpoint_path,  # Specify the directory to save checkpoints
             filename="best_model",
