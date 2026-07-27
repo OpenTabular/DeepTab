@@ -503,7 +503,7 @@ class TaskModel(pl.LightningModule):
         data, labels = batch
         if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
             preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
-                *data, candidates_x=self.train_features, candidates_y=self.train_targets
+                *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
         else:
             preds = self(*data)
