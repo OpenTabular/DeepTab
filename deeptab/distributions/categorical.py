@@ -114,6 +114,16 @@ class MultinomialDistribution(BaseDistribution):
         self.total_count = total_count
         self.probs_transform = self.get_transform(prob_transform)
 
+    def forward(self, predictions):
+        """Apply the softmax across the class axis.
+
+        The base implementation looks for a ``<param_name>_transform`` attribute
+        per parameter, but this family's parameters are per-class (``p_0``,
+        ``p_1``, ...) and share a single transform over the whole row, so
+        without this override ``predict(raw=False)`` returned raw logits.
+        """
+        return self.probs_transform(predictions)
+
     def compute_loss(self, predictions, y_true):
         probs = self.probs_transform(predictions)
 
