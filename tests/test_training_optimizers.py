@@ -191,6 +191,8 @@ class TestNormalizeOptimizerKwargs:
 
     def test_trainer_config_optimizer_kwargs_reach_the_optimizer(self):
         """End-to-end regression test for the TrainerConfig path."""
+        from typing import Any, cast
+
         import numpy as np
         import pandas as pd
 
@@ -208,7 +210,8 @@ class TestNormalizeOptimizerKwargs:
             )
         )
         model.fit(X, y, max_epochs=1, batch_size=16, accelerator="cpu")
-        group = model._task_model.trainer.optimizers[0].param_groups[0]
+        task_model = cast(Any, model._task_model)
+        group = task_model.trainer.optimizers[0].param_groups[0]
         assert group["eps"] == 1e-1
         assert group["betas"] == (0.5, 0.6)
 
