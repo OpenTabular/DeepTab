@@ -164,7 +164,7 @@ class _PredictMixin:
 
         # Embeddings must be deterministic: without eval() dropout stays active
         # after fit() and two calls on the same rows disagree.
-        was_training = self._task_model.training
+        was_training = self._task_model.training  # type: ignore[attr-defined]
         self._task_model.eval()
         try:
             encoded_outputs = []
