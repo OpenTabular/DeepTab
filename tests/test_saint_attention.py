@@ -5,16 +5,18 @@ but forward indexed only attn[1], so the LayerNorms and dropouts were dead
 parameters and SAINT trained without normalization before either attention.
 """
 
+from typing import Any, cast
+
 import numpy as np
 import pandas as pd
 
 from deeptab.models import SAINTRegressor
 
 
-def _backward_one_batch(model):
-    task = model._task_model
+def _backward_one_batch(model) -> Any:
+    task = cast(Any, model._task_model)
     task.zero_grad()
-    (num, cat, emb), labels = next(iter(model._data_module.train_dataloader()))
+    (num, cat, emb), labels = next(iter(cast(Any, model._data_module).train_dataloader()))
     preds = task(num, cat, emb)
     task.compute_loss(preds, labels).backward()
     return task
