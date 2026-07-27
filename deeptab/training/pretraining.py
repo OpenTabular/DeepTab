@@ -227,7 +227,9 @@ class ContrastivePretrainer(pl.LightningModule):
                 all_pairs = torch.cat(pairs, dim=0)
                 all_pair_labels = torch.cat(pair_labels, dim=0)
 
-                embeddings_s = embs.repeat_interleave(k_neighbors * len(pairs), dim=0)
+                # Anchor layout must match cat(pairs): one anchor-major block of
+                # k rows per anchor, tiled once per pair type.
+                embeddings_s = embs.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
                 _loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
                 loss += _loss
 
@@ -257,7 +259,9 @@ class ContrastivePretrainer(pl.LightningModule):
             all_pairs = torch.cat(pairs, dim=0)
             all_pair_labels = torch.cat(pair_labels, dim=0)
 
-            embeddings_s = embeddings.repeat_interleave(k_neighbors * len(pairs), dim=0)
+            # Anchor layout must match cat(pairs): one anchor-major block of
+            # k rows per anchor, tiled once per pair type.
+            embeddings_s = embeddings.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
             loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
             return loss
 
