@@ -438,7 +438,11 @@ class _FitMixin:
             "fit.started",
             model_class=type(self).__name__,
             n_samples=len(X),
-            n_features=X.shape[1] if hasattr(X, "shape") else len(X.columns),
+            # X may still be a plain list here (ensure_dataframe runs in
+            # _build_model), so fall back to the first row's length.
+            n_features=(
+                X.shape[1] if hasattr(X, "shape") else (len(X.columns) if hasattr(X, "columns") else len(X[0]))
+            ),
             random_state=getattr(self, "random_state", None),
         )
 

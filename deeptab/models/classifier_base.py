@@ -28,6 +28,13 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     resolved_loss = build_classification_loss(loss_fct, num_classes=num_classes, class_weights=class_weights)
 
     if sample_weight is not None:
+        weights = np.asarray(sample_weight, dtype=np.float64)
+        if (weights < 0).any():
+            raise ValueError("sample_weight must be non-negative.")
+        if not (weights > 0).any():
+            # Fail here with a clear message instead of a cryptic
+            # torch.multinomial RuntimeError mid-training.
+            raise ValueError("Sample weights must contain at least one non-zero value; all weights are zero.")
         sampler = sample_weight
     elif balanced_sampler:
         sampler = "balanced"

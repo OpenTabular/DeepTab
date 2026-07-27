@@ -368,7 +368,7 @@ class SklearnBase(
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state["task_model"] = None  # Avoid serializing the task model
+        state["_task_model"] = None  # Avoid serializing the Lightning module
         return state
 
     def __setstate__(self, state):
