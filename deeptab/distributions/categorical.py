@@ -106,7 +106,36 @@ class MultinomialDistribution(BaseDistribution):
         name="Multinomial",
         num_classes=2,
         total_count=1,
-        prob_transform="probabilities",
+        prob_transform="probabilities"
+    ):
+        param_names = [f"p_{i}" for i in range(num_classes)]
+        super().__init__(name, param_names)
+        self.probs_transform = self.get_transform(prob_transform)
+
+    def forward(self, predictions):
+        transformed = self.probs_transform(predictions)
+        # Ensure transformed is a dictionary-like output expected by base if needed
+        # Assuming base expects dict of param_name->transformed; but to be safe,
+        # we replicate base logic. Common pattern in base is:
+        # return {name: transform(pred) for ...}. Here we apply the single transform to all.
+        return {
+            name: transform(pred) for name, transform, pred in zip(
+                self.param_names, [self.probs_transform] * len(self.param_names), predictions.T
+            )
+        }
+
+    def compute_loss(self, predictions, y_true):
+        probs = self.probs_transform(predictions)
+        # y_true is expected to be counts with shape (batch, num_classes) or (batch,)
+        # For total_count=1, this is equivalent to Categorical.
+        if y_true.dim() == 1:
+            dist_ = dist.Categorical(probs=probs)
+            nll = -dist_.log_prob(y_true).mean()
+        else:
+            # Ensure probs sum to 1; y_true sums to total_count
+            dist_ = dist.Multinomial(total_count=y_true.sum(dim=1, keepdim=True), probs=probs)
+            nll = -dist_.log_prob(y_true).mean()
+        return nll  prob_transform="probabilities",
     ):
         param_names = [f"p_{k}" for k in range(num_classes)]
         super().__init__(name, param_names)
