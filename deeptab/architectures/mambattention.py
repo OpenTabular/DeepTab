@@ -64,14 +64,15 @@ class MambAttention(BaseModel):
 
         self.returns_ensemble = False
 
+        config = config if config is not None else MambAttentionConfig()
         try:
             self.pooling_method = self.hparams.pooling_method
-        except AttributeError:
+        except (AttributeError, KeyError):
             self.pooling_method = config.pooling_method
 
         try:
             self.shuffle_embeddings = self.hparams.shuffle_embeddings
-        except AttributeError:
+        except (AttributeError, KeyError):
             self.shuffle_embeddings = config.shuffle_embeddings
 
         self.mamba = MambAttn(config)
