@@ -443,7 +443,7 @@ class PreprocessingConfig(BaseEstimator):
             )
 
     def _resolve_output_dim(self) -> int:
-        """Resolve `n_bins`/`n_knots` (Category A) into `output_dim`, defaulting to 7."""
+        """Resolve `n_bins`/`n_knots` into `output_dim`, defaulting to 7 when unset."""
         legacy_values = {v for v in (self.n_bins, self.n_knots) if v is not None}
         if not legacy_values:
             if self.output_dim is not None:
@@ -467,7 +467,7 @@ class PreprocessingConfig(BaseEstimator):
         return _resolve_legacy_alias(legacy_name, legacy_value, "output_dim", self.output_dim)
 
     def _resolve_target_aware(self) -> bool | None:
-        """Resolve the decision-tree flags (Category B) into `target_aware`."""
+        """Resolve the decision-tree flags into `target_aware`."""
         legacy_values = {v for v in (self.use_decision_tree_bins, self.use_decision_tree_knots) if v is not None}
         if not legacy_values:
             return self.target_aware
@@ -483,7 +483,7 @@ class PreprocessingConfig(BaseEstimator):
         return _resolve_legacy_alias(legacy_name, legacy_value, "target_aware", self.target_aware)
 
     def _resolve_placement_strategy(self) -> str | None:
-        """Resolve `binning_strategy`/`knots_strategy` (Category B) into `placement_strategy`."""
+        """Resolve `binning_strategy`/`knots_strategy` into `placement_strategy`."""
         legacy_values = {v for v in (self.binning_strategy, self.knots_strategy) if v is not None}
         if not legacy_values:
             return self.placement_strategy

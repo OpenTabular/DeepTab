@@ -7,15 +7,24 @@ stays isolated behind one internal contract.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 from pretab import Preprocessor
 
+if TYPE_CHECKING:
+    from deeptab.configs import PreprocessingConfig
+
 __all__ = ["build_preprocessor"]
+
+# DeepTab's tensor pipeline (deeptab/data/datamodule.py) consumes the preprocessor's
+# transformed output as a dict of per-feature blocks (`num_<col>`, `cat_<col>`).
+# PreTab defaults to returning a single stacked matrix instead, so these are forced
+# explicitly rather than left to PreTab's own default.
+_FORCED_PREPROCESSOR_KWARGS = {"output_structure": "blocks", "output_format": "dense"}
 
 
 def build_preprocessor(
-    preprocessing_config: Any = None,
+    preprocessing_config: PreprocessingConfig | None = None,
     *,
     task: str | None = None,
     random_state: int | None = None,
@@ -40,7 +49,9 @@ def build_preprocessor(
     Returns
     -------
     Preprocessor
-        A configured, unfitted PreTab preprocessor.
+        A configured, unfitted PreTab preprocessor. Always uses block-structured,
+        dense output (``output_structure="blocks"``, ``output_format="dense"``);
+        these are not currently user-configurable.
     """
     kwargs = (
         preprocessing_config.to_preprocessor_kwargs()
@@ -51,4 +62,5 @@ def build_preprocessor(
         kwargs.setdefault("task", task)
     if random_state is not None:
         kwargs.setdefault("random_state", random_state)
+    kwargs.update(_FORCED_PREPROCESSOR_KWARGS)
     return Preprocessor(**kwargs)
