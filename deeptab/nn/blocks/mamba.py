@@ -1,11 +1,11 @@
-# ruff: noqa: E402
 import math
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from deeptab.nn.blocks.common import LayerNorm, LearnableLayerScaling, RMSNorm
+from deeptab.nn.blocks.common import BatchNorm, GroupNorm, InstanceNorm, LayerNorm, LearnableLayerScaling, RMSNorm
+from deeptab.nn.initialization import _init_weights
 from deeptab.nn.normalization import get_normalization_layer
 
 # Heavily inspired and mostly taken from https://github.com/alxndrTL/mamba.py
@@ -545,19 +545,6 @@ class LearnableFeatureInteraction(nn.Module):
         return interactions.view(batch_size, n_vars, d_model)
 
 
-# black: noqa
-
-import torch.nn as nn
-
-from deeptab.nn.blocks.common import (
-    BatchNorm,
-    GroupNorm,
-    InstanceNorm,
-    RMSNorm,
-)
-from deeptab.nn.initialization import _init_weights
-
-
 class OriginalResidualBlock(nn.Module):
     """Residual block composed of a MambaBlock and a normalization layer.
 
@@ -754,9 +741,6 @@ class MambaOriginal(nn.Module):
 
         # Return forward output only if not bidirectional
         return x
-
-
-import torch.nn as nn
 
 
 class MambAttn(nn.Module):

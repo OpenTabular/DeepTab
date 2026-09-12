@@ -1,7 +1,13 @@
-# ruff: noqa: E402
+from warnings import warn
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from deeptab.core.utils import check_numpy
+from deeptab.nn.blocks.common import sparsemax, sparsemoid
+from deeptab.nn.initialization import ModuleWithInit
 
 
 class NeuralDecisionTree(nn.Module):
@@ -177,16 +183,6 @@ class NeuralDecisionTree(nn.Module):
 
 
 # Source: https://github.com/Qwicen/node
-from warnings import warn
-
-import numpy as np
-import torch.nn as nn
-
-from deeptab.core.utils import check_numpy
-from deeptab.nn.blocks.common import sparsemax, sparsemoid
-from deeptab.nn.initialization import ModuleWithInit
-
-
 class ODST(ModuleWithInit):
     def __init__(
         self,
@@ -515,12 +511,6 @@ class DenseBlock(nn.Sequential):
         if not self.flatten_output:
             outputs = outputs.view(*outputs.shape[:-1], self.num_layers * self.layer_dim, self.tree_dim)
         return outputs
-
-
-import torch.nn as nn
-
-from deeptab.nn.blocks.common import sparsemax, sparsemoid
-from deeptab.nn.initialization import ModuleWithInit
 
 
 class ODSTE(ModuleWithInit):

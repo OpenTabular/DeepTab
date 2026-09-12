@@ -1,6 +1,12 @@
-# ruff: noqa: E402
+import math
+from collections.abc import Callable
+from typing import Literal
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
+from torch.autograd import Function
 from torch.nn.parameter import Parameter
 
 
@@ -26,9 +32,6 @@ class SNLinear(nn.Module):
 
         x = x.transpose(0, 1) @ self.weight
         return x.transpose(0, 1) + self.bias
-
-
-from torch.autograd import Function
 
 
 def _make_ix_like(x, dim=0):
@@ -149,9 +152,6 @@ def sparsemax(tensor, dim=-1):
 
 def sparsemoid(tensor):
     return (0.5 * tensor + 0.5).clamp_(0, 1)
-
-
-import torch.nn as nn
 
 
 class RMSNorm(nn.Module):
@@ -301,9 +301,6 @@ class LearnableLayerScaling(nn.Module):
         return output
 
 
-import torch.nn as nn
-
-
 class BlockDiagonal(nn.Module):
     def __init__(self, in_features, out_features, num_blocks, bias=True):
         super().__init__()
@@ -322,9 +319,6 @@ class BlockDiagonal(nn.Module):
         x = [block(x) for block in self.blocks]
         x = torch.cat(x, dim=-1)
         return x
-
-
-import torch.nn as nn
 
 
 class LearnableFourierFeatures(nn.Module):
@@ -409,11 +403,6 @@ class PositionalInvariance(nn.Module):
         return self.layer(x)
 
 
-import math
-
-import torch.nn as nn
-
-
 class Periodic(nn.Module):
     """Periodic transformation with learned frequency coefficients."""
 
@@ -482,10 +471,6 @@ class PeriodicEmbeddings(nn.Module):
         x = self.periodic(x)
         x = self.linear(x)
         return self.activation(x) if self.activation else x
-
-
-import torch.nn as nn
-import torch.nn.functional as F
 
 
 class NeuralEmbeddingTree(nn.Module):
@@ -564,10 +549,6 @@ class NeuralEmbeddingTree(nn.Module):
         return F.pad(X, (1, 0), value=1)
 
 
-import torch.nn as nn
-from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
-
-
 class ScaledPolynomialLayer(nn.Module):
     def __init__(self, degree=2):
         super().__init__()
@@ -596,9 +577,6 @@ class ScaledPolynomialLayer(nn.Module):
         output = torch.clamp(output, min=-1e5, max=1e3)
 
         return output
-
-
-import torch.nn as nn
 
 
 class PeriodicLinearEncodingLayer(nn.Module):
@@ -635,9 +613,6 @@ class PeriodicLinearEncodingLayer(nn.Module):
             z[mask3.squeeze(), t - 1] = (x[mask3] - b_t_1) / (b_t - b_t_1)
 
         return z
-
-
-import torch.nn as nn
 
 
 class EmbeddingLayer(nn.Module):
@@ -872,12 +847,6 @@ class OneHotEncoding(nn.Module):
 
     def forward(self, x):
         return torch.nn.functional.one_hot(x, num_classes=self.num_categories).float()
-
-
-from collections.abc import Callable
-from typing import Literal
-
-import torch.nn as nn
 
 
 class LinearBatchEnsembleLayer(nn.Module):
@@ -1203,9 +1172,11 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         num_heads: int,
         ensemble_size: int,
         scaling_init: Literal["ones", "random-signs", "normal"] = "ones",
-        batch_ensemble_projections: list[str] = ["query"],
+        batch_ensemble_projections: list[str] | None = None,
     ):
         super().__init__()
+        if batch_ensemble_projections is None:
+            batch_ensemble_projections = ["query"]
         # Ensure embedding dimension is divisible by the number of heads
         if embed_dim % num_heads != 0:
             raise ValueError("Embedding dimension must be divisible by number of heads.")
@@ -1442,10 +1413,6 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         y = y * s.view(1, 1, E, D_out)  # (N, S, E, D_out)
 
         return y
-
-
-import torch
-import torch.nn as nn
 
 
 class mLSTMblock(nn.Module):
@@ -1785,10 +1752,6 @@ class sLSTMblock(nn.Module):
         out = self.ln_out(left * right)
         out = self.proj(out)
         return out, None
-
-
-import torch
-import torch.nn as nn
 
 
 class ConvRNN(nn.Module):

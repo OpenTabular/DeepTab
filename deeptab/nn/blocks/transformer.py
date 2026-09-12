@@ -1,12 +1,17 @@
-# ruff: noqa: E402
 from typing import Literal
 
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
 
 from deeptab.nn.blocks.common import LinearBatchEnsembleLayer, MultiHeadAttentionBatchEnsemble
+
+try:
+    from rotary_embedding_torch import RotaryEmbedding  # type: ignore[import-untyped]
+except ImportError:
+    RotaryEmbedding = None  # type: ignore[assignment, misc]
 
 
 def reglu(x):
@@ -112,11 +117,14 @@ class BatchEnsembleTransformerEncoderLayer(nn.Module):
         dropout: float = 0.1,
         activation: Literal["relu", "gelu"] = "relu",
         scaling_init: Literal["ones", "random-signs", "normal"] = "ones",
-        batch_ensemble_projections: list[str] = ["query"],
+        batch_ensemble_projections: list[str] | None = None,
         batch_ensemble_ffn: bool = False,
         ensemble_bias=False,
     ):
         super().__init__()
+
+        if batch_ensemble_projections is None:
+            batch_ensemble_projections = ["query"]
 
         self.embed_dim = embed_dim
         self.num_heads = num_heads
@@ -442,11 +450,6 @@ class RowColTransformer(nn.Module):
         return x
 
 
-import numpy as np
-import torch
-import torch.nn as nn
-
-
 class GEGLU(nn.Module):
     def forward(self, x):
         x, gates = x.chunk(2, dim=-1)
@@ -528,10 +531,6 @@ class Transformer(nn.Module):
             return x
 
         return x, torch.stack(post_softmax_attns)
-
-
-import torch
-import torch.nn as nn
 
 
 class Reshape(nn.Module):
@@ -624,15 +623,6 @@ class AttentionNetBlock(nn.Module):
         x = self.linear(x)
         x = self.activation(x)
         return x
-
-
-import torch
-import torch.nn as nn
-
-try:
-    from rotary_embedding_torch import RotaryEmbedding  # type: ignore[import-untyped]
-except ImportError:
-    RotaryEmbedding = None  # type: ignore[assignment, misc]
 
 
 class RotaryEmbeddingLayer(nn.Module):
