@@ -283,13 +283,21 @@ class TestPreprocessingConfigValidation:
             "standardization",
             "minmax",
             "robust",
-            "splines",
+            "bspline",
             "box-cox",
             "yeo-johnson",
             None,
         ):
             cfg = PreprocessingConfig(numerical_preprocessing=val)
             assert cfg.numerical_preprocessing == val
+
+    def test_splines_is_not_a_valid_method(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # "splines" was never a real PreTab method name (the real one is
+        # "bspline"); confirm it is rejected rather than silently accepted.
+        with pytest.raises(InvalidParamError, match="numerical_preprocessing"):
+            PreprocessingConfig(numerical_preprocessing="splines")
 
     def test_invalid_numerical_preprocessing_raises(self):
         from deeptab.configs import PreprocessingConfig
@@ -375,6 +383,56 @@ class TestPreprocessingConfigValidation:
 
         cfg = PreprocessingConfig(degree=1)
         assert cfg.degree == 1
+
+    def test_ple_with_target_aware_false_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # PLE always requires y to fit; it cannot run in target_aware=False mode.
+        with pytest.raises(IncompatibleParamsError, match="ple"):
+            PreprocessingConfig(numerical_method="ple", target_aware=False)
+
+    def test_never_target_aware_method_with_target_aware_true_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # minmax never consumes y; target_aware=True has no effect it can honor.
+        with pytest.raises(IncompatibleParamsError, match="minmax"):
+            PreprocessingConfig(numerical_method="minmax", target_aware=True)
+
+    def test_optionally_target_aware_method_accepts_either(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # bspline can run with or without a target; both should be accepted.
+        PreprocessingConfig(numerical_method="bspline", target_aware=True)
+        PreprocessingConfig(numerical_method="bspline", target_aware=False)
+
+    def test_kmeans_placement_strategy_has_no_equivalent_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # "kmeans" was never a real PreTab placement strategy; confirm it is
+        # rejected with guidance rather than silently forwarded.
+        with pytest.raises(IncompatibleParamsError, match="binning_strategy"):
+            PreprocessingConfig(binning_strategy="kmeans")
+
+    def test_cart_placement_strategy_requires_target_aware_true(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="cart"):
+            PreprocessingConfig(placement_strategy="cart", target_aware=False)
+
+    def test_unsupervised_placement_strategy_requires_target_aware_false(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="uniform"):
+            PreprocessingConfig(placement_strategy="uniform", target_aware=True)
+
+    def test_placement_strategy_valid_combinations(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for strategy in ("uniform", "quantile"):
+            cfg = PreprocessingConfig(placement_strategy=strategy, target_aware=False)
+            assert cfg.to_preprocessor_kwargs()["placement_strategy"] == strategy
+        cfg = PreprocessingConfig(placement_strategy="cart", target_aware=True)
+        assert cfg.to_preprocessor_kwargs()["placement_strategy"] == "cart"
 
 
 # ===========================================================================
