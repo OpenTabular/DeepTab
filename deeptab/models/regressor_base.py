@@ -43,7 +43,7 @@ class SklearnBaseRegressor(SklearnBase):
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
     ):
         """Builds the model using the provided training data.
 
@@ -132,7 +132,7 @@ class SklearnBaseRegressor(SklearnBase):
         lr_factor: float | None = None,
         weight_decay: float | None = None,
         checkpoint_path="model_checkpoints",
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         rebuild=True,
@@ -417,14 +417,7 @@ class SklearnBaseRegressor(SklearnBase):
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):

@@ -11,14 +11,7 @@ def round_to_nearest_16(x):
 
 def get_search_space(
     config,
-    fixed_params={
-        "pooling_method": "avg",
-        "head_skip_layers": False,
-        "head_layer_size_length": 0,
-        "cat_encoding": "int",
-        "head_skip_layer": False,
-        "use_cls": False,
-    },
+    fixed_params=None,
     custom_search_space=None,
 ):
     """Given a model configuration, return the hyperparameter search space based on the config attributes.
@@ -41,6 +34,17 @@ def get_search_space(
     param_space : list
         A list of hyperparameter ranges for Bayesian optimization.
     """
+
+    # Handle the fixed parameters default
+    if fixed_params is None:
+        fixed_params = {
+            "pooling_method": "avg",
+            "head_skip_layers": False,
+            "head_layer_size_length": 0,
+            "cat_encoding": "int",
+            "head_skip_layer": False,
+            "use_cls": False,
+        }
 
     # Handle the custom search space
     if custom_search_space is None:

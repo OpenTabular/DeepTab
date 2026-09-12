@@ -45,7 +45,7 @@ class SklearnBaseLSS(SklearnBase):
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
     ):
         """Builds the model using the provided training data.
 
@@ -88,6 +88,9 @@ class SklearnBaseLSS(SklearnBase):
         self : object
             The built distributional regressor.
         """
+        if dataloader_kwargs is None:
+            dataloader_kwargs = {}
+
         # When trainer_config is active, resolve lr / scheduler params from it
         if self.trainer_config is not None:
             tc = self.trainer_config
@@ -191,7 +194,7 @@ class SklearnBaseLSS(SklearnBase):
         distributional_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         rebuild=True,
         **trainer_kwargs,
     ):
@@ -643,14 +646,7 @@ class SklearnBaseLSS(SklearnBase):
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):

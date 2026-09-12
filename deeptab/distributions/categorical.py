@@ -59,7 +59,9 @@ class Quantile(BaseDistribution):
         Computes the quantile regression loss between the predictions and true values.
     """
 
-    def __init__(self, name="Quantile", quantiles=[0.25, 0.5, 0.75]):
+    def __init__(self, name="Quantile", quantiles=None):
+        if quantiles is None:
+            quantiles = [0.25, 0.5, 0.75]
         param_names = [f"q_{q}" for q in quantiles]
         super().__init__(name, param_names)
         self.quantiles = quantiles

@@ -137,7 +137,7 @@ reportUnsupportedDunderAll = false
 [tool.ruff]
 line-length = 120
 target-version = "py310"
-exclude = ["*.ipynb", "deeptab/arch_utils/mamba_utils.mamba_orginal.py"]
+exclude = ["*.ipynb"]
 
 [tool.ruff.lint]
 select = [
@@ -154,7 +154,6 @@ select = [
 ]
 
 ignore = [
-  "B006",
   "F401", # Ignore unused imports
   "F841", # Ignore unused local variables
   "E501", # Ignore line length

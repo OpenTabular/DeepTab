@@ -26,14 +26,17 @@ class BaseModel(nn.Module):
         # Store any additional keyword arguments
         self.extra_hparams = kwargs
 
-    def save_hyperparameters(self, ignore=[]):
+    def save_hyperparameters(self, ignore=None):
         """Saves the configuration and additional hyperparameters while ignoring specified keys.
 
         Parameters
         ----------
         ignore : list, optional
-            List of keys to ignore while saving hyperparameters, by default [].
+            List of keys to ignore while saving hyperparameters, by default None.
         """
+        if ignore is None:
+            ignore = []
+
         # Filter the config and extra hparams for ignored keys
         config_hparams = {k: v for k, v in vars(self.config).items() if k not in ignore} if self.config else {}
         extra_hparams = {k: v for k, v in self.extra_hparams.items() if k not in ignore}

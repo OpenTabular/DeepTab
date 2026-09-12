@@ -103,11 +103,14 @@ class _FitMixin:
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         loss_fct: Callable | None = None,
         sampler=None,
     ):
         """Builds the model using the provided training data."""
+        if dataloader_kwargs is None:
+            dataloader_kwargs = {}
+
         # When trainer_config is active, use its values for lr / weight_decay / scheduler
         if self.trainer_config is not None:
             tc = self.trainer_config
@@ -295,7 +298,7 @@ class _FitMixin:
         lr_factor: float | None = None,
         weight_decay: float | None = None,
         checkpoint_path="model_checkpoints",
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         rebuild=True,

@@ -50,14 +50,7 @@ class _HyperparameterMixin:
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):
