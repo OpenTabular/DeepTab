@@ -4533,21 +4533,27 @@ virtualenv = ">=20.10.0"
 
 [[package]]
 name = "pretab"
-version = "0.0.1"
-description = "A python package for preprocessing tabular data"
+version = "1.0.0"
+description = "A scikit-learn compatible library for flexible tabular preprocessing, advanced feature representations, and basis expansions."
 optional = false
-python-versions = ">=3.6"
+python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "pretab-0.0.1-py3-none-any.whl", hash = "sha256:51496eb81e14e619a558bbb4585f5b7a740938d24938a317d479b68417e08401"},
-    {file = "pretab-0.0.1.tar.gz", hash = "sha256:8f5b23462f98217791644992ac1c08b1047a88ce9cd7af6c43f8ba51e02fccbf"},
+    {file = "pretab-1.0.0-py3-none-any.whl", hash = "sha256:5ccd5ef9792bac84c4cf0f4295a91f13f7df422e0eb0a9de8de193c18b288618"},
+    {file = "pretab-1.0.0.tar.gz", hash = "sha256:7d0db1afc122d39069c7497a05cb1f70525f094affa3d53ae33c4216ee6d323f"},
 ]
 
 [package.dependencies]
-numpy = "*"
-pandas = "*"
-scikit-learn = "*"
-scipy = "*"
+numpy = ">=1.24,<3.0"
+pandas = ">=2.0,<3.0"
+scikit-learn = ">=1.6,<2.0"
+scipy = ">=1.10,<2.0"
+
+[package.extras]
+all = ["lightgbm (>=4.0)", "polars (>=0.20)", "sentence-transformers (>=2.0)"]
+embeddings = ["sentence-transformers (>=2.0)"]
+lightgbm = ["lightgbm (>=4.0)"]
+polars = ["polars (>=0.20)"]
 
 [[package]]
 name = "prettytable"
@@ -7313,4 +7319,4 @@ tracking = ["mlflow", "tensorboard"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "581a49528a7bf187eb6a40a8c8275c34cdd584211d790ce7278a610d00dfc4a3"
+content-hash = "843072cca745a2314cee3434b39927420295b8affc456c526220802b21b4bac6"
