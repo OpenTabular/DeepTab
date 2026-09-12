@@ -202,7 +202,10 @@ class SklearnBase(
             else:
                 self._preprocessor_kwargs = {}
             self._preprocessor = build_preprocessor(
-                self.preprocessing_config, task=type(self)._task, random_state=random_state
+                self.preprocessing_config,
+                task=type(self)._task,
+                random_state=random_state,
+                observability_config=observability_config,
             )
 
             self._optimizer_type = getattr(self.trainer_config, "optimizer_type", "Adam")
@@ -217,7 +220,9 @@ class SklearnBase(
             self.config = config_cls()
 
             self._preprocessor_kwargs = {}
-            self._preprocessor = build_preprocessor(None, task=type(self)._task, random_state=random_state)
+            self._preprocessor = build_preprocessor(
+                None, task=type(self)._task, random_state=random_state, observability_config=observability_config
+            )
 
             self._optimizer_type = "Adam"
             self._optimizer_kwargs = {}
@@ -327,7 +332,10 @@ class SklearnBase(
                     if v is not None and hasattr(v, "to_preprocessor_kwargs"):
                         self._preprocessor_kwargs = v.to_preprocessor_kwargs()
                         self._preprocessor = build_preprocessor(
-                            v, task=type(self)._task, random_state=self.random_state
+                            v,
+                            task=type(self)._task,
+                            random_state=self.random_state,
+                            observability_config=getattr(self, "_observability_config", None),
                         )
                 elif k == "trainer_config":
                     self.trainer_config = v
@@ -347,7 +355,10 @@ class SklearnBase(
                 self.preprocessing_config.set_params(**preprocessing_config_params)
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
                 self._preprocessor = build_preprocessor(
-                    self.preprocessing_config, task=type(self)._task, random_state=self.random_state
+                    self.preprocessing_config,
+                    task=type(self)._task,
+                    random_state=self.random_state,
+                    observability_config=getattr(self, "_observability_config", None),
                 )
             if trainer_config_params and self.trainer_config is not None and hasattr(self.trainer_config, "set_params"):
                 self.trainer_config.set_params(**trainer_config_params)

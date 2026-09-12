@@ -144,6 +144,7 @@ class _FitMixin:
                 self.preprocessing_config,
                 task="regression" if regression else "classification",
                 random_state=random_state,
+                observability_config=getattr(self, "_observability_config", None),
             )
 
         X = ensure_dataframe(X)

@@ -270,7 +270,7 @@ class TestTabularDataModuleContract:
                 self.fit_embeddings = embeddings
                 return self
 
-            def get_feature_info(self):
+            def get_feature_info(self, verbose=True):
                 return {}, {}, None
 
         X, y = regression_data
@@ -928,7 +928,7 @@ class TestValidationLeakage:
                 fit_index_seen.append(list(X.index))
                 return self
 
-            def get_feature_info(self):
+            def get_feature_info(self, verbose=True):
                 return {}, {}, None
 
         X, y = regression_data
@@ -964,7 +964,7 @@ class TestValidationLeakage:
                 fit_call_count[0] += 1
                 return self
 
-            def get_feature_info(self):
+            def get_feature_info(self, verbose=True):
                 return {}, {}, None
 
         X, y = regression_data

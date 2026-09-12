@@ -7,9 +7,14 @@ Covers:
   a conflicting config value warns rather than being used.
 - None preprocessing_config falls back to PreTab's own defaults (forced kwargs
   still applied).
+- ObservabilityConfig.verbosity maps onto Preprocessor(verbose=...), and
+  structured_logging=True attaches DeepTab's console handler to PreTab's shared
+  "pretab" logger exactly once, regardless of how many times it is rebuilt.
 """
 
 from __future__ import annotations
+
+import logging
 
 import numpy as np
 import pandas as pd
@@ -18,7 +23,8 @@ from pretab import Preprocessor
 
 from deeptab.configs import PreprocessingConfig
 from deeptab.core.exceptions import ConfigWarning
-from deeptab.core.preprocessing import build_preprocessor
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.core.preprocessing import _PRETAB_LOGGER_NAME, _PretabConsoleHandler, build_preprocessor
 
 
 class TestBuildPreprocessorForcedOutput:
@@ -131,3 +137,72 @@ class TestEstimatorResolvedTaskAndSeed:
         with pytest.warns(ConfigWarning, match="conflicts with the task resolved"):
             clf = MLPClassifier(preprocessing_config=cfg)
         assert clf._preprocessor.task == "classification"
+
+
+class TestObservabilityVerbosityMapping:
+    """ObservabilityConfig.verbosity maps onto Preprocessor(verbose=...), and
+    structured_logging=True attaches DeepTab's console handler to PreTab's
+    shared "pretab" logger.
+    """
+
+    @pytest.fixture(autouse=True)
+    def _reset_pretab_logger(self):
+        pretab_logger = logging.getLogger(_PRETAB_LOGGER_NAME)
+        original_handlers = pretab_logger.handlers[:]
+        original_level = pretab_logger.level
+        original_propagate = pretab_logger.propagate
+        yield
+        pretab_logger.handlers[:] = original_handlers
+        pretab_logger.level = original_level
+        pretab_logger.propagate = original_propagate
+
+    def test_no_observability_config_keeps_pretabs_own_default(self):
+        pre = build_preprocessor()
+        assert pre.verbose == 0
+
+    def test_verbosity_is_forwarded_as_verbose(self):
+        obs = ObservabilityConfig(verbosity=2)
+        pre = build_preprocessor(observability_config=obs)
+        assert pre.verbose == 2
+
+    def test_verbosity_above_three_is_clamped(self):
+        obs = ObservabilityConfig(verbosity=7)
+        pre = build_preprocessor(observability_config=obs)
+        assert pre.verbose == 3
+
+    def test_negative_verbosity_is_clamped_to_zero(self):
+        obs = ObservabilityConfig(verbosity=-1)
+        pre = build_preprocessor(observability_config=obs)
+        assert pre.verbose == 0
+
+    def test_structured_logging_true_attaches_console_handler(self):
+        obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=1)
+        build_preprocessor(observability_config=obs)
+        handlers = logging.getLogger(_PRETAB_LOGGER_NAME).handlers
+        assert any(isinstance(handler, _PretabConsoleHandler) for handler in handlers)
+
+    def test_handler_attachment_is_idempotent(self):
+        obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=1)
+        for _ in range(3):
+            build_preprocessor(observability_config=obs)
+        handlers = logging.getLogger(_PRETAB_LOGGER_NAME).handlers
+        assert sum(isinstance(handler, _PretabConsoleHandler) for handler in handlers) == 1
+
+    def test_structured_logging_false_does_not_attach_handler(self):
+        obs = ObservabilityConfig(structured_logging=False, verbosity=3)
+        build_preprocessor(observability_config=obs)
+        handlers = logging.getLogger(_PRETAB_LOGGER_NAME).handlers
+        assert not any(isinstance(handler, _PretabConsoleHandler) for handler in handlers)
+
+    def test_log_to_console_false_does_not_attach_handler(self):
+        obs = ObservabilityConfig(structured_logging=True, log_to_console=False, verbosity=3)
+        build_preprocessor(observability_config=obs)
+        handlers = logging.getLogger(_PRETAB_LOGGER_NAME).handlers
+        assert not any(isinstance(handler, _PretabConsoleHandler) for handler in handlers)
+
+    def test_estimator_forwards_its_observability_config_verbosity(self):
+        from deeptab.models.mlp import MLPClassifier
+
+        obs = ObservabilityConfig(verbosity=2)
+        clf = MLPClassifier(observability_config=obs)
+        assert clf._preprocessor.verbose == 2

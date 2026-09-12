@@ -115,6 +115,7 @@ class SklearnBaseLSS(SklearnBase):
             self.preprocessing_config,
             task="classification" if getattr(self, "family_name", None) == "categorical" else "regression",
             random_state=random_state,
+            observability_config=getattr(self, "_observability_config", None),
         )
 
         X = ensure_dataframe(X)

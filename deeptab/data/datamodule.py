@@ -185,12 +185,16 @@ class TabularDataModule(pl.LightningDataModule):
             random_state=random_state,
         )
 
-        # Update feature info based on the actual processed data
+        # Update feature info based on the actual processed data.
+        # `get_feature_info` has its own independent `verbose=True` default
+        # that would log the per-feature table a second time here; the
+        # preprocessor's own `fit()` already logs it once when its `verbose`
+        # level calls for it, so this call is only used for its return value.
         (
             self.num_feature_info,
             self.cat_feature_info,
             self.embedding_feature_info,
-        ) = self.preprocessor.get_feature_info()
+        ) = self.preprocessor.get_feature_info(verbose=False)
 
     def _resolve_train_sample_weights(self, y_full, val_size, random_state):
         """Resolve explicit per-row sampling weights, splitting them to match the train set.

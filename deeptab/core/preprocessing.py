@@ -7,6 +7,7 @@ stays isolated behind one internal contract.
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 from pretab import Preprocessor
@@ -15,6 +16,7 @@ from deeptab.core.exceptions import warn_config
 
 if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig
+    from deeptab.core.observability import ObservabilityConfig
 
 __all__ = ["build_preprocessor"]
 
@@ -24,12 +26,47 @@ __all__ = ["build_preprocessor"]
 # explicitly rather than left to PreTab's own default.
 _FORCED_PREPROCESSOR_KWARGS = {"output_structure": "blocks", "output_format": "dense"}
 
+_PRETAB_LOGGER_NAME = "pretab"
+
+
+class _PretabConsoleHandler(logging.Handler):
+    """Routes PreTab's shared ``"pretab"`` logger through DeepTab's own console output.
+
+    PreTab only attaches its own default handler (and sets the logger's level)
+    when the ``"pretab"`` logger has none yet; attaching this one first keeps a
+    single ``ObservabilityConfig`` knob authoritative instead of exposing a
+    separate PreTab verbose flag.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        print(self.format(record))
+
+
+def _attach_pretab_console_logging(observability_config: ObservabilityConfig | None) -> None:
+    """Attach :class:`_PretabConsoleHandler` once, when structured console logging is on."""
+    if observability_config is None or not getattr(observability_config, "structured_logging", False):
+        return
+    if not getattr(observability_config, "log_to_console", True):
+        return
+    pretab_logger = logging.getLogger(_PRETAB_LOGGER_NAME)
+    if any(isinstance(handler, _PretabConsoleHandler) for handler in pretab_logger.handlers):
+        return
+    handler = _PretabConsoleHandler()
+    handler.setFormatter(logging.Formatter("%(message)s"))
+    pretab_logger.addHandler(handler)
+    pretab_logger.propagate = False
+    # PreTab's own `verbose` int already gates which messages it emits; without
+    # this, Python's logging level (WARNING by default) would filter them out
+    # before they ever reach the handler above.
+    pretab_logger.setLevel(logging.DEBUG)
+
 
 def build_preprocessor(
     preprocessing_config: PreprocessingConfig | None = None,
     *,
     task: str | None = None,
     random_state: int | None = None,
+    observability_config: ObservabilityConfig | None = None,
     for_external_embeddings: bool = False,
 ) -> Preprocessor:
     """Construct a PreTab ``Preprocessor`` from a resolved ``PreprocessingConfig``.
@@ -47,6 +84,13 @@ def build_preprocessor(
     random_state : int or None, default=None
         Seed resolved by the calling estimator, forwarded to PreTab's
         ``random_state`` argument.
+    observability_config : ObservabilityConfig or None, default=None
+        When given, ``observability_config.verbosity`` is forwarded as PreTab's
+        ``verbose`` level (both use the same 0-3 scale), and, when
+        ``structured_logging=True``, DeepTab's own console handler is attached
+        to PreTab's shared ``"pretab"`` logger. This is the only knob that
+        controls PreTab's fit-time logging; no separate PreTab verbose flag is
+        exposed.
     for_external_embeddings : bool, default=False
         Reserved for the external-embedding-group construction path.
 
@@ -74,5 +118,8 @@ def build_preprocessor(
         kwargs["task"] = task
     if random_state is not None:
         kwargs.setdefault("random_state", random_state)
+    if observability_config is not None and hasattr(observability_config, "verbosity"):
+        kwargs["verbose"] = max(0, min(observability_config.verbosity, 3))
+        _attach_pretab_console_logging(observability_config)
     kwargs.update(_FORCED_PREPROCESSOR_KWARGS)
     return Preprocessor(**kwargs)
