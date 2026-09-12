@@ -140,7 +140,11 @@ class _FitMixin:
         # honoured on the next fit(), consistent with set_params() behaviour.
         if self.preprocessing_config is not None:
             self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self._preprocessor = build_preprocessor(self.preprocessing_config)
+            self._preprocessor = build_preprocessor(
+                self.preprocessing_config,
+                task="regression" if regression else "classification",
+                random_state=random_state,
+            )
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)

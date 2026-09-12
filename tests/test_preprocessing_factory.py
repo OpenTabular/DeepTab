@@ -3,7 +3,8 @@
 Covers:
 - output_structure/output_format are always forced to "blocks"/"dense", regardless
   of what a PreprocessingConfig would otherwise resolve to.
-- task/random_state are only applied when the config did not already resolve them.
+- The estimator-resolved task always takes precedence over PreprocessingConfig.task;
+  a conflicting config value warns rather than being used.
 - None preprocessing_config falls back to PreTab's own defaults (forced kwargs
   still applied).
 """
@@ -16,6 +17,7 @@ import pytest
 from pretab import Preprocessor
 
 from deeptab.configs import PreprocessingConfig
+from deeptab.core.exceptions import ConfigWarning
 from deeptab.core.preprocessing import build_preprocessor
 
 
@@ -51,11 +53,22 @@ class TestBuildPreprocessorTaskAndSeed:
         pre = build_preprocessor(cfg, task="classification")
         assert pre.task == "classification"
 
-    def test_explicit_config_task_takes_precedence_over_argument(self):
+    def test_estimator_task_takes_precedence_over_config_task(self):
         with pytest.warns(FutureWarning):
             cfg = PreprocessingConfig(task="regression")
-        pre = build_preprocessor(cfg, task="classification")
-        assert pre.task == "regression"
+        with pytest.warns(ConfigWarning, match="conflicts with the task resolved"):
+            pre = build_preprocessor(cfg, task="classification")
+        assert pre.task == "classification"
+
+    def test_matching_config_task_does_not_warn(self):
+        import warnings
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig(task="classification")
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            pre = build_preprocessor(cfg, task="classification")
+        assert pre.task == "classification"
 
     def test_random_state_argument_is_forwarded(self):
         with pytest.warns(FutureWarning):
@@ -68,3 +81,53 @@ class TestBuildPreprocessorTaskAndSeed:
         assert isinstance(pre, Preprocessor)
         assert pre.task == "regression"
         assert pre.random_state == 0
+
+
+class TestEstimatorResolvedTaskAndSeed:
+    """The task/random_state an estimator's own preprocessor resolves to."""
+
+    def test_classifier_resolves_classification_task_and_seed(self):
+        from deeptab.models.mlp import MLPClassifier
+
+        clf = MLPClassifier(random_state=42)
+        assert clf._preprocessor.task == "classification"
+        assert clf._preprocessor.random_state == 42
+
+    def test_regressor_resolves_regression_task_and_seed(self):
+        from deeptab.models.mlp import MLPRegressor
+
+        reg = MLPRegressor(random_state=7)
+        assert reg._preprocessor.task == "regression"
+        assert reg._preprocessor.random_state == 7
+
+    def test_lss_defaults_to_regression_before_fit(self):
+        from deeptab.models.mlp import MLPLSS
+
+        lss = MLPLSS(random_state=5)
+        assert lss._preprocessor.task == "regression"
+
+    def test_lss_resolves_classification_for_categorical_family_after_fit(self):
+        import contextlib
+        import warnings
+
+        from deeptab.models.mlp import MLPLSS
+
+        X = pd.DataFrame({"amount": np.linspace(1, 10, 30), "tier": ["a", "b"] * 15})
+        y = np.tile([0, 1, 2], 10)
+        lss = MLPLSS(random_state=5)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            # Suppresses an unrelated, pre-existing categorical-family training bug;
+            # the preprocessor's task is already resolved before that point.
+            with contextlib.suppress(Exception):
+                lss.fit(X, y, family="categorical", max_epochs=1)
+        assert lss._preprocessor.task == "classification"
+
+    def test_estimator_task_overrides_conflicting_config_task_with_warning(self):
+        from deeptab.models.mlp import MLPClassifier
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig(task="regression")
+        with pytest.warns(ConfigWarning, match="conflicts with the task resolved"):
+            clf = MLPClassifier(preprocessing_config=cfg)
+        assert clf._preprocessor.task == "classification"

@@ -140,6 +140,11 @@ class SklearnBase(
     # Set by concrete estimator subclasses (e.g. ``_model_cls = MLP``).
     _model_cls: ClassVar[type | None] = None
     _config_cls: ClassVar[type | None] = None
+    # Task resolved from the estimator's own type, passed to build_preprocessor()
+    # rather than trusted from user input. Regression is the default so LSS
+    # estimators (which subclass SklearnBase directly) resolve sensibly before
+    # fit() knows the distribution family; SklearnBaseClassifier overrides this.
+    _task: ClassVar[str] = "regression"
 
     def __init__(
         self,
@@ -196,7 +201,9 @@ class SklearnBase(
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
             else:
                 self._preprocessor_kwargs = {}
-            self._preprocessor = build_preprocessor(self.preprocessing_config)
+            self._preprocessor = build_preprocessor(
+                self.preprocessing_config, task=type(self)._task, random_state=random_state
+            )
 
             self._optimizer_type = getattr(self.trainer_config, "optimizer_type", "Adam")
             self._optimizer_kwargs = {}
@@ -210,7 +217,7 @@ class SklearnBase(
             self.config = config_cls()
 
             self._preprocessor_kwargs = {}
-            self._preprocessor = build_preprocessor(None)
+            self._preprocessor = build_preprocessor(None, task=type(self)._task, random_state=random_state)
 
             self._optimizer_type = "Adam"
             self._optimizer_kwargs = {}
@@ -319,7 +326,9 @@ class SklearnBase(
                     self.preprocessing_config = v
                     if v is not None and hasattr(v, "to_preprocessor_kwargs"):
                         self._preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self._preprocessor = build_preprocessor(v)
+                        self._preprocessor = build_preprocessor(
+                            v, task=type(self)._task, random_state=self.random_state
+                        )
                 elif k == "trainer_config":
                     self.trainer_config = v
                     if v is not None and hasattr(v, "optimizer_type"):
@@ -337,7 +346,9 @@ class SklearnBase(
             ):
                 self.preprocessing_config.set_params(**preprocessing_config_params)
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-                self._preprocessor = build_preprocessor(self.preprocessing_config)
+                self._preprocessor = build_preprocessor(
+                    self.preprocessing_config, task=type(self)._task, random_state=self.random_state
+                )
             if trainer_config_params and self.trainer_config is not None and hasattr(self.trainer_config, "set_params"):
                 self.trainer_config.set_params(**trainer_config_params)
                 self._optimizer_type = self.trainer_config.optimizer_type

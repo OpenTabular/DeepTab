@@ -289,8 +289,10 @@ class PreprocessingConfig(BaseEstimator):
     feature_preprocessing : str or None, default=None
         General feature-level preprocessing override.
     task : str or None, default=None
-        Task type passed to the preprocessor for task-aware transformations
-        (e.g. ``"regression"``, ``"classification"``).
+        Task type for task-aware transformations (``"regression"`` or
+        ``"classification"``). The task resolved from the estimator's own type
+        always takes precedence over this field; setting a conflicting value
+        here emits a ``ConfigWarning`` rather than being used.
     cat_cutoff : float or None, default=None
         Threshold for treating integer columns as categorical.
     treat_all_integers_as_numerical : bool or None, default=None

@@ -37,6 +37,8 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
 
 
 class SklearnBaseClassifier(SklearnBase):
+    _task = "classification"
+
     def __init__(
         self,
         model_config=None,

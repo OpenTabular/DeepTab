@@ -106,9 +106,16 @@ class SklearnBaseLSS(SklearnBase):
         # Re-sync preprocessor from current preprocessing_config state so that
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
         # honoured on the next fit(), consistent with set_params() behaviour.
+        # Rebuilt unconditionally (even without an explicit preprocessing_config)
+        # because the task, unlike for classifiers/regressors, is only knowable
+        # once the distribution family is set, just above.
         if self.preprocessing_config is not None:
             self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self._preprocessor = build_preprocessor(self.preprocessing_config)
+        self._preprocessor = build_preprocessor(
+            self.preprocessing_config,
+            task="classification" if getattr(self, "family_name", None) == "categorical" else "regression",
+            random_state=random_state,
+        )
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
