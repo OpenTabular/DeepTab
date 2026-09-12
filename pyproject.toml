@@ -45,8 +45,8 @@ einops = "^0.8.0"
 accelerate = "^1.2.1"
 scipy = "^1.15.0"
 pretab = ">=1.0,<2.0"
-delu = "*"
-faiss-cpu = "*"
+delu = ">=0.0.26,<0.1.0"
+faiss-cpu = ">=1.13.0,<2.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^9.0"

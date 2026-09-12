@@ -7319,4 +7319,4 @@ tracking = ["mlflow", "tensorboard"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.14"
-content-hash = "843072cca745a2314cee3434b39927420295b8affc456c526220802b21b4bac6"
+content-hash = "05b5a94721563ebd70dba9980785000baabdd02af03e15f6b06c72e9b44903d8"
