@@ -15,8 +15,8 @@ import lightning as pl
 import numpy as np
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
-from pretab.preprocessor import Preprocessor
 
+from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
 from deeptab.training import pretrain_embeddings
 
@@ -137,7 +137,7 @@ class _FitMixin:
         # honoured on the next fit(), consistent with set_params() behaviour.
         if self.preprocessing_config is not None:
             self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+            self._preprocessor = build_preprocessor(self.preprocessing_config)
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)

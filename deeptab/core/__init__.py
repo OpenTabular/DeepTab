@@ -21,6 +21,7 @@ from .exceptions import (
 from .hardware import print_hardware_info
 from .inference import InferenceModel
 from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
+from .preprocessing import build_preprocessor
 from .registry import MODEL_REGISTRY, ModelInfo
 from .reproducibility import seed_context, set_seed
 from .serialization import (
@@ -62,6 +63,7 @@ __all__ = [
     "NotFittedError",
     "PerformanceWarning",
     "build_artifact_metadata",
+    "build_preprocessor",
     "check_numpy",
     "collect_version_metadata",
     "ensure_dataframe",
