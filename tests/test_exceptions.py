@@ -19,6 +19,7 @@ Covers:
 from __future__ import annotations
 
 import warnings
+from typing import Any, cast
 
 import numpy as np
 import pandas as pd
@@ -373,7 +374,7 @@ class TestPreprocessingConfigValidation:
             ("n_knots", 10),
         ):
             with pytest.warns(ConfigWarning) as record:
-                PreprocessingConfig(**{field: value})
+                PreprocessingConfig(**cast(dict[str, Any], {field: value}))
             assert not any(issubclass(w.category, DeprecationWarning) for w in record)
 
     def test_invalid_scaling_strategy_raises(self):
