@@ -214,15 +214,21 @@ class TestPreprocessingConfig:
     def test_to_preprocessor_kwargs_excludes_none(self):
         cfg = PreprocessingConfig(numerical_preprocessing="ple", n_bins=32)
         kwargs = cfg.to_preprocessor_kwargs()
-        assert "numerical_preprocessing" in kwargs
-        assert "n_bins" in kwargs
+        # Legacy field names are resolved to their canonical PreTab 1.0 equivalents.
+        assert kwargs["numerical_method"] == "ple"
+        assert kwargs["output_dim"] == 32
         # Fields left as None must not appear
-        assert "categorical_preprocessing" not in kwargs
-        assert "scaling_strategy" not in kwargs
+        assert "categorical_method" not in kwargs
+        assert "scaling" not in kwargs
 
     def test_to_preprocessor_kwargs_empty_when_all_none(self):
-        cfg = PreprocessingConfig()
-        assert cfg.to_preprocessor_kwargs() == {}
+        import warnings
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", FutureWarning)
+            cfg = PreprocessingConfig()
+        # output_dim resolves to DeepTab's explicit default of 7 even when unset.
+        assert cfg.to_preprocessor_kwargs() == {"output_dim": 7}
 
     def test_sklearn_clone(self):
         cfg = PreprocessingConfig(numerical_preprocessing="ple", n_bins=32)

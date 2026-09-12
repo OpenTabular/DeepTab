@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any
@@ -75,6 +76,11 @@ _PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"cart"})
 _PLACEMENT_STRATEGIES_NEVER_TARGET_AWARE: frozenset[str] = frozenset({"uniform", "quantile"})
 _VALID_CAT_ENCODING: frozenset[str] = frozenset({"int", "one-hot", "linear"})
 _VALID_MONITOR_MODE: frozenset[str] = frozenset({"min", "max"})
+# DeepTab's own explicit default when output_dim (and its legacy aliases) are
+# all omitted, matching PreTab's own preset="standard" starting point. Made
+# explicit (rather than left to PreTab's internal default) so a future PreTab
+# release cannot silently change DeepTab's resolved width.
+_DEFAULT_OUTPUT_DIM = 7
 
 __all__ = [
     "BaseModelConfig",
@@ -241,35 +247,47 @@ def _resolve_legacy_alias(
 class PreprocessingConfig(BaseEstimator):
     """Configuration for input feature preprocessing.
 
-    Canonical fields map directly to arguments accepted by ``pretab.Preprocessor``.
-    Legacy fields are deprecated aliases kept for backward compatibility; using one
-    emits a ``DeprecationWarning`` and is resolved to its canonical equivalent.
-    Using ``None`` for any field leaves the preprocessor default in effect.
+    Only fields accepted by PreTab 1.0's ``Preprocessor`` are documented below.
+    DeepTab still accepts a small set of legacy constructor arguments from
+    earlier releases for backward compatibility; passing one emits a warning
+    (when it maps unambiguously to a field below) or raises an actionable
+    error naming the correct replacement (when it does not). These legacy
+    arguments are intentionally left undocumented here, since they carry no
+    information beyond what the resulting warning or error message already
+    states. Using ``None`` for any field below leaves the preprocessor's own
+    default in effect.
 
     Parameters
     ----------
-    numerical_preprocessing : str or None, default=None
-        Deprecated alias for ``numerical_method``; setting this emits a
-        ``DeprecationWarning`` and behaves exactly as if ``numerical_method``
-        were set to the same value.
-    categorical_preprocessing : str or None, default=None
-        Deprecated alias for ``categorical_method``; setting this emits a
-        ``DeprecationWarning`` and behaves exactly as if ``categorical_method``
-        were set to the same value.
-    n_bins : int or None, default=None
-        Deprecated alias for ``output_dim`` (numerical binning width); setting
-        this emits a ``DeprecationWarning`` and behaves exactly as if
-        ``output_dim`` were set to the same value.
+    numerical_method : str or None, default=None
+        Strategy for transforming numerical features (e.g. ``"ple"``,
+        ``"bspline"``, ``"quantile"``). ``None`` uses the preprocessor's
+        built-in default.
+    categorical_method : str or None, default=None
+        Strategy for transforming categorical features (``"int"``,
+        ``"one-hot"``, or ``"pretrained"``). ``None`` uses the preprocessor's
+        built-in default.
+    output_dim : int or None, default=None
+        Output width for numerical representations (bins, knots, or expansion
+        dimensions); ignored by representations that do not use it (e.g. plain
+        scaling). ``None`` resolves to DeepTab's own explicit default of 7,
+        emitting a one-time ``FutureWarning`` the first time this happens.
+    target_aware : bool or None, default=None
+        Whether numerical placement uses the target. ``False`` requires
+        ``placement_strategy`` in ``{"uniform", "quantile"}``; ``True`` requires
+        ``placement_strategy="cart"`` (``"lightgbm"`` is not yet supported).
+    placement_strategy : str or None, default=None
+        Strategy for placing bin edges or knots. Its valid values depend on
+        ``target_aware``, not on ``numerical_method``: ``"uniform"`` or
+        ``"quantile"`` when ``target_aware=False``; ``"cart"`` when
+        ``target_aware=True`` (PreTab's ``"lightgbm"`` option is not yet
+        supported, since it requires the optional ``pretab[lightgbm]``
+        dependency).
+    scaling : str or None, default=None
+        Scaling method applied to numerical features (e.g. ``"standardization"``,
+        ``"minmax"``, ``"robust"``).
     feature_preprocessing : str or None, default=None
         General feature-level preprocessing override.
-    use_decision_tree_bins : bool or None, default=None
-        Deprecated alias for ``target_aware``, honored only when it does not
-        conflict with ``use_decision_tree_knots``; setting it emits a
-        ``DeprecationWarning``.
-    binning_strategy : str or None, default=None
-        Deprecated alias for ``placement_strategy``, honored only when it does
-        not conflict with ``knots_strategy``; setting it emits a
-        ``DeprecationWarning``.
     task : str or None, default=None
         Task type passed to the preprocessor for task-aware transformations
         (e.g. ``"regression"``, ``"classification"``).
@@ -279,56 +297,6 @@ class PreprocessingConfig(BaseEstimator):
         When ``True``, integer columns are never converted to categorical.
     degree : int or None, default=None
         Polynomial / spline degree for numerical feature expansion.
-    scaling_strategy : str or None, default=None
-        Deprecated alias for ``scaling``; setting this emits a
-        ``DeprecationWarning`` and behaves exactly as if ``scaling`` were set
-        to the same value.
-    n_knots : int or None, default=None
-        Deprecated alias for ``output_dim`` (spline knot count); setting this
-        emits a ``DeprecationWarning`` and behaves exactly as if ``output_dim``
-        were set to the same value.
-    use_decision_tree_knots : bool or None, default=None
-        Deprecated alias for ``target_aware``, honored only when it does not
-        conflict with ``use_decision_tree_bins``; setting it emits a
-        ``DeprecationWarning``.
-    knots_strategy : str or None, default=None
-        Deprecated alias for ``placement_strategy``, honored only when it does
-        not conflict with ``binning_strategy``; setting it emits a
-        ``DeprecationWarning``.
-    spline_implementation : str or None, default=None
-        Removed in PreTab 1.0. Setting this to any value raises
-        ``IncompatibleParamsError``; PreTab now selects its spline backend
-        automatically.
-    numerical_method : str or None, default=None
-        Strategy for transforming numerical features (e.g. ``"ple"``,
-        ``"bspline"``, ``"quantile"``). ``None`` uses the preprocessor's
-        built-in default. Canonical replacement for ``numerical_preprocessing``.
-    categorical_method : str or None, default=None
-        Strategy for transforming categorical features (``"int"``,
-        ``"one-hot"``, or ``"pretrained"``). ``None`` uses the preprocessor's
-        built-in default. Canonical replacement for ``categorical_preprocessing``.
-    output_dim : int or None, default=None
-        Output width for numerical representations (bins, knots, or expansion
-        dimensions). ``None`` uses the preprocessor's built-in default.
-        Canonical replacement for ``n_bins`` and ``n_knots``.
-    target_aware : bool or None, default=None
-        Whether numerical placement uses the target. ``False`` requires
-        ``placement_strategy`` in ``{"uniform", "quantile"}``; ``True`` requires
-        ``placement_strategy="cart"`` (``"lightgbm"`` is not yet supported).
-        Canonical replacement for ``use_decision_tree_bins`` and
-        ``use_decision_tree_knots``.
-    placement_strategy : str or None, default=None
-        Strategy for placing bin edges or knots. Its valid values depend on
-        ``target_aware``, not on ``numerical_method``: ``"uniform"`` or
-        ``"quantile"`` when ``target_aware=False``; ``"cart"`` when
-        ``target_aware=True`` (PreTab's ``"lightgbm"`` option is not yet
-        supported, since it requires the optional ``pretab[lightgbm]``
-        dependency). Canonical replacement for ``binning_strategy`` and
-        ``knots_strategy``.
-    scaling : str or None, default=None
-        Scaling method applied to numerical features (e.g. ``"standardization"``,
-        ``"minmax"``, ``"robust"``). Canonical replacement for
-        ``scaling_strategy``.
     """
 
     numerical_preprocessing: str | None = None
@@ -474,11 +442,21 @@ class PreprocessingConfig(BaseEstimator):
                 "placement instead.",
             )
 
-    def _resolve_output_dim(self) -> int | None:
-        """Resolve `n_bins`/`n_knots` (Category A) into `output_dim`."""
+    def _resolve_output_dim(self) -> int:
+        """Resolve `n_bins`/`n_knots` (Category A) into `output_dim`, defaulting to 7."""
         legacy_values = {v for v in (self.n_bins, self.n_knots) if v is not None}
         if not legacy_values:
-            return self.output_dim
+            if self.output_dim is not None:
+                return self.output_dim
+            warnings.warn(
+                "PreprocessingConfig: 'output_dim' was not set; DeepTab now resolves "
+                f"this to {_DEFAULT_OUTPUT_DIM} for representations that use it, instead of "
+                "implicitly following PreTab's own internal default. Set 'output_dim' "
+                "explicitly to silence this warning and pin the behavior.",
+                FutureWarning,
+                stacklevel=4,
+            )
+            return _DEFAULT_OUTPUT_DIM
         if len(legacy_values) > 1:
             raise incompatible_params_error(
                 "PreprocessingConfig",

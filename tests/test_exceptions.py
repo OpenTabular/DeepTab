@@ -335,6 +335,47 @@ class TestPreprocessingConfigValidation:
         with pytest.raises(InvalidParamError, match="n_knots"):
             PreprocessingConfig(n_knots=1)
 
+    def test_output_dim_omitted_defaults_to_seven_with_future_warning(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning, match="output_dim"):
+            cfg = PreprocessingConfig()
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 7
+
+    def test_output_dim_explicit_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(output_dim=15)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 15
+
+    def test_legacy_n_bins_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(n_bins=10)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 10
+
+    def test_legacy_alias_fields_emit_config_warning_not_deprecation_warning(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for field, value in (
+            ("numerical_preprocessing", "ple"),
+            ("categorical_preprocessing", "int"),
+            ("scaling_strategy", "minmax"),
+            ("n_bins", 10),
+            ("n_knots", 10),
+        ):
+            with pytest.warns(ConfigWarning) as record:
+                PreprocessingConfig(**{field: value})
+            assert not any(issubclass(w.category, DeprecationWarning) for w in record)
+
     def test_invalid_scaling_strategy_raises(self):
         from deeptab.configs import PreprocessingConfig
 
