@@ -33,7 +33,7 @@ from .serialization import (
     save_state_dict,
 )
 from .sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
-from .utils import MLP_Block, check_numpy, make_random_batches
+from .utils import check_numpy
 
 __all__ = [
     "ARTIFACT_FORMAT_VERSION",
@@ -57,7 +57,6 @@ __all__ = [
     "InspectionMixin",
     "InsufficientSamplesError",
     "InvalidParamError",
-    "MLP_Block",
     "ModelError",
     "ModelInfo",
     "NotFittedError",
@@ -69,7 +68,6 @@ __all__ = [
     "ensure_dataframe",
     "get_feature_dimensions",
     "load_state_dict",
-    "make_random_batches",
     "print_hardware_info",
     "restore_loaded_metadata",
     "save_state_dict",
