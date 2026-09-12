@@ -6,10 +6,19 @@ This page lists the officially supported versions of Python and core dependencie
 
 ## Python and Operating Systems
 
-| Category | Supported                                      | Notes                                                           |
-| -------- | ---------------------------------------------- | --------------------------------------------------------------- |
-| Python   | 3.10, 3.11, 3.12, 3.13                         | 3.14+ pending `scipy` wheels; added once dependencies catch up. |
-| OS       | Linux, macOS, Windows (all `*-latest` runners) |                                                                 |
+| Category | Supported                                                      | Notes                                                           |
+| -------- | -------------------------------------------------------------- | --------------------------------------------------------------- |
+| Python   | 3.10, 3.11, 3.12, 3.13                                         | 3.14+ pending `scipy` wheels; added once dependencies catch up. |
+| OS       | Linux, macOS (Apple Silicon), Windows (all `*-latest` runners) | CI's macOS runners are Apple Silicon (arm64).                   |
+
+```{warning}
+**Intel Mac (macOS x86_64) is not supported.** Upstream PyTorch no longer publishes
+x86_64 macOS wheels for `torch >= 2.3`, nor for Python 3.13 on any macOS
+architecture. Since DeepTab requires `torch >= 2.2.2`, installing `deeptab` on an
+Intel Mac can fail to resolve a compatible PyTorch build. This is an upstream
+PyTorch packaging constraint, not a DeepTab defect, and there is no DeepTab-side
+fix. See [Installation](../getting_started/installation) for the workaround.
+```
 
 ---
 
@@ -17,7 +26,8 @@ This page lists the officially supported versions of Python and core dependencie
 
 The authoritative version constraints live in [`pyproject.toml`](https://github.com/OpenTabular/deeptab/blob/main/pyproject.toml) under `[tool.poetry.dependencies]`, which is updated on every release. Treat that file as the source of truth; the list below names the core packages and the policy that governs their bounds.
 
-- **PyTorch, Lightning, NumPy, pandas, scikit-learn, torchmetrics, scipy** are the pinned core dependencies. NumPy 1.x is **not** supported.
+- **PyTorch, Lightning, NumPy, pandas, scikit-learn, torchmetrics, scipy, PreTab** are the pinned core dependencies. NumPy 1.x is **not** supported.
+- **delu, faiss-cpu** are mandatory but model-specific dependencies (used only by TabR), pinned to a tested range rather than a broader policy window; they are candidates for optional extras in a future release.
 
 DeepTab follows a rolling support window, similar to [SPEC 0](https://scientific-python.org/specs/spec-0000/) used by the broader scientific Python ecosystem:
 

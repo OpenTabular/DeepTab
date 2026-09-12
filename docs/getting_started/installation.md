@@ -19,6 +19,24 @@ import deeptab
 print(deeptab.__version__)  # e.g., "2.0.0"
 ```
 
+## Supported Platforms
+
+DeepTab is tested in CI on Linux, Windows, and macOS (Apple Silicon) across Python
+3.10–3.13. See the [Support Matrix](../developer_guide/support_matrix) for the full
+version policy.
+
+```{warning}
+**Intel Mac (macOS x86_64) is not supported.** Upstream PyTorch no longer publishes
+x86_64 macOS wheels for `torch >= 2.3`, nor for Python 3.13 on any macOS
+architecture. DeepTab requires `torch >= 2.2.2`, so `pip install deeptab` (or any
+extra such as `deeptab[all]`) can fail to resolve a compatible PyTorch build on an
+Intel Mac. This is an upstream PyTorch packaging constraint, not a DeepTab defect.
+
+**Workaround:** use Python 3.12 or earlier on Intel Mac, which can still install
+`torch==2.2.2` (the last PyPI build with x86_64 macOS wheels), or switch to Apple
+Silicon, Linux, or Windows.
+```
+
 ## Optional Dependencies
 
 The default install keeps the core small. Observability backends (structured logging and experiment trackers) ship as extras, so install only what you need:
