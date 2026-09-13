@@ -294,3 +294,81 @@ def test_lss_bundle_structure(regression_data):
     assert bundle["artifact_metadata"]["task"]["lss"] is True
     assert bundle["artifact_metadata"]["task"]["family"] == "normal"
     assert bundle["artifact_metadata"]["task"]["task"] == "distributional_regression"
+
+
+# ---------------------------------------------------------------------------
+# Preprocessing spec / fingerprint / feature-width persistence
+# ---------------------------------------------------------------------------
+
+
+def test_preprocessing_metadata_includes_spec_fingerprint_and_widths(regression_data):
+    """The saved bundle records the PreTab spec, fingerprint, and per-feature widths."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    from deeptab.core.serialization import build_save_bundle
+
+    bundle = build_save_bundle(model, lss=False, family=None)
+    meta = bundle["preprocessing_metadata"]
+
+    assert isinstance(meta["spec"], dict)
+    assert meta["spec"]["schema_version"] == 1
+    assert isinstance(meta["fingerprint"], str) and meta["fingerprint"]
+    assert set(meta["feature_widths"].keys()) == set(X_train.columns)
+    assert all(isinstance(width, int) and width > 0 for width in meta["feature_widths"].values())
+
+
+def test_preprocessing_metadata_survives_save_load_round_trip(regression_data):
+    """spec/fingerprint/feature_widths are unchanged after a save/load round-trip."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    import json
+
+    from deeptab.core.serialization import build_save_bundle
+
+    meta_before = build_save_bundle(model, lss=False, family=None)["preprocessing_metadata"]
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    meta_after = loaded.preprocessing_metadata_
+    assert meta_after["fingerprint"] == meta_before["fingerprint"]
+    assert meta_after["feature_widths"] == meta_before["feature_widths"]
+    # Compared via their JSON text rather than `==`: the spec's fitted state can
+    # legitimately contain NaN (e.g. sklearn's `SimpleImputer(missing_values=nan)`),
+    # and NaN never equals itself, which would make an identical dict compare unequal.
+    assert json.dumps(meta_after["spec"], sort_keys=True) == json.dumps(meta_before["spec"], sort_keys=True)
+
+
+def test_preprocessing_metadata_handles_preprocessor_without_spec_support():
+    """A preprocessor lacking to_spec()/fingerprint_ still produces a valid metadata block."""
+    from deeptab.core.serialization import build_preprocessing_metadata
+
+    class _BarePreprocessor:
+        pass
+
+    meta = build_preprocessing_metadata(_BarePreprocessor(), preprocessor_kwargs={})
+
+    assert meta["spec"] is None
+    assert meta["fingerprint"] is None
+    assert meta["feature_widths"] == {}
+
+
+def test_preprocessing_metadata_none_preprocessor():
+    """A None preprocessor (no fitted state) yields spec=None, fingerprint=None."""
+    from deeptab.core.serialization import build_preprocessing_metadata
+
+    meta = build_preprocessing_metadata(None, preprocessor_kwargs=None)
+
+    assert meta["fitted_state_persisted"] is False
+    assert meta["spec"] is None
+    assert meta["fingerprint"] is None
+    assert meta["feature_widths"] == {}

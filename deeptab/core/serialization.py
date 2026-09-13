@@ -86,11 +86,14 @@ def build_artifact_metadata(
     classes_: Any = None,
 ) -> dict[str, Any]:
     """Build the standard metadata block stored with fitted estimators."""
+    feature_schema = build_feature_schema_metadata(data_module)
     return {
         "format_version": ARTIFACT_FORMAT_VERSION,
         "architecture": build_architecture_metadata(model_class=model_class, config=config, estimator=estimator),
-        "feature_schema": build_feature_schema_metadata(data_module),
-        "preprocessing": build_preprocessing_metadata(preprocessor, preprocessor_kwargs),
+        "feature_schema": feature_schema,
+        "preprocessing": build_preprocessing_metadata(
+            preprocessor, preprocessor_kwargs, feature_info=feature_schema.get("feature_info")
+        ),
         "task": build_task_metadata(
             task=task,
             regression=regression,
@@ -162,15 +165,56 @@ def build_feature_schema_metadata(data_module: Any) -> dict[str, Any]:
 
 
 def build_preprocessing_metadata(
-    preprocessor: Any, preprocessor_kwargs: dict[str, Any] | None = None
+    preprocessor: Any,
+    preprocessor_kwargs: dict[str, Any] | None = None,
+    feature_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Describe the fitted preprocessing object stored in the artifact."""
+    spec, fingerprint = _resolve_preprocessor_spec_and_fingerprint(preprocessor)
     return {
         "class_name": type(preprocessor).__name__ if preprocessor is not None else None,
         "module": type(preprocessor).__module__ if preprocessor is not None else None,
         "kwargs": _simplify(preprocessor_kwargs or {}),
         "fitted_state_persisted": preprocessor is not None,
+        "spec": spec,
+        "fingerprint": fingerprint,
+        "feature_widths": _resolve_feature_widths(feature_info),
     }
+
+
+def _resolve_preprocessor_spec_and_fingerprint(preprocessor: Any) -> tuple[dict[str, Any] | None, str | None]:
+    """Best-effort ``to_spec()``/``fingerprint_`` snapshot for diagnostics and future migration tooling.
+
+    Looked up defensively (not every object stored as ``preprocessor`` is a fitted
+    PreTab ``Preprocessor``, e.g. in tests) so an artifact still saves successfully
+    either way; this does not change how the preprocessor itself is restored on load.
+    """
+    if preprocessor is None:
+        return None, None
+    spec = None
+    to_spec = getattr(preprocessor, "to_spec", None)
+    if callable(to_spec):
+        try:
+            spec = _simplify(to_spec())
+        except Exception:
+            spec = None
+    try:
+        fingerprint = getattr(preprocessor, "fingerprint_", None)
+    except Exception:
+        fingerprint = None
+    return spec, fingerprint
+
+
+def _resolve_feature_widths(feature_info: dict[str, Any] | None) -> dict[str, Any]:
+    """Flatten the num/cat/emb feature-info groups into ``{feature_name: output_width}``."""
+    widths: dict[str, Any] = {}
+    if not feature_info:
+        return widths
+    for group in ("num", "cat", "emb"):
+        for name, info in (feature_info.get(group) or {}).items():
+            if isinstance(info, dict) and "dimension" in info:
+                widths[name] = info["dimension"]
+    return widths
 
 
 def build_task_metadata(
