@@ -11,6 +11,35 @@ branch receives no bug fixes or security updates. If you are not ready to upgrad
 pin `deeptab<2.0` and plan the move when you can.
 ```
 
+## PreTab 1.0 migration
+
+DeepTab's preprocessing runs on [PreTab](https://pretab.readthedocs.io/en/latest/index.html),
+and PreTab 1.0 changed its own configuration API. This section covers what changes
+for existing DeepTab code; it links to the config reference rather than repeating
+every field here.
+
+```{important}
+**The default `output_dim` changed from 64 to 7.** A fit that omits `output_dim` (and
+its legacy aliases `n_bins`/`n_knots`) now builds a narrower, more efficient
+representation by default, matching PreTab's own `preset="standard"` starting point.
+Passing `output_dim=64` explicitly reproduces the old width. A model saved before
+this change keeps loading with its original fitted width: **the loader restores
+dimensions from the saved artifact, never from today's constructor defaults.** The
+first fit that relies on the new default emits a one-time `FutureWarning`.
+```
+
+`PreprocessingConfig` field names also changed. Renames fall into two categories:
+
+| Category                                 | Example                                                                                                                            | What happens                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **A: faithful rename**                   | `numerical_preprocessing` → `numerical_method`, `categorical_preprocessing` → `categorical_method`, `scaling_strategy` → `scaling` | The old name still works and emits a `ConfigWarning` naming its replacement.                     |
+| **B: removed or re-meant in PreTab 1.0** | `spline_implementation`; `binning_strategy`/`knots_strategy` or decision-tree flags with no unambiguous equivalent                 | The old name raises an actionable error naming the current field; it is never silently accepted. |
+
+Passing both an old name and its replacement with conflicting values raises
+`IncompatibleParamsError` in either category. See the [Config System](../core_concepts/config_system)
+page for the complete current field reference, and `PreprocessingConfig`'s docstring
+for the authoritative, version-accurate list.
+
 ## Before you upgrade
 
 Pin the major version you test against so a future release never surprises a running

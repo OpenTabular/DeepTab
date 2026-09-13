@@ -76,6 +76,14 @@ The self-contained reload is a feature of the DeepTab package, not of the file o
 Because the artifact is pickle-backed under the hood, only load `.deeptab` files from sources you trust, the same caution that applies to any `torch.load` or pickle file.
 ```
 
+### Checkpoint format compatibility
+
+Every artifact carries a `format_version` in its `artifact_metadata`, alongside the full package version snapshot, so a saved model records exactly which DeepTab release produced it. The current DeepTab release only guarantees loading artifacts saved by that same release line; older, pre-2.1 checkpoints are not guaranteed to reload and may need their original `deeptab`/`torch`/`pretab` environment reinstalled to load at all. If you need to keep an older model working, pin the package versions recorded in its `versions_` metadata rather than upgrading in place.
+
+```{note}
+Changing a default, such as the `output_dim` value a new fit resolves to, never changes an already-saved model. The loader always restores the requested configuration and fitted state recorded in the artifact itself, never today's constructor defaults, so a model saved under an older default keeps its original shape and behavior after upgrading DeepTab.
+```
+
 ### Verifying a round-trip
 
 ```python

@@ -117,6 +117,10 @@ When `structured_logging=True`, `verbosity` controls how much is emitted. Higher
 
 The default of `1` keeps console output to a few meaningful milestones.
 
+```{note}
+This same `verbosity` also governs PreTab's own preprocessing output. DeepTab forwards it to PreTab's `Preprocessor(verbose=...)` on the same 0-3 scale, and, when `structured_logging=True`, attaches DeepTab's console handler to PreTab's shared logger so its fit-time messages appear alongside DeepTab's own. There is no separate PreTab verbose flag to set: one `verbosity` value controls both.
+```
+
 ---
 
 ## Lifecycle events
