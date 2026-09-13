@@ -13,7 +13,7 @@ DeepTab separates model structure, preprocessing, and training into independent 
 | Config                | Controls             | Examples                                                         |
 | --------------------- | -------------------- | ---------------------------------------------------------------- |
 | `<Model>Config`       | Architecture         | `d_model`, `n_layers`, `dropout`, `layer_sizes`, `depth`         |
-| `PreprocessingConfig` | Feature transforms   | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins` |
+| `PreprocessingConfig` | Feature transforms   | `numerical_method`, `categorical_method`, `output_dim`, `preset` |
 | `TrainerConfig`       | Optimization/runtime | `lr`, `batch_size`, `max_epochs`, `patience`, `weight_decay`     |
 
 ```python
@@ -22,7 +22,7 @@ from deeptab.models import MambularRegressor
 
 model = MambularRegressor(
     model_config=MambularConfig(d_model=128, n_layers=6, dropout=0.1),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=5e-4, batch_size=256, max_epochs=150),
     random_state=101,
 )
@@ -329,33 +329,33 @@ Preprocessing is part of the model in tabular deep learning. Tune it explicitly.
 
 | Data Condition                       | Candidate Setting                                           | Notes                                                      |
 | ------------------------------------ | ----------------------------------------------------------- | ---------------------------------------------------------- |
-| Roughly symmetric numerical features | `numerical_preprocessing="standardization"`                 | Fast, simple, and easy to audit                            |
-| Heavy tails/outliers/skew            | `numerical_preprocessing="quantile"`                        | Often robust for real-world tables                         |
-| Bounded features                     | `numerical_preprocessing="minmax"`                          | Use when scale bounds are meaningful                       |
-| Nonlinear numeric effects            | `numerical_preprocessing="ple"`, tune `n_bins`              | Connects to numerical feature embedding work               |
+| Roughly symmetric numerical features | `numerical_method="standardization"`                        | Fast, simple, and easy to audit                            |
+| Heavy tails/outliers/skew            | `numerical_method="quantile"`                               | Often robust for real-world tables                         |
+| Bounded features                     | `numerical_method="minmax"`                                 | Use when scale bounds are meaningful                       |
+| Nonlinear numeric effects            | `numerical_method="ple"`, tune `output_dim`                 | Connects to numerical feature embedding work               |
 | Many integer IDs                     | `treat_all_integers_as_numerical=True` or tune `cat_cutoff` | Prevents accidental categorical treatment                  |
-| Categorical features                 | `categorical_preprocessing="int"` or project default        | Use model `d_model`/embeddings for representation capacity |
+| Categorical features                 | `categorical_method="int"` or project default               | Use model `d_model`/embeddings for representation capacity |
 
 ```python
 from deeptab.configs import PreprocessingConfig
 
 # Conservative baseline
 standard_prep = PreprocessingConfig(
-    numerical_preprocessing="standardization",
-    categorical_preprocessing="int",
+    numerical_method="standardization",
+    categorical_method="int",
 )
 
 # Robust numeric preprocessing
 quantile_prep = PreprocessingConfig(
-    numerical_preprocessing="quantile",
-    categorical_preprocessing="int",
+    numerical_method="quantile",
+    categorical_method="int",
 )
 
 # Numerical feature embedding/binning experiment
 ple_prep = PreprocessingConfig(
-    numerical_preprocessing="ple",
-    n_bins=64,
-    categorical_preprocessing="int",
+    numerical_method="ple",
+    output_dim=64,
+    categorical_method="int",
 )
 ```
 
@@ -371,8 +371,8 @@ Use small spaces first. Expand only after the baseline protocol is stable.
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
-    "preprocessing_config__n_bins": [32, 64],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
+    "preprocessing_config__output_dim": [32, 64],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_layers": [2, 4, 6],
     "model_config__dropout": [0.0, 0.1, 0.2],
@@ -386,7 +386,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_layers": [2, 4, 6],
     "model_config__n_heads": [4, 8],
@@ -401,7 +401,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__layer_sizes": [[256, 128], [256, 256, 128], [512, 256, 128]],
     "model_config__ensemble_size": [8, 16, 32],
     "model_config__dropout": [0.0, 0.1, 0.2],
@@ -415,7 +415,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__d_main": [128, 256],
     "model_config__context_size": [32, 64, 96],
     "model_config__dropout0": [0.0, 0.2, 0.4],
@@ -429,7 +429,7 @@ param_grid = {
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile"],
     "model_config__num_layers": [2, 4, 6],
     "model_config__layer_dim": [64, 128, 256],
     "model_config__depth": [4, 6, 8],

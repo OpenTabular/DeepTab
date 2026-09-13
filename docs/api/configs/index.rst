@@ -25,7 +25,7 @@ settings can be managed, versioned, and shared independently.
      - ``d_model``, ``n_layers``, ``dropout``, ``activation``, …
    * - :class:`PreprocessingConfig`
      - Feature engineering
-     - ``numerical_preprocessing``, ``n_bins``, ``scaling_strategy``, …
+     - ``numerical_method``, ``output_dim``, ``scaling``, ``preset``, …
    * - :class:`TrainerConfig`
      - Training loop
      - ``max_epochs``, ``lr``, ``batch_size``, ``patience``, …
@@ -48,7 +48,7 @@ Classification
 
     model = MLPClassifier(
         model_config=MLPConfig(d_model=128, dropout=0.1),
-        preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+        preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
         trainer_config=TrainerConfig(max_epochs=50, lr=1e-3),
     )
     model.fit(X_train, y_train)

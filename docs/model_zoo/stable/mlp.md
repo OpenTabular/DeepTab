@@ -53,7 +53,7 @@ model = MLPClassifier(
         dropout=0.2,
         skip_connections=False,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

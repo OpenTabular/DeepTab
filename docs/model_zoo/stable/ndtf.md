@@ -53,7 +53,7 @@ model = NDTFClassifier(
         node_sampling=0.3,
         lamda=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

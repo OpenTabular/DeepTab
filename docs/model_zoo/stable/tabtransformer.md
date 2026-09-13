@@ -57,8 +57,8 @@ model = TabTransformerClassifier(
         pooling_method="avg",
     ),
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="standardization",
-        categorical_preprocessing="int",
+        numerical_method="standardization",
+        categorical_method="int",
     ),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,

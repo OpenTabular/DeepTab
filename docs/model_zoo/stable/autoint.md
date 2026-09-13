@@ -49,7 +49,7 @@ model = AutoIntClassifier(
         n_heads=8,
         attn_dropout=0.2,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )

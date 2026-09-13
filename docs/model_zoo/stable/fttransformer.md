@@ -53,7 +53,7 @@ model = FTTransformerClassifier(
         ff_dropout=0.1,
         pooling_method="avg",
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )

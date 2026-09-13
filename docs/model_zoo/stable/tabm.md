@@ -51,7 +51,7 @@ model = TabMClassifier(
         dropout=0.2,
         average_ensembles=False,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

@@ -25,7 +25,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),
+    preprocessing_config=PreprocessingConfig(numerical_method="ple"),
 )
 ```
 

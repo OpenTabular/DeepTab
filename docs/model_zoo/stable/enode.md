@@ -49,7 +49,7 @@ model = ENODERegressor(
         tree_dim=1,
         head_dropout=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

@@ -8,11 +8,11 @@ The model constructor accepts `model_config`, `preprocessing_config`, and `train
 
 ## The Three Config Layers
 
-| Config                | Scope                                     | Examples                                                                             |
-| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| `<Model>Config`       | Neural architecture                       | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes`                           |
-| `PreprocessingConfig` | Arguments passed to `pretab.Preprocessor` | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins`, `scaling_strategy` |
-| `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`                       |
+| Config                | Scope                                     | Examples                                                                    |
+| --------------------- | ----------------------------------------- | --------------------------------------------------------------------------- |
+| `<Model>Config`       | Neural architecture                       | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes`                  |
+| `PreprocessingConfig` | Arguments passed to `pretab.Preprocessor` | `numerical_method`, `categorical_method`, `output_dim`, `scaling`, `preset` |
+| `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`              |
 
 All three are optional. If omitted, DeepTab creates default config objects internally.
 
@@ -133,43 +133,74 @@ Model configs inherit shared embedding and architecture fields from `BaseModelCo
 
 ## Preprocessing Config
 
-`PreprocessingConfig` is a thin wrapper around the supported `pretab.Preprocessor` keyword arguments. Fields set to `None` are omitted, leaving the preprocessor default in effect.
+`PreprocessingConfig` is a thin wrapper around the fields PreTab 1.0's `Preprocessor` accepts. Fields set to `None` are omitted, leaving the preprocessor's own default in effect.
 
 ```python
 from deeptab.configs import PreprocessingConfig
 
 preprocessing_config = PreprocessingConfig(
-    numerical_preprocessing="quantile",
-    categorical_preprocessing="int",
-    n_bins=50,
-    scaling_strategy="minmax",
+    numerical_method="quantile",
+    categorical_method="int",
+    output_dim=50,
+    scaling="minmax",
 )
 ```
 
 Valid fields:
 
-| Field                                                                                     | Purpose                                                                                                                                                        |
-| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_preprocessing`                                                                 | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform. |
-| `categorical_preprocessing`                                                               | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported.                                                              |
-| `n_bins`                                                                                  | Number of bins for binned/PLE-style numerical transforms.                                                                                                      |
-| `feature_preprocessing`                                                                   | General feature-level preprocessing override.                                                                                                                  |
-| `use_decision_tree_bins`, `binning_strategy`                                              | Controls bin edge construction.                                                                                                                                |
-| `task`                                                                                    | Optional task hint passed to the preprocessor.                                                                                                                 |
-| `cat_cutoff`, `treat_all_integers_as_numerical`                                           | Controls integer-column type inference.                                                                                                                        |
-| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls.                                                                                                                       |
-| `scaling_strategy`                                                                        | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                |
+| Field                                           | Purpose                                                                                                                                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform.                                 |
+| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
+| `output_dim`                                    | Output width for bin/knot/expansion-based numerical representations; ignored by representations that do not use it (e.g. plain scaling).                                                       |
+| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
+| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                  |
+| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                          |
+| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                        |
+| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                    |
+| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                |
+| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                        |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
+`PreprocessingConfig` only forwards these fields; the transforms themselves live in PreTab. For the full catalogue of representations and what each one does mathematically, see [PreTab's documentation](https://pretab.readthedocs.io/en/latest/index.html), in particular the [representations overview](https://pretab.readthedocs.io/en/latest/representations/overview.html) and [API reference](https://pretab.readthedocs.io/en/latest/api/index.html).
+
+```{note}
+Earlier DeepTab releases used a different set of field names, for example `numerical_preprocessing` instead of `numerical_method`, or `scaling_strategy` instead of `scaling`. These legacy names still work: passing one on its own resolves to the matching field above and emits a `ConfigWarning` naming the replacement, while passing both a legacy name and its canonical replacement with conflicting values raises `IncompatibleParamsError`. A few legacy names have no direct replacement (`spline_implementation` is one) and raise an actionable error immediately rather than being silently accepted.
+```
+
+### Presets
+
+Instead of setting individual fields, `preset` fills in a whole configuration bundle in one step, straight from PreTab's own named presets. A preset only fills in fields left at their defaults; anything you set explicitly on `PreprocessingConfig` always wins.
+
+```python
+from deeptab.configs import PreprocessingConfig
+
+# "expanded" widens the numerical basis and one-hot encodes categoricals
+prep = PreprocessingConfig(preset="expanded")
+
+# "adaptive" sizes each feature's width from the data instead of using a fixed output_dim
+prep = PreprocessingConfig(preset="adaptive")
+```
+
+| Preset       | Behavior                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `"standard"` | The balanced baseline; resolves `numerical_method` from the task (`bspline` for regression, `ple` for classification). |
+| `"expanded"` | Widens the numerical representation and one-hot encodes categorical features.                                          |
+| `"adaptive"` | Sizes each feature's width individually based on the data, rather than using one fixed `output_dim`.                   |
+
+```{tip}
+To see which representations PreTab supports before choosing `numerical_method` or `categorical_method`, call `deeptab.core.list_available_representations()`. It accepts `feature_kind`, `scope`, `supervised`, and `adaptive` filters and returns the matching representation names.
+```
+
 ### Running with no numerical preprocessing
 
-Set `numerical_preprocessing=None` (and `categorical_preprocessing=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
+Set `numerical_method=None` (and `categorical_method=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
 
 ```python
 prep = PreprocessingConfig(
-    numerical_preprocessing=None,    # no scaling, binning, or PLE on numeric columns
-    categorical_preprocessing=None,  # leave categorical encoding at its default
+    numerical_method=None,    # no scaling, binning, or PLE on numeric columns
+    categorical_method=None,  # leave categorical encoding at its default
 )
 model = MambularClassifier(preprocessing_config=prep)
 ```
@@ -388,7 +419,7 @@ from deeptab.models import MambularClassifier
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(max_epochs=100, batch_size=128, lr=3e-4),
     random_state=101,
 )
@@ -417,7 +448,7 @@ param_grid = {
     "model_config__d_model": [32, 64, 128],
     "model_config__n_layers": [2, 4],
     "trainer_config__lr": [1e-3, 3e-4],
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile"],
 }
 
 search = GridSearchCV(estimator, param_grid=param_grid, cv=3, n_jobs=1)

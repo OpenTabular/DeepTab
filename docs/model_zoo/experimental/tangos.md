@@ -100,7 +100,7 @@ model = TangosRegressor(
         lamda2=0.1,
         subsample=0.5,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=128, max_epochs=100),
     random_state=101,
 )
@@ -120,7 +120,7 @@ Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile"],
     "model_config__layer_sizes": [[128, 64], [256, 128, 32], [512, 256, 128]],
     "model_config__dropout": [0.0, 0.1, 0.2, 0.3],
     "model_config__lamda1": [0.1, 0.5, 1.0],

@@ -58,11 +58,11 @@ model = MambularClassifier(
 
 Each option moves to the config that owns its concern:
 
-| v1 argument was about  | Now lives on          | Typical fields                                                   |
-| ---------------------- | --------------------- | ---------------------------------------------------------------- |
-| Neural architecture    | `<Model>Config`       | `d_model`, `n_layers`, `n_heads`, `dropout`, `layer_sizes`       |
-| Feature handling       | `PreprocessingConfig` | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins` |
-| Training and optimizer | `TrainerConfig`       | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`   |
+| v1 argument was about  | Now lives on          | Typical fields                                                 |
+| ---------------------- | --------------------- | -------------------------------------------------------------- |
+| Neural architecture    | `<Model>Config`       | `d_model`, `n_layers`, `n_heads`, `dropout`, `layer_sizes`     |
+| Feature handling       | `PreprocessingConfig` | `numerical_method`, `categorical_method`, `output_dim`         |
+| Training and optimizer | `TrainerConfig`       | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type` |
 
 ```{important}
 Flat v1 keyword arguments are no longer accepted. A call like

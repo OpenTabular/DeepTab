@@ -112,8 +112,8 @@ model = MambularClassifier(
     ),
     # Preprocessing strategy
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="quantile",  # Options: standardization, quantile, minmax, ple
-        n_bins=50,                           # For binning strategies
+        numerical_method="quantile",  # Options: standardization, quantile, minmax, ple
+        output_dim=50,                # For binning strategies
     ),
     # Training loop parameters
     trainer_config=TrainerConfig(

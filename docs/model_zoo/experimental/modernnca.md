@@ -97,7 +97,7 @@ model = ModernNCAClassifier(
         temperature=0.75,
         sample_rate=0.5,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )
@@ -117,7 +117,7 @@ Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__dim": [64, 128, 256],
     "model_config__n_blocks": [2, 4, 6],
     "model_config__d_block": [256, 512],

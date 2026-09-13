@@ -25,7 +25,7 @@ Classification splits are stratified automatically. Regression splits are random
 
 ## Preprocessing
 
-DeepTab delegates tabular preprocessing to `pretab.Preprocessor` and converts the processed output into PyTorch tensors through `TabularDataModule`.
+DeepTab delegates tabular preprocessing to `pretab.Preprocessor` and converts the processed output into PyTorch tensors through `TabularDataModule`. For the mechanics of each representation, see [PreTab's own documentation](https://pretab.readthedocs.io/en/latest/index.html).
 
 ```{important}
 Use pandas DataFrames for mixed tabular data. DataFrames preserve column names and dtypes, which lets the preprocessor separate numerical and categorical features reliably.
@@ -51,30 +51,23 @@ At prediction time the fitted preprocessor is reused, so new data follows exactl
 from deeptab.configs import PreprocessingConfig
 
 cfg = PreprocessingConfig(
-    numerical_preprocessing="quantile",
-    categorical_preprocessing="int",
-    n_bins=50,
-    scaling_strategy="standardization",
+    numerical_method="quantile",
+    categorical_method="int",
+    output_dim=50,
+    scaling="standardization",
 )
 ```
 
-| Field                                        | Purpose                                                                                                                                       |
-| -------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_preprocessing`                    | Transform strategy: `"standardization"`, `"quantile"`, `"ple"`, `"splines"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`, or `None`. |
-| `categorical_preprocessing`                  | Encoding strategy: `"int"`, `"one-hot"`, etc.                                                                                                 |
-| `n_bins`                                     | Bins for binned / PLE-style transforms.                                                                                                       |
-| `scaling_strategy`                           | Optional post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                      |
-| `binning_strategy`, `use_decision_tree_bins` | How bin edges are built.                                                                                                                      |
-| `n_knots`, `degree`, `spline_implementation` | Spline preprocessing controls.                                                                                                                |
+`numerical_method` sets the main numerical transform (`"standardization"`, `"quantile"`, `"ple"`, `"bspline"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`, or `None`), `categorical_method` sets the categorical encoding (`"int"`, `"one-hot"`, `"pretrained"`), and `output_dim` sets the width for bin/knot/expansion-based representations. See the [Config System](config_system) page for the complete field reference, including `target_aware`/`placement_strategy` and the `preset` shortcut.
 
 Practical starting points:
 
-| Data condition                      | Config                                                           |
-| ----------------------------------- | ---------------------------------------------------------------- |
-| Clean continuous features           | `PreprocessingConfig(numerical_preprocessing="standardization")` |
-| Skewed / heavy-tailed columns       | `PreprocessingConfig(numerical_preprocessing="quantile")`        |
-| Nonlinear numeric effects           | `PreprocessingConfig(numerical_preprocessing="ple", n_bins=50)`  |
-| Integer IDs alongside true numerics | Convert ID columns to pandas `category` before fitting.          |
+| Data condition                      | Config                                                       |
+| ----------------------------------- | ------------------------------------------------------------ |
+| Clean continuous features           | `PreprocessingConfig(numerical_method="standardization")`    |
+| Skewed / heavy-tailed columns       | `PreprocessingConfig(numerical_method="quantile")`           |
+| Nonlinear numeric effects           | `PreprocessingConfig(numerical_method="ple", output_dim=50)` |
+| Integer IDs alongside true numerics | Convert ID columns to pandas `category` before fitting.      |
 
 ### Validation and leakage
 

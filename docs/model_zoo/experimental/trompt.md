@@ -99,7 +99,7 @@ model = TromptClassifier(
         n_cells=4,
         P=128,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )
@@ -119,7 +119,7 @@ Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_cycles": [2, 4, 6],
     "model_config__P": [32, 64, 128],
