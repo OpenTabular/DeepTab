@@ -386,7 +386,7 @@ class TestPreprocessingConfigValidation:
             {"scaling_strategy": "minmax", "scaling": "robust"},
         ):
             with pytest.raises(IncompatibleParamsError, match="disagree"):
-                PreprocessingConfig(**kwargs)
+                PreprocessingConfig(**cast(dict[str, Any], kwargs))
 
     def test_legacy_canonical_matching_value_does_not_conflict(self):
         from deeptab.configs import PreprocessingConfig
