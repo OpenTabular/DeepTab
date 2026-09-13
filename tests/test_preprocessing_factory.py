@@ -221,6 +221,26 @@ class TestObservabilityVerbosityMapping:
         clf = MLPClassifier(observability_config=obs)
         assert clf._preprocessor.verbose == 2
 
+    def test_verbosity_zero_fit_emits_no_pretab_console_output(self, capsys):
+        from deeptab.models.mlp import MLPClassifier
+
+        X = pd.DataFrame({"a": np.linspace(0, 1, 40), "b": ["x", "y"] * 20})
+        y = np.tile([0, 1], 20)
+        obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=0)
+        clf = MLPClassifier(observability_config=obs)
+        clf.fit(X, y, max_epochs=1)
+        assert "pretab" not in capsys.readouterr().out.lower()
+
+    def test_higher_verbosity_fit_emits_pretab_console_output(self, capsys):
+        from deeptab.models.mlp import MLPClassifier
+
+        X = pd.DataFrame({"a": np.linspace(0, 1, 40), "b": ["x", "y"] * 20})
+        y = np.tile([0, 1], 20)
+        obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=1)
+        clf = MLPClassifier(observability_config=obs)
+        clf.fit(X, y, max_epochs=1)
+        assert "fit complete" in capsys.readouterr().out
+
 
 class TestPresets:
     """PreprocessingConfig.preset forwards to Preprocessor(preset=...)."""

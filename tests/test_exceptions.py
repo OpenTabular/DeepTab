@@ -377,6 +377,50 @@ class TestPreprocessingConfigValidation:
                 PreprocessingConfig(**cast(dict[str, Any], {field: value}))
             assert not any(issubclass(w.category, DeprecationWarning) for w in record)
 
+    def test_legacy_canonical_conflict_raises_incompatible_params_error(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for kwargs in (
+            {"numerical_preprocessing": "ple", "numerical_method": "bspline"},
+            {"categorical_preprocessing": "int", "categorical_method": "one-hot"},
+            {"scaling_strategy": "minmax", "scaling": "robust"},
+        ):
+            with pytest.raises(IncompatibleParamsError, match="disagree"):
+                PreprocessingConfig(**kwargs)
+
+    def test_legacy_canonical_matching_value_does_not_conflict(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning):
+            cfg = PreprocessingConfig(numerical_preprocessing="ple", numerical_method="ple")
+        assert cfg.to_preprocessor_kwargs()["numerical_method"] == "ple"
+
+    def test_spline_implementation_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="spline_implementation"):
+            PreprocessingConfig(spline_implementation="natural")
+
+    def test_use_decision_tree_bins_maps_to_target_aware(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning, match="use_decision_tree_bins"):
+            cfg = PreprocessingConfig(use_decision_tree_bins=True)
+        assert cfg.to_preprocessor_kwargs()["target_aware"] is True
+
+    def test_use_decision_tree_knots_maps_to_target_aware(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning, match="use_decision_tree_knots"):
+            cfg = PreprocessingConfig(use_decision_tree_knots=False, numerical_method="minmax")
+        assert cfg.to_preprocessor_kwargs()["target_aware"] is False
+
+    def test_conflicting_decision_tree_flags_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="disagree"):
+            PreprocessingConfig(use_decision_tree_bins=True, use_decision_tree_knots=False)
+
     def test_invalid_scaling_strategy_raises(self):
         from deeptab.configs import PreprocessingConfig
 
