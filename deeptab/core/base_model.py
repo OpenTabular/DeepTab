@@ -6,6 +6,8 @@ import torch.nn as nn
 
 from .serialization import load_state_dict, save_state_dict
 
+logger = logging.getLogger(__name__)
+
 
 class BaseModel(nn.Module):
     def __init__(self, config=None, **kwargs):
@@ -54,7 +56,7 @@ class BaseModel(nn.Module):
             Path to save the model parameters.
         """
         save_state_dict(self, path)
-        print(f"Model parameters saved to {path}")
+        logger.info(f"Model parameters saved to {path}")
 
     def load_model(self, path, device="cpu"):
         """Load the model parameters from the given path.
@@ -67,7 +69,7 @@ class BaseModel(nn.Module):
             Device to map the model parameters, by default 'cpu'.
         """
         load_state_dict(self, path, device=device)
-        print(f"Model parameters loaded from {path}")
+        logger.info(f"Model parameters loaded from {path}")
 
     def count_parameters(self):
         """Count the number of trainable parameters in the model.
