@@ -14,6 +14,10 @@ Covers:
   preset is set and output_dim is left unset, DeepTab defers width resolution to
   the preset instead of forcing its own default of 7. list_available_representations
   is a thin, read-only pass-through to PreTab's representation registry.
+- fit_preprocessor() translates PreTab's OptionalDependencyError (raised lazily at
+  fit time for `categorical_method="pretrained"` or `placement_strategy="lightgbm"`
+  without their optional dependency installed) into an ImportError naming the exact
+  `pretab[...]` extra to install.
 """
 
 from __future__ import annotations
@@ -32,6 +36,7 @@ from deeptab.core.preprocessing import (
     _PRETAB_LOGGER_NAME,
     _PretabConsoleHandler,
     build_preprocessor,
+    fit_preprocessor,
     list_available_representations,
 )
 
@@ -282,3 +287,41 @@ class TestListAvailableRepresentations:
         categorical = list_available_representations(feature_kind="categorical")
         assert "ple" in numerical
         assert "ple" not in categorical
+
+
+class TestFitPreprocessorOptionalDependencyTranslation:
+    """fit_preprocessor() translates PreTab's OptionalDependencyError into an actionable ImportError."""
+
+    def _fit_data(self):
+        X = pd.DataFrame({"a": np.linspace(0, 1, 60), "cat": (["p", "q"] * 30)})
+        y = np.linspace(0, 1, 60)
+        return X, y
+
+    def test_fit_succeeds_normally_when_no_optional_dependency_is_needed(self):
+        pre = build_preprocessor(task="regression")
+        X, y = self._fit_data()
+        result = fit_preprocessor(pre, X, y)
+        assert result is pre
+
+    def test_pretrained_categorical_missing_sentence_transformers_raises_import_error(self):
+        cfg = PreprocessingConfig(categorical_method="pretrained", output_dim=7)
+        pre = build_preprocessor(cfg, task="regression")
+        X, y = self._fit_data()
+        with pytest.raises(ImportError, match=r"pretab\[embeddings\]"):
+            fit_preprocessor(pre, X, y)
+
+    def test_lightgbm_placement_missing_lightgbm_raises_import_error(self):
+        cfg = PreprocessingConfig(placement_strategy="lightgbm", target_aware=True, output_dim=7)
+        pre = build_preprocessor(cfg, task="regression")
+        X, y = self._fit_data()
+        with pytest.raises(ImportError, match=r"pretab\[lightgbm\]"):
+            fit_preprocessor(pre, X, y)
+
+    def test_estimator_fit_surfaces_translated_error(self):
+        from deeptab.models.mlp import MLPClassifier
+
+        cfg = PreprocessingConfig(categorical_method="pretrained", output_dim=7)
+        clf = MLPClassifier(preprocessing_config=cfg)
+        X, y = self._fit_data()
+        with pytest.raises(ImportError, match=r"pretab\[embeddings\]"):
+            clf.fit(X, (y > 0.5).astype(int), max_epochs=1)

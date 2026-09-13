@@ -4,6 +4,7 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
+from deeptab.core.preprocessing import fit_preprocessor
 from deeptab.data.dataset import TabularDataset
 from deeptab.data.schema import FeatureSchema
 
@@ -176,7 +177,7 @@ class TabularDataModule(pl.LightningDataModule):
                 self.embeddings_train = None
                 self.embeddings_val = None
 
-        self.preprocessor.fit(self.X_train, self.y_train, self.embeddings_train)
+        self.preprocessor = fit_preprocessor(self.preprocessor, self.X_train, self.y_train, self.embeddings_train)
 
         # Align explicit per-row sampling weights with the (possibly auto-split) train set.
         self._train_sample_weights = self._resolve_train_sample_weights(

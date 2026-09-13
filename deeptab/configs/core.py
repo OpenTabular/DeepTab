@@ -70,9 +70,11 @@ _VALID_BINNING_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile
 _VALID_CATEGORICAL_METHOD: frozenset[str | None] = frozenset({"int", "one-hot", "pretrained", "none", None})
 # placement_strategy validity is gated by target_aware, not by numerical_method:
 # target_aware=False requires "uniform"/"quantile"; target_aware=True requires
-# "cart" or "lightgbm". "lightgbm" is deferred for now (needs pretab[lightgbm]).
-_VALID_PLACEMENT_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile", "cart", None})
-_PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"cart"})
+# "cart" or "lightgbm". "lightgbm" requires the optional pretab[lightgbm]
+# dependency; build_preprocessor's fit path translates PreTab's own missing-
+# dependency error into an actionable DeepTab ImportError when it is absent.
+_VALID_PLACEMENT_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile", "cart", "lightgbm", None})
+_PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"cart", "lightgbm"})
 _PLACEMENT_STRATEGIES_NEVER_TARGET_AWARE: frozenset[str] = frozenset({"uniform", "quantile"})
 _VALID_CAT_ENCODING: frozenset[str] = frozenset({"int", "one-hot", "linear"})
 _VALID_MONITOR_MODE: frozenset[str] = frozenset({"min", "max"})
@@ -278,14 +280,14 @@ class PreprocessingConfig(BaseEstimator):
     target_aware : bool or None, default=None
         Whether numerical placement uses the target. ``False`` requires
         ``placement_strategy`` in ``{"uniform", "quantile"}``; ``True`` requires
-        ``placement_strategy="cart"`` (``"lightgbm"`` is not yet supported).
+        ``placement_strategy`` in ``{"cart", "lightgbm"}``.
     placement_strategy : str or None, default=None
         Strategy for placing bin edges or knots. Its valid values depend on
         ``target_aware``, not on ``numerical_method``: ``"uniform"`` or
-        ``"quantile"`` when ``target_aware=False``; ``"cart"`` when
-        ``target_aware=True`` (PreTab's ``"lightgbm"`` option is not yet
-        supported, since it requires the optional ``pretab[lightgbm]``
-        dependency).
+        ``"quantile"`` when ``target_aware=False``; ``"cart"`` or ``"lightgbm"``
+        when ``target_aware=True``. ``"lightgbm"`` requires the optional
+        ``pretab[lightgbm]`` dependency; a clear install error is raised at fit
+        time if it is missing.
     scaling : str or None, default=None
         Scaling method applied to numerical features (e.g. ``"standardization"``,
         ``"minmax"``, ``"robust"``).

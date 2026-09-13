@@ -473,8 +473,9 @@ class TestPreprocessingConfigValidation:
         for strategy in ("uniform", "quantile"):
             cfg = PreprocessingConfig(placement_strategy=strategy, target_aware=False)
             assert cfg.to_preprocessor_kwargs()["placement_strategy"] == strategy
-        cfg = PreprocessingConfig(placement_strategy="cart", target_aware=True)
-        assert cfg.to_preprocessor_kwargs()["placement_strategy"] == "cart"
+        for strategy in ("cart", "lightgbm"):
+            cfg = PreprocessingConfig(placement_strategy=strategy, target_aware=True)
+            assert cfg.to_preprocessor_kwargs()["placement_strategy"] == strategy
 
 
 class TestPreprocessingConfigPreset:

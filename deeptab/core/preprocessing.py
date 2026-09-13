@@ -8,10 +8,11 @@ stays isolated behind one internal contract.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from pretab import Preprocessor
 from pretab import list_representations as _list_representations
+from pretab.exceptions import OptionalDependencyError as _PretabOptionalDependencyError
 
 from deeptab.core.exceptions import warn_config
 
@@ -19,7 +20,7 @@ if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig
     from deeptab.core.observability import ObservabilityConfig
 
-__all__ = ["build_preprocessor", "list_available_representations"]
+__all__ = ["build_preprocessor", "fit_preprocessor", "list_available_representations"]
 
 # DeepTab's tensor pipeline (deeptab/data/datamodule.py) consumes the preprocessor's
 # transformed output as a dict of per-feature blocks (`num_<col>`, `cat_<col>`).
@@ -28,6 +29,14 @@ __all__ = ["build_preprocessor", "list_available_representations"]
 _FORCED_PREPROCESSOR_KWARGS = {"output_structure": "blocks", "output_format": "dense"}
 
 _PRETAB_LOGGER_NAME = "pretab"
+
+# PreTab raises OptionalDependencyError lazily, at fit time, naming the missing
+# third-party package rather than the pretab "extra" that installs it. Mapped here
+# so DeepTab's error can name the exact `pip install` target instead.
+_OPTIONAL_DEPENDENCY_EXTRAS: dict[str, str] = {
+    "sentence-transformers": "pretab[embeddings]",
+    "lightgbm": "pretab[lightgbm]",
+}
 
 
 class _PretabConsoleHandler(logging.Handler):
@@ -124,6 +133,55 @@ def build_preprocessor(
         _attach_pretab_console_logging(observability_config)
     kwargs.update(_FORCED_PREPROCESSOR_KWARGS)
     return Preprocessor(**kwargs)
+
+
+def fit_preprocessor(preprocessor: Any, X: Any, y: Any = None, embeddings: Any = None) -> Any:
+    """Fit *preprocessor*, translating PreTab's optional-dependency errors into DeepTab's own.
+
+    PreTab raises ``OptionalDependencyError`` lazily, at fit time, when a
+    requested representation needs a third-party package that is not
+    installed (e.g. ``categorical_method="pretrained"`` needs
+    ``sentence-transformers``; ``placement_strategy="lightgbm"`` needs
+    ``lightgbm``). Its message names the missing package, not the ``pretab``
+    extra that installs it; this re-raises the same situation as an
+    ``ImportError`` naming the exact extra and install command instead.
+
+    Parameters
+    ----------
+    preprocessor : Preprocessor
+        A preprocessor built by :func:`build_preprocessor`.
+    X : DataFrame or array-like
+        Training features.
+    y : array-like or None, default=None
+        Training target, when the representation requires one.
+    embeddings : array-like or None, default=None
+        External embedding groups, when applicable.
+
+    Returns
+    -------
+    Preprocessor
+        The same *preprocessor*, now fitted.
+
+    Raises
+    ------
+    ImportError
+        If fitting requires a missing optional dependency.
+    """
+    try:
+        return preprocessor.fit(X, y, embeddings)
+    except _PretabOptionalDependencyError as exc:
+        raise ImportError(_translate_optional_dependency_message(str(exc))) from exc
+
+
+def _translate_optional_dependency_message(message: str) -> str:
+    """Rewrite a PreTab optional-dependency message to name the installable `pretab` extra."""
+    for package_name, extra in _OPTIONAL_DEPENDENCY_EXTRAS.items():
+        if package_name in message:
+            return (
+                f"This representation requires the optional '{package_name}' dependency. "
+                f"Install it with: pip install '{extra}'"
+            )
+    return message
 
 
 def list_available_representations(
