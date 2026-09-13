@@ -76,6 +76,9 @@ _PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"cart"})
 _PLACEMENT_STRATEGIES_NEVER_TARGET_AWARE: frozenset[str] = frozenset({"uniform", "quantile"})
 _VALID_CAT_ENCODING: frozenset[str] = frozenset({"int", "one-hot", "linear"})
 _VALID_MONITOR_MODE: frozenset[str] = frozenset({"min", "max"})
+# PreTab's own named configuration bundles (Preprocessor(preset=...)); mirrors
+# the set PreTab itself accepts.
+_VALID_PRESET: frozenset[str | None] = frozenset({"standard", "expanded", "adaptive", None})
 # DeepTab's own explicit default when output_dim (and its legacy aliases) are
 # all omitted, matching PreTab's own preset="standard" starting point. Made
 # explicit (rather than left to PreTab's internal default) so a future PreTab
@@ -299,6 +302,15 @@ class PreprocessingConfig(BaseEstimator):
         When ``True``, integer columns are never converted to categorical.
     degree : int or None, default=None
         Polynomial / spline degree for numerical feature expansion.
+    preset : {"standard", "expanded", "adaptive"} or None, default=None
+        Named configuration bundle forwarded to PreTab's own ``preset``. A preset
+        only fills in fields left at their defaults here; any field set explicitly
+        (``numerical_method``, ``output_dim``, etc.) always wins. ``"standard"`` is
+        the balanced baseline, ``"expanded"`` widens the numerical basis and
+        one-hot encodes categoricals, and ``"adaptive"`` sizes each feature's width
+        from the data. When a preset is set and ``output_dim`` (and its legacy
+        aliases) are all left unset, DeepTab defers width resolution to the preset
+        instead of forcing its own default of 7.
     """
 
     numerical_preprocessing: str | None = None
@@ -322,6 +334,7 @@ class PreprocessingConfig(BaseEstimator):
     target_aware: bool | None = None
     placement_strategy: str | None = None
     scaling: str | None = None
+    preset: str | None = None
 
     def __post_init__(self) -> None:  # type: ignore[override]
         if self.numerical_preprocessing not in _VALID_NUMERICAL_PREPROCESSING:
@@ -378,6 +391,14 @@ class PreprocessingConfig(BaseEstimator):
                 self.placement_strategy,
                 "must be one of the known placement strategies",
                 sorted(x for x in _VALID_PLACEMENT_STRATEGY if x is not None),
+            )
+        if self.preset not in _VALID_PRESET:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "preset",
+                self.preset,
+                "must be one of the known presets",
+                sorted(x for x in _VALID_PRESET if x is not None),
             )
 
         # PreTab 1.0 removed this option outright; there is no equivalent to
@@ -444,12 +465,17 @@ class PreprocessingConfig(BaseEstimator):
                 "placement instead.",
             )
 
-    def _resolve_output_dim(self) -> int:
+    def _resolve_output_dim(self) -> int | None:
         """Resolve `n_bins`/`n_knots` into `output_dim`, defaulting to 7 when unset."""
         legacy_values = {v for v in (self.n_bins, self.n_knots) if v is not None}
         if not legacy_values:
             if self.output_dim is not None:
                 return self.output_dim
+            if self.preset is not None:
+                # A preset resolves its own width (e.g. "expanded" widens to 10,
+                # "adaptive" sizes per feature); forcing DeepTab's own default
+                # here would silently override that.
+                return None
             warnings.warn(
                 "PreprocessingConfig: 'output_dim' was not set; DeepTab now resolves "
                 f"this to {_DEFAULT_OUTPUT_DIM} for representations that use it, instead of "
@@ -531,6 +557,7 @@ class PreprocessingConfig(BaseEstimator):
             "cat_cutoff": self.cat_cutoff,
             "treat_all_integers_as_numerical": self.treat_all_integers_as_numerical,
             "degree": self.degree,
+            "preset": self.preset,
         }
         return {k: v for k, v in kwargs.items() if v is not None}
 

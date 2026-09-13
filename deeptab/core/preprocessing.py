@@ -11,6 +11,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from pretab import Preprocessor
+from pretab import list_representations as _list_representations
 
 from deeptab.core.exceptions import warn_config
 
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig
     from deeptab.core.observability import ObservabilityConfig
 
-__all__ = ["build_preprocessor"]
+__all__ = ["build_preprocessor", "list_available_representations"]
 
 # DeepTab's tensor pipeline (deeptab/data/datamodule.py) consumes the preprocessor's
 # transformed output as a dict of per-feature blocks (`num_<col>`, `cat_<col>`).
@@ -123,3 +124,45 @@ def build_preprocessor(
         _attach_pretab_console_logging(observability_config)
     kwargs.update(_FORCED_PREPROCESSOR_KWARGS)
     return Preprocessor(**kwargs)
+
+
+def list_available_representations(
+    *,
+    feature_kind: str | None = None,
+    scope: str | None = None,
+    supervised: bool | None = None,
+    adaptive: bool | None = None,
+) -> list[str]:
+    """List PreTab representation names usable as `numerical_method`/`categorical_method`.
+
+    A thin, read-only pass-through to PreTab's own representation registry, kept
+    here so discovering available methods does not require importing ``pretab``
+    directly. Every name returned is queried live from PreTab's registry, so it
+    stays current as PreTab adds representations; it is not cross-checked against
+    :class:`~deeptab.configs.PreprocessingConfig`'s own accepted values here, since
+    not every registered representation is valid as a `Preprocessor` constructor
+    argument (some are standalone-only transformers).
+
+    Parameters
+    ----------
+    feature_kind : {"numerical", "categorical"} or None, default=None
+        Keep only representations that apply to this column kind.
+    scope : {"univariate", "multivariate"} or None, default=None
+        Keep only representations with this arity.
+    supervised : bool or None, default=None
+        Keep only representations that can (``True``) or cannot (``False``)
+        consume the target.
+    adaptive : bool or None, default=None
+        Keep only representations whose adaptive-resolution support matches.
+
+    Returns
+    -------
+    list of str
+        Matching canonical representation names, sorted.
+    """
+    return _list_representations(
+        feature_kind=feature_kind,
+        scope=scope,
+        supervised=supervised,
+        adaptive=adaptive,
+    )

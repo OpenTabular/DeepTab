@@ -10,6 +10,10 @@ Covers:
 - ObservabilityConfig.verbosity maps onto Preprocessor(verbose=...), and
   structured_logging=True attaches DeepTab's console handler to PreTab's shared
   "pretab" logger exactly once, regardless of how many times it is rebuilt.
+- PreprocessingConfig.preset is forwarded to Preprocessor(preset=...); when a
+  preset is set and output_dim is left unset, DeepTab defers width resolution to
+  the preset instead of forcing its own default of 7. list_available_representations
+  is a thin, read-only pass-through to PreTab's representation registry.
 """
 
 from __future__ import annotations
@@ -24,7 +28,12 @@ from pretab import Preprocessor
 from deeptab.configs import PreprocessingConfig
 from deeptab.core.exceptions import ConfigWarning
 from deeptab.core.observability import ObservabilityConfig
-from deeptab.core.preprocessing import _PRETAB_LOGGER_NAME, _PretabConsoleHandler, build_preprocessor
+from deeptab.core.preprocessing import (
+    _PRETAB_LOGGER_NAME,
+    _PretabConsoleHandler,
+    build_preprocessor,
+    list_available_representations,
+)
 
 
 class TestBuildPreprocessorForcedOutput:
@@ -206,3 +215,70 @@ class TestObservabilityVerbosityMapping:
         obs = ObservabilityConfig(verbosity=2)
         clf = MLPClassifier(observability_config=obs)
         assert clf._preprocessor.verbose == 2
+
+
+class TestPresets:
+    """PreprocessingConfig.preset forwards to Preprocessor(preset=...)."""
+
+    def _fit_data(self):
+        X = pd.DataFrame({"a": np.linspace(0, 1, 200), "cat": (["p", "q", "r"] * 67)[:200]})
+        y = np.linspace(0, 1, 200)
+        return X, y
+
+    def test_expanded_preset_widens_and_one_hot_encodes(self):
+        cfg = PreprocessingConfig(preset="expanded")
+        pre = build_preprocessor(cfg, task="regression")
+        X, y = self._fit_data()
+        pre.fit(X, y)
+        assert pre.output_dims_["a"] == 10
+        assert pre.get_resolved_config()["categorical_method"] == "one-hot"
+
+    def test_standard_preset_resolves_numerical_method_from_task(self):
+        cfg_reg = PreprocessingConfig(preset="standard")
+        pre_reg = build_preprocessor(cfg_reg, task="regression")
+        X, y = self._fit_data()
+        pre_reg.fit(X, y)
+        assert pre_reg.get_resolved_config()["numerical_method"] == "bspline"
+
+        cfg_clf = PreprocessingConfig(preset="standard")
+        pre_clf = build_preprocessor(cfg_clf, task="classification")
+        pre_clf.fit(X, (y > 0.5).astype(int))
+        assert pre_clf.get_resolved_config()["numerical_method"] == "ple"
+
+    def test_adaptive_preset_sizes_width_per_feature(self):
+        cfg = PreprocessingConfig(preset="adaptive")
+        pre = build_preprocessor(cfg, task="regression")
+        X, y = self._fit_data()
+        pre.fit(X, y)
+        assert 7 <= pre.output_dims_["a"] <= 15
+
+    def test_explicit_output_dim_overrides_preset_width(self):
+        cfg = PreprocessingConfig(preset="expanded", output_dim=6)
+        pre = build_preprocessor(cfg, task="regression")
+        X, y = self._fit_data()
+        pre.fit(X, y)
+        assert pre.output_dims_["a"] != 10
+
+    def test_no_preset_behavior_is_unchanged(self):
+        import warnings
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            cfg = PreprocessingConfig()
+        assert any(issubclass(w.category, FutureWarning) for w in caught)
+        pre = build_preprocessor(cfg, task="regression")
+        assert pre.output_dim == 7
+
+
+class TestListAvailableRepresentations:
+    def test_returns_nonempty_sorted_list(self):
+        names = list_available_representations()
+        assert names == sorted(names)
+        assert len(names) > 0
+        assert "ple" in names
+
+    def test_filters_by_feature_kind(self):
+        numerical = list_available_representations(feature_kind="numerical")
+        categorical = list_available_representations(feature_kind="categorical")
+        assert "ple" in numerical
+        assert "ple" not in categorical

@@ -477,6 +477,57 @@ class TestPreprocessingConfigValidation:
         assert cfg.to_preprocessor_kwargs()["placement_strategy"] == "cart"
 
 
+class TestPreprocessingConfigPreset:
+    def test_valid_preset_values(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for val in ("standard", "expanded", "adaptive", None):
+            cfg = PreprocessingConfig(preset=val)
+            assert cfg.preset == val
+
+    def test_invalid_preset_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="preset"):
+            PreprocessingConfig(preset="bogus")
+
+    def test_preset_is_forwarded_in_kwargs(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(preset="expanded")
+        assert cfg.to_preprocessor_kwargs()["preset"] == "expanded"
+
+    def test_no_preset_omits_preset_key(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig()
+        assert "preset" not in cfg.to_preprocessor_kwargs()
+
+    def test_preset_defers_output_dim_and_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(preset="expanded")
+        assert "output_dim" not in cfg.to_preprocessor_kwargs()
+
+    def test_explicit_output_dim_still_wins_over_preset(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(preset="expanded", output_dim=9)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 9
+
+    def test_no_preset_keeps_default_output_dim_resolution(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig()
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 7
+
+
 # ===========================================================================
 # 4 — TrainerConfig.__post_init__ validation
 # ===========================================================================

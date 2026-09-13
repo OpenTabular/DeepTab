@@ -21,7 +21,7 @@ from .exceptions import (
 from .hardware import print_hardware_info
 from .inference import InferenceModel
 from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
-from .preprocessing import build_preprocessor
+from .preprocessing import build_preprocessor, list_available_representations
 from .registry import MODEL_REGISTRY, ModelInfo
 from .reproducibility import seed_context, set_seed
 from .serialization import (
@@ -67,6 +67,7 @@ __all__ = [
     "collect_version_metadata",
     "ensure_dataframe",
     "get_feature_dimensions",
+    "list_available_representations",
     "load_state_dict",
     "print_hardware_info",
     "restore_loaded_metadata",
