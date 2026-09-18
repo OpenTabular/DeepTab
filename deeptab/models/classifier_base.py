@@ -36,6 +36,32 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     return resolved_loss, sampler
 
 
+def _encode_labels(y, classes: np.ndarray, *, name: str = "y") -> np.ndarray:
+    """Map raw labels in *y* to contiguous ``0..K-1`` indices via sorted *classes*.
+
+    Training, loss computation, and ``predict``'s ``classes_[index]`` lookup all
+    assume label indices, not the original label values, so every ``y`` reaching
+    the loss/preprocessor must be encoded this way. Works for string, boolean, or
+    non-contiguous integer labels alike, since it never assumes the raw values are
+    already usable as indices.
+
+    Raises
+    ------
+    ValueError
+        If *y* contains a label absent from *classes* (only possible for
+        ``y_val``, since *classes* is always derived from the training labels).
+    """
+    y = np.asarray(y)
+    indices = np.clip(np.searchsorted(classes, y), 0, len(classes) - 1)
+    unmatched = classes[indices] != y
+    if unmatched.any():
+        unseen = np.unique(y[unmatched]).tolist()
+        raise ValueError(
+            f"{name} contains label(s) {unseen} that were not seen during fit; known classes are {classes.tolist()}."
+        )
+    return indices
+
+
 class SklearnBaseClassifier(SklearnBase):
     _task = "classification"
 
@@ -150,6 +176,10 @@ class SklearnBaseClassifier(SklearnBase):
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
         )
+
+        y = _encode_labels(y, self.classes_)
+        if y_val is not None:
+            y_val = _encode_labels(y_val, self.classes_, name="y_val")
 
         return super()._build_model(
             X,
@@ -299,6 +329,10 @@ class SklearnBaseClassifier(SklearnBase):
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
         )
+
+        y = _encode_labels(y, self.classes_)
+        if y_val is not None:
+            y_val = _encode_labels(y_val, self.classes_, name="y_val")
 
         return super().fit(
             X=X,
