@@ -170,7 +170,8 @@ Classification Metrics
      - ``False``
      -
      - proba
-     - 0 = perfectly calibrated; custom implementation
+     - 0 = perfectly calibrated; custom implementation; raises if fed logits
+       instead of probabilities
 
 The **Default** column marks the metrics returned by ``get_default_metrics("classification")``.
 The **Input** column shows which prediction ``model.evaluate()`` feeds each
