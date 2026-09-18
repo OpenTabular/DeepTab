@@ -66,7 +66,7 @@ class AutoInt(BaseModel):
 
         # Embedding layer
         self.embedding_layer = EmbeddingLayer(*feature_information, config=config)
-        n_inputs = np.sum([len(info) for info in feature_information])
+        n_inputs = int(np.sum([len(info) for info in feature_information]))
 
         # Key-Value Compression
         self.kv_compression = config.kv_compression

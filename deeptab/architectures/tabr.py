@@ -87,7 +87,7 @@ class TabR(BaseModel):
                 config=config,
             )
             print(self.embedding_layer)
-            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
+            input_dim = int(np.sum([len(info) * self.hparams.d_model for info in feature_information]))
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
