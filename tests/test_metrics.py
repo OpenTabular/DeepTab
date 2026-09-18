@@ -343,6 +343,19 @@ class TestClassificationMetrics:
         y = np.array([0, 1, 2, 2])
         assert F1Score(average="macro")(y, y) == pytest.approx(1.0)
 
+    def test_ece_rejects_raw_logits(self):
+        """Logits (unbounded) must be rejected, not silently mis-binned."""
+        y_true = np.array([0, 1])
+        logits = np.array([[-2.1, 4.7], [1.8, -0.6]])
+        with pytest.raises(ValueError, match="probabilities"):
+            ExpectedCalibrationError()(y_true, logits)
+
+    def test_ece_rejects_out_of_range_class_indices(self):
+        y_true = np.array([0, 3])
+        proba = np.array([[0.9, 0.1], [0.1, 0.9]])
+        with pytest.raises(ValueError, match="class indices"):
+            ExpectedCalibrationError()(y_true, proba)
+
 
 # ---------------------------------------------------------------------------
 # Distributional metrics

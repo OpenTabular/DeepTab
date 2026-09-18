@@ -156,7 +156,7 @@ class AUROC(DeepTabMetric):
 
 
 class AUPRC(DeepTabMetric):
-    """Area Under the Precision-Recall Curve -- delegates to
+    """Area Under the Precision-Recall Curve delegates to
     :func:`sklearn.metrics.average_precision_score`.
     """
 
@@ -184,7 +184,7 @@ class LogLoss(DeepTabMetric):
 
 
 class BrierScore(DeepTabMetric):
-    """Brier Score -- delegates to :func:`sklearn.metrics.brier_score_loss`.
+    """Brier Score delegates to :func:`sklearn.metrics.brier_score_loss`.
 
     Accepts 1-D probability scores or a 2-D array (second column is used).
     """
@@ -210,6 +210,13 @@ class ExpectedCalibrationError(DeepTabMetric):
     ----------
     n_bins : int
         Number of confidence bins.  Default 10.
+
+    Note
+    ----
+    ``y_pred`` must contain probabilities in ``[0, 1]`` (e.g. softmax output),
+    not raw logits, as a logit's max value falls outside every bin and is
+    silently excluded from the result. For 2-D (multiclass) input, ``y_true``
+    must hold class indices ``0..K-1`` matching the column order of ``y_pred``.
     """
 
     name = "ece"
@@ -221,7 +228,16 @@ class ExpectedCalibrationError(DeepTabMetric):
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
+        if np.any((y_pred < 0.0) | (y_pred > 1.0)):
+            raise ValueError(
+                "ExpectedCalibrationError expects probabilities in [0, 1], not raw logits; "
+                "apply softmax/sigmoid before passing y_pred."
+            )
         if y_pred.ndim == 2:
+            if np.any((y_true < 0) | (y_true >= y_pred.shape[1])):
+                raise ValueError(
+                    f"y_true must contain class indices in [0, {y_pred.shape[1]}) matching y_pred's columns."
+                )
             confidence = y_pred.max(axis=1)
             preds = y_pred.argmax(axis=1)
         else:
