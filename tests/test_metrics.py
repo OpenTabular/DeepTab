@@ -328,6 +328,21 @@ class TestClassificationMetrics:
         with pytest.raises(ValueError):
             F1Score(average="micro")
 
+    def test_ece_counts_full_confidence(self):
+        """Confidence exactly 1.0 must fall in the last bin, not be dropped."""
+        y_true = np.array([0, 0, 0, 0])
+        proba = np.array([[0.0, 1.0]] * 4)
+        assert ExpectedCalibrationError()(y_true, proba) == pytest.approx(1.0)
+
+    def test_accuracy_1d_multiclass_labels(self):
+        """1-D integer labels must not be thresholded at 0.5 like probabilities."""
+        y = np.array([0, 1, 2, 2])
+        assert Accuracy()(y, y) == pytest.approx(1.0)
+
+    def test_f1_1d_multiclass_labels(self):
+        y = np.array([0, 1, 2, 2])
+        assert F1Score(average="macro")(y, y) == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # Distributional metrics
