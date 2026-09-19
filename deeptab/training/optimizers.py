@@ -267,26 +267,29 @@ def available_optimizers() -> list[str]:
 
 
 def normalize_optimizer_kwargs(optimizer_args: dict[str, Any] | None) -> dict[str, Any]:
-    """Strip the legacy ``optimizer_`` prefix from optimizer kwargs.
+    """Strip the legacy ``optimizer_`` prefix from optimizer kwargs, if present.
 
-    The legacy flat-kwargs API accepted keys like
-    ``optimizer_betas=(0.9, 0.95)`` and stripped the prefix before forwarding
-    them to the PyTorch constructor.  This helper centralises that behaviour
-    and also handles ``None`` safely (previously a runtime crash in
-    ``TaskModel.__init__``).
+    ``TrainerConfig.optimizer_kwargs`` accepts plain, unprefixed keys (e.g.
+    ``{"betas": (0.9, 0.95)}``). An older, now-removed flat-kwargs API instead
+    accepted keys like ``optimizer_betas=(0.9, 0.95)``. This helper supports
+    both: a key's ``optimizer_`` prefix is stripped when present, and left
+    alone otherwise, so neither style is dropped. It also handles ``None``
+    safely (previously a runtime crash in ``TaskModel.__init__``).
 
     Parameters
     ----------
     optimizer_args : dict or None
-        Raw dict (possibly with ``optimizer_``-prefixed keys) or ``None``.
-        Keys that do **not** start with ``"optimizer_"`` are silently dropped
-        so that accidentally passing the full ``TrainerConfig`` dict is safe.
+        Extra optimizer kwargs, with or without the legacy ``optimizer_``
+        prefix, or ``None``.
 
     Returns
     -------
     dict
         Cleaned kwargs ready to pass to ``optimizer_class(params, **kwargs)``.
         Returns an empty dict when *optimizer_args* is ``None`` or empty.
+        ``lr`` and ``weight_decay`` are always dropped (with or without the
+        prefix) since :func:`build_optimizer` already passes them explicitly;
+        forwarding them here would raise a duplicate-keyword error.
 
     Examples
     --------
@@ -294,10 +297,13 @@ def normalize_optimizer_kwargs(optimizer_args: dict[str, Any] | None) -> dict[st
     >>> normalize_optimizer_kwargs({"optimizer_betas": (0.9, 0.95), "optimizer_eps": 1e-8})
     {'betas': (0.9, 0.95), 'eps': 1e-08}
 
+    >>> normalize_optimizer_kwargs({"betas": (0.9, 0.95), "eps": 1e-8})
+    {'betas': (0.9, 0.95), 'eps': 1e-08}
+
     >>> normalize_optimizer_kwargs(None)
     {}
 
-    >>> normalize_optimizer_kwargs({"lr": 1e-3})  # non-prefixed key is dropped
+    >>> normalize_optimizer_kwargs({"lr": 1e-3})  # reserved key is dropped
     {}
 
     Notes
@@ -308,9 +314,13 @@ def normalize_optimizer_kwargs(optimizer_args: dict[str, Any] | None) -> dict[st
     """
     if not optimizer_args:
         return {}
-    return {
-        key.removeprefix("optimizer_"): value for key, value in optimizer_args.items() if key.startswith("optimizer_")
-    }
+    normalized: dict[str, Any] = {}
+    for key, value in optimizer_args.items():
+        key = key.removeprefix("optimizer_")
+        if key in ("lr", "weight_decay"):
+            continue
+        normalized[key] = value
+    return normalized
 
 
 def build_parameter_groups(

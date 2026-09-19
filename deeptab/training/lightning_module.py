@@ -67,9 +67,9 @@ class TaskModel(pl.LightningModule):
         Registered optimizer name.  See
         :func:`~deeptab.training.optimizers.available_optimizers`.
     optimizer_args : dict or None, default=None
-        Legacy optimizer kwargs with optional ``"optimizer_"`` prefix
-        (e.g. ``{"optimizer_betas": (0.9, 0.95)}``).  Normalised
-        automatically via
+        Extra optimizer kwargs (e.g. ``{"betas": (0.9, 0.95)}``), forwarded
+        from ``TrainerConfig.optimizer_kwargs``. Also accepts keys with the
+        legacy ``"optimizer_"`` prefix. Normalised automatically via
         :func:`~deeptab.training.optimizers.normalize_optimizer_kwargs`.
     train_metrics : dict[str, Callable] or None, default=None
         Extra metrics to log during training steps.  Keys become the log
@@ -240,7 +240,8 @@ class TaskModel(pl.LightningModule):
                 if not self.loss_fct:
                     self.loss_fct = nn.CrossEntropyLoss()
             else:
-                self.loss_fct = nn.MSELoss()
+                if not self.loss_fct:
+                    self.loss_fct = nn.MSELoss()
 
         self.save_hyperparameters(ignore=["model_class", "loss_fct", "family"])
 
