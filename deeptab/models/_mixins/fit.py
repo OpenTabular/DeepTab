@@ -374,9 +374,11 @@ class _FitMixin:
         dataloader_kwargs : dict, default={}
             Extra kwargs forwarded to the PyTorch DataLoader.
         train_metrics : dict or None, optional
-            TorchMetrics to log during training.
+            Metrics to log during training. Accepts ``torchmetrics.Metric`` instances
+            (kept on-device, called as ``metric(preds, target)``) or ``DeepTabMetric``
+            instances (NumPy-based, called as ``metric(y_true, y_pred)``).
         val_metrics : dict or None, optional
-            TorchMetrics to log during validation.
+            Metrics to log during validation. Same accepted types as ``train_metrics``.
         rebuild : bool, default=True
             Whether to rebuild the model when already built.
         loss_fct : Callable or None, optional

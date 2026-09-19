@@ -123,14 +123,14 @@ Early stopping, the learning-rate scheduler, and checkpointing all watch the val
 
 Useful fit arguments:
 
-| Argument                                     | Use                                                                         |
-| -------------------------------------------- | --------------------------------------------------------------------------- |
-| `X`, `y`                                     | Training features and targets.                                              |
-| `X_val`, `y_val`                             | Explicit validation set. If omitted, DeepTab creates one.                   |
-| `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                     |
-| `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments. |
-| `train_metrics`, `val_metrics`               | Optional Lightning metrics logged during training.                          |
-| `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                             |
+| Argument                                     | Use                                                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `X`, `y`                                     | Training features and targets.                                                                       |
+| `X_val`, `y_val`                             | Explicit validation set. If omitted, DeepTab creates one.                                            |
+| `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                                              |
+| `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments.                          |
+| `train_metrics`, `val_metrics`               | Optional metrics logged during training; accepts `torchmetrics.Metric` or `DeepTabMetric` instances. |
+| `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                                                      |
 
 For LSS models, `family` is required:
 

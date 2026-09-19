@@ -279,27 +279,27 @@ model.fit(
 
 ### Available `fit()` arguments
 
-| Argument                       | Default  | Purpose                                                                                                                            |
-| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| `X`, `y`                       | required | Training inputs and targets.                                                                                                       |
-| `val_size`                     | `None`   | Validation fraction when `X_val` is not given. Falls back to `TrainerConfig.val_size`, then `0.2`. Ignored if `X_val` is provided. |
-| `X_val`, `y_val`               | `None`   | Explicit validation set. Skips the internal split when supplied.                                                                   |
-| `embeddings`, `embeddings_val` | `None`   | External feature embeddings for train and validation data.                                                                         |
-| `max_epochs`                   | `None`   | Maximum number of training epochs. Falls back to `TrainerConfig.max_epochs`, then `100`.                                           |
-| `random_state`                 | `101`    | Seed applied before model build and training for reproducibility.                                                                  |
-| `batch_size`                   | `None`   | Samples per gradient update. Falls back to `TrainerConfig.batch_size`, then `128`.                                                 |
-| `shuffle`                      | `None`   | Shuffle training data each epoch. Falls back to `TrainerConfig.shuffle`, then `True`.                                              |
-| `patience`                     | `None`   | Early-stopping patience on the monitored metric. Falls back to `TrainerConfig.patience`, then `15`.                                |
-| `monitor`                      | `None`   | Metric watched for early stopping and the LR scheduler. Falls back to `TrainerConfig.monitor`, then `"val_loss"`.                  |
-| `mode`                         | `None`   | Whether the monitored metric is minimised (`"min"`) or maximised (`"max"`). Falls back to `TrainerConfig.mode`, then `"min"`.      |
-| `lr`                           | `None`   | Learning rate. Falls back to `TrainerConfig.lr` when `None`.                                                                       |
-| `lr_patience`, `lr_factor`     | `None`   | LR-scheduler patience and reduction factor.                                                                                        |
-| `weight_decay`                 | `None`   | L2 penalty coefficient.                                                                                                            |
-| `checkpoint_path`              | `None`   | Directory for best-checkpoint saving and restore. Falls back to `TrainerConfig.checkpoint_path`, then `"model_checkpoints"`.       |
-| `train_metrics`, `val_metrics` | `None`   | `torchmetrics` dicts logged during training and validation.                                                                        |
-| `dataloader_kwargs`            | `{}`     | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                                                                     |
-| `rebuild`                      | `True`   | Rebuild the architecture even if one already exists.                                                                               |
-| `**trainer_kwargs`             | -        | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...).                                                   |
+| Argument                       | Default  | Purpose                                                                                                                                                                                      |
+| ------------------------------ | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `X`, `y`                       | required | Training inputs and targets.                                                                                                                                                                 |
+| `val_size`                     | `None`   | Validation fraction when `X_val` is not given. Falls back to `TrainerConfig.val_size`, then `0.2`. Ignored if `X_val` is provided.                                                           |
+| `X_val`, `y_val`               | `None`   | Explicit validation set. Skips the internal split when supplied.                                                                                                                             |
+| `embeddings`, `embeddings_val` | `None`   | External feature embeddings for train and validation data.                                                                                                                                   |
+| `max_epochs`                   | `None`   | Maximum number of training epochs. Falls back to `TrainerConfig.max_epochs`, then `100`.                                                                                                     |
+| `random_state`                 | `101`    | Seed applied before model build and training for reproducibility.                                                                                                                            |
+| `batch_size`                   | `None`   | Samples per gradient update. Falls back to `TrainerConfig.batch_size`, then `128`.                                                                                                           |
+| `shuffle`                      | `None`   | Shuffle training data each epoch. Falls back to `TrainerConfig.shuffle`, then `True`.                                                                                                        |
+| `patience`                     | `None`   | Early-stopping patience on the monitored metric. Falls back to `TrainerConfig.patience`, then `15`.                                                                                          |
+| `monitor`                      | `None`   | Metric watched for early stopping and the LR scheduler. Falls back to `TrainerConfig.monitor`, then `"val_loss"`.                                                                            |
+| `mode`                         | `None`   | Whether the monitored metric is minimised (`"min"`) or maximised (`"max"`). Falls back to `TrainerConfig.mode`, then `"min"`.                                                                |
+| `lr`                           | `None`   | Learning rate. Falls back to `TrainerConfig.lr` when `None`.                                                                                                                                 |
+| `lr_patience`, `lr_factor`     | `None`   | LR-scheduler patience and reduction factor.                                                                                                                                                  |
+| `weight_decay`                 | `None`   | L2 penalty coefficient.                                                                                                                                                                      |
+| `checkpoint_path`              | `None`   | Directory for best-checkpoint saving and restore. Falls back to `TrainerConfig.checkpoint_path`, then `"model_checkpoints"`.                                                                 |
+| `train_metrics`, `val_metrics` | `None`   | Extra metrics logged during training/validation; accepts `torchmetrics.Metric` objects or `DeepTabMetric` instances (see [Custom metrics during training](#custom-metrics-during-training)). |
+| `dataloader_kwargs`            | `{}`     | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                                                                                                                               |
+| `rebuild`                      | `True`   | Rebuild the architecture even if one already exists.                                                                                                                                         |
+| `**trainer_kwargs`             | -        | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...).                                                                                                             |
 
 ```{note}
 Arguments that fall back to `TrainerConfig` (`val_size`, `max_epochs`, `batch_size`,
@@ -484,6 +484,14 @@ metrics = classifier.evaluate(
 
 ### Custom metrics during training
 
+`train_metrics`/`val_metrics` accept two kinds of metric objects, each with its own
+calling convention:
+
+- **`torchmetrics.Metric` instances** stay on the training device and are called as
+  `metric(preds, target)`.
+- **`DeepTabMetric` instances** (the same classes used by `evaluate()`) receive
+  detached, host-side NumPy arrays and are called as `metric(y_true, y_pred)`.
+
 ```python
 from torchmetrics.classification import MulticlassAccuracy
 
@@ -491,6 +499,15 @@ model.fit(
     X_train, y_train,
     train_metrics={"train_acc": MulticlassAccuracy(num_classes=3)},
     val_metrics={"val_acc": MulticlassAccuracy(num_classes=3)},
+)
+```
+
+```python
+from deeptab.metrics import MeanAbsoluteError
+
+model.fit(
+    X_train, y_train,
+    val_metrics={"val_mae": MeanAbsoluteError()},
 )
 ```
 
