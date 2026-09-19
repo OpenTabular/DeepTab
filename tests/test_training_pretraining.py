@@ -249,3 +249,38 @@ def test_constructor_stores_attributes():
     assert pt.regression is True
     assert pt.margin == 0.3
     assert isinstance(pt.loss_fn, nn.CosineEmbeddingLoss)
+
+
+# ---------------------------------------------------------------------------
+# contrastive_loss anchor/pair alignment
+# ---------------------------------------------------------------------------
+
+
+def test_contrastive_loss_pairs_each_anchor_with_its_own_neighbors():
+    """Regression test: anchors were paired with other anchors' neighbors.
+
+    With orthonormal embeddings, self-positives (cos = 1) and orthogonal
+    negatives (cos = 0, margin 0) give exactly zero CosineEmbeddingLoss --
+    but only when every pair is attributed to the anchor that produced it.
+    """
+    pt = _make_pretrainer(k_neighbors=1, pool_sequence=True)
+    pt.loss_fn = nn.CosineEmbeddingLoss(margin=0.0)
+
+    embeddings = torch.eye(4)
+    knn_indices = torch.arange(4).view(4, 1)
+    neg_indices = ((torch.arange(4) + 1) % 4).view(4, 1)
+
+    loss = pt.contrastive_loss(embeddings, knn_indices, neg_indices)
+    assert float(loss) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_contrastive_loss_anchor_layout_matches_pair_layout():
+    """The anchor block must be anchor-major per pair type, not interleaved."""
+    pt = _make_pretrainer(k_neighbors=2, pool_sequence=True)
+    n_anchors, k = 4, 2
+    n_pair_types = 2
+
+    embeddings = torch.arange(n_anchors, dtype=torch.float32).view(-1, 1)
+    anchors = embeddings.repeat_interleave(k, dim=0).repeat(n_pair_types, 1).view(-1)
+    expected = torch.arange(n_anchors * k * n_pair_types) % (n_anchors * k) // k
+    assert torch.equal(anchors, expected.float())

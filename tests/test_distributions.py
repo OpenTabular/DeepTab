@@ -651,6 +651,40 @@ class TestNegativeBinomialDistribution:
         self.dist.compute_loss(preds, self.y).backward()
         assert preds.grad is not None
 
+    def test_mean_head_parameterizes_the_mean(self):
+        """Regression test: probs must follow torch's convention.
+
+        The distribution built from a transformed mean of mu must actually
+        have mean mu (with the scipy-style probs it would be r^2/mu).
+        """
+        import torch
+        import torch.distributions as dist
+
+        mu = torch.tensor([0.5, 1.0, 10.0, 100.0])
+        dispersion = torch.tensor([0.5, 1.0, 2.0, 4.0])
+        r = 1.0 / dispersion
+        p = mu / (r + mu)
+        nb = dist.NegativeBinomial(total_count=r, probs=p)
+        assert torch.allclose(nb.mean, mu, rtol=1e-4)
+
+    def test_nll_minimized_near_true_mean(self):
+        """The NLL of data with mean mu must be lower at mean=mu than far away."""
+        import torch
+
+        torch.manual_seed(0)
+        y = torch.poisson(torch.full((512,), 10.0))
+        disp_raw = torch.zeros(512)
+
+        def nll_at(mean_value):
+            # positive transform is softplus; invert it (in float64 to avoid
+            # expm1 overflow) to hit the target mean
+            raw = torch.log(torch.expm1(torch.tensor(mean_value, dtype=torch.float64))).float()
+            preds = torch.stack([raw.expand(512), disp_raw], dim=1)
+            return self.dist.compute_loss(preds, y).item()
+
+        assert nll_at(10.0) < nll_at(1.0)
+        assert nll_at(10.0) < nll_at(100.0)
+
 
 # ---------------------------------------------------------------------------
 # StudentTDistribution

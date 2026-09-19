@@ -437,13 +437,15 @@ class RowColTransformer(nn.Module):
         _, n, _ = x.shape
 
         for attn1, ff1, attn2, ff2 in self.layers:  # type: ignore
-            # Column-wise attention
-            x = attn1[1](x, x, x)[0] + x  # Multihead attention with residual
+            # Column-wise attention: pre-norm -> attention -> dropout -> residual
+            normed = attn1[0](x)
+            x = attn1[2](attn1[1](normed, normed, normed)[0]) + x
             x = ff1(x) + x  # Feedforward with residual
 
-            # Row-wise attention
+            # Row-wise attention: pre-norm -> attention -> dropout -> residual
             x = rearrange(x, "b n d -> 1 b (n d)")
-            x = attn2[1](x, x, x)[0] + x  # Multihead attention with residual
+            normed = attn2[0](x)
+            x = attn2[2](attn2[1](normed, normed, normed)[0]) + x
             x = ff2(x) + x  # Feedforward with residual
             x = rearrange(x, "1 b (n d) -> b n d", n=n)
 

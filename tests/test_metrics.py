@@ -399,6 +399,20 @@ class TestDistributionalMetrics:
         y_pred = np.abs(y_true + RNG.normal(0, 0.1, N)) + 0.1
         assert isinstance(GammaDeviance()(y_true, y_pred), float)
 
+    def test_gamma_deviance_matches_sklearn(self):
+        """Regression test: the log term's sign must match the deviance definition."""
+        from sklearn.metrics import mean_gamma_deviance
+
+        y_true = np.abs(RNG.normal(1.0, 0.5, N)) + 0.1
+        y_pred = np.abs(y_true + RNG.normal(0, 0.3, N)) + 0.1
+        assert GammaDeviance()(y_true, y_pred) == pytest.approx(mean_gamma_deviance(y_true, y_pred), rel=1e-6)
+
+    def test_gamma_deviance_nonnegative_for_overprediction(self):
+        """Regression test: deviance must not reward extreme over-prediction."""
+        y_true = np.array([1.0, 2.0, 3.0])
+        y_pred = np.full(3, 1000.0)
+        assert GammaDeviance()(y_true, y_pred) > 0.0
+
     def test_tweedie_deviance_nonneg(self, reg_data):
         y_true = np.abs(reg_data[0]) + 0.1
         y_pred = np.abs(reg_data[1]) + 0.1

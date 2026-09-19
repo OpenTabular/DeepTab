@@ -37,9 +37,11 @@ class NegativeBinomialDistribution(BaseDistribution):
         mean = self.mean_transform(predictions[:, self.param_names.index("mean")])
         dispersion = self.dispersion_transform(predictions[:, self.param_names.index("dispersion")])
 
-        # variance = mean + mean^2 / dispersion
+        # size r = 1 / dispersion, so variance = mean + dispersion * mean^2.
+        # torch's NegativeBinomial has mean = total_count * probs / (1 - probs),
+        # so probs must be mean / (r + mean) for the mean head to be the mean.
         r = torch.tensor(1.0) / dispersion  # type: ignore[operator]
-        p = r / (r + mean)
+        p = mean / (r + mean)
 
         negative_binomial_dist = dist.NegativeBinomial(total_count=r, probs=p)
 
