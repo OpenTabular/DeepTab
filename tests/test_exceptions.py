@@ -52,6 +52,7 @@ from deeptab.core.exceptions import (
     incompatible_params_error,
     insufficient_samples_error,
     invalid_param_error,
+    multi_output_regression_error,
     not_fitted_error,
     target_nan_error,
     target_range_error,
@@ -203,6 +204,13 @@ class TestDataFactories:
         assert isinstance(exc, DataError)
         assert "100" in str(exc)
         assert "95" in str(exc)
+
+    def test_multi_output_regression_error(self):
+        exc = multi_output_regression_error((100, 3))
+        assert isinstance(exc, DataError)
+        assert "(100, 3)" in str(exc)
+        assert "multi-output regression" in str(exc)
+        assert "Fix:" in str(exc)
         assert "Fix:" in str(exc)
 
 

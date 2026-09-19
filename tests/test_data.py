@@ -543,7 +543,56 @@ class TestTabularDataModuleContract:
 
         # Regression labels should be (batch_size, 1) shape
         assert labels.shape[1] == 1
+
+    def test_datamodule_regression_column_vector_y_matches_1d(self, regression_data):
+        """A (n,1) column-vector y must train against the same (batch,1) labels as a 1-D y."""
+        from pretab.preprocessor import Preprocessor
+
+        X, y = regression_data
+
+        dm_1d = TabularDataModule(
+            preprocessor=Preprocessor(output_structure="blocks"), batch_size=32, shuffle=False, regression=True
+        )
+        dm_1d.preprocess_data(X, y, random_state=101)
+        dm_1d.setup("fit")
+        _, labels_1d = next(iter(dm_1d.train_dataloader()))
+
+        dm_2d = TabularDataModule(
+            preprocessor=Preprocessor(output_structure="blocks"), batch_size=32, shuffle=False, regression=True
+        )
+        dm_2d.preprocess_data(X, y.reshape(-1, 1), random_state=101)
+        dm_2d.setup("fit")
+        _, labels_2d = next(iter(dm_2d.train_dataloader()))
+
+        assert labels_2d.shape == labels_1d.shape == (labels_1d.shape[0], 1)
+        assert torch.equal(labels_2d, labels_1d)
+
+    def test_datamodule_binary_column_vector_y_does_not_crash(self, binary_classification_data):
+        """A (n,1) column-vector y must not be broadcast into a (batch,1,1) label tensor."""
+        from pretab.preprocessor import Preprocessor
+
+        X, y = binary_classification_data
+        datamodule = TabularDataModule(
+            preprocessor=Preprocessor(output_structure="blocks"), batch_size=32, shuffle=False, regression=False
+        )
+
+        datamodule.preprocess_data(X, y.reshape(-1, 1))
+        datamodule.setup("fit")
+
+        _features, labels = next(iter(datamodule.train_dataloader()))
+        assert labels.shape == (labels.shape[0], 1)
         assert labels.dtype == torch.float32
+
+    def test_datamodule_regression_multi_target_y_raises(self, regression_data):
+        """A genuinely multi-column y (n, k>1) must raise instead of being silently reshaped."""
+        from deeptab.core.exceptions import DataError
+        from deeptab.data.datamodule import _prepare_regression_labels
+
+        _, y = regression_data
+        y_multi = np.column_stack([y, y])
+
+        with pytest.raises(DataError, match="multi-output regression"):
+            _prepare_regression_labels(y_multi)
 
 
 # ============================================================================

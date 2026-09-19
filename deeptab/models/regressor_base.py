@@ -51,14 +51,15 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : DataFrame or array-like, shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape (n_samples,) or (n_samples, n_targets)
-            The target values (real numbers).
+        y : array-like, shape (n_samples,) or (n_samples, 1)
+            The target values (real numbers). Multi-output regression (more than
+            one target column) is not currently supported.
         val_size : float, default=0.2
             The proportion of the dataset to include in the validation split if `X_val` is None.
             Ignored if `X_val` is provided.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
-        y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
+        y_val : array-like, shape (n_samples,) or (n_samples, 1), optional
             The validation target values. Required if `X_val` is provided.
         random_state : int, default=101
             Controls the shuffling applied to the data before applying the split.
@@ -145,14 +146,15 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : DataFrame or array-like, shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape (n_samples,) or (n_samples, n_targets)
-            The target values (real numbers).
+        y : array-like, shape (n_samples,) or (n_samples, 1)
+            The target values (real numbers). Multi-output regression (more than
+            one target column) is not currently supported.
         val_size : float, default=0.2
             The proportion of the dataset to include in the validation split if `X_val` is None.
             Ignored if `X_val` is provided.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
-        y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
+        y_val : array-like, shape (n_samples,) or (n_samples, 1), optional
             The validation target values. Required if `X_val` is provided.
         max_epochs : int, default=100
             Maximum number of epochs for training.
@@ -235,7 +237,7 @@ class SklearnBaseRegressor(SklearnBase):
 
         Returns
         -------
-        predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
+        predictions : ndarray, shape (n_samples,)
             The predicted target values.
         """
         X = self._validate_predict_input(X)
@@ -274,7 +276,7 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
-        y_true : array-like of shape (n_samples,) or (n_samples, n_outputs)
+        y_true : array-like of shape (n_samples,) or (n_samples, 1)
             The true target values against which to evaluate the predictions.
         metrics : dict
             A dictionary where keys are metric names and values are the metric functions.
@@ -311,7 +313,7 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
-        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
+        y : array-like of shape (n_samples,) or (n_samples, 1)
             The true target values against which to evaluate the predictions.
         metric : callable, default=r2_score
             The metric function to use for evaluation. Must be a callable with the

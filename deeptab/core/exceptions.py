@@ -210,6 +210,14 @@ def xy_length_mismatch_error(n_X: int, n_y: int) -> DataError:
     )
 
 
+def multi_output_regression_error(shape: tuple[int, ...]) -> DataError:
+    """Return a :class:`DataError` when y has more than one regression target column."""
+    return DataError(
+        f"y has shape {shape}, but DeepTab does not yet support multi-output regression.\n"
+        "Fix: pass a single target column, i.e. y of shape (n_samples,) or (n_samples, 1)."
+    )
+
+
 # ---------------------------------------------------------------------------
 # Message factories — Model
 # ---------------------------------------------------------------------------

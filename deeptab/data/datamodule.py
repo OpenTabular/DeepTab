@@ -4,9 +4,26 @@ import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, WeightedRandomSampler
 
+from deeptab.core.exceptions import multi_output_regression_error
 from deeptab.core.preprocessing import fit_preprocessor
 from deeptab.data.dataset import TabularDataset
 from deeptab.data.schema import FeatureSchema
+
+
+def _prepare_regression_labels(y) -> torch.Tensor:
+    """Build the (n_samples, 1) label tensor for regression, rejecting multi-target y.
+
+    DeepTab's regression heads always emit a single output (see ``num_classes=1`` in
+    ``SklearnBaseRegressor``), so an (n_samples,) or (n_samples, 1) y is accepted and
+    normalized to (n_samples, 1); any other shape would silently corrupt the
+    sample-to-target alignment if reshaped, so it is rejected instead.
+    """
+    y_arr = np.asarray(y)
+    if y_arr.ndim == 1:
+        y_arr = y_arr[:, None]
+    elif not (y_arr.ndim == 2 and y_arr.shape[1] == 1):
+        raise multi_output_regression_error(y_arr.shape)
+    return torch.as_tensor(y_arr, dtype=torch.float32)
 
 
 class TabularDataModule(pl.LightningDataModule):
@@ -274,22 +291,22 @@ class TabularDataModule(pl.LightningDataModule):
                     if key in val_preprocessed_data:
                         val_emb_tensors.append(torch.tensor(val_preprocessed_data[key], dtype=torch.float32))
 
-            # Prepare labels with appropriate shape and dtype based on task
+            # Prepare labels with appropriate shape and dtype based on task.
             if self.regression:
                 # Regression: float32, shape (batch_size, 1)
-                train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
-                val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
+                train_labels = _prepare_regression_labels(self.y_train)
+                val_labels = _prepare_regression_labels(self.y_val)
             else:
                 # Classification: determine if binary or multiclass
                 num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
                 if num_classes > 2:
                     # Multiclass: long dtype, shape (batch_size,) - no unsqueeze
-                    train_labels = torch.tensor(self.y_train, dtype=torch.long).view(-1)
-                    val_labels = torch.tensor(self.y_val, dtype=torch.long).view(-1)
+                    train_labels = torch.as_tensor(np.asarray(self.y_train).reshape(-1), dtype=torch.long)
+                    val_labels = torch.as_tensor(np.asarray(self.y_val).reshape(-1), dtype=torch.long)
                 else:
                     # Binary: float32, shape (batch_size, 1)
-                    train_labels = torch.tensor(self.y_train, dtype=torch.float32).unsqueeze(dim=1)
-                    val_labels = torch.tensor(self.y_val, dtype=torch.float32).unsqueeze(dim=1)
+                    train_labels = torch.as_tensor(np.asarray(self.y_train).reshape(-1, 1), dtype=torch.float32)
+                    val_labels = torch.as_tensor(np.asarray(self.y_val).reshape(-1, 1), dtype=torch.float32)
 
             self.train_dataset = TabularDataset(
                 train_cat_tensors,
