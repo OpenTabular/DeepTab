@@ -106,6 +106,37 @@ class TestSparsemax:
         assert out.shape == (B, 10)
         assert (out >= 0).all() and (out <= 1).all()
 
+    # -----------------------------------------------------------------
+    # Regression tests for https://github.com/OpenTabular/DeepTab/issues/453:
+    # backward() used a bare supp_size.squeeze(), which also drops any other
+    # singleton axis of the input (e.g. NODE depth=1), silently misaligning
+    # the gradient broadcast instead of raising an error.
+    # -----------------------------------------------------------------
+    @pytest.mark.parametrize("shape", [(6, 4, 1), (3, 1, 5), (2, 1, 1, 7)])
+    def test_backward_gradcheck_with_singleton_dims(self, shape):
+        x = torch.randn(*shape, dtype=torch.double, requires_grad=True)
+        # sparsemax's forward mutates its input in place (tracked separately as
+        # issue #426); clone here so gradcheck's finite-difference probing of x
+        # isn't corrupted by that unrelated defect.
+        assert torch.autograd.gradcheck(lambda t: sparsemax(t.clone(), dim=-1), (x,))
+
+    def test_backward_matches_no_singleton_case(self):
+        """The other axes' size shouldn't change the gradient sparsemax computes."""
+        torch.manual_seed(0)
+        base = torch.randn(4, 5, dtype=torch.double)
+
+        x1 = base.unsqueeze(1).clone().requires_grad_(True)  # shape (4, 1, 5)
+        out1 = sparsemax(x1, dim=-1)
+        out1.sum().backward()
+
+        x3 = base.unsqueeze(1).repeat(1, 3, 1).clone().requires_grad_(True)  # shape (4, 3, 5)
+        out3 = sparsemax(x3, dim=-1)
+        out3.sum().backward()
+
+        assert x1.grad is not None
+        assert x3.grad is not None
+        assert torch.allclose(x1.grad.squeeze(1), x3.grad[:, 0, :])
+
 
 # ===========================================================================
 # common.py — normalisation layers

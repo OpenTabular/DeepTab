@@ -335,6 +335,25 @@ class TestMultinomialDistribution:
             d = MultinomialDistribution(num_classes=K)
             assert d.parameter_count == K
 
+    # -----------------------------------------------------------------
+    # Regression tests for https://github.com/OpenTabular/DeepTab/issues/453:
+    # forward() used to look up nonexistent p_0_transform/p_1_transform/...
+    # attributes and silently return the raw logits unchanged.
+    # -----------------------------------------------------------------
+    def test_forward_applies_softmax(self):
+        logits = self.torch.tensor([[1.0, 2.0, 3.0]])
+        expected = self.torch.softmax(logits, dim=-1)
+        assert self.torch.allclose(self.dist(logits), expected)
+
+    def test_forward_output_is_a_valid_probability_distribution(self):
+        out = self.dist(self.preds)
+        assert (out >= 0).all()
+        assert self.torch.allclose(out.sum(dim=-1), self.torch.ones(self.B))
+
+    def test_forward_differs_from_raw_logits(self):
+        out = self.dist(self.preds)
+        assert not self.torch.allclose(out, self.preds)
+
 
 # ---------------------------------------------------------------------------
 # MixtureOfGaussians
@@ -679,6 +698,7 @@ class TestJohnsonSuDistribution:
     def setup_method(self):
         import torch
 
+        self.torch = torch
         from deeptab.distributions import JohnsonSuDistribution
 
         self.dist = JohnsonSuDistribution()
@@ -705,6 +725,20 @@ class TestJohnsonSuDistribution:
         m = self.dist.evaluate_nll(self.y.numpy(), self.preds.detach().numpy())
         for k in ("NLL", "mse", "mae", "rmse"):
             assert k in m
+
+    # -----------------------------------------------------------------
+    # Regression test for https://github.com/OpenTabular/DeepTab/issues/453:
+    # param_names used "location" while the transform attribute was
+    # loc_transform, so BaseDistribution.forward's getattr lookup silently
+    # fell back to the identity transform instead of applying loc_transform.
+    # -----------------------------------------------------------------
+    def test_forward_applies_custom_loc_transform(self):
+        from deeptab.distributions import JohnsonSuDistribution
+
+        d = JohnsonSuDistribution(loc_transform=self.torch.exp)
+        loc_idx = d.param_names.index("loc")
+        out = d(self.preds)
+        assert self.torch.allclose(out[:, loc_idx], self.torch.exp(self.preds[:, loc_idx]))
 
 
 # ---------------------------------------------------------------------------

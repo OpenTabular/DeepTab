@@ -88,7 +88,7 @@ class JohnsonSuDistribution(BaseDistribution):
         loc_transform="none",
         scale_transform="positive",
     ):
-        param_names = ["skew", "shape", "location", "scale"]
+        param_names = ["skew", "shape", "loc", "scale"]
         super().__init__(name, param_names)
 
         self.skew_transform = self.get_transform(skew_transform)
@@ -107,7 +107,7 @@ class JohnsonSuDistribution(BaseDistribution):
     def compute_loss(self, predictions, y_true):
         skew = self.skew_transform(predictions[:, self.param_names.index("skew")])
         shape = self.shape_transform(predictions[:, self.param_names.index("shape")])
-        loc = self.loc_transform(predictions[:, self.param_names.index("location")])
+        loc = self.loc_transform(predictions[:, self.param_names.index("loc")])
         scale = self.scale_transform(predictions[:, self.param_names.index("scale")])
 
         log_probs = self.log_prob(y_true, skew, shape, loc, scale)
@@ -120,12 +120,10 @@ class JohnsonSuDistribution(BaseDistribution):
         y_true_tensor = torch.tensor(y_true, dtype=torch.float32)
         y_pred_tensor = torch.tensor(y_pred, dtype=torch.float32)
 
-        mse_loss = torch.nn.functional.mse_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("location")])
+        mse_loss = torch.nn.functional.mse_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")])
         rmse = np.sqrt(mse_loss.detach().numpy())
         mae = (
-            torch.nn.functional.l1_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("location")])
-            .detach()
-            .numpy()
+            torch.nn.functional.l1_loss(y_true_tensor, y_pred_tensor[:, self.param_names.index("loc")]).detach().numpy()
         )
 
         metrics.update({"mse": mse_loss.detach().numpy(), "mae": mae, "rmse": rmse})

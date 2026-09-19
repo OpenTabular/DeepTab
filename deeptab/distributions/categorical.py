@@ -116,6 +116,11 @@ class MultinomialDistribution(BaseDistribution):
         self.total_count = total_count
         self.probs_transform = self.get_transform(prob_transform)
 
+    def forward(self, predictions):
+        # Softmax needs the full logit row at once, not the per-parameter
+        # column-by-column transform the base class applies.
+        return self.probs_transform(predictions)
+
     def compute_loss(self, predictions, y_true):
         probs = self.probs_transform(predictions)
 

@@ -187,7 +187,9 @@ class Tangos(BaseModel):
 
         # Compute Jacobian
         jacobian = torch.func.vmap(torch.func.jacrev(self.repr_forward), randomness="different")(flat_data)
-        jacobian = jacobian.squeeze()
+        # Only remove the singleton axis repr_forward's unsqueeze(0) added; a bare
+        # squeeze() also collapses the batch axis when the batch has one sample.
+        jacobian = jacobian.squeeze(1)
 
         neuron_attr = jacobian.swapaxes(0, 1)
         h_dim = neuron_attr.shape[0]
