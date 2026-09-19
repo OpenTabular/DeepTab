@@ -511,8 +511,8 @@ class _FitMixin:
         )
 
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",
-            mode="min",
+            monitor=monitor,
+            mode=mode,
             save_top_k=1,
             # Use the per-run checkpoints/ sub-directory when a run dir exists.
             # Otherwise still isolate each run under its own unique sub-directory

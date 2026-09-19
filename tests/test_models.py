@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.model_selection import train_test_split
 
 from deeptab import set_seed
@@ -317,6 +318,21 @@ def test_regressor_score_returns_r2_all(cls, regression_data):
     assert score <= 1.0, f"{cls.__name__}.score()={score} exceeds 1.0"
 
 
+def test_checkpoint_monitor_and_mode_match_early_stopping(regression_data):
+    """ModelCheckpoint must track the same monitor/mode requested for early stopping (#425)."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, monitor="val_loss", mode="max", **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    early_stop_cb = model._trainer.early_stopping_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert isinstance(early_stop_cb, EarlyStopping)
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == ("val_loss", "max")
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == (early_stop_cb.monitor, early_stop_cb.mode)
+
+
 # ---------------------------------------------------------------------------
 # LSS (distributional regression) tests
 # ---------------------------------------------------------------------------
@@ -363,6 +379,21 @@ def test_lss_evaluate_returns_dict(cls, regression_data):
     metrics = model.evaluate(X_test, y_test)
     assert isinstance(metrics, dict), f"{cls.__name__}.evaluate should return a dict"
     assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
+
+
+def test_lss_checkpoint_monitor_and_mode_match_early_stopping(regression_data):
+    """ModelCheckpoint must track the same monitor/mode requested for early stopping (#425), LSS path."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPLSS()
+    model.fit(X_train, y_train, family="normal", monitor="val_loss", mode="max", **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    early_stop_cb = model._trainer.early_stopping_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert isinstance(early_stop_cb, EarlyStopping)
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == ("val_loss", "max")
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == (early_stop_cb.monitor, early_stop_cb.mode)
 
 
 # ---------------------------------------------------------------------------

@@ -354,8 +354,8 @@ class SklearnBaseLSS(SklearnBase):
         # fits across different estimator classes never collide on the same
         # "best_model" filename.
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",  # Adjust according to your validation metric
-            mode="min",
+            monitor=monitor,
+            mode=mode,
             save_top_k=1,
             dirpath=os.path.join(checkpoint_path, uuid.uuid4().hex[:8]),
             filename="best_model",
