@@ -16,12 +16,13 @@ import numpy as np
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
 
+from deeptab.configs import TrainerConfig
 from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
 from deeptab.training import pretrain_embeddings
 
 if TYPE_CHECKING:
-    from deeptab.configs import PreprocessingConfig, TrainerConfig
+    from deeptab.configs import PreprocessingConfig
     from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
     from deeptab.core.observability import ObservabilityConfig
     from deeptab.models._mixins.observability import _SupportsInfo
@@ -123,17 +124,16 @@ class _FitMixin:
             if weight_decay is None:
                 weight_decay = tc.weight_decay
 
-        # Collect new scheduler/optimizer fields from TrainerConfig
-        _tc = self.trainer_config
-        _scheduler_type = (
-            getattr(_tc, "scheduler_type", "ReduceLROnPlateau") if _tc is not None else "ReduceLROnPlateau"
-        )
-        _scheduler_kwargs = getattr(_tc, "scheduler_kwargs", None) if _tc is not None else None
-        _scheduler_monitor = getattr(_tc, "scheduler_monitor", None) if _tc is not None else None
-        _scheduler_interval = getattr(_tc, "scheduler_interval", "epoch") if _tc is not None else "epoch"
-        _scheduler_frequency = getattr(_tc, "scheduler_frequency", 1) if _tc is not None else 1
-        _no_wd_bn = getattr(_tc, "no_weight_decay_for_bias_and_norm", False) if _tc is not None else False
-        _optimizer_kwargs = getattr(_tc, "optimizer_kwargs", None) if _tc is not None else None
+        # Collect scheduler/optimizer fields from TrainerConfig, or its own field
+        # defaults when no TrainerConfig was supplied at all.
+        _tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        _scheduler_type = _tc.scheduler_type
+        _scheduler_kwargs = _tc.scheduler_kwargs
+        _scheduler_monitor = _tc.scheduler_monitor
+        _scheduler_interval = _tc.scheduler_interval
+        _scheduler_frequency = _tc.scheduler_frequency
+        _no_wd_bn = _tc.no_weight_decay_for_bias_and_norm
+        _optimizer_kwargs = _tc.optimizer_kwargs
 
         # Re-sync preprocessor from current preprocessing_config state so that
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
@@ -224,12 +224,8 @@ class _FitMixin:
             optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self._optimizer_kwargs,
             scheduler_type=_scheduler_type,
             scheduler_kwargs=_scheduler_kwargs,
-            monitor=_scheduler_monitor
-            if _scheduler_monitor is not None
-            else (
-                getattr(self.trainer_config, "monitor", "val_loss") if self.trainer_config is not None else "val_loss"
-            ),
-            mode=getattr(self.trainer_config, "mode", "min") if self.trainer_config is not None else "min",
+            monitor=_scheduler_monitor if _scheduler_monitor is not None else _tc.monitor,
+            mode=_tc.mode,
             scheduler_interval=_scheduler_interval,
             scheduler_frequency=_scheduler_frequency,
             no_weight_decay_for_bias_and_norm=_no_wd_bn,
@@ -284,25 +280,25 @@ class _FitMixin:
         X,
         y,
         regression: bool,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
         embeddings=None,
         embeddings_val=None,
         num_classes: int | None = None,
-        max_epochs: int = 100,
+        max_epochs: int | None = None,
         random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        stratify: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        stratify: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
+        checkpoint_path: str | None = None,
         dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
@@ -334,26 +330,35 @@ class _FitMixin:
             Pre-computed embeddings for validation samples.
         num_classes : int or None, optional
             Number of target classes (classification only).
-        max_epochs : int, default=100
-            Maximum number of training epochs.
+        max_epochs : int or None, default=None
+            Maximum number of training epochs. Falls back to the active
+            ``TrainerConfig``'s value, or 100 when no ``TrainerConfig`` is set.
         random_state : int, default=101
             RNG seed for reproducibility.
-        batch_size : int, default=128
-            Mini-batch size.
-        shuffle : bool, default=True
-            Whether to shuffle training data each epoch.
-        stratify : bool, default=True
+        batch_size : int or None, default=None
+            Mini-batch size. Falls back to the active ``TrainerConfig``'s value,
+            or 128 when no ``TrainerConfig`` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle training data each epoch. Falls back to the
+            active ``TrainerConfig``'s value, or ``True`` when no
+            ``TrainerConfig`` is set.
+        stratify : bool or None, default=None
             Whether to stratify the validation split on ``y`` for classification
             tasks so the split keeps the same class proportions. Ignored for
-            regression. When a ``TrainerConfig`` is set, its ``stratify`` value
-            takes precedence.
-        patience : int, default=15
+            regression. Falls back to the active ``TrainerConfig``'s value, or
+            ``True`` when no ``TrainerConfig`` is set.
+        patience : int or None, default=None
             Early-stopping patience (epochs without validation improvement).
-        monitor : str, default="val_loss"
-            Metric to monitor for early stopping.
-        mode : str, default="min"
+            Falls back to the active ``TrainerConfig``'s value, or 15 when no
+            ``TrainerConfig`` is set.
+        monitor : str or None, default=None
+            Metric to monitor for early stopping. Falls back to the active
+            ``TrainerConfig``'s value, or ``"val_loss"`` when no
+            ``TrainerConfig`` is set.
+        mode : str or None, default=None
             Whether the monitored metric should be minimised (``"min"``) or
-            maximised (``"max"``).
+            maximised (``"max"``). Falls back to the active ``TrainerConfig``'s
+            value, or ``"min"`` when no ``TrainerConfig`` is set.
         lr : float or None, optional
             Learning rate override.
         lr_patience : int or None, optional
@@ -362,8 +367,10 @@ class _FitMixin:
             LR scheduler reduction factor override.
         weight_decay : float or None, optional
             Weight-decay (L2 penalty) override.
-        checkpoint_path : str, default="model_checkpoints"
-            Directory for Lightning checkpoints.
+        checkpoint_path : str or None, default=None
+            Directory for Lightning checkpoints. Falls back to the active
+            ``TrainerConfig``'s value, or ``"model_checkpoints"`` when no
+            ``TrainerConfig`` is set.
         dataloader_kwargs : dict, default={}
             Extra kwargs forwarded to the PyTorch DataLoader.
         train_metrics : dict or None, optional
@@ -383,17 +390,28 @@ class _FitMixin:
         -------
         self
         """
-        # When trainer_config is active, override all training-loop params from it
-        if self.trainer_config is not None:
-            tc = self.trainer_config
+        # Resolve precedence: an explicit fit() argument always wins; a TrainerConfig
+        # value is used only for arguments the caller left unset. TrainerConfig's own
+        # field defaults are the single source of truth for "no config at all" too, so
+        # there is no separate set of literals to keep in sync.
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        if max_epochs is None:
             max_epochs = tc.max_epochs
+        if batch_size is None:
             batch_size = tc.batch_size
+        if val_size is None:
             val_size = tc.val_size
+        if shuffle is None:
             shuffle = tc.shuffle
+        if stratify is None:
             stratify = tc.stratify
+        if patience is None:
             patience = tc.patience
+        if monitor is None:
             monitor = tc.monitor
+        if mode is None:
             mode = tc.mode
+        if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
         # Validate inputs before any preprocessing or model construction

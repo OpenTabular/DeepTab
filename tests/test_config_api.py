@@ -435,6 +435,50 @@ class TestEstimatorFitPredict:
         assert model.random_state == 42
 
 
+class TestFitArgumentsTakePrecedenceOverTrainerConfig:
+    """Regression tests for GH-442: explicit fit() args must win over TrainerConfig."""
+
+    def test_fit_kwargs_override_trainer_config_on_classifier(self):
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[16]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=64, val_size=0.2, patience=1),
+        )
+        model.fit(X_cls, y_cls, max_epochs=2, batch_size=8, val_size=0.4, patience=1)
+        assert model._trainer.max_epochs == 2
+        assert model._data_module.batch_size == 8
+        assert model._data_module.val_size == 0.4
+
+    def test_fit_kwargs_override_trainer_config_on_regressor(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[16]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=64, val_size=0.2, patience=1),
+        )
+        model.fit(X_reg, y_reg, max_epochs=2, batch_size=8, val_size=0.4, patience=1)
+        assert model._trainer.max_epochs == 2
+        assert model._data_module.batch_size == 8
+        assert model._data_module.val_size == 0.4
+
+    def test_model_config_only_does_not_force_trainer_defaults(self):
+        """Passing only ``model_config`` must not silently create a TrainerConfig
+        that then clobbers explicit fit() arguments."""
+        model = MLPRegressor(model_config=MLPConfig(layer_sizes=[16]))
+        assert model.trainer_config is not None  # a default TrainerConfig is created internally
+        model.fit(X_reg, y_reg, max_epochs=2, batch_size=8, val_size=0.4, patience=1)
+        assert model._trainer.max_epochs == 2
+        assert model._data_module.batch_size == 8
+        assert model._data_module.val_size == 0.4
+
+    def test_omitted_fit_kwargs_still_fall_back_to_trainer_config(self):
+        """When a fit() argument is left unset, the TrainerConfig value must still apply."""
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[16]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=32, patience=1),
+        )
+        model.fit(X_cls, y_cls, batch_size=8)
+        assert model._trainer.max_epochs == 1  # from TrainerConfig, unset in fit()
+        assert model._data_module.batch_size == 8  # explicit fit() arg wins
+
+
 # ---------------------------------------------------------------------------
 # PR 3 — MLPConfig (clean architecture-only config)
 # ---------------------------------------------------------------------------

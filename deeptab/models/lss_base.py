@@ -8,6 +8,7 @@ from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSum
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from deeptab.configs import TrainerConfig
 from deeptab.core.exceptions import not_fitted_error
 from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
@@ -184,21 +185,21 @@ class SklearnBaseLSS(SklearnBase):
         X,
         y,
         family,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
-        max_epochs: int = 100,
+        max_epochs: int | None = None,
         random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
+        checkpoint_path: str | None = None,
         distributional_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
@@ -218,27 +219,37 @@ class SklearnBaseLSS(SklearnBase):
         family : str
             The name of the distribution family to use for the loss function. Examples include 'normal'
             for regression tasks.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             The proportion of the dataset to include in the validation split if `X_val` is None.
-            Ignored if `X_val` is provided.
+            Ignored if `X_val` is provided. Falls back to the active `TrainerConfig`'s
+            value, or 0.2 when no `TrainerConfig` is set.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
             The validation target values. Required if `X_val` is provided.
-        max_epochs : int, default=100
-            Maximum number of epochs for training.
+        max_epochs : int or None, default=None
+            Maximum number of epochs for training. Falls back to the active
+            `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
         random_state : int, default=101
             Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
-            Number of samples per gradient update.
-        shuffle : bool, default=True
-            Whether to shuffle the training data before each epoch.
-        patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before early stopping.
-        monitor : str, default="val_loss"
-            The metric to monitor for early stopping.
-        mode : str, default="min"
-            Whether the monitored metric should be minimized (`min`) or maximized (`max`).
+        batch_size : int or None, default=None
+            Number of samples per gradient update. Falls back to the active
+            `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle the training data before each epoch. Falls back
+            to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        patience : int or None, default=None
+            Number of epochs with no improvement on the validation loss to wait
+            before early stopping. Falls back to the active `TrainerConfig`'s
+            value, or 15 when no `TrainerConfig` is set.
+        monitor : str or None, default=None
+            The metric to monitor for early stopping. Falls back to the active
+            `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+        mode : str or None, default=None
+            Whether the monitored metric should be minimized (`min`) or
+            maximized (`max`). Falls back to the active `TrainerConfig`'s value,
+            or "min" when no `TrainerConfig` is set.
         lr : float, default=1e-3
             Learning rate for the optimizer.
         lr_patience : int, default=10
@@ -253,8 +264,10 @@ class SklearnBaseLSS(SklearnBase):
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        checkpoint_path : str, default="model_checkpoints"
-            Path where the checkpoints are being saved.
+        checkpoint_path : str or None, default=None
+            Path where the checkpoints are being saved. Falls back to the active
+            `TrainerConfig`'s value, or "model_checkpoints" when no
+            `TrainerConfig` is set.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
@@ -265,16 +278,26 @@ class SklearnBaseLSS(SklearnBase):
         self : object
             The fitted regressor.
         """
-        # When trainer_config is active, override all training-loop params from it
-        if self.trainer_config is not None:
-            tc = self.trainer_config
+        # Resolve precedence: an explicit fit() argument always wins; a TrainerConfig
+        # value is used only for arguments the caller left unset. TrainerConfig's own
+        # field defaults are the single source of truth for "no config at all" too, so
+        # there is no separate set of literals to keep in sync.
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        if max_epochs is None:
             max_epochs = tc.max_epochs
+        if batch_size is None:
             batch_size = tc.batch_size
+        if val_size is None:
             val_size = tc.val_size
+        if shuffle is None:
             shuffle = tc.shuffle
+        if patience is None:
             patience = tc.patience
+        if monitor is None:
             monitor = tc.monitor
+        if mode is None:
             mode = tc.mode
+        if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
         # Validate inputs before any preprocessing or model construction

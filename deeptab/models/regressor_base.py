@@ -116,23 +116,23 @@ class SklearnBaseRegressor(SklearnBase):
         self,
         X,
         y,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        max_epochs: int = 100,
+        max_epochs: int | None = None,
         random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
+        checkpoint_path: str | None = None,
         dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
@@ -149,27 +149,37 @@ class SklearnBaseRegressor(SklearnBase):
         y : array-like, shape (n_samples,) or (n_samples, 1)
             The target values (real numbers). Multi-output regression (more than
             one target column) is not currently supported.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             The proportion of the dataset to include in the validation split if `X_val` is None.
-            Ignored if `X_val` is provided.
+            Ignored if `X_val` is provided. Falls back to the active `TrainerConfig`'s
+            value, or 0.2 when no `TrainerConfig` is set.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, 1), optional
             The validation target values. Required if `X_val` is provided.
-        max_epochs : int, default=100
-            Maximum number of epochs for training.
+        max_epochs : int or None, default=None
+            Maximum number of epochs for training. Falls back to the active
+            `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
         random_state : int, default=101
             Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
-            Number of samples per gradient update.
-        shuffle : bool, default=True
-            Whether to shuffle the training data before each epoch.
-        patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before early stopping.
-        monitor : str, default="val_loss"
-            The metric to monitor for early stopping.
-        mode : str, default="min"
-            Whether the monitored metric should be minimized (`min`) or maximized (`max`).
+        batch_size : int or None, default=None
+            Number of samples per gradient update. Falls back to the active
+            `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle the training data before each epoch. Falls back
+            to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        patience : int or None, default=None
+            Number of epochs with no improvement on the validation loss to wait
+            before early stopping. Falls back to the active `TrainerConfig`'s
+            value, or 15 when no `TrainerConfig` is set.
+        monitor : str or None, default=None
+            The metric to monitor for early stopping. Falls back to the active
+            `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+        mode : str or None, default=None
+            Whether the monitored metric should be minimized (`min`) or
+            maximized (`max`). Falls back to the active `TrainerConfig`'s value,
+            or "min" when no `TrainerConfig` is set.
         lr : float, default=1e-3
             Learning rate for the optimizer.
         lr_patience : int, default=10
@@ -178,8 +188,10 @@ class SklearnBaseRegressor(SklearnBase):
             Factor by which the learning rate will be reduced.
         weight_decay : float, default=0.025
             Weight decay (L2 penalty) coefficient.
-        checkpoint_path : str, default="model_checkpoints"
-            Path where the checkpoints are being saved.
+        checkpoint_path : str or None, default=None
+            Path where the checkpoints are being saved. Falls back to the active
+            `TrainerConfig`'s value, or "model_checkpoints" when no
+            `TrainerConfig` is set.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
         train_metrics : dict, default=None

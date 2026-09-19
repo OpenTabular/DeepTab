@@ -279,37 +279,46 @@ model.fit(
 
 ### Available `fit()` arguments
 
-| Argument                       | Default               | Purpose                                                                          |
-| ------------------------------ | --------------------- | -------------------------------------------------------------------------------- |
-| `X`, `y`                       | required              | Training inputs and targets.                                                     |
-| `val_size`                     | `0.2`                 | Validation fraction when `X_val` is not given. Ignored if `X_val` is provided.   |
-| `X_val`, `y_val`               | `None`                | Explicit validation set. Skips the internal split when supplied.                 |
-| `embeddings`, `embeddings_val` | `None`                | External feature embeddings for train and validation data.                       |
-| `max_epochs`                   | `100`                 | Maximum number of training epochs.                                               |
-| `random_state`                 | `101`                 | Seed applied before model build and training for reproducibility.                |
-| `batch_size`                   | `128`                 | Samples per gradient update.                                                     |
-| `shuffle`                      | `True`                | Shuffle training data each epoch.                                                |
-| `patience`                     | `15`                  | Early-stopping patience on the monitored metric.                                 |
-| `monitor`                      | `"val_loss"`          | Metric watched for early stopping and the LR scheduler.                          |
-| `mode`                         | `"min"`               | Whether the monitored metric is minimised (`"min"`) or maximised (`"max"`).      |
-| `lr`                           | `None`                | Learning rate. Falls back to `TrainerConfig.lr` when `None`.                     |
-| `lr_patience`, `lr_factor`     | `None`                | LR-scheduler patience and reduction factor.                                      |
-| `weight_decay`                 | `None`                | L2 penalty coefficient.                                                          |
-| `checkpoint_path`              | `"model_checkpoints"` | Directory for best-checkpoint saving and restore.                                |
-| `train_metrics`, `val_metrics` | `None`                | `torchmetrics` dicts logged during training and validation.                      |
-| `dataloader_kwargs`            | `{}`                  | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                   |
-| `rebuild`                      | `True`                | Rebuild the architecture even if one already exists.                             |
-| `**trainer_kwargs`             | -                     | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...). |
+| Argument                       | Default  | Purpose                                                                                                                            |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| `X`, `y`                       | required | Training inputs and targets.                                                                                                       |
+| `val_size`                     | `None`   | Validation fraction when `X_val` is not given. Falls back to `TrainerConfig.val_size`, then `0.2`. Ignored if `X_val` is provided. |
+| `X_val`, `y_val`               | `None`   | Explicit validation set. Skips the internal split when supplied.                                                                   |
+| `embeddings`, `embeddings_val` | `None`   | External feature embeddings for train and validation data.                                                                         |
+| `max_epochs`                   | `None`   | Maximum number of training epochs. Falls back to `TrainerConfig.max_epochs`, then `100`.                                           |
+| `random_state`                 | `101`    | Seed applied before model build and training for reproducibility.                                                                  |
+| `batch_size`                   | `None`   | Samples per gradient update. Falls back to `TrainerConfig.batch_size`, then `128`.                                                 |
+| `shuffle`                      | `None`   | Shuffle training data each epoch. Falls back to `TrainerConfig.shuffle`, then `True`.                                              |
+| `patience`                     | `None`   | Early-stopping patience on the monitored metric. Falls back to `TrainerConfig.patience`, then `15`.                                |
+| `monitor`                      | `None`   | Metric watched for early stopping and the LR scheduler. Falls back to `TrainerConfig.monitor`, then `"val_loss"`.                  |
+| `mode`                         | `None`   | Whether the monitored metric is minimised (`"min"`) or maximised (`"max"`). Falls back to `TrainerConfig.mode`, then `"min"`.      |
+| `lr`                           | `None`   | Learning rate. Falls back to `TrainerConfig.lr` when `None`.                                                                       |
+| `lr_patience`, `lr_factor`     | `None`   | LR-scheduler patience and reduction factor.                                                                                        |
+| `weight_decay`                 | `None`   | L2 penalty coefficient.                                                                                                            |
+| `checkpoint_path`              | `None`   | Directory for best-checkpoint saving and restore. Falls back to `TrainerConfig.checkpoint_path`, then `"model_checkpoints"`.       |
+| `train_metrics`, `val_metrics` | `None`   | `torchmetrics` dicts logged during training and validation.                                                                        |
+| `dataloader_kwargs`            | `{}`     | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                                                                     |
+| `rebuild`                      | `True`   | Rebuild the architecture even if one already exists.                                                                               |
+| `**trainer_kwargs`             | -        | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...).                                                   |
+
+```{note}
+Arguments that fall back to `TrainerConfig` (`val_size`, `max_epochs`, `batch_size`,
+`shuffle`, `patience`, `monitor`, `mode`, `checkpoint_path`, and the classifier-only
+`stratify`) default to `None` in the `fit()` signature itself. `None` means "not
+explicitly passed", so DeepTab can tell the difference between "you asked for the
+default" and "you didn't say", and only then falls back to `TrainerConfig` (or the
+built-in default when no `TrainerConfig` is set).
+```
 
 ### Classifier-only arguments
 
-| Argument           | Default | Purpose                                                                                                                                                                   |
-| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `stratify`         | `True`  | Stratify the validation split on `y` so train and validation keep the same class proportions. Set to `False` for a purely random split. Ignored when `X_val` is provided. |
-| `class_weight`     | `None`  | `"balanced"`, a `{label: weight}` mapping, or an array to reweight the loss for imbalance.                                                                                |
-| `loss_fct`         | `None`  | An `nn.Module` or registered loss name (`"focal"`, `"bce"`, `"cross_entropy"`).                                                                                           |
-| `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                                                                                                          |
-| `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.                                                                                              |
+| Argument           | Default | Purpose                                                                                                                                                                              |
+| ------------------ | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `stratify`         | `None`  | Stratify the validation split on `y` so train and validation keep the same class proportions. Falls back to `TrainerConfig.stratify`, then `True`. Ignored when `X_val` is provided. |
+| `class_weight`     | `None`  | `"balanced"`, a `{label: weight}` mapping, or an array to reweight the loss for imbalance.                                                                                           |
+| `loss_fct`         | `None`  | An `nn.Module` or registered loss name (`"focal"`, `"bce"`, `"cross_entropy"`).                                                                                                      |
+| `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                                                                                                                     |
+| `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.                                                                                                         |
 
 ### LSS-only argument
 
