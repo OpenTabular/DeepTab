@@ -271,6 +271,27 @@ def test_regressor_fit_predict_shape(cls, regression_data):
     assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
 
 
+def test_fit_accepts_user_supplied_callbacks(regression_data):
+    """fit(callbacks=[...]) must merge with the built-in callbacks, not collide with them.
+
+    Regression test for https://github.com/OpenTabular/DeepTab/issues/452: `pl.Trainer`
+    was constructed with a hard-coded `callbacks=[...]` list followed by `**trainer_kwargs`,
+    so a user-supplied `callbacks=` raised `TypeError: ... got multiple values for keyword
+    argument 'callbacks'` even though the docs document `callbacks` as a Lightning
+    passthrough argument.
+    """
+    from lightning.pytorch.callbacks import LearningRateMonitor
+
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    lr_monitor = LearningRateMonitor()
+    model.fit(X_train, y_train, callbacks=[lr_monitor], **FIT_KWARGS)
+
+    assert lr_monitor in model._trainer.callbacks
+    # Built-in callbacks (EarlyStopping, ModelCheckpoint, ModelSummary) must still be present.
+    assert len(model._trainer.callbacks) >= 4
+
+
 @pytest.mark.parametrize("cls", REGRESSORS)
 def test_regressor_evaluate_returns_dict(cls, regression_data):
     X_train, X_test, y_train, y_test = regression_data

@@ -495,10 +495,13 @@ class _FitMixin:
 
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
+            # Merge an explicit `callbacks=` in trainer_kwargs with our built-ins,
+            # the same way an explicit `logger=` overrides our default below.
             callbacks=[
                 early_stop_callback,
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
+                *trainer_kwargs.pop("callbacks", []),
             ],
             # Let an explicit `logger=` in trainer_kwargs override our default.
             logger=trainer_kwargs.pop(
