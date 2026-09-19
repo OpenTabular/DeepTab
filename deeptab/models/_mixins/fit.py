@@ -515,9 +515,13 @@ class _FitMixin:
             mode="min",
             save_top_k=1,
             # Use the per-run checkpoints/ sub-directory when a run dir exists.
-            # When no run dir is active (no observability config), use a temp
-            # directory so no model_checkpoints/ folder is left behind.
-            dirpath=os.path.join(self._run_dir, "checkpoints") if self._run_dir else None,
+            # Otherwise still isolate each run under its own unique sub-directory
+            # of checkpoint_path (rather than writing directly into it) so that
+            # parametrized/back-to-back fits across different estimator classes
+            # never collide on the same "best_model" filename.
+            dirpath=os.path.join(self._run_dir, "checkpoints")
+            if self._run_dir
+            else os.path.join(checkpoint_path, self._run_id),
             filename="best_model",
         )
 

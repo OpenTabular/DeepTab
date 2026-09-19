@@ -21,8 +21,6 @@ class MLPConfig(BaseModelConfig):
         Number of units in each hidden layer.
     activation : Callable, default=nn.ReLU()
         Activation function for the MLP layers.
-    skip_layers : bool, default=False
-        Whether to include skip layers.
     dropout : float, default=0.2
         Dropout rate applied after each hidden layer.
     use_glu : bool, default=False

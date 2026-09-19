@@ -289,18 +289,17 @@ class SklearnBase(
                         params[f"trainer_config__{k}"] = v
             return params
 
-        # Legacy flat-kwargs style
-        params = {}
-        params.update(self._config_kwargs)
-        params.update(self._preprocessor_kwargs)
-        if deep:
-            get_params_fn = getattr(self._preprocessor, "get_params", None)
-            if get_params_fn is not None:
-                preprocessor_params = {
-                    key: value for key, value in get_params_fn().items() if key in self._preprocessor_arg_names
-                }
-                params.update(preprocessor_params)
-        return params
+        # No configs were supplied at construction time. `__init__` only ever
+        # accepts `model_config`/`preprocessing_config`/`trainer_config`/
+        # `random_state`, so mirror that shape here too instead of flattening
+        # `_config_kwargs`/`_preprocessor_kwargs` into keys `cls(**params)`
+        # cannot accept (that flattening broke `clone()`/round-tripping).
+        return {
+            "model_config": self.model_config,
+            "preprocessing_config": self.preprocessing_config,
+            "trainer_config": self.trainer_config,
+            "random_state": self.random_state,
+        }
 
     def set_params(self, **parameters):
         """Set the parameters of this estimator."""

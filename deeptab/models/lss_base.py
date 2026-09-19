@@ -1,3 +1,5 @@
+import os
+import uuid
 import warnings
 from collections.abc import Callable
 
@@ -65,12 +67,13 @@ class SklearnBaseLSS(SklearnBase):
             The validation target values. Required if `X_val` is provided.
         random_state : int, default=101
             Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
+        batch_size : int, default=128
             Number of samples per gradient update.
         shuffle : bool, default=True
             Whether to shuffle the training data before each epoch.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
         lr_patience : int, default=10
             Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
         lr_factor : float, default=0.1
@@ -79,8 +82,9 @@ class SklearnBaseLSS(SklearnBase):
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
 
@@ -250,14 +254,16 @@ class SklearnBaseLSS(SklearnBase):
             Whether the monitored metric should be minimized (`min`) or
             maximized (`max`). Falls back to the active `TrainerConfig`'s value,
             or "min" when no `TrainerConfig` is set.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
         lr_patience : int, default=10
             Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
+        lr_factor : float, default=0.1
             Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         distributional_kwargs : dict, default=None
             any arguments taht are specific for a certain distribution.
         train_metrics : dict, default=None
@@ -343,11 +349,15 @@ class SklearnBaseLSS(SklearnBase):
             monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
         )
 
+        # Isolate each run under its own unique sub-directory of checkpoint_path
+        # (rather than writing directly into it) so that parametrized/back-to-back
+        # fits across different estimator classes never collide on the same
+        # "best_model" filename.
         checkpoint_callback = ModelCheckpoint(
             monitor="val_loss",  # Adjust according to your validation metric
             mode="min",
             save_top_k=1,
-            dirpath=checkpoint_path,  # Specify the directory to save checkpoints
+            dirpath=os.path.join(checkpoint_path, uuid.uuid4().hex[:8]),
             filename="best_model",
         )
 
@@ -386,7 +396,7 @@ class SklearnBaseLSS(SklearnBase):
         predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
             The predicted target values.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 

@@ -5,10 +5,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import torch
+from sklearn.exceptions import NotFittedError as _SklearnNotFittedError
 from sklearn.utils.validation import check_is_fitted
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from deeptab.core.exceptions import not_fitted_error
 from deeptab.core.sklearn_compat import validate_input_features
 
 if TYPE_CHECKING:
@@ -64,13 +66,16 @@ class _PredictMixin:
         """
         raise NotImplementedError("The 'predict' method is not implemented in the Parent class.")
 
-    def _validate_predict_input(self, X):
+    def _validate_predict_input(self, X, method="predict"):
         """Check the model is fitted and validate the input feature columns.
 
         Parameters
         ----------
         X : array-like or DataFrame
             Raw input to be passed to ``predict``.
+        method : str, default="predict"
+            Name of the calling method, included in the error message when
+            the model is not fitted.
 
         Returns
         -------
@@ -80,12 +85,15 @@ class _PredictMixin:
 
         Raises
         ------
-        sklearn.exceptions.NotFittedError
+        deeptab.core.exceptions.NotFittedError
             If ``fit`` has not been called yet.
         deeptab.core.exceptions.ColumnCountError
             If the number of columns differs from ``n_features_in_``.
         """
-        check_is_fitted(self)  # raises sklearn's NotFittedError before any other check
+        try:
+            check_is_fitted(self)
+        except _SklearnNotFittedError as exc:
+            raise not_fitted_error(type(self).__name__, method) from exc
         return validate_input_features(self, X)
 
     def _score(self, X, y, embeddings, metric):

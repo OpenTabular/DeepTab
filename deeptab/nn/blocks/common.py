@@ -1,6 +1,6 @@
 import math
 from collections.abc import Callable
-from typing import Literal
+from typing import Literal, cast
 
 import torch
 import torch.nn as nn
@@ -148,8 +148,8 @@ class SparsemaxFunction(Function):
         return tau, support_size
 
 
-def sparsemax(tensor, dim=-1):
-    return SparsemaxFunction.apply(tensor, dim)
+def sparsemax(tensor: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    return cast(torch.Tensor, SparsemaxFunction.apply(tensor, dim))
 
 
 def sparsemoid(tensor):

@@ -28,6 +28,8 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     resolved_loss = build_classification_loss(loss_fct, num_classes=num_classes, class_weights=class_weights)
 
     if sample_weight is not None:
+        if not np.any(np.asarray(sample_weight, dtype=np.float64)):
+            raise ValueError("Sample weights must contain at least one non-zero number.")
         sampler = sample_weight
     elif balanced_sampler:
         sampler = "balanced"
@@ -130,8 +132,9 @@ class SklearnBaseClassifier(SklearnBase):
         stratify : bool, default=True
             Whether to stratify the validation split on `y` so the split keeps
             the same class proportions. Set to False for a purely random split.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
         lr_patience : int, default=10
             Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
         lr_factor : float, default=0.1
@@ -140,8 +143,9 @@ class SklearnBaseClassifier(SklearnBase):
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
 
@@ -283,14 +287,16 @@ class SklearnBaseClassifier(SklearnBase):
             Whether the monitored metric should be minimized (`min`) or
             maximized (`max`). Falls back to the active `TrainerConfig`'s value,
             or "min" when no `TrainerConfig` is set.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
         lr_patience : int, default=10
             Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
+        lr_factor : float, default=0.1
             Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         checkpoint_path : str or None, default=None
             Path where the checkpoints are being saved. Falls back to the active
             `TrainerConfig`'s value, or "model_checkpoints" when no
@@ -392,7 +398,7 @@ class SklearnBaseClassifier(SklearnBase):
         predictions : ndarray, shape (n_samples,)
             The predicted class labels.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
@@ -453,7 +459,7 @@ class SklearnBaseClassifier(SklearnBase):
         probabilities : ndarray, shape (n_samples, n_classes)
             The predicted class probabilities.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict_proba")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
 

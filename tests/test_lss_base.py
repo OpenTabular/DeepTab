@@ -113,7 +113,7 @@ class TestFitPredict:
         assert fitted_mlplss.__sklearn_is_fitted__()
 
     def test_predict_raises_before_fit(self):
-        from sklearn.exceptions import NotFittedError
+        from deeptab.core.exceptions import NotFittedError
 
         model = MLPLSS(trainer_config=_FAST_TRAINER)
         with pytest.raises(NotFittedError):

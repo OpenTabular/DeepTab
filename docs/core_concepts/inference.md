@@ -227,6 +227,18 @@ You are never unprotected. Calling `estimator.predict(X)` directly still fails o
 
 ## Step 4: Predict
 
+### Models trained with external embeddings
+
+If the wrapped model was fitted with `fit(..., embeddings=...)`, pass the matching
+embeddings to `predict()` / `predict_proba()` as well:
+
+```python
+predictions = model.predict(X_new, embeddings=embeddings_new)
+```
+
+Omitting them raises a `ValueError` telling you embeddings are required, instead of
+failing deep inside the network with a raw shape-mismatch error.
+
 ### Classification
 
 ```python
@@ -257,11 +269,13 @@ predictions = model.predict(X_new)
 ### Distributional regression (LSS)
 
 ```python
-# Distribution mean / mode (default)
+# Transformed distribution parameters (e.g. [loc, scale] for a Normal family);
+# identical to predict_params(X_new, raw=False)
 predictions = model.predict(X_new)
+# array([...])  shape (n_samples, n_params)
 
-# Raw distribution parameters (before inverse-link transform)
-params = model.predict_params(X_new, raw=False)
+# Raw network outputs, before the inverse-link transform
+raw_params = model.predict_params(X_new, raw=True)
 # array([...])  shape (n_samples, n_params)
 ```
 

@@ -384,7 +384,7 @@ class TestTabularDataModuleContract:
         from pretab.preprocessor import Preprocessor
 
         X, y = regression_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -405,7 +405,7 @@ class TestTabularDataModuleContract:
         from pretab.preprocessor import Preprocessor
 
         X, y = regression_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -476,7 +476,7 @@ class TestTabularDataModuleContract:
         from pretab.preprocessor import Preprocessor
 
         X, y = classification_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -502,7 +502,7 @@ class TestTabularDataModuleContract:
         from pretab.preprocessor import Preprocessor
 
         X, y = binary_classification_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -526,7 +526,7 @@ class TestTabularDataModuleContract:
         from pretab.preprocessor import Preprocessor
 
         X, y = regression_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -844,7 +844,7 @@ class TestDataAPIIntegration:
         from pretab.preprocessor import Preprocessor
 
         X, y = classification_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -879,7 +879,7 @@ class TestDataAPIIntegration:
         from pretab.preprocessor import Preprocessor
 
         X, y = regression_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         datamodule = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -1101,7 +1101,7 @@ class TestDataLoaderGeneratorSeeding:
         from pretab.preprocessor import Preprocessor
 
         X, y = regression_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         dm = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -1148,7 +1148,7 @@ class TestDataLoaderGeneratorSeeding:
         from torch.utils.data import WeightedRandomSampler
 
         X, y = classification_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         dm = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,
@@ -1170,7 +1170,7 @@ class TestDataLoaderGeneratorSeeding:
         from torch.utils.data import WeightedRandomSampler
 
         X, y = classification_data
-        preprocessor = Preprocessor()
+        preprocessor = Preprocessor(output_structure="blocks")
         dm = TabularDataModule(
             preprocessor=preprocessor,
             batch_size=32,

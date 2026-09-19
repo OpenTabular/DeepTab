@@ -1,5 +1,7 @@
 """Student-t and Johnson SU distributions for heavy-tailed / skewed LSS models."""
 
+from collections.abc import Callable
+
 import numpy as np
 import torch
 import torch.distributions as dist
@@ -82,11 +84,11 @@ class JohnsonSuDistribution(BaseDistribution):
 
     def __init__(
         self,
-        name="JohnsonSu",
-        skew_transform="none",
-        shape_transform="positive",
-        loc_transform="none",
-        scale_transform="positive",
+        name: str = "JohnsonSu",
+        skew_transform: str | Callable[[torch.Tensor], torch.Tensor] = "none",
+        shape_transform: str | Callable[[torch.Tensor], torch.Tensor] = "positive",
+        loc_transform: str | Callable[[torch.Tensor], torch.Tensor] = "none",
+        scale_transform: str | Callable[[torch.Tensor], torch.Tensor] = "positive",
     ):
         param_names = ["skew", "shape", "loc", "scale"]
         super().__init__(name, param_names)

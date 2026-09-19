@@ -511,7 +511,9 @@ upper = mean + 1.96 * std
 
 ### Can I use my own custom architecture?
 
-Yes, but it requires subclassing `BaseTaskModel`. See the source code for examples of how to extend the base classes.
+Yes, but it requires subclassing `BaseModel` (and pairing it with a `BaseModelConfig`
+and one of `SklearnBaseClassifier` / `SklearnBaseRegressor` / `SklearnBaseLSS`). See
+[Custom Models](../core_concepts/custom_models.md) for a full walkthrough.
 
 ### Do experimental models work the same way as stable models?
 

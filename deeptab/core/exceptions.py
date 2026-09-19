@@ -14,7 +14,7 @@ DeepTabError
 │   ├── EmptyDataError
 │   └── InsufficientSamplesError
 ├── ModelError
-│   ├── NotFittedError
+│   ├── NotFittedError (also inherits sklearn.exceptions.NotFittedError)
 │   └── ArchitectureRequirementError
 └── ConfigError
     ├── InvalidParamError
@@ -32,6 +32,8 @@ from __future__ import annotations
 
 import warnings
 from typing import Any
+
+from sklearn.exceptions import NotFittedError as _SklearnNotFittedError
 
 # ---------------------------------------------------------------------------
 # Exception hierarchy
@@ -76,8 +78,12 @@ class ModelError(DeepTabError):
     """Problem with model construction or state."""
 
 
-class NotFittedError(ModelError):
-    """A method was called before fit() completed."""
+class NotFittedError(ModelError, _SklearnNotFittedError):
+    """A method was called before fit() completed.
+
+    Also inherits from :class:`sklearn.exceptions.NotFittedError` so that code
+    written against either exception hierarchy catches it.
+    """
 
 
 class ArchitectureRequirementError(ModelError):

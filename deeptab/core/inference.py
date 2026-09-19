@@ -220,12 +220,14 @@ class InferenceModel:
 
     @property
     def feature_names(self) -> list[str] | None:
-        """Ordered list of feature names from the training run, or *None*."""
-        names = getattr(self._estimator, "input_columns_", None)
+        """Ordered list of feature names from the training run, or *None* when
+        the artifact was fitted on a positionally-indexed array (no string
+        column names available)."""
+        names = getattr(self._estimator, "feature_names_in_", None)
         if names is None:
-            fn = getattr(self._estimator, "feature_names_in_", None)
-            if fn is not None:
-                names = list(fn)
+            candidate = getattr(self._estimator, "input_columns_", None)
+            if candidate is not None and all(isinstance(column, str) for column in candidate):
+                names = candidate
         return list(names) if names is not None else None
 
     @property
@@ -341,19 +343,34 @@ class InferenceModel:
     # Prediction
     # ------------------------------------------------------------------
 
-    def predict(self, X: Any) -> np.ndarray:
+    def _check_embeddings(self, embeddings: Any) -> None:
+        """Raise a clear error if embeddings are required but were not passed."""
+        data_module = getattr(self._estimator, "_data_module", None)
+        if embeddings is None and bool(getattr(data_module, "embedding_feature_info", None)):
+            raise ValueError(
+                f"{type(self._estimator).__name__} was trained with external embeddings; "
+                "pass embeddings=... (aligned with the rows of X) to predict()/predict_proba()."
+            )
+
+    def predict(self, X: Any, embeddings: Any = None) -> np.ndarray:
         """Run inference and return the primary predictions.
 
         For **classification** returns integer class labels (same dtype as
         ``classes_``).  For **regression** returns a float array of target
         values.  For **distributional regression** (LSS) returns the
-        distribution mean / mode as a float array.
+        transformed distribution parameters, shape ``(n_samples, n_params)``
+        — identical to ``predict_params(X, raw=False)``.
 
         *X* is passed through :meth:`validate_input` before prediction.
 
         Parameters
         ----------
         X : DataFrame or array-like of shape (n_samples, n_features)
+        embeddings : array-like or None, optional
+            Pre-computed external embeddings aligned with the rows of *X*.
+            Required when the wrapped model was trained with
+            ``fit(..., embeddings=...)``; not supported for distributional
+            regression (LSS) models.
 
         Returns
         -------
@@ -362,7 +379,8 @@ class InferenceModel:
         Raises
         ------
         ValueError
-            If *X* does not match the training schema.
+            If *X* does not match the training schema, or if the model
+            requires embeddings that were not provided.
 
         Examples
         --------
@@ -370,14 +388,23 @@ class InferenceModel:
         >>> predictions = model.predict(X_new)
         """
         X_validated = self.validate_input(X)
-        return self._estimator.predict(X_validated)
+        self._check_embeddings(embeddings)
+        if self._task == "distributional_regression":
+            if embeddings is not None:
+                raise TypeError(f"{type(self._estimator).__name__}.predict() does not support the embeddings argument.")
+            return self._estimator.predict(X_validated)
+        return self._estimator.predict(X_validated, embeddings=embeddings)
 
-    def predict_proba(self, X: Any) -> np.ndarray:
+    def predict_proba(self, X: Any, embeddings: Any = None) -> np.ndarray:
         """Return predicted class probabilities (classification only).
 
         Parameters
         ----------
         X : DataFrame or array-like of shape (n_samples, n_features)
+        embeddings : array-like or None, optional
+            Pre-computed external embeddings aligned with the rows of *X*.
+            Required when the wrapped model was trained with
+            ``fit(..., embeddings=...)``.
 
         Returns
         -------
@@ -388,7 +415,8 @@ class InferenceModel:
         TypeError
             If the wrapped model is not a classifier.
         ValueError
-            If *X* does not match the training schema.
+            If *X* does not match the training schema, or if the model
+            requires embeddings that were not provided.
 
         Examples
         --------
@@ -402,7 +430,8 @@ class InferenceModel:
         if not callable(getattr(self._estimator, "predict_proba", None)):
             raise TypeError(f"{type(self._estimator).__name__} does not expose predict_proba().")
         X_validated = self.validate_input(X)
-        return self._estimator.predict_proba(X_validated)
+        self._check_embeddings(embeddings)
+        return self._estimator.predict_proba(X_validated, embeddings=embeddings)
 
     def predict_params(self, X: Any, *, raw: bool = False) -> np.ndarray:
         """Return distribution parameters (distributional regression only).
