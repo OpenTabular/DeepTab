@@ -291,8 +291,11 @@ class PreprocessingConfig(BaseEstimator):
     scaling : str or None, default=None
         Scaling method applied to numerical features (e.g. ``"standardization"``,
         ``"minmax"``, ``"robust"``).
-    feature_preprocessing : str or None, default=None
-        General feature-level preprocessing override.
+    feature_preprocessing : dict[str, str] or None, default=None
+        Per-column preprocessing override, mapping a column name to a method
+        that replaces ``numerical_method``/``categorical_method`` for that
+        column only (e.g. ``{"age": "cubicspline", "city": "pretrained"}``).
+        Columns absent from the mapping fall back to the global defaults.
     task : str or None, default=None
         Task type for task-aware transformations (``"regression"`` or
         ``"classification"``). The task resolved from the estimator's own type
@@ -318,7 +321,7 @@ class PreprocessingConfig(BaseEstimator):
     numerical_preprocessing: str | None = None
     categorical_preprocessing: str | None = None
     n_bins: int | None = None
-    feature_preprocessing: str | None = None
+    feature_preprocessing: dict[str, str] | None = None
     use_decision_tree_bins: bool | None = None
     binning_strategy: str | None = None
     task: str | None = None
@@ -402,6 +405,32 @@ class PreprocessingConfig(BaseEstimator):
                 "must be one of the known presets",
                 sorted(x for x in _VALID_PRESET if x is not None),
             )
+        if self.feature_preprocessing is not None:
+            if not isinstance(self.feature_preprocessing, dict):
+                raise invalid_param_error(
+                    "PreprocessingConfig",
+                    "feature_preprocessing",
+                    self.feature_preprocessing,
+                    "must be a dict mapping column names to a preprocessing method "
+                    '(e.g. {"age": "cubicspline"}), not a single method string',
+                )
+            valid_feature_methods = (_VALID_NUMERICAL_PREPROCESSING | _VALID_CATEGORICAL_METHOD) - {None}
+            for column, method in self.feature_preprocessing.items():
+                if not isinstance(column, str):
+                    raise invalid_param_error(
+                        "PreprocessingConfig",
+                        "feature_preprocessing",
+                        {column: method},
+                        "each key must be a column name (str)",
+                    )
+                if method not in valid_feature_methods:
+                    raise invalid_param_error(
+                        "PreprocessingConfig",
+                        "feature_preprocessing",
+                        {column: method},
+                        f"method {method!r} for column {column!r} is not a known preprocessing method",
+                        sorted(valid_feature_methods),
+                    )
 
         # PreTab 1.0 removed this option outright; there is no equivalent to
         # fall back to, so a non-default value is always rejected.

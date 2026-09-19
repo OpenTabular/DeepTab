@@ -442,6 +442,31 @@ class TestPreprocessingConfigValidation:
             cfg = PreprocessingConfig(scaling_strategy=val)
             assert cfg.scaling_strategy == val
 
+    def test_feature_preprocessing_string_raises(self):
+        """Regression test: a bare string used to be accepted then crash at fit."""
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="must be a dict"):
+            PreprocessingConfig(feature_preprocessing="ple")  # type: ignore[arg-type]
+
+    def test_feature_preprocessing_invalid_method_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="not a known preprocessing method"):
+            PreprocessingConfig(feature_preprocessing={"age": "splines"})
+
+    def test_feature_preprocessing_non_string_key_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="column name"):
+            PreprocessingConfig(feature_preprocessing={0: "ple"})  # type: ignore[arg-type]
+
+    def test_feature_preprocessing_valid_mapping(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(feature_preprocessing={"age": "cubicspline", "city": "pretrained"})
+        assert cfg.to_preprocessor_kwargs()["feature_preprocessing"] == {"age": "cubicspline", "city": "pretrained"}
+
     def test_invalid_binning_strategy_raises(self):
         from deeptab.configs import PreprocessingConfig
 

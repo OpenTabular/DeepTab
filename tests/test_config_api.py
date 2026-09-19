@@ -479,6 +479,20 @@ class TestFitArgumentsTakePrecedenceOverTrainerConfig:
         assert model._data_module.batch_size == 8  # explicit fit() arg wins
 
 
+class TestFeaturePreprocessingMapping:
+    """Regression test: a per-column dict must reach the preprocessor."""
+
+    def test_dict_mapping_fits_end_to_end(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[16]),
+            preprocessing_config=PreprocessingConfig(feature_preprocessing={"f0": "quantile"}),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=64, patience=1),
+        )
+        model.fit(X_reg, y_reg)
+        preds = model.predict(X_reg)
+        assert len(preds) == N
+
+
 # ---------------------------------------------------------------------------
 # PR 3 — MLPConfig (clean architecture-only config)
 # ---------------------------------------------------------------------------
