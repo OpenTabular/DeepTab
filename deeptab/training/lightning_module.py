@@ -201,6 +201,11 @@ class TaskModel(pl.LightningModule):
         self.early_pruning_threshold = early_pruning_threshold
         self.pruning_epoch = pruning_epoch
         self.val_losses = []
+        # Candidate pools for retrieval models; populated in setup("fit").
+        # Must default to None so the `is not None` guards in the step
+        # methods work for models restored without an in-process fit.
+        self.train_features = None
+        self.train_targets = None
 
         # Store custom metrics
         self.train_metrics = train_metrics or {}
