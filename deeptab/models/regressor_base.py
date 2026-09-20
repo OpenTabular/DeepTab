@@ -193,9 +193,13 @@ class SklearnBaseRegressor(SklearnBase):
             Weight decay (L2 penalty) coefficient. Falls back to the active
             `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         checkpoint_path : str or None, default=None
-            Path where the checkpoints are being saved. Falls back to the active
+            Path where the checkpoints are being saved. When given, it is used
+            as-is (each run must use a distinct path to avoid collisions
+            between concurrent fits). Falls back to the active
             `TrainerConfig`'s value, or "model_checkpoints" when no
-            `TrainerConfig` is set.
+            `TrainerConfig` is set; in that case each fit writes to its own
+            uniquely named sub-directory so parallel/repeated fits never
+            collide.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
         train_metrics : dict, default=None

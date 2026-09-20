@@ -271,9 +271,13 @@ class SklearnBaseLSS(SklearnBase):
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
         checkpoint_path : str or None, default=None
-            Path where the checkpoints are being saved. Falls back to the active
+            Path where the checkpoints are being saved. When given, it is used
+            as-is (each run must use a distinct path to avoid collisions
+            between concurrent fits). Falls back to the active
             `TrainerConfig`'s value, or "model_checkpoints" when no
-            `TrainerConfig` is set.
+            `TrainerConfig` is set; in that case each fit writes to its own
+            uniquely named sub-directory so parallel/repeated fits never
+            collide.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
@@ -303,6 +307,8 @@ class SklearnBaseLSS(SklearnBase):
             monitor = tc.monitor
         if mode is None:
             mode = tc.mode
+        # An explicit checkpoint_path (fit() argument) must always be honored as-is.
+        _checkpoint_path_explicit = checkpoint_path is not None
         if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
@@ -349,15 +355,20 @@ class SklearnBaseLSS(SklearnBase):
             monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
         )
 
-        # Isolate each run under its own unique sub-directory of checkpoint_path
-        # (rather than writing directly into it) so that parametrized/back-to-back
-        # fits across different estimator classes never collide on the same
-        # "best_model" filename.
+        # An explicit checkpoint_path is used as-is. Otherwise, isolate each run
+        # under its own unique, timestamped sub-directory of the default
+        # checkpoint_path (rather than writing directly into it) so that
+        # parametrized/back-to-back fits across different estimator classes
+        # never collide on the same "best_model" filename.
+        from deeptab.core.observability import timestamped_run_label
+
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
             save_top_k=1,
-            dirpath=os.path.join(checkpoint_path, uuid.uuid4().hex[:8]),
+            dirpath=checkpoint_path
+            if _checkpoint_path_explicit
+            else os.path.join(checkpoint_path, timestamped_run_label(uuid.uuid4().hex[:8])),
             filename="best_model",
         )
 

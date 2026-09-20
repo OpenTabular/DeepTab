@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import time
 import uuid
 from collections.abc import Callable
@@ -368,9 +367,12 @@ class _FitMixin:
         weight_decay : float or None, optional
             Weight-decay (L2 penalty) override.
         checkpoint_path : str or None, default=None
-            Directory for Lightning checkpoints. Falls back to the active
-            ``TrainerConfig``'s value, or ``"model_checkpoints"`` when no
-            ``TrainerConfig`` is set.
+            Directory for Lightning checkpoints. When given, it is used as-is
+            (each run must use a distinct path to avoid collisions between
+            concurrent fits). Falls back to the active ``TrainerConfig``'s
+            value, or ``"model_checkpoints"`` when no ``TrainerConfig`` is
+            set; in that case each fit writes to its own uniquely named
+            sub-directory so parallel/repeated fits never collide.
         dataloader_kwargs : dict, default={}
             Extra kwargs forwarded to the PyTorch DataLoader.
         train_metrics : dict or None, optional
@@ -413,6 +415,9 @@ class _FitMixin:
             monitor = tc.monitor
         if mode is None:
             mode = tc.mode
+        # An explicit checkpoint_path (fit() argument) must always be honored,
+        # even when observability would otherwise pick a run directory.
+        _checkpoint_path_explicit = checkpoint_path is not None
         if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
@@ -510,18 +515,26 @@ class _FitMixin:
             monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
         )
 
+        # An explicit checkpoint_path always wins and is used as-is. Otherwise,
+        # prefer the observability run directory when one exists; failing that,
+        # isolate each run under its own unique sub-directory of the default
+        # checkpoint_path (rather than writing directly into it) so that
+        # parametrized/back-to-back fits across different estimator classes
+        # never collide on the same "best_model" filename.
+        if _checkpoint_path_explicit:
+            _checkpoint_dir = checkpoint_path
+        elif self._run_dir:
+            _checkpoint_dir = os.path.join(self._run_dir, "checkpoints")
+        else:
+            from deeptab.core.observability import timestamped_run_label
+
+            _checkpoint_dir = os.path.join(checkpoint_path, timestamped_run_label(self._run_id))
+
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
             save_top_k=1,
-            # Use the per-run checkpoints/ sub-directory when a run dir exists.
-            # Otherwise still isolate each run under its own unique sub-directory
-            # of checkpoint_path (rather than writing directly into it) so that
-            # parametrized/back-to-back fits across different estimator classes
-            # never collide on the same "best_model" filename.
-            dirpath=os.path.join(self._run_dir, "checkpoints")
-            if self._run_dir
-            else os.path.join(checkpoint_path, self._run_id),
+            dirpath=_checkpoint_dir,
             filename="best_model",
         )
 
@@ -555,17 +568,15 @@ class _FitMixin:
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
+        _best_epoch: int | None = None
         if self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
             checkpoint = torch.load(self._best_model_path, weights_only=False)
             self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            # The checkpoint filename is fixed ("best_model"), so the epoch has
+            # to come from the checkpoint payload itself rather than its name.
+            _best_epoch = checkpoint.get("epoch")
 
-        # Parse best epoch from checkpoint filename (epoch=N pattern).
-        _best_epoch: int | None = None
-        if self._best_model_path:
-            _m = re.search(r"epoch=(\d+)", self._best_model_path)
-            if _m:
-                _best_epoch = int(_m.group(1))
         _best_val_loss = (
             checkpoint_callback.best_model_score.item() if checkpoint_callback.best_model_score is not None else None
         )

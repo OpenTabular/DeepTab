@@ -181,6 +181,24 @@ class ObservabilityConfig:
 # ---------------------------------------------------------------------------
 
 
+def timestamped_run_label(run_id: str) -> str:
+    """Return ``<YYYYMMDD_HHMMSS>_<run_id>`` for naming per-run directories.
+
+    Prefixing the run id with a sortable timestamp lets directory listings
+    (e.g. under ``model_checkpoints/``) show at a glance when each run
+    happened, instead of an opaque hex string.
+
+    Parameters
+    ----------
+    run_id : str
+        Short hex string identifying this fit call (e.g. ``"8f3a2c"``),
+        typically ``uuid.uuid4().hex[:8]``.
+    """
+    from datetime import datetime
+
+    return f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{run_id}"
+
+
 def create_run_dir(config: ObservabilityConfig, run_id: str) -> tuple[str, str]:
     """Create the per-run output directory tree and return ``(run_dir, run_dir_name)``.
 
@@ -206,10 +224,8 @@ def create_run_dir(config: ObservabilityConfig, run_id: str) -> tuple[str, str]:
         (``"<timestamp>_<run_id>"``).
     """
     import os
-    from datetime import datetime
 
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    run_dir_name = f"{ts}_{run_id}"
+    run_dir_name = timestamped_run_label(run_id)
     run_dir = os.path.join(config.root_dir, "runs", config.experiment_name, run_dir_name)
     os.makedirs(os.path.join(run_dir, "checkpoints"), exist_ok=True)
     os.makedirs(os.path.join(run_dir, "artifacts"), exist_ok=True)

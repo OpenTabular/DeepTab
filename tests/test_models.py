@@ -333,9 +333,61 @@ def test_checkpoint_monitor_and_mode_match_early_stopping(regression_data):
     assert (checkpoint_cb.monitor, checkpoint_cb.mode) == (early_stop_cb.monitor, early_stop_cb.mode)
 
 
-# ---------------------------------------------------------------------------
-# LSS (distributional regression) tests
-# ---------------------------------------------------------------------------
+def test_checkpoint_path_explicit_is_honored(regression_data, tmp_path):
+    """An explicit checkpoint_path must be used as-is, not silently ignored (#411)."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    custom_dir = tmp_path / "my_checkpoints"
+    model = MLPRegressor()
+    model.fit(X_train, y_train, checkpoint_path=str(custom_dir), **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert checkpoint_cb.dirpath == str(custom_dir)
+    assert model._best_model_path is not None
+    assert model._best_model_path.startswith(str(custom_dir))
+
+
+def test_checkpoint_path_default_isolates_concurrent_runs(regression_data, tmp_path, monkeypatch):
+    """Without an explicit checkpoint_path, back-to-back fits must use distinct
+    checkpoint directories so concurrent/repeated fits can never overwrite each
+    other's weights (#411)."""
+    monkeypatch.chdir(tmp_path)
+    X_train, _X_test, y_train, _y_test = regression_data
+    model_a = MLPRegressor()
+    model_a.fit(X_train, y_train, **FIT_KWARGS)
+    model_b = MLPRegressor()
+    model_b.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model_a._trainer is not None
+    assert model_b._trainer is not None
+    checkpoint_cb_a = model_a._trainer.checkpoint_callback
+    checkpoint_cb_b = model_b._trainer.checkpoint_callback
+    assert isinstance(checkpoint_cb_a, ModelCheckpoint)
+    assert isinstance(checkpoint_cb_b, ModelCheckpoint)
+    assert checkpoint_cb_a.dirpath != checkpoint_cb_b.dirpath
+
+
+def test_best_epoch_metadata_is_populated(regression_data, tmp_path, monkeypatch):
+    """best_epoch must be resolved from the checkpoint payload, not a fixed
+    filename pattern that never matches (#411)."""
+    monkeypatch.chdir(tmp_path)
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+
+    captured: dict[str, Any] = {}
+    original_emit = model._emit_event
+
+    def _capture(event, **kwargs):
+        if event == "train.completed":
+            captured.update(kwargs)
+        return original_emit(event, **kwargs)
+
+    model._emit_event = _capture
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert captured.get("best_epoch") is not None
+
 
 LSS_MODELS = [
     MLPLSS,
