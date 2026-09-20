@@ -607,11 +607,11 @@ between releases.
 
 ### Can I use custom loss functions?
 
-Yes, for classifiers. Pass `loss_fct` to `fit()`: either an `nn.Module` instance, which is used as-is, or a registered loss name such as `"focal"`, `"bce"`, or `"cross_entropy"`, which is built and combined with any `class_weight` you set.
+Yes. Pass `loss_fct` to `fit()`: either an `nn.Module` instance, which is used as-is, or, for classifiers, a registered loss name such as `"focal"`, `"bce"`, or `"cross_entropy"`, which is built and combined with any `class_weight` you set.
 
 ```python
 import torch.nn as nn
-from deeptab.models import MambularClassifier
+from deeptab.models import MambularClassifier, MambularRegressor
 
 model = MambularClassifier()
 
@@ -620,10 +620,14 @@ model.fit(X_train, y_train, loss_fct=nn.CrossEntropyLoss(label_smoothing=0.1))
 
 # Or a registered loss by name (here combined with class weighting)
 model.fit(X_train, y_train, loss_fct="focal", class_weight="balanced")
+
+# Regressors accept an nn.Module loss the same way
+regressor = MambularRegressor()
+regressor.fit(X_train, y_train, loss_fct=nn.HuberLoss(delta=1.0))
 ```
 
 ```{note}
-When `loss_fct` is an `nn.Module`, it is used as given and `class_weight` is ignored. Regressors use the task default loss; to swap the loss for a regression model, drive `TabularDataModule` with a custom Lightning module.
+When `loss_fct` is an `nn.Module`, it is used as given and `class_weight` is ignored. Registered loss names and `class_weight` are classifier-only; regressors take an `nn.Module` loss directly. The fitted loss, including any class weights, is saved with the model and restored on `load()`.
 ```
 
 ### How do I extract learned features?

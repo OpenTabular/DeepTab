@@ -19,9 +19,12 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+import torch.nn as nn
 from sklearn.model_selection import train_test_split
 
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
+from deeptab.training import TaskModel
+from deeptab.training.losses import FocalLoss, WeightedBCEWithLogitsLoss, WeightedCrossEntropyLoss
 
 # ---------------------------------------------------------------------------
 # Shared dataset parameters
@@ -49,6 +52,16 @@ def classification_data():
     X = rng.standard_normal((N_SAMPLES, N_FEATURES))
     y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
     y = pd.qcut(y_cont, q=N_CLASSES, labels=False)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def binary_classification_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = pd.qcut(y_cont, q=2, labels=False)
     df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
     return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
 
@@ -372,3 +385,108 @@ def test_preprocessing_metadata_none_preprocessor():
     assert meta["spec"] is None
     assert meta["fingerprint"] is None
     assert meta["feature_widths"] == {}
+
+
+# ---------------------------------------------------------------------------
+# Fitted loss persistence (#445) — the loss a model was actually trained with
+# must survive a save/load round trip, instead of being re-derived from
+# num_classes alone.
+# ---------------------------------------------------------------------------
+
+
+def _save_and_load(model, model_cls):
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = model_cls.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+    return loaded
+
+
+def _loss_fct_of(model):
+    task_model = model._task_model
+    assert isinstance(task_model, TaskModel)
+    return task_model.loss_fct
+
+
+def test_classifier_save_load_preserves_plain_binary_loss_type(binary_classification_data):
+    """A plain binary classifier (no class_weight) must reload with the loss it
+    was actually trained with, not the regression default (MSELoss)."""
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    assert isinstance(_loss_fct_of(model), nn.BCEWithLogitsLoss)
+
+    loaded = _save_and_load(model, MLPClassifier)
+
+    loaded_loss = _loss_fct_of(loaded)
+    assert isinstance(loaded_loss, nn.BCEWithLogitsLoss)
+    assert not isinstance(loaded_loss, nn.MSELoss)
+
+
+def test_classifier_save_load_preserves_class_weight_binary(binary_classification_data):
+    """A binary classifier trained with class_weight must reload without error,
+    and the reloaded loss must carry the same pos_weight."""
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, class_weight="balanced", **FIT_KWARGS)
+    original_loss = _loss_fct_of(model)
+    assert isinstance(original_loss, WeightedBCEWithLogitsLoss)
+    assert original_loss.pos_weight is not None
+    original_pos_weight = original_loss.pos_weight.clone()
+
+    loaded = _save_and_load(model, MLPClassifier)
+
+    loaded_loss = _loss_fct_of(loaded)
+    assert isinstance(loaded_loss, WeightedBCEWithLogitsLoss)
+    torch.testing.assert_close(loaded_loss.pos_weight, original_pos_weight)
+
+
+def test_classifier_save_load_preserves_class_weight_multiclass(classification_data):
+    """A multiclass classifier trained with class_weight must reload without
+    error, and the reloaded loss must carry the same per-class weights."""
+    X_train, _X_test, y_train, _y_test = classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, class_weight="balanced", **FIT_KWARGS)
+    original_loss = _loss_fct_of(model)
+    assert isinstance(original_loss, WeightedCrossEntropyLoss)
+    assert original_loss.weight is not None
+    original_weight = original_loss.weight.clone()
+
+    loaded = _save_and_load(model, MLPClassifier)
+
+    loaded_loss = _loss_fct_of(loaded)
+    assert isinstance(loaded_loss, WeightedCrossEntropyLoss)
+    torch.testing.assert_close(loaded_loss.weight, original_weight)
+
+
+def test_classifier_save_load_preserves_focal_loss(binary_classification_data):
+    """A classifier trained with loss_fct='focal' must reload as FocalLoss,
+    not silently fall back to MSELoss."""
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, loss_fct="focal", **FIT_KWARGS)
+    assert isinstance(_loss_fct_of(model), FocalLoss)
+
+    loaded = _save_and_load(model, MLPClassifier)
+
+    loaded_loss = _loss_fct_of(loaded)
+    assert isinstance(loaded_loss, FocalLoss)
+    assert not isinstance(loaded_loss, nn.MSELoss)
+
+
+def test_regressor_save_load_preserves_custom_loss_fct(regression_data):
+    """A regressor trained with a custom loss_fct must reload with that same
+    loss, not the implicit MSELoss default."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, loss_fct=nn.HuberLoss(delta=1.0), **FIT_KWARGS)
+    assert isinstance(_loss_fct_of(model), nn.HuberLoss)
+
+    loaded = _save_and_load(model, MLPRegressor)
+
+    loaded_loss = _loss_fct_of(loaded)
+    assert isinstance(loaded_loss, nn.HuberLoss)
+    assert loaded_loss.delta == 1.0

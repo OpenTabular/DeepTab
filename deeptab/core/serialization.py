@@ -302,6 +302,10 @@ def build_save_bundle(
       :func:`build_artifact_metadata`, including architecture, feature schema,
       preprocessing, task, and version information.
     * ``task_model_state_dict`` — the Lightning module weights.
+    * ``loss_fct`` — the fitted loss module (or ``None`` for LSS models, whose
+      loss is derived from ``family``), so the exact loss the model was
+      trained with (including any class weights) is restored on load instead
+      of being re-derived from ``num_classes``.
     * ``preprocessor`` — the fitted preprocessing object.
     * ``feature_info`` — numerical, categorical, and embedding feature dicts.
     * ``classes_``, ``n_features_in_``, ``feature_names_in_`` — sklearn-style
@@ -370,6 +374,7 @@ def build_save_bundle(
         "lr_patience": estimator._task_model.lr_patience,
         "lr_factor": estimator._task_model.lr_factor,
         "weight_decay": estimator._task_model.weight_decay,
+        "loss_fct": estimator._task_model.loss_fct,
         "task_model_state_dict": estimator._task_model.state_dict(),
         "artifact_metadata": artifact_metadata,
         "architecture_metadata": artifact_metadata["architecture"],

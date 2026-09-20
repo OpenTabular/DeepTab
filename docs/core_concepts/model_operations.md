@@ -31,16 +31,17 @@ predictions = loaded.predict(X_test)
 
 The bundle saved to disk is a PyTorch-serialised dictionary containing:
 
-| Key                     | Contents                                                                                                                       |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `task_model_state_dict` | Neural network weights (Lightning module state dict)                                                                           |
-| `preprocessor`          | Fitted `pretab.Preprocessor` object                                                                                            |
-| `feature_info`          | Numerical, categorical, and embedding feature metadata                                                                         |
-| `config`                | Model config dataclass used during training                                                                                    |
-| `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks                                                              |
-| `input_columns`         | Ordered list of column names, for feature-name validation at predict time                                                      |
-| `classes_`              | Class labels for classifiers                                                                                                   |
-| `versions`              | Python, platform, and key package versions (`deeptab`, `torch`, `lightning`, `numpy`, `pandas`, `scikit-learn`, `pretab`, ...) |
+| Key                     | Contents                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task_model_state_dict` | Neural network weights (Lightning module state dict)                                                                                                    |
+| `loss_fct`              | The fitted loss module (e.g. class-weighted or focal losses), so a reload trains or reports on the same loss, not a default inferred from `num_classes` |
+| `preprocessor`          | Fitted `pretab.Preprocessor` object                                                                                                                     |
+| `feature_info`          | Numerical, categorical, and embedding feature metadata                                                                                                  |
+| `config`                | Model config dataclass used during training                                                                                                             |
+| `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks                                                                                       |
+| `input_columns`         | Ordered list of column names, for feature-name validation at predict time                                                                               |
+| `classes_`              | Class labels for classifiers                                                                                                                            |
+| `versions`              | Python, platform, and key package versions (`deeptab`, `torch`, `lightning`, `numpy`, `pandas`, `scikit-learn`, `pretab`, ...)                          |
 
 ### Why everything lives in one bundle
 

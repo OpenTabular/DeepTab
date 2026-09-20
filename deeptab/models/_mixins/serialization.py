@@ -158,6 +158,7 @@ class _SerializationMixin:
             num_classes=bundle["num_classes"],
             lss=bundle["lss"],
             family=bundle["family"],
+            loss_fct=bundle.get("loss_fct"),
             optimizer_type=bundle["optimizer_type"],
             optimizer_args=bundle["optimizer_kwargs"],
             lr=bundle["lr"],

@@ -666,6 +666,7 @@ class SklearnBaseLSS(SklearnBase):
             num_classes=bundle["num_classes"],
             lss=bundle["lss"],
             family=obj.family,
+            loss_fct=bundle.get("loss_fct"),
             optimizer_type=bundle["optimizer_type"],
             optimizer_args=bundle["optimizer_kwargs"],
             lr=bundle["lr"],
