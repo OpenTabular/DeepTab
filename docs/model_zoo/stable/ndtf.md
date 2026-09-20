@@ -73,6 +73,10 @@ Key settings:
 
 Use NDTF when you need a neural forest-style model with explicit ensemble aggregation. It can be sensitive to random tree construction, so set `random_state` and evaluate multiple seeds for research reporting.
 
+```{note}
+The per-tree input dimensions, depths, and temperatures are only randomized once, when a model is first constructed. `save()` persists the values that were actually generated, so `load()` rebuilds the same tree shapes rather than sampling a new forest.
+```
+
 ## References
 
 - Kontschieder et al., [Deep Neural Decision Forests](https://arxiv.org/abs/1505.03424).

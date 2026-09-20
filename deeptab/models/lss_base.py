@@ -695,6 +695,7 @@ class SklearnBaseLSS(SklearnBase):
             lr_patience=bundle["lr_patience"],
             lr_factor=bundle["lr_factor"],
             weight_decay=bundle["weight_decay"],
+            **(bundle.get("architecture_state") or {}),
         )
         obj._task_model.load_state_dict(bundle["task_model_state_dict"])
         obj._task_model.eval()

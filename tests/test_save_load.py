@@ -686,3 +686,74 @@ def test_classifier_load_defaults_to_cpu_accelerator(classification_data):
         os.unlink(tmp_path)
 
     assert type(loaded._trainer.accelerator).__name__ == "CPUAccelerator"
+
+
+# ---------------------------------------------------------------------------
+# NDTF round trip
+#
+# NDTF randomly picks each tree's input width, depth, and temperature at
+# construction time, which sizes that tree's weight tensors. load() must
+# reconstruct trees with the exact same shapes the saved weights were
+# trained with, instead of drawing a fresh, differently-shaped forest.
+# ---------------------------------------------------------------------------
+
+
+def test_ndtf_regressor_save_load_predictions(regression_data):
+    from deeptab.models import NDTFRegressor
+
+    X_train, X_test, y_train, _y_test = regression_data
+    model = NDTFRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds_before = model.predict(X_test)
+
+    with tempfile.NamedTemporaryFile(suffix=".deeptab", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = NDTFRegressor.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    preds_after = loaded.predict(X_test)
+    np.testing.assert_allclose(preds_before, preds_after, rtol=1e-5, atol=1e-6)
+
+
+def test_ndtf_classifier_save_load_predictions(classification_data):
+    from deeptab.models import NDTFClassifier
+
+    X_train, X_test, y_train, _y_test = classification_data
+    model = NDTFClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds_before = model.predict_proba(X_test)
+
+    with tempfile.NamedTemporaryFile(suffix=".deeptab", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = NDTFClassifier.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    preds_after = loaded.predict_proba(X_test)
+    np.testing.assert_allclose(preds_before, preds_after, rtol=1e-5, atol=1e-6)
+
+
+def test_ndtf_architecture_state_persists_tree_shapes(regression_data):
+    """The saved bundle must carry the exact per-tree shapes NDTF generated,
+    and load() must rebuild trees using those values rather than new ones."""
+    from deeptab.models import NDTFRegressor
+
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = NDTFRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    architecture_state = model._estimator.get_architecture_state()
+
+    with tempfile.NamedTemporaryFile(suffix=".deeptab", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = NDTFRegressor.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    assert loaded._estimator.get_architecture_state() == architecture_state

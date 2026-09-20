@@ -370,6 +370,10 @@ def build_save_bundle(
     * ``feature_info`` — numerical, categorical, and embedding feature dicts.
     * ``classes_``, ``n_features_in_``, ``feature_names_in_`` — sklearn-style
       fitted attributes.
+    * ``architecture_state``: extra constructor kwargs needed to rebuild an
+      architecture that randomizes part of its own shape at construction
+      time (e.g. NDTF's per-tree depth), or ``None`` for architectures that
+      don't define :meth:`get_architecture_state`.
 
     Examples
     --------
@@ -411,6 +415,9 @@ def build_save_bundle(
     )
     feature_schema = artifact_metadata["feature_schema"]
 
+    get_architecture_state = getattr(estimator._estimator, "get_architecture_state", None)
+    architecture_state = get_architecture_state() if callable(get_architecture_state) else None
+
     return {
         "_class": type(estimator),
         "config": estimator.config,
@@ -446,6 +453,7 @@ def build_save_bundle(
         "n_features_in_": getattr(estimator, "n_features_in_", None),
         "feature_names_in_": getattr(estimator, "feature_names_in_", None),
         "versions": artifact_metadata["versions"],
+        "architecture_state": architecture_state,
     }
 
 
