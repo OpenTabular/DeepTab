@@ -69,6 +69,14 @@ model = InferenceModel.from_path("my_model.deeptab")
 A `UserWarning` is emitted when the file does not end with `.deeptab`. The file is still loaded correctly; the warning is advisory only.
 ```
 
+```{note}
+`from_path` always reconstructs the model on `device="cpu"` by default, regardless of what hardware it was trained on. This keeps deployment deterministic: a model trained on a multi-GPU machine loads and predicts on CPU by default on any other host, instead of silently grabbing whatever accelerator happens to be visible there. Pass `device="cuda"` or `device="mps"` to run inference on a specific accelerator, or `device="auto"` to explicitly opt back into Lightning's automatic hardware selection. `device="auto"` still uses a single device; it never launches distributed multi-device inference. Requesting a `device` that isn't one of `"cpu"`, `"cuda"`, `"mps"`, `"auto"` raises `InvalidDeviceError`, and requesting a device that isn't available on the current machine (e.g. `"cuda"` without a GPU) raises `DeviceUnavailableError`, instead of failing deep inside Lightning.
+```
+
+```python
+model = InferenceModel.from_path("my_model.deeptab", device="cuda")
+```
+
 ### Wrap an already-fitted estimator
 
 When the estimator is already in memory (e.g. you just finished training in a notebook), skip the file round-trip:

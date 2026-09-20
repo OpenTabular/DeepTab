@@ -9,6 +9,7 @@ import pandas as pd
 import pytest
 
 from deeptab import InferenceModel
+from deeptab.core.exceptions import DeviceUnavailableError, InvalidDeviceError
 from deeptab.models import MLPClassifier, MLPRegressor
 
 # ---------------------------------------------------------------------------
@@ -106,6 +107,58 @@ class TestConstruction:
     def test_from_path_missing_file_raises(self):
         with pytest.raises(FileNotFoundError, match="not found"):
             InferenceModel.from_path("/nonexistent/path/model.deeptab")
+
+    def test_from_path_defaults_to_cpu_device(self, fitted_reg, X_reg):
+        """from_path() must not inherit whatever accelerator
+        happens to be visible on the loading machine; it defaults to CPU."""
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "model.deeptab")
+            fitted_reg.save(path)
+            model = InferenceModel.from_path(path)
+        assert type(model._estimator._trainer.accelerator).__name__ == "CPUAccelerator"
+        preds = model.predict(X_reg)
+        assert preds.shape[0] == len(X_reg)
+
+    def test_from_path_forwards_device(self, fitted_reg, X_reg):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "model.deeptab")
+            fitted_reg.save(path)
+            model = InferenceModel.from_path(path, device="auto")
+        preds = model.predict(X_reg)
+        assert preds.shape[0] == len(X_reg)
+
+    def test_from_path_invalid_device_raises(self, fitted_reg):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "model.deeptab")
+            fitted_reg.save(path)
+            with pytest.raises(InvalidDeviceError, match="device must be one of"):
+                InferenceModel.from_path(path, device="tpu")
+
+    def test_from_path_unavailable_device_raises(self, fitted_reg, monkeypatch):
+        """device="cuda" on a machine without CUDA must raise a clear error."""
+        import torch
+
+        monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "model.deeptab")
+            fitted_reg.save(path)
+            with pytest.raises(DeviceUnavailableError, match="not available"):
+                InferenceModel.from_path(path, device="cuda")
+
+    def test_from_path_peek_load_uses_cpu_map_location(self, fitted_reg):
+        """The metadata "peek" load inside from_path() must stay on CPU
+        regardless of the requested device, so it never fails on a machine
+        that lacks whatever hardware the artifact was saved from."""
+        from unittest.mock import patch
+
+        import torch
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "model.deeptab")
+            fitted_reg.save(path)
+            with patch("torch.load", wraps=torch.load) as mock_load:
+                InferenceModel.from_path(path)
+        assert mock_load.call_args_list[0].kwargs["map_location"] == "cpu"
 
 
 # ---------------------------------------------------------------------------

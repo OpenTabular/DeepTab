@@ -37,9 +37,12 @@ from deeptab.core.exceptions import (
     DataWarning,
     DeepTabError,
     DeepTabWarning,
+    DeviceError,
+    DeviceUnavailableError,
     EmptyDataError,
     IncompatibleParamsError,
     InsufficientSamplesError,
+    InvalidDeviceError,
     InvalidParamError,
     ModelError,
     NotFittedError,
@@ -48,9 +51,11 @@ from deeptab.core.exceptions import (
     column_count_error,
     column_dtype_error,
     column_name_error,
+    device_unavailable_error,
     empty_data_error,
     incompatible_params_error,
     insufficient_samples_error,
+    invalid_device_error,
     invalid_param_error,
     multi_output_regression_error,
     not_fitted_error,
@@ -95,6 +100,17 @@ class TestExceptionHierarchy:
     def test_architecture_requirement_error_is_model_error(self):
         assert issubclass(ArchitectureRequirementError, ModelError)
 
+    def test_device_error_is_deeptab_error(self):
+        assert issubclass(DeviceError, DeepTabError)
+
+    def test_invalid_device_error_is_device_error_and_value_error(self):
+        assert issubclass(InvalidDeviceError, DeviceError)
+        assert issubclass(InvalidDeviceError, ValueError)
+
+    def test_device_unavailable_error_is_device_error_and_runtime_error(self):
+        assert issubclass(DeviceUnavailableError, DeviceError)
+        assert issubclass(DeviceUnavailableError, RuntimeError)
+
     def test_config_error_is_deeptab_error(self):
         assert issubclass(ConfigError, DeepTabError)
 
@@ -116,6 +132,9 @@ class TestExceptionHierarchy:
             ModelError,
             NotFittedError,
             ArchitectureRequirementError,
+            DeviceError,
+            InvalidDeviceError,
+            DeviceUnavailableError,
             ConfigError,
             InvalidParamError,
             IncompatibleParamsError,
@@ -232,6 +251,22 @@ class TestModelFactories:
         assert "TabTransformer" in str(exc)
         assert "requires categorical features" in str(exc)
         assert "FTTransformer" in str(exc)
+
+
+class TestDeviceFactories:
+    def test_invalid_device_error(self):
+        exc = invalid_device_error("tpu", ("cpu", "cuda", "mps", "auto"))
+        assert isinstance(exc, InvalidDeviceError)
+        assert isinstance(exc, ValueError)
+        assert "tpu" in str(exc)
+        assert "cpu" in str(exc)
+
+    def test_device_unavailable_error(self):
+        exc = device_unavailable_error("cuda")
+        assert isinstance(exc, DeviceUnavailableError)
+        assert isinstance(exc, RuntimeError)
+        assert "cuda" in str(exc)
+        assert "not available" in str(exc)
 
 
 class TestConfigFactories:
@@ -1265,6 +1300,9 @@ class TestPublicAPIExports:
             "ColumnDtypeError",
             "NotFittedError",
             "InvalidParamError",
+            "DeviceError",
+            "InvalidDeviceError",
+            "DeviceUnavailableError",
             "ConfigWarning",
             "DataWarning",
         ):

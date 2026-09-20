@@ -22,6 +22,7 @@ import torch
 import torch.nn as nn
 from sklearn.model_selection import train_test_split
 
+from deeptab.core.exceptions import DeviceUnavailableError, InvalidDeviceError
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
 from deeptab.training import TaskModel
 from deeptab.training.losses import FocalLoss, WeightedBCEWithLogitsLoss, WeightedCrossEntropyLoss
@@ -83,7 +84,10 @@ def test_regressor_save_load_predictions(regression_data):
         tmp_path = f.name
     try:
         model.save(tmp_path)
-        loaded = MLPRegressor.load(tmp_path)
+        # device="auto" reproduces fit()'s own (unpinned) accelerator choice, so
+        # this stays a same-hardware, bit-exact round-trip check. load()'s
+        # actual default ("cpu") is exercised separately in the device tests below.
+        loaded = MLPRegressor.load(tmp_path, device="auto")
     finally:
         os.unlink(tmp_path)
 
@@ -121,7 +125,10 @@ def test_classifier_save_load_predictions(classification_data):
     try:
         model.save(tmp_path)
         bundle = torch.load(tmp_path, weights_only=False)
-        loaded = MLPClassifier.load(tmp_path)
+        # device="auto" reproduces fit()'s own (unpinned) accelerator choice, so
+        # this stays a same-hardware, bit-exact round-trip check. load()'s
+        # actual default ("cpu") is exercised separately in the device tests below.
+        loaded = MLPClassifier.load(tmp_path, device="auto")
     finally:
         os.unlink(tmp_path)
 
@@ -170,7 +177,10 @@ def test_lss_save_load_predictions(regression_data):
         tmp_path = f.name
     try:
         model.save(tmp_path)
-        loaded = MLPLSS.load(tmp_path)
+        # device="auto" reproduces fit()'s own (unpinned) accelerator choice, so
+        # this stays a same-hardware, bit-exact round-trip check. load()'s
+        # actual default ("cpu") is exercised separately in the device tests below.
+        loaded = MLPLSS.load(tmp_path, device="auto")
     finally:
         os.unlink(tmp_path)
 
@@ -490,3 +500,189 @@ def test_regressor_save_load_preserves_custom_loss_fct(regression_data):
     loaded_loss = _loss_fct_of(loaded)
     assert isinstance(loaded_loss, nn.HuberLoss)
     assert loaded_loss.delta == 1.0
+
+
+# ---------------------------------------------------------------------------
+# load()'s `device` parameter
+#
+# load() must not let whatever hardware happens to be visible on the loading
+# machine decide how the reconstructed model runs. It defaults to "cpu"
+# regardless of the accelerator used during fit(), and even "auto" (which
+# opts back into automatic accelerator selection) always pins a single
+# device, never distributed multi-device inference.
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_inference_accelerator_valid_devices():
+    from deeptab.core.serialization import resolve_inference_accelerator
+
+    assert resolve_inference_accelerator("cpu") == ("cpu", 1, "cpu")
+
+    if torch.cuda.is_available():
+        assert resolve_inference_accelerator("cuda") == ("cuda", 1, "cuda")
+    else:
+        with pytest.raises(DeviceUnavailableError, match="not available"):
+            resolve_inference_accelerator("cuda")
+
+    if torch.backends.mps.is_available():
+        assert resolve_inference_accelerator("mps") == ("mps", 1, "mps")
+    else:
+        with pytest.raises(DeviceUnavailableError, match="not available"):
+            resolve_inference_accelerator("mps")
+
+    accelerator, devices, map_location = resolve_inference_accelerator("auto")
+    assert accelerator == "auto"
+    assert devices == 1
+    assert map_location in ("cpu", "cuda", "mps")
+
+
+def test_resolve_inference_accelerator_invalid_device_raises():
+    from deeptab.core.serialization import resolve_inference_accelerator
+
+    with pytest.raises(InvalidDeviceError, match="device must be one of"):
+        resolve_inference_accelerator("tpu")
+
+
+def test_resolve_inference_accelerator_unavailable_device_raises(monkeypatch):
+    """device="cuda" on a machine without CUDA must raise a clear error."""
+    from deeptab.core.serialization import resolve_inference_accelerator
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
+    with pytest.raises(DeviceUnavailableError, match="not available"):
+        resolve_inference_accelerator("cuda")
+
+
+def test_resolve_inference_accelerator_auto_pins_single_device(monkeypatch):
+    """Even when multiple GPUs would be visible, device="auto" must still
+    resolve to a single device, never Lightning's own multi-device
+    auto-scaling."""
+    from deeptab.core.serialization import resolve_inference_accelerator
+
+    monkeypatch.setattr(torch.cuda, "is_available", lambda: True)
+    accelerator, devices, map_location = resolve_inference_accelerator("auto")
+    assert accelerator == "auto"
+    assert devices == 1
+    assert map_location == "cuda"
+
+
+def test_load_uses_map_location_matching_resolved_device(regression_data):
+    """load() must forward a concrete map_location to torch.load(), so weights
+    saved from a different device can be deserialized safely instead of
+    crashing when that device isn't available on the loading machine."""
+    from unittest.mock import patch
+
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        with patch("torch.load", wraps=torch.load) as mock_load:
+            MLPRegressor.load(tmp_path, device="cpu")
+        assert mock_load.call_args.kwargs["map_location"] == "cpu"
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_load_defaults_to_cpu_accelerator(regression_data):
+    """load() with no `device` argument must pin the reconstructed trainer to
+    CPU, even though fit() itself left the accelerator unpinned ("auto")."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    assert type(loaded._trainer.accelerator).__name__ == "CPUAccelerator"
+
+
+def test_load_device_auto_opts_into_automatic_selection(regression_data):
+    """device="auto" must still work and re-enable Lightning's own automatic
+    hardware selection (the pre-#465 behavior), as an explicit opt-in."""
+    X_train, X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path, device="auto")
+    finally:
+        os.unlink(tmp_path)
+
+    preds = loaded.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_load_explicit_cpu_device(regression_data):
+    X_train, X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path, device="cpu")
+    finally:
+        os.unlink(tmp_path)
+
+    assert type(loaded._trainer.accelerator).__name__ == "CPUAccelerator"
+    preds = loaded.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_load_invalid_device_raises(regression_data):
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        with pytest.raises(InvalidDeviceError, match="device must be one of"):
+            MLPRegressor.load(tmp_path, device="tpu")
+    finally:
+        os.unlink(tmp_path)
+
+
+def test_lss_load_defaults_to_cpu_accelerator(regression_data):
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPLSS()
+    model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPLSS.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    assert type(loaded._trainer.accelerator).__name__ == "CPUAccelerator"
+
+
+def test_classifier_load_defaults_to_cpu_accelerator(classification_data):
+    X_train, _X_test, y_train, _y_test = classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPClassifier.load(tmp_path)
+    finally:
+        os.unlink(tmp_path)
+
+    assert type(loaded._trainer.accelerator).__name__ == "CPUAccelerator"

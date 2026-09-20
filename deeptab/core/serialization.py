@@ -11,6 +11,8 @@ from typing import Any
 import numpy as np
 import torch
 
+from deeptab.core.exceptions import device_unavailable_error, invalid_device_error
+
 RECOMMENDED_EXTENSION = ".deeptab"
 ARTIFACT_FORMAT_VERSION = 2
 
@@ -48,6 +50,64 @@ def load_state_dict(model: torch.nn.Module, path: str, device: str | torch.devic
     model.load_state_dict(state_dict)
     model.to(device)
     return model
+
+
+INFERENCE_DEVICES = ("cpu", "cuda", "mps", "auto")
+
+
+def _device_is_available(device: str) -> bool:
+    """Check whether *device* (a concrete, non-"auto" device name) can be used."""
+    if device == "cpu":
+        return True
+    if device == "cuda":
+        return torch.cuda.is_available()
+    if device == "mps":
+        return torch.backends.mps.is_available()
+    return False
+
+
+def resolve_inference_accelerator(device: str) -> tuple[str, int, str]:
+    """Translate a ``load()``/``InferenceModel`` ``device`` argument into the
+    values needed to safely reconstruct a model on the loading machine.
+
+    A model reloaded from disk must not silently inherit whatever hardware happens
+    to be visible on the loading machine: the trainer created during
+    :meth:`load` is used for every subsequent ``predict()`` call, so an unpinned
+    ``accelerator="auto"`` with a multi-GPU host can start distributed inference
+    the caller never asked for. ``devices`` is therefore always pinned to a single
+    device, even for ``"auto"``, since automatic selection only chooses which
+    accelerator type to use, never how many devices.
+
+    Parameters
+    ----------
+    device : {"cpu", "cuda", "mps", "auto"}
+        Requested inference device.
+
+    Returns
+    -------
+    tuple[str, int, str]
+        ``(accelerator, devices, map_location)``: ``accelerator``/``devices`` are
+        ready to pass to ``lightning.Trainer``; ``map_location`` is the concrete
+        device name to pass to ``torch.load`` so weights saved on one device (e.g.
+        a training GPU) can always be deserialized safely, regardless of what
+        hardware the saved artifact was produced on.
+
+    Raises
+    ------
+    InvalidDeviceError
+        If *device* is not one of the supported values.
+    DeviceUnavailableError
+        If a concrete device (``"cuda"``/``"mps"``) is requested but not available
+        on this machine.
+    """
+    if device not in INFERENCE_DEVICES:
+        raise invalid_device_error(device, INFERENCE_DEVICES)
+    if device == "auto":
+        map_location = next((candidate for candidate in ("cuda", "mps") if _device_is_available(candidate)), "cpu")
+        return "auto", 1, map_location
+    if not _device_is_available(device):
+        raise device_unavailable_error(device)
+    return device, 1, device
 
 
 def collect_version_metadata() -> dict[str, Any]:

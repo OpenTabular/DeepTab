@@ -119,7 +119,7 @@ class InferenceModel:
         self._task = self._detect_task()
 
     @classmethod
-    def from_path(cls, path: str | os.PathLike) -> InferenceModel:
+    def from_path(cls, path: str | os.PathLike, device: str = "cpu") -> InferenceModel:
         """Load a DeepTab artifact and return an :class:`InferenceModel`.
 
         Parameters
@@ -127,6 +127,14 @@ class InferenceModel:
         path : str or path-like
             Path to a ``.deeptab`` file written by
             :meth:`~deeptab.models.base.SklearnBase.save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reloaded model. Defaults to ``"cpu"``
+            regardless of what hardware the model was trained on, so a
+            deployment machine's available hardware never silently changes
+            how the model runs. Pass ``"cuda"``/``"mps"`` to pin a single
+            accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
 
         Returns
         -------
@@ -138,11 +146,21 @@ class InferenceModel:
             If *path* does not exist.
         ValueError
             If the loaded artifact was not fitted.
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
 
         Examples
         --------
         >>> model = InferenceModel.from_path("my_model.deeptab")
         >>> predictions = model.predict(X_new)
+
+        Loading a CPU-trained model on a multi-GPU deployment host stays on
+        CPU by default; pass ``device="cuda"`` to run inference on one GPU:
+
+        >>> model = InferenceModel.from_path("my_model.deeptab", device="cuda")
         """
         path = os.fspath(path)
         if not os.path.exists(path):
@@ -153,7 +171,10 @@ class InferenceModel:
         from deeptab.core.serialization import _warn_extension
 
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        # Peeking at the artifact's class only needs metadata, so force this onto
+        # CPU regardless of *device* to avoid failing on a machine that lacks
+        # whatever hardware the artifact happens to have been saved from.
+        bundle = torch.load(path, weights_only=False, map_location="cpu")
 
         estimator_class = bundle.get("_class")
         if estimator_class is None:
@@ -162,7 +183,7 @@ class InferenceModel:
                 "It may have been saved by an older version of DeepTab."
             )
 
-        estimator = estimator_class.load(path)
+        estimator = estimator_class.load(path, device=device)
         return cls(estimator)
 
     @classmethod

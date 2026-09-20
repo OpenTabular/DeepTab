@@ -27,6 +27,14 @@ predictions = loaded.predict(X_test)
 `load()` reconstructs whatever model type was saved, regardless of which estimator class you call it on. Calling `MLPRegressor.load("classifier.deeptab")` still returns an `MLPClassifier`. Calling `load()` from the matching class keeps the intent clear, but the returned object always has the saved type.
 ```
 
+```{note}
+`load()` accepts a `device` argument (`"cpu"`, `"cuda"`, `"mps"`, or `"auto"`) that controls the hardware the reloaded model runs on, independently of whatever device it was trained on. It defaults to `"cpu"`, so a model trained on GPU still loads and predicts on CPU on a machine that happens to have GPUs visible, unless you explicitly ask otherwise. `device="auto"` opts back into Lightning's own automatic accelerator selection, but always pins a single device, never distributed multi-device inference. An unsupported `device` value raises `InvalidDeviceError`, and a device that isn't available on the current machine (e.g. `"cuda"` without a GPU) raises `DeviceUnavailableError`. Weights are always deserialized directly onto the resolved device, so an artifact saved from a GPU-trained model can still be loaded safely on a CPU-only machine.
+```
+
+```python
+loaded = MLPClassifier.load("my_model.deeptab", device="cuda")
+```
+
 ### What is inside the artifact
 
 The bundle saved to disk is a PyTorch-serialised dictionary containing:

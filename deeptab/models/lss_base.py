@@ -13,7 +13,13 @@ from tqdm import tqdm
 from deeptab.configs import TrainerConfig
 from deeptab.core.exceptions import not_fitted_error
 from deeptab.core.preprocessing import build_preprocessor
-from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.core.serialization import (
+    _warn_extension,
+    build_save_bundle,
+    resolve_inference_accelerator,
+    restore_base_state,
+    restore_loaded_metadata,
+)
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
@@ -613,13 +619,20 @@ class SklearnBaseLSS(SklearnBase):
         torch.save(bundle, path)
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, device: str = "cpu"):
         """Load and return a fitted model from *path*.
 
         Parameters
         ----------
         path : str
             Path to a file previously written by :meth:`save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reconstructed model. Defaults to ``"cpu"``
+            regardless of what hardware it was trained on, so loading is
+            reproducible across machines. Pass ``"cuda"``/``"mps"`` to pin a
+            single accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
 
         Returns
         -------
@@ -629,6 +642,14 @@ class SklearnBaseLSS(SklearnBase):
             ``feature_schema_``, ``input_columns_``, ``task_info_``,
             ``classes_``, and ``versions_`` attributes after loading.
 
+        Raises
+        ------
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
+
         Examples
         --------
         >>> loaded = MLPLSS.load("my_lss_model.deeptab")
@@ -637,7 +658,8 @@ class SklearnBaseLSS(SklearnBase):
         'normal'
         """
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        accelerator, devices, map_location = resolve_inference_accelerator(device)
+        bundle = torch.load(path, weights_only=False, map_location=map_location)
 
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
@@ -680,6 +702,8 @@ class SklearnBaseLSS(SklearnBase):
 
         obj._trainer = pl.Trainer(
             max_epochs=1,
+            accelerator=accelerator,
+            devices=devices,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,

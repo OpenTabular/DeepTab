@@ -16,6 +16,9 @@ DeepTabError
 ├── ModelError
 │   ├── NotFittedError (also inherits sklearn.exceptions.NotFittedError)
 │   └── ArchitectureRequirementError
+├── DeviceError
+│   ├── InvalidDeviceError (also inherits ValueError)
+│   └── DeviceUnavailableError (also inherits RuntimeError)
 └── ConfigError
     ├── InvalidParamError
     └── IncompatibleParamsError
@@ -88,6 +91,21 @@ class NotFittedError(ModelError, _SklearnNotFittedError):
 
 class ArchitectureRequirementError(ModelError):
     """The chosen architecture cannot operate on the provided data."""
+
+
+# -- Device errors -----------------------------------------------------------
+
+
+class DeviceError(DeepTabError):
+    """Problem resolving or validating an inference device."""
+
+
+class InvalidDeviceError(DeviceError, ValueError):
+    """The requested device name is not one of the supported choices."""
+
+
+class DeviceUnavailableError(DeviceError, RuntimeError):
+    """The requested device is a supported choice but not available on this machine."""
 
 
 # -- Config errors -----------------------------------------------------------
@@ -245,6 +263,21 @@ def architecture_requirement_error(
     return ArchitectureRequirementError(
         f"{arch} cannot be used with this data: {requirement}\nSuggestion: {suggestion}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Message factories — Device
+# ---------------------------------------------------------------------------
+
+
+def invalid_device_error(device: Any, valid_devices: tuple[str, ...]) -> InvalidDeviceError:
+    """Return an :class:`InvalidDeviceError` for an unsupported device name."""
+    return InvalidDeviceError(f"device must be one of {valid_devices!r}, got {device!r}.")
+
+
+def device_unavailable_error(device: str) -> DeviceUnavailableError:
+    """Return a :class:`DeviceUnavailableError` for a device unavailable on this machine."""
+    return DeviceUnavailableError(f"device={device!r} was requested but is not available on this machine.")
 
 
 # ---------------------------------------------------------------------------

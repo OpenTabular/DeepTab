@@ -15,7 +15,13 @@ import lightning as pl
 import torch
 
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
-from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.core.serialization import (
+    _warn_extension,
+    build_save_bundle,
+    resolve_inference_accelerator,
+    restore_base_state,
+    restore_loaded_metadata,
+)
 
 
 class _SerializationMixin:
@@ -100,19 +106,34 @@ class _SerializationMixin:
         return path
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, device: str = "cpu"):
         """Load and return a fitted model from *path*.
 
         Parameters
         ----------
         path : str
             Path to a file previously written by :meth:`save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reconstructed model. Defaults to ``"cpu"``
+            regardless of what hardware it was trained on, so loading is
+            reproducible across machines. Pass ``"cuda"``/``"mps"`` to pin a
+            single accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
 
         Returns
         -------
         estimator
             A fully reconstructed, ready-to-predict estimator of the same
             type that was saved.
+
+        Raises
+        ------
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
 
         Examples
         --------
@@ -124,7 +145,8 @@ class _SerializationMixin:
         6
         """
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        accelerator, devices, map_location = resolve_inference_accelerator(device)
+        bundle = torch.load(path, weights_only=False, map_location=map_location)
 
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
@@ -172,6 +194,8 @@ class _SerializationMixin:
 
         obj._trainer = pl.Trainer(
             max_epochs=1,
+            accelerator=accelerator,
+            devices=devices,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,
