@@ -235,7 +235,7 @@ class SklearnBaseClassifier(SklearnBase):
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         dataloader_kwargs=None,
-        rebuild=True,
+        rebuild: bool | None = None,
         class_weight: str | dict | list | np.ndarray | None = None,
         loss_fct=None,
         balanced_sampler: bool = False,
@@ -311,8 +311,12 @@ class SklearnBaseClassifier(SklearnBase):
             torch.metrics dict to be logged during validation.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
-        rebuild: bool, default=True
-            Whether to rebuild the model when it already was built.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way.
         class_weight : {"balanced"}, dict, array-like, or None, default=None
             Weights associated with classes for imbalanced data. ``"balanced"``
             mirrors scikit-learn and uses ``n_samples / (n_classes * bincount(y))``
@@ -668,6 +672,7 @@ class SklearnBaseClassifier(SklearnBase):
             use_negative=use_negative,
             pool_sequence=pool_sequence,
         )
+        self._is_pretrained = True
 
     def optimize_hparams(
         self,

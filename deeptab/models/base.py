@@ -230,6 +230,9 @@ class SklearnBase(
         self._estimator = model_cls
         self._task_model = None
         self._built = False
+        # Set by pretrain(); makes the next fit() continue from the pretrained
+        # weights by default instead of rebuilding a fresh model (#446).
+        self._is_pretrained = False
         # Fitted attributes (_data_module, _trainer, _best_model_path) are
         # initialised here so fit() never *adds* new public attributes.
         # input_columns_ is a proper fitted attribute (trailing _) set only

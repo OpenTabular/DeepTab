@@ -138,7 +138,7 @@ class SklearnBaseRegressor(SklearnBase):
         dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        rebuild=True,
+        rebuild: bool | None = None,
         **trainer_kwargs,
     ):
         """Trains the regression model using the provided training data. Optionally, a separate validation set can be
@@ -206,8 +206,12 @@ class SklearnBaseRegressor(SklearnBase):
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        rebuild: bool, default=True
-            Whether to rebuild the model when it already was built.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -426,6 +430,7 @@ class SklearnBaseRegressor(SklearnBase):
             use_negative=use_negative,
             pool_sequence=pool_sequence,
         )
+        self._is_pretrained = True
 
     def optimize_hparams(
         self,

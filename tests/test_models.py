@@ -12,6 +12,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 from sklearn.model_selection import train_test_split
 
@@ -234,6 +235,72 @@ def test_predict_validates_feature_names(classification_data):
 
     with pytest.raises(ColumnNameError):
         model.predict(X_test[X_test.columns[::-1]])
+
+
+# ---------------------------------------------------------------------------
+# pretrain() -> fit() continuity (#446)
+# ---------------------------------------------------------------------------
+
+
+def test_classifier_fit_continues_from_pretrained_weights(binary_classification_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+
+    model = MambularClassifier()
+    model.build_model(X_train, y_train)
+    assert model._task_model is not None
+    weight_before_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    weight_after_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+    assert not torch.allclose(weight_before_pretrain, weight_after_pretrain)
+
+    # If fit() silently rebuilds, self._task_model.estimator becomes a brand
+    # new module instance (a fresh, random re-initialization), which is
+    # exactly the bug #446 reports. A continued fit() keeps the same object.
+    pretrained_estimator = model._task_model.estimator
+    model.fit(X_train, y_train, max_epochs=1)
+
+    assert model._task_model is not None
+    assert model._task_model.estimator is pretrained_estimator
+    assert model._is_pretrained is False  # cleared once fit() actually trains
+
+
+def test_regressor_fit_continues_from_pretrained_weights(regression_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = regression_data
+
+    model = MambularRegressor()
+    model.build_model(X_train, y_train)
+    assert model._task_model is not None
+    weight_before_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    weight_after_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+    assert not torch.allclose(weight_before_pretrain, weight_after_pretrain)
+
+    pretrained_estimator = model._task_model.estimator
+    model.fit(X_train, y_train, max_epochs=1)
+
+    assert model._task_model is not None
+    assert model._task_model.estimator is pretrained_estimator
+
+
+def test_explicit_rebuild_true_discards_pretrained_weights_with_warning(binary_classification_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+
+    model = MambularClassifier()
+    model.build_model(X_train, y_train)
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    pretrained_estimator = model._task_model.estimator
+
+    with pytest.warns(UserWarning, match="rebuild=True discards"):
+        model.fit(X_train, y_train, max_epochs=1, rebuild=True)
+
+    assert model._task_model is not None
+    # An explicit rebuild=True is honored even though it throws pretraining away.
+    assert model._task_model.estimator is not pretrained_estimator
 
 
 # ---------------------------------------------------------------------------

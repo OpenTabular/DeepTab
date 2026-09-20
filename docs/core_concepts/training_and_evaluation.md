@@ -303,7 +303,7 @@ model.fit(
 | `checkpoint_path`              | `None`   | Directory for best-checkpoint saving and restore. Falls back to `TrainerConfig.checkpoint_path`, then `"model_checkpoints"`. Only an explicit `fit()` value is used as-is; a fallback value gets its own timestamped per-run sub-directory so concurrent/repeated runs never collide. |
 | `train_metrics`, `val_metrics` | `None`   | Extra metrics logged during training/validation; accepts `torchmetrics.Metric` objects or `DeepTabMetric` instances (see [Custom metrics during training](#custom-metrics-during-training)).                                                                                          |
 | `dataloader_kwargs`            | `{}`     | Extra keyword arguments forwarded to the PyTorch `DataLoader`.                                                                                                                                                                                                                        |
-| `rebuild`                      | `True`   | Rebuild the architecture even if one already exists.                                                                                                                                                                                                                                  |
+| `rebuild`                      | `None`   | Whether to rebuild the architecture even if one already exists. `None` rebuilds unless the model was warm-started via [`pretrain()`](../api/training/index), in which case it continues training the pretrained model instead. Pass `True`/`False` explicitly to override either way. |
 | `**trainer_kwargs`             | -        | Forwarded to Lightning's `Trainer` (`accelerator`, `devices`, `precision`, ...).                                                                                                                                                                                                      |
 
 ```{note}
@@ -313,6 +313,14 @@ Arguments that fall back to `TrainerConfig` (`val_size`, `max_epochs`, `batch_si
 explicitly passed", so DeepTab can tell the difference between "you asked for the
 default" and "you didn't say", and only then falls back to `TrainerConfig` (or the
 built-in default when no `TrainerConfig` is set).
+```
+
+```{note}
+`rebuild`'s `None` default uses that same "not explicitly passed" idea, but resolves
+against the model's pretrain state rather than `TrainerConfig`: it rebuilds unless
+`pretrain()` was just called. Passing `rebuild=True` after `pretrain()` is still
+honored, but discards the pretrained embeddings, so DeepTab raises a `UserWarning`
+when that happens.
 ```
 
 ### Classifier-only arguments

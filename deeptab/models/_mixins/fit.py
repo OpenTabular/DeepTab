@@ -232,6 +232,7 @@ class _FitMixin:
         )
 
         self._built = True
+        self._is_pretrained = False
         self._estimator = self._task_model.estimator
         _n_params_build = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)
         self._emit_event(
@@ -301,7 +302,7 @@ class _FitMixin:
         dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        rebuild=True,
+        rebuild: bool | None = None,
         loss_fct: Callable | None = None,
         sampler=None,
         **trainer_kwargs,
@@ -381,8 +382,12 @@ class _FitMixin:
             instances (NumPy-based, called as ``metric(y_true, y_pred)``).
         val_metrics : dict or None, optional
             Metrics to log during validation. Same accepted types as ``train_metrics``.
-        rebuild : bool, default=True
-            Whether to rebuild the model when already built.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way.
         loss_fct : Callable or None, optional
             Custom loss function override.
         sampler : {"balanced", True}, array-like, or None, optional
@@ -474,6 +479,24 @@ class _FitMixin:
             n_features=X.shape[1] if hasattr(X, "shape") else len(X.columns),
             random_state=getattr(self, "random_state", None),
         )
+
+        if rebuild is None:
+            rebuild = not self._is_pretrained
+        elif rebuild and self._is_pretrained:
+            import warnings
+
+            warnings.warn(
+                "rebuild=True discards the embeddings warm-started by pretrain(); "
+                "the model will be rebuilt from scratch. Pass rebuild=False (or omit "
+                "rebuild) to continue training from the pretrained weights.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # This fit() call consumes the pretrained state: it either continues
+        # from it (below) or discards it via a rebuild, so later fit() calls
+        # go back to the ordinary rebuild-by-default behavior.
+        self._is_pretrained = False
 
         if rebuild:
             self._build_model(

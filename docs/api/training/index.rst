@@ -104,6 +104,14 @@ fit as usual:
 continues from the pretrained weights. It also writes the embedding weights to
 ``save_path`` for reuse.
 
+.. note::
+
+   ``fit()``'s ``rebuild`` argument defaults to ``None``, which resolves to
+   ``False`` right after ``pretrain()`` and to ``True`` otherwise, so a plain
+   ``fit()`` call never has to say which one it wants. Passing ``rebuild=True``
+   explicitly still rebuilds the architecture from scratch, discarding the
+   pretrained embeddings, and raises a ``UserWarning`` when it does so.
+
 Low-level API
 ~~~~~~~~~~~~~~
 
