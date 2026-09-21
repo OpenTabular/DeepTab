@@ -611,6 +611,20 @@ def test_experimental_classifier_fit_predict_evaluate(cls, classification_data):
     assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
 
 
+@pytest.mark.smoke
+def test_modern_nca_classifier_binary_predict_proba_not_biased(binary_classification_data):
+    set_seed(RANDOM_STATE)
+    X_train, X_test, y_train, y_test = binary_classification_data
+    model = ModernNCAClassifier()
+    model.fit(X_train, y_train, max_epochs=20, batch_size=64)
+
+    proba = model.predict_proba(X_test)
+    assert proba[:, 1].min() < 0.5, "positive-class probability never drops below 0.5"
+
+    score = model.score(X_test, y_test)
+    assert score > 0.6, f"ModernNCAClassifier binary accuracy too low ({score})"
+
+
 @pytest.mark.parametrize("cls", EXPERIMENTAL_REGRESSORS)
 def test_experimental_regressor_fit_predict_evaluate(cls, regression_data):
     # Experimental models are numerically less stable; seed for deterministic CI.

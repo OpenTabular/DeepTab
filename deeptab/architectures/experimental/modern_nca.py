@@ -223,6 +223,9 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        else:
+            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+            logits = torch.logit(logits, eps=eps)
 
         return logits
 
@@ -288,6 +291,9 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        else:
+            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+            logits = torch.logit(logits, eps=eps)
 
         return logits
 
@@ -353,5 +359,8 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        else:
+            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+            logits = torch.logit(logits, eps=eps)
 
         return logits
