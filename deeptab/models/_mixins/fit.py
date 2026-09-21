@@ -476,7 +476,9 @@ class _FitMixin:
             "fit.started",
             model_class=type(self).__name__,
             n_samples=len(X),
-            n_features=X.shape[1] if hasattr(X, "shape") else len(X.columns),
+            n_features=(
+                X.shape[1] if hasattr(X, "shape") else (len(X.columns) if hasattr(X, "columns") else len(X[0]))
+            ),
             random_state=getattr(self, "random_state", None),
         )
 

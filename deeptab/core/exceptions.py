@@ -11,6 +11,7 @@ DeepTabError
 │   ├── ColumnDtypeError
 │   ├── ColumnCountError
 │   ├── ColumnNameError
+│   ├── DuplicateColumnsError
 │   ├── EmptyDataError
 │   └── InsufficientSamplesError
 ├── ModelError
@@ -64,6 +65,10 @@ class ColumnCountError(DataError, ValueError):
 
 class ColumnNameError(DataError):
     """Feature column names don't match what was seen at fit time."""
+
+
+class DuplicateColumnsError(DataError):
+    """Two or more input columns share the same name."""
 
 
 class EmptyDataError(DataError, ValueError):
@@ -195,6 +200,15 @@ def empty_data_error(context: str = "fit") -> EmptyDataError:
     """Return an :class:`EmptyDataError` for a zero-row or zero-column DataFrame."""
     return EmptyDataError(
         f"Input DataFrame passed to {context}() is empty (0 rows or 0 columns).\nFix: pass a non-empty DataFrame."
+    )
+
+
+def duplicate_columns_error(duplicates: list[str]) -> DuplicateColumnsError:
+    """Return a :class:`DuplicateColumnsError` naming each repeated column label."""
+    return DuplicateColumnsError(
+        f"Input has duplicate column names: {duplicates}.\n"
+        "Fix: rename or drop the duplicated columns before calling fit(), e.g.\n"
+        "  X.columns = [...]  # assign unique names"
     )
 
 

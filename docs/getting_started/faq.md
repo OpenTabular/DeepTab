@@ -179,9 +179,24 @@ model.fit(df, y, max_epochs=50)
 
 The internal [PreTab](https://github.com/OpenTabular/PreTab) preprocessor imputes missing values as part of fitting, so you do not need a separate imputation step. The exact strategy follows the configured `PreprocessingConfig`; with the defaults it uses PreTab's built-in imputation for numerical and categorical features.
 
+```{note}
+A column that is entirely missing (every row is `NaN`/`None`) has nothing for PreTab to learn a strategy from, so DeepTab fills it with a constant instead (`0` for numeric columns, `"missing"` for object/categorical columns) and emits a `DataWarning`. Consider dropping such columns before calling `fit()`.
+```
+
+### What if my column names have duplicates?
+
+DeepTab requires unique column names and raises `DuplicateColumnsError` if `X` contains repeated labels:
+
+```python
+df.columns = ["age", "age"]  # duplicate name
+model.fit(df, y, max_epochs=50)  # raises DuplicateColumnsError
+```
+
+Rename or drop the duplicated columns (e.g. `df.columns = [...]`) before calling `fit()`.
+
 ### Can I use NumPy arrays instead of DataFrames?
 
-Yes. DeepTab accepts both:
+Yes. DeepTab accepts NumPy arrays and plain Python lists of lists, in addition to DataFrames:
 
 ```python
 # NumPy arrays work

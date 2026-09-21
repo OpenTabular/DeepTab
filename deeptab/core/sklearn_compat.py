@@ -12,6 +12,7 @@ from deeptab.core.exceptions import (
     column_count_error,
     column_dtype_error,
     column_name_error,
+    duplicate_columns_error,
     empty_data_error,
     warn_data,
 )
@@ -22,13 +23,15 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
 
     - 1-D arrays raise :exc:`ValueError` following sklearn convention.
     - Empty DataFrames raise :exc:`~deeptab.core.exceptions.EmptyDataError`.
+    - Duplicate column names raise :exc:`~deeptab.core.exceptions.DuplicateColumnsError`.
     - ``bool`` columns are silently cast to ``int8``; they represent valid binary
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
     - ``category`` columns are silently cast to ``object`` so they are detected and
       preprocessed as categorical features (the underlying categories are kept).
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
-    - Columns where every value is NaN issue a
+    - Columns where every value is NaN are filled with a constant (0 for numeric
+      columns, a sentinel category for object columns) and issue a
       :class:`~deeptab.core.exceptions.DataWarning`.
 
     Parameters
@@ -51,6 +54,11 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
 
     if df.shape[0] == 0 or df.shape[1] == 0:
         raise empty_data_error(context)
+
+    if not df.columns.is_unique:
+        counts = df.columns.value_counts()
+        dupes = sorted(str(c) for c, n in counts.items() if n > 1)
+        raise duplicate_columns_error(dupes)
 
     # bool → int8: valid binary feature, but SimpleImputer rejects bool dtype
     bool_cols = [c for c, dt in df.dtypes.items() if dt is np.dtype(bool)]
@@ -78,12 +86,18 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     if bad_cols:
         raise column_dtype_error(bad_cols)
 
-    # Warn about all-NaN columns — imputation will produce a column of constants
-    all_nan_cols = [str(c) for c in df.columns if bool(df[c].isna().all())]
+    # Columns where every value is NaN carry no information to impute from, so fill
+    # them with a constant here rather than leaving it to PreTab's own imputer, which
+    # cannot compute a mean/median from zero observed values and simply drops the
+    # column instead.
+    all_nan_cols = [c for c in df.columns if bool(df[c].isna().all())]
     if all_nan_cols:
+        df = df.copy()
+        for c in all_nan_cols:
+            df[c] = 0 if pd.api.types.is_numeric_dtype(df[c]) else "missing"
         warn_data(
-            f"The following column(s) are entirely NaN and will be imputed with a "
-            f"constant: {all_nan_cols}. Consider dropping them before calling fit().",
+            f"The following column(s) are entirely NaN and were imputed with a "
+            f"constant: {[str(c) for c in all_nan_cols]}. Consider dropping them before calling fit().",
             stacklevel=4,
         )
 

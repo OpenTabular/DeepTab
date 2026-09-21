@@ -39,6 +39,7 @@ from deeptab.core.exceptions import (
     DeepTabWarning,
     DeviceError,
     DeviceUnavailableError,
+    DuplicateColumnsError,
     EmptyDataError,
     IncompatibleParamsError,
     InsufficientSamplesError,
@@ -1047,6 +1048,40 @@ class TestEnsureDataframe:
             }
         )
         with pytest.warns(DataWarning, match="all_nan"):
+            ensure_dataframe(df)
+
+    def test_all_nan_numeric_column_filled_with_zero(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0, 2.0, 3.0],
+                "all_nan": [np.nan, np.nan, np.nan],
+            }
+        )
+        with pytest.warns(DataWarning):
+            result = ensure_dataframe(df)
+        assert (result["all_nan"] == 0).all()
+
+    def test_all_nan_object_column_filled_with_sentinel(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0, 2.0, 3.0],
+                "all_nan": pd.Series([None, None, None], dtype="object"),
+            }
+        )
+        with pytest.warns(DataWarning):
+            result = ensure_dataframe(df)
+        assert (result["all_nan"] == "missing").all()
+
+    def test_duplicate_columns_raise_duplicate_columns_error(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
+        df.columns = ["a", "a"]
+        with pytest.raises(DuplicateColumnsError, match=r"^Input has duplicate column names: \['a'\]"):
             ensure_dataframe(df)
 
     def test_context_appears_in_empty_error_message(self):
