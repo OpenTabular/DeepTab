@@ -209,6 +209,10 @@ model = MambularClassifier(preprocessing_config=prep)
 `None` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
 ```
 
+```{warning}
+Don't confuse Python `None` above with the string `"none"`, which PreTab also accepts as a literal representation name for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
+```
+
 ```{note}
 Most deep tabular models train better with a numerical transform than without one. `None` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
 ```
