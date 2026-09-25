@@ -445,6 +445,24 @@ class TestPreprocessingConfigValidation:
         with pytest.raises(IncompatibleParamsError, match="spline_implementation"):
             PreprocessingConfig(spline_implementation="natural")
 
+    def test_categorical_method_none_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match=r"^PreprocessingConfig\.categorical_method"):
+            PreprocessingConfig(categorical_method="none")
+
+    def test_legacy_categorical_preprocessing_none_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match=r"^PreprocessingConfig\.categorical_method"):
+            PreprocessingConfig(categorical_preprocessing="none")
+
+    def test_numerical_method_none_is_not_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(numerical_method="none")
+        assert cfg.to_preprocessor_kwargs()["numerical_method"] == "none"
+
     def test_use_decision_tree_bins_maps_to_target_aware(self):
         from deeptab.configs import PreprocessingConfig
 

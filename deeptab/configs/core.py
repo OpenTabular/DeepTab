@@ -449,6 +449,18 @@ class PreprocessingConfig(BaseEstimator):
         self._resolved_categorical_method = _resolve_legacy_alias(
             "categorical_preprocessing", self.categorical_preprocessing, "categorical_method", self.categorical_method
         )
+        # PreTab's "none" representation leaves categorical columns as raw,
+        # unencoded strings/objects, which the tensor pipeline cannot consume.
+        if self._resolved_categorical_method == "none":
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "categorical_method",
+                "none",
+                "produces raw, unencoded string/object values for categorical columns, "
+                "which crashes when converted to a tensor. Use 'int', 'one-hot', or "
+                "'pretrained' instead ('categorical_preprocessing' is affected the same way).",
+                sorted(x for x in _VALID_CATEGORICAL_METHOD if x not in (None, "none")),
+            )
         self._resolved_scaling = _resolve_legacy_alias(
             "scaling_strategy", self.scaling_strategy, "scaling", self.scaling
         )
