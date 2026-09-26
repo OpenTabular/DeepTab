@@ -28,6 +28,9 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
     - ``category`` columns are silently cast to ``object`` so they are detected and
       preprocessed as categorical features (the underlying categories are kept).
+    - Python ``None`` in object columns is silently replaced with ``np.nan`` so
+      missing values are recognized consistently regardless of which sentinel the
+      input used.
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
     - Columns where every value is NaN are filled with a constant (0 for numeric
@@ -74,6 +77,15 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
         if not bool_cols:
             df = df.copy()
         df = df.astype(dict.fromkeys(cat_cols, "object"))
+
+    # None → NaN: object columns may mix Python's None and np.nan as missing-value
+    # markers. SimpleImputer only recognizes np.nan by default, so a stray None
+    # competes as if it were a real category value instead of being imputed.
+    obj_cols = [c for c, dt in df.dtypes.items() if pd.api.types.is_object_dtype(dt)]
+    if obj_cols:
+        if not bool_cols and not cat_cols:
+            df = df.copy()
+        df[obj_cols] = df[obj_cols].where(df[obj_cols].notna(), np.nan)
 
     # Catch any other dtype that is neither numeric nor object/string
     bad_cols = [

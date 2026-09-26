@@ -1102,6 +1102,24 @@ class TestEnsureDataframe:
         with pytest.raises(DuplicateColumnsError, match=r"^Input has duplicate column names: \['a'\]"):
             ensure_dataframe(df)
 
+    def test_none_in_object_column_normalized_to_nan(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "segment": pd.Series(["a", None, "b"], dtype="object")})
+        result = ensure_dataframe(df)
+        assert result["segment"].isna().tolist() == [False, True, False]
+        assert isinstance(result["segment"].iloc[1], float)
+        assert np.isnan(result["segment"].iloc[1])
+
+    def test_existing_nan_in_object_column_untouched(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "segment": pd.Series(["a", np.nan, "b"], dtype="object")})
+        result = ensure_dataframe(df)
+        assert result["segment"].tolist()[0] == "a"
+        assert np.isnan(result["segment"].tolist()[1])
+        assert result["segment"].tolist()[2] == "b"
+
     def test_context_appears_in_empty_error_message(self):
         from deeptab.core.sklearn_compat import ensure_dataframe
 
