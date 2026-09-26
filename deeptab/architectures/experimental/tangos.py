@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from deeptab.configs.experimental.tangos_config import TangosConfig
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 
@@ -140,7 +140,7 @@ class Tangos(BaseModel):
             The output tensor of shape (batch_size, num_classes).
         """
 
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
 
         for i in range(len(self.layers)):
             if isinstance(self.layers[i], nn.Linear):
@@ -178,12 +178,12 @@ class Tangos(BaseModel):
                 The computed penalty term for regularization.
         """
 
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
         batch_size = x.shape[0]
         subsample = np.int32(self.subsample * batch_size)
 
         # Flatten before passing to jacrev
-        flat_data = torch.cat([t for tensors in data for t in tensors], dim=1)
+        flat_data = concat_features(data)
 
         # Compute Jacobian
         jacobian = torch.func.vmap(torch.func.jacrev(self.repr_forward), randomness="different")(flat_data)

@@ -23,7 +23,7 @@ from .exceptions import (
 )
 from .hardware import print_hardware_info
 from .inference import InferenceModel
-from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
+from .inspection import ImportanceGetter, InspectionMixin, concat_features, get_feature_dimensions
 from .preprocessing import build_preprocessor, fit_preprocessor, list_available_representations
 from .registry import MODEL_REGISTRY, ModelInfo
 from .reproducibility import seed_context, set_seed
@@ -71,6 +71,7 @@ __all__ = [
     "build_preprocessor",
     "check_numpy",
     "collect_version_metadata",
+    "concat_features",
     "ensure_dataframe",
     "fit_preprocessor",
     "get_feature_dimensions",

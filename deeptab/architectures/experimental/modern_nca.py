@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.normalization import get_normalization_layer
@@ -140,7 +140,7 @@ class ModernNCA(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
         x = self.encoder(x)
         if hasattr(self, "post_encoder"):
             x = self.post_encoder(x)
@@ -179,8 +179,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)
@@ -259,8 +259,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)
@@ -327,8 +327,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)

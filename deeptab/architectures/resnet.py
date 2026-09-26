@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.resnet import ResidualBlock
 
@@ -115,7 +115,7 @@ class ResNet(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
 
         x = self.initial_layer(x)
         for block in self.blocks:

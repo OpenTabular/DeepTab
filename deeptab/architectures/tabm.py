@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer, LinearBatchEnsembleLayer, SNLinear
 from deeptab.nn.normalization import get_normalization_layer
 
@@ -179,7 +179,7 @@ class TabM(BaseModel):
                 x = x.reshape(B, N * D)  # Shape: (B, N * D)
 
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
 
         # Process through layers with optional skip connections
         for i in range(len(self.layers) - 1):

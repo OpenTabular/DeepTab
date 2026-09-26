@@ -659,3 +659,69 @@ def test_experimental_lss_fit_predict_evaluate(cls, regression_data):
 
     metrics = model.evaluate(X_test, y_test)
     assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+# ---------------------------------------------------------------------------
+# Regression coverage for GH #448: reasonable tabular inputs (all-categorical
+# frames, a constant numeric column, an all-NaN column) must not crash fit().
+# ---------------------------------------------------------------------------
+
+ALL_CATEGORICAL_MODELS = [
+    MLPClassifier,
+    ResNetClassifier,
+    NODEClassifier,
+    NDTFClassifier,
+    MambaTabClassifier,
+]
+
+
+@pytest.fixture(scope="module")
+def all_categorical_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    df = pd.DataFrame(
+        {
+            "city": rng.choice(["A", "B", "C"], size=N_SAMPLES),
+            "type": rng.choice(["x", "y"], size=N_SAMPLES),
+        }
+    )
+    y = rng.integers(0, 2, size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.mark.parametrize("cls", ALL_CATEGORICAL_MODELS)
+def test_fit_predict_with_only_categorical_features(cls, all_categorical_data):
+    """A frame with zero numerical columns leaves every concatenated feature tensor
+    integer-typed; the non-embedding forward path must still accept it."""
+    X_train, X_test, y_train, _y_test = all_categorical_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_fit_predict_with_constant_numeric_column(regression_data):
+    """A zero-variance numeric column must not crash the default PLE preprocessing."""
+    X_train, X_test, y_train, _y_test = regression_data
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+    X_train["flag"] = 1.0
+    X_test["flag"] = 1.0
+
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_fit_predict_with_all_nan_column(regression_data):
+    """An entirely-NaN column must be imputed with a constant, not crash the pipeline."""
+    X_train, X_test, y_train, _y_test = regression_data
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+    X_train["empty"] = np.nan
+    X_test["empty"] = np.nan
+
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)

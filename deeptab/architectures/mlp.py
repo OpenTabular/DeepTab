@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 from ..configs.models.mlp_config import MLPConfig
@@ -128,7 +128,7 @@ class MLP(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
 
         for i in range(len(self.layers) - 1):
             if isinstance(self.layers[i], nn.Linear):

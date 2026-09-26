@@ -6,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 from ..configs.models.tabr_config import TabRConfig
@@ -247,7 +247,7 @@ class TabR(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
         x, k = self._encode(x)
         context_k = k.unsqueeze(1).expand(-1, self.context_size, -1)  # using the batch itself as context
         similarities = (
@@ -294,8 +294,8 @@ class TabR(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         with torch.set_grad_enabled(torch.is_grad_enabled() and not self.memory_efficient):
             candidate_k = (
@@ -405,8 +405,8 @@ class TabR(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         if not self.memory_efficient:
             candidate_k = (
@@ -495,8 +495,8 @@ class TabR(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         if not self.memory_efficient:
             candidate_k = (

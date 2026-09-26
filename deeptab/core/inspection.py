@@ -87,6 +87,33 @@ def get_feature_dimensions(num_feature_info, cat_feature_info, embedding_info):
     return input_dim
 
 
+def concat_features(data) -> torch.Tensor:
+    """Concatenate the per-group feature tensors into one dense float input.
+
+    Ordinal-encoded categorical tensors arrive as ``torch.long`` while numerical
+    tensors arrive as ``torch.float32``; concatenating the two normally promotes
+    the result to float, but a table with no numerical columns leaves every
+    tensor integer, so the concatenation stays integer and the first
+    ``nn.Linear`` layer rejects it. Casting here makes the non-embedding
+    forward path work regardless of which feature groups are present.
+
+    Parameters
+    ----------
+    data : tuple
+        Tuple of feature-tensor groups (e.g. num_features, cat_features,
+        embeddings), each a sequence of per-feature tensors.
+
+    Returns
+    -------
+    torch.Tensor
+        The concatenated feature tensor, cast to float if it was not already.
+    """
+    x = torch.cat([t for tensors in data for t in tensors], dim=1)
+    if not torch.is_floating_point(x):
+        x = x.float()
+    return x
+
+
 def _safe_class_name(obj: Any) -> str | None:
     if obj is None:
         return None

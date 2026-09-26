@@ -2,7 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.node import NeuralDecisionTree
 
 from ..configs.models.ndtf_config import NDTFConfig
@@ -154,7 +154,7 @@ class NDTF(BaseModel):
         torch.Tensor
             Output tensor.
         """
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
         x = self.conv_layer(x.unsqueeze(2))
         x = x.transpose(1, 2).squeeze(-1)
 
@@ -181,7 +181,7 @@ class NDTF(BaseModel):
         torch.Tensor
             Output tensor.
         """
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
         x = self.conv_layer(x.unsqueeze(2))
         x = x.transpose(1, 2).squeeze(-1)
 
