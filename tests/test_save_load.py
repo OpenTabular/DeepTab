@@ -641,6 +641,72 @@ def test_load_explicit_cpu_device(regression_data):
     assert preds.shape == (len(X_test),)
 
 
+def test_regressor_explicit_cpu_load_predictions_match(regression_data):
+    """fit -> predict -> save -> explicit device="cpu" load -> predict must match within floating-point tolerance."""
+    X_train, X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds_before = model.predict(X_test)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPRegressor.load(tmp_path, device="cpu")
+    finally:
+        os.unlink(tmp_path)
+
+    preds_after = loaded.predict(X_test)
+    assert preds_after.shape == preds_before.shape
+    # allclose, not exact equality: fit() trains on the auto-selected accelerator
+    # (e.g. MPS/CUDA), while an explicit device="cpu" reload runs inference on a
+    # different backend, whose floating-point rounding differs at the ULP level.
+    np.testing.assert_allclose(
+        preds_before,
+        preds_after,
+        rtol=1e-4,
+        atol=1e-6,
+        err_msg="MLPRegressor predictions changed after an explicit device='cpu' save/load round-trip",
+    )
+
+
+def test_classifier_explicit_cpu_load_predictions_match(classification_data):
+    """fit -> predict -> save -> explicit device="cpu" load -> predict must match within floating-point tolerance."""
+    X_train, X_test, y_train, _y_test = classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds_before = model.predict(X_test)
+    proba_before = model.predict_proba(X_test)
+
+    with tempfile.NamedTemporaryFile(suffix=".pt", delete=False) as f:
+        tmp_path = f.name
+    try:
+        model.save(tmp_path)
+        loaded = MLPClassifier.load(tmp_path, device="cpu")
+    finally:
+        os.unlink(tmp_path)
+
+    preds_after = loaded.predict(X_test)
+    proba_after = loaded.predict_proba(X_test)
+    assert preds_after.shape == preds_before.shape
+    assert proba_after.shape == proba_before.shape
+    # allclose, not exact equality: fit() trains on the auto-selected accelerator
+    # (e.g. MPS/CUDA), while an explicit device="cpu" reload runs inference on a
+    # different backend, whose floating-point rounding differs at the ULP level.
+    np.testing.assert_array_equal(
+        preds_before,
+        preds_after,
+        err_msg="MLPClassifier.predict changed after an explicit device='cpu' save/load round-trip",
+    )
+    np.testing.assert_allclose(
+        proba_before,
+        proba_after,
+        rtol=1e-4,
+        atol=1e-6,
+        err_msg="MLPClassifier.predict_proba changed after an explicit device='cpu' save/load round-trip",
+    )
+
+
 def test_load_invalid_device_raises(regression_data):
     X_train, _X_test, y_train, _y_test = regression_data
     model = MLPRegressor()

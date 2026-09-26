@@ -127,3 +127,52 @@ class TestClassifierLabelEncoding:
         clf = MLPClassifier()
         with pytest.raises(ValueError, match="not seen during fit"):
             clf.fit(X_train, y_train, X_val=X_val, y_val=y_val, random_state=RANDOM_STATE, **FIT_KWARGS)
+
+
+# ---------------------------------------------------------------------------
+# (n,1) column-vector y must behave identically to (n,) y through the full
+# fit/predict API, across label dtypes and binary/multiclass tasks.
+# ---------------------------------------------------------------------------
+
+
+class TestColumnVectorTargets:
+    def test_multiclass_column_vector_matches_1d(self):
+        X, y = _multiclass_data((0, 1, 2))
+
+        clf_1d = MLPClassifier()
+        clf_1d.fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
+        preds_1d = clf_1d.predict(X)
+
+        clf_2d = MLPClassifier()
+        clf_2d.fit(X, y.reshape(-1, 1), random_state=RANDOM_STATE, **FIT_KWARGS)
+        preds_2d = clf_2d.predict(X)
+
+        assert preds_2d.shape == preds_1d.shape == (len(y),)
+        np.testing.assert_array_equal(preds_1d, preds_2d)
+
+    def test_string_binary_column_vector_round_trip(self):
+        X, y = _separable_binary_data(("no", "yes"))
+        clf = MLPClassifier()
+        clf.fit(X, y.reshape(-1, 1), random_state=RANDOM_STATE, **FIT_KWARGS)
+
+        preds = clf.predict(X)
+        assert preds.shape == (len(y),)
+        assert set(np.unique(preds)).issubset({"no", "yes"})
+
+    def test_string_multiclass_column_vector_round_trip(self):
+        X, y = _multiclass_data(("cat", "dog", "fish"))
+        clf = MLPClassifier()
+        clf.fit(X, y.reshape(-1, 1), random_state=RANDOM_STATE, **FIT_KWARGS)
+
+        preds = clf.predict(X)
+        assert preds.shape == (len(y),)
+        assert set(np.unique(preds)).issubset({"cat", "dog", "fish"})
+
+    def test_non_contiguous_integer_column_vector_does_not_crash(self):
+        X, y = _multiclass_data((10, 20, 30))
+        clf = MLPClassifier()
+        clf.fit(X, y.reshape(-1, 1), random_state=RANDOM_STATE, **FIT_KWARGS)
+
+        preds = clf.predict(X)
+        assert preds.shape == (len(y),)
+        assert set(np.unique(preds)).issubset({10, 20, 30})
