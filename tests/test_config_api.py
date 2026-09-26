@@ -393,6 +393,59 @@ class TestEstimatorSklearnClone:
         assert model.trainer_config.max_epochs == 3
 
 
+class TestLegacyFlatKwargsSetParams:
+    """No configs passed at construction: get_params/set_params/clone must
+    reflect the estimator's real state and reject unknown keys (GH #410)."""
+
+    def test_set_params_updates_the_actual_config(self):
+        """set_params() must change what fit() would actually build, not just
+        an inert bookkeeping dict."""
+        model = MLPClassifier(random_state=42)
+        model.set_params(layer_sizes=[8])
+        assert model.config.layer_sizes == [8]
+
+    def test_get_params_reports_overrides(self):
+        model = MLPClassifier()
+        model.set_params(layer_sizes=[8])
+        assert model.get_params()["layer_sizes"] == [8]
+
+    def test_set_params_updates_random_state(self):
+        model = MLPClassifier(random_state=42)
+        model.set_params(random_state=99)
+        assert model.random_state == 99
+
+    def test_set_params_invalid_key_raises(self):
+        model = MLPClassifier()
+        with pytest.raises(ValueError, match="abc"):
+            model.set_params(abc=123)
+
+    def test_clone_preserves_flat_overrides(self):
+        model = MLPClassifier(random_state=42)
+        model.set_params(layer_sizes=[8])
+        cloned = clone(model)
+        assert cloned.random_state == 42
+        assert cloned.config.layer_sizes == [8]
+
+    def test_gridsearchcv_style_set_params_changes_architecture(self):
+        """Simulates what GridSearchCV does per candidate: clone the base
+        estimator, then set_params() the candidate's hyperparameters."""
+        base = MLPClassifier(random_state=0)
+
+        small = clone(base)
+        small.set_params(layer_sizes=[8])
+        big = clone(base)
+        big.set_params(layer_sizes=[256, 128, 32])
+
+        assert small.config.layer_sizes != big.config.layer_sizes
+
+
+class TestSplitConfigSetParams:
+    def test_set_params_invalid_top_level_key_raises(self):
+        model = MLPClassifier(model_config=MLPConfig(), trainer_config=_FAST_TRAINER)
+        with pytest.raises(ValueError, match="abc"):
+            model.set_params(abc=123)
+
+
 class TestEstimatorFitPredict:
     """Functional smoke tests: fit → predict with the split-config API."""
 

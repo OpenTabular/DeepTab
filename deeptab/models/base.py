@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import warnings
+from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
 from typing import TYPE_CHECKING, ClassVar
 
 import lightning as pl
 import numpy as np
 from sklearn.base import BaseEstimator
+from sklearn.base import clone as sklearn_clone
 
 from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
@@ -251,6 +254,15 @@ class SklearnBase(
         # Only wire up for a genuine ObservabilityConfig; like the model and
         # preprocessing configs above, an unexpected value is stored as-is and
         # validation is deferred rather than raising inside __init__.
+        self._apply_observability_config(observability_config)
+
+    def _apply_observability_config(self, observability_config: ObservabilityConfig | None) -> None:
+        """Store and wire up an observability config (shared by __init__ and set_params).
+
+        Only wires up backends for a genuine ObservabilityConfig; like the model
+        and preprocessing configs, an unexpected value is stored as-is and
+        validation is deferred rather than raising here.
+        """
         self._observability_config: ObservabilityConfig | None = observability_config
         if observability_config is not None and hasattr(observability_config, "structured_logging"):
             self.configure_observability(observability_config)
@@ -294,24 +306,66 @@ class SklearnBase(
 
         # No configs were supplied at construction time. `__init__` only ever
         # accepts `model_config`/`preprocessing_config`/`trainer_config`/
-        # `random_state`, so mirror that shape here too instead of flattening
-        # `_config_kwargs`/`_preprocessor_kwargs` into keys `cls(**params)`
-        # cannot accept (that flattening broke `clone()`/round-tripping).
+        # `random_state` as constructor arguments, so any additional overrides
+        # applied via set_params() (e.g. `layer_sizes`) are surfaced here too
+        # instead of being silently invisible to get_params() (GH #410).
+        # __sklearn_clone__ (below) replays these through set_params() rather
+        # than the constructor, so reporting them here does not break clone().
         return {
             "model_config": self.model_config,
             "preprocessing_config": self.preprocessing_config,
             "trainer_config": self.trainer_config,
             "random_state": self.random_state,
+            **self._config_kwargs,
+            **self._preprocessor_kwargs,
         }
 
+    def __sklearn_clone__(self):
+        """Clone by replaying set_params() rather than calling cls(**get_params()).
+
+        get_params() can report parameter overrides (e.g. ``layer_sizes`` applied
+        through set_params()) that ``__init__`` does not accept as keyword
+        arguments. scikit-learn's default clone builds the copy via
+        ``type(self)(**self.get_params(deep=False))``, which would raise a
+        ``TypeError`` in that case. Rebuilding from the real constructor
+        arguments and replaying everything else through set_params() keeps
+        clone() reliable for both the split-config and flat-kwargs styles
+        (GH #410).
+        """
+        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
+            return type(self)(
+                model_config=sklearn_clone(self.model_config) if self.model_config is not None else None,
+                preprocessing_config=(
+                    sklearn_clone(self.preprocessing_config) if self.preprocessing_config is not None else None
+                ),
+                trainer_config=sklearn_clone(self.trainer_config) if self.trainer_config is not None else None,
+                random_state=self.random_state,
+            )
+
+        new_object = type(self)(random_state=self.random_state)
+        extra_params = {**self._config_kwargs, **self._preprocessor_kwargs}
+        if extra_params:
+            new_object.set_params(**extra_params)
+        return new_object
+
     def set_params(self, **parameters):
-        """Set the parameters of this estimator."""
+        """Set the parameters of this estimator.
+
+        Raises
+        ------
+        ValueError
+            If a key in ``parameters`` does not name a recognised parameter.
+        """
+        if not parameters:
+            return self
+
         if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
             # New split-config style
             direct_params = {}
             model_config_params = {}
             preprocessing_config_params = {}
             trainer_config_params = {}
+            invalid_keys = []
 
             for k, v in parameters.items():
                 if k.startswith("model_config__"):
@@ -320,8 +374,23 @@ class SklearnBase(
                     preprocessing_config_params[k[len("preprocessing_config__") :]] = v
                 elif k.startswith("trainer_config__"):
                     trainer_config_params[k[len("trainer_config__") :]] = v
-                else:
+                elif k in (
+                    "model_config",
+                    "preprocessing_config",
+                    "trainer_config",
+                    "random_state",
+                    "observability_config",
+                ):
                     direct_params[k] = v
+                else:
+                    invalid_keys.append(k)
+
+            if invalid_keys:
+                raise ValueError(
+                    f"Invalid parameter(s) {sorted(invalid_keys)} for estimator "
+                    f"{type(self).__name__}. Check the list of available parameters "
+                    "with `estimator.get_params().keys()`."
+                )
 
             for k, v in direct_params.items():
                 if k == "model_config":
@@ -345,6 +414,8 @@ class SklearnBase(
                         self._optimizer_type = v.optimizer_type
                 elif k == "random_state":
                     self.random_state = v
+                elif k == "observability_config":
+                    self._apply_observability_config(v)
 
             if model_config_params and self.model_config is not None and hasattr(self.model_config, "set_params"):
                 self.model_config.set_params(**model_config_params)
@@ -368,12 +439,43 @@ class SklearnBase(
 
             return self
 
-        # Legacy flat-kwargs style
-        config_params = {k: v for k, v in parameters.items() if k not in self._preprocessor_arg_names}
+        # Legacy flat-kwargs style. Unlike the split-config style above, these
+        # keys map directly onto `self.config`'s own fields (there is no
+        # nested config object to delegate to), so they are validated against
+        # its dataclass fields and applied onto it directly. Previously they
+        # only ever touched `_config_kwargs`, a bookkeeping dict that fit()
+        # never reads, so set_params() silently had no effect on the model
+        # actually built (GH #410).
+        direct_keys = {"model_config", "preprocessing_config", "trainer_config", "random_state"}
+        # observability_config is a real __init__ parameter but, like
+        # _observability_config, is intentionally excluded from get_params()
+        # (see test_observability_config_not_in_get_params); set_params() must
+        # still accept it without raising.
+        hidden_keys = {"observability_config"}
+        valid_config_fields = {f.name for f in dataclass_fields(self.config)} if is_dataclass(self.config) else set()
+        valid_keys = valid_config_fields | set(self._preprocessor_arg_names) | direct_keys | hidden_keys
+        invalid_keys = set(parameters) - valid_keys
+        if invalid_keys:
+            raise ValueError(
+                f"Invalid parameter(s) {sorted(invalid_keys)} for estimator "
+                f"{type(self).__name__}. Check the list of available parameters "
+                "with `estimator.get_params().keys()`."
+            )
+
+        if "observability_config" in parameters:
+            self._apply_observability_config(parameters["observability_config"])
+
+        for k in direct_keys:
+            if k in parameters:
+                setattr(self, k, parameters[k])
+
+        config_params = {k: v for k, v in parameters.items() if k in valid_config_fields}
         preprocessor_params = {k: v for k, v in parameters.items() if k in self._preprocessor_arg_names}
 
         if config_params:
             self._config_kwargs.update(config_params)
+            for k, v in config_params.items():
+                setattr(self.config, k, v)
 
         if preprocessor_params:
             self._preprocessor_kwargs.update(preprocessor_params)
