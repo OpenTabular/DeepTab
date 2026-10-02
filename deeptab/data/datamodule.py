@@ -45,7 +45,7 @@ class TabularDataModule(pl.LightningDataModule):
             Validation labels. If None, uses train-test split.
         val_size: float, optional
             Proportion of data to include in the validation split if `X_val` and `y_val` are None.
-        random_state: int, optional
+        random_state: int or None, optional
             Random seed for reproducibility in data splitting.
         regression: bool, optional
             Whether the problem is regression (True) or classification (False).
@@ -63,7 +63,7 @@ class TabularDataModule(pl.LightningDataModule):
         X_val=None,
         y_val=None,
         val_size=0.2,
-        random_state=101,
+        random_state: int | None = 101,
         stratify=True,
         sampler=None,
         **dataloader_kwargs,
@@ -79,7 +79,7 @@ class TabularDataModule(pl.LightningDataModule):
             y_val (array-like or None, optional): Validation labels. If None, uses train-test split.
             val_size (float, optional): Proportion of data to include in the validation split
             if `X_val` and `y_val` are None.
-            random_state (int, optional): Random seed for reproducibility in data splitting.
+            random_state (int or None, optional): Random seed for reproducibility in data splitting.
             regression (bool, optional): Whether the problem is regression (True) or classification (False).
             stratify (bool, optional): Whether to stratify the validation split on the labels for
             classification tasks. Ignored for regression. Defaults to True.
@@ -122,7 +122,7 @@ class TabularDataModule(pl.LightningDataModule):
         embeddings_train=None,
         embeddings_val=None,
         val_size=0.2,
-        random_state=101,
+        random_state: int | None = 101,
     ):
         """Preprocesses the training and validation data.
 
@@ -142,7 +142,7 @@ class TabularDataModule(pl.LightningDataModule):
             Validation embeddings if available.
         val_size : float, optional
             Proportion of data to include in the validation split if `X_val` and `y_val` are None.
-        random_state : int, optional
+        random_state : int or None, optional
             Random seed for reproducibility in data splitting.
 
         Returns

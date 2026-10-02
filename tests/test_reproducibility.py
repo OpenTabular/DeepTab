@@ -381,3 +381,95 @@ class TestPlatformAndDeviceSeeding:
             decimal=5,
             err_msg=f"Predictions differ on {platform.system()} / device auto-select",
         )
+
+
+# ---------------------------------------------------------------------------
+# Step 7 — fit(random_state=...) precedence over the constructor's random_state
+# ---------------------------------------------------------------------------
+
+
+class TestFitRandomStateOverridesConstructor:
+    """An explicit fit(random_state=...) always wins over the constructor's value."""
+
+    def test_explicit_fit_random_state_overrides_constructor(self, regression_data):
+        X, y = regression_data
+
+        m1 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS), random_state=SEED)
+        m1.fit(X, y, random_state=1)
+        p1 = m1.predict(X)
+
+        m2 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS), random_state=SEED)
+        m2.fit(X, y, random_state=2)
+        p2 = m2.predict(X)
+
+        assert not np.allclose(p1, p2, atol=1e-4), (
+            "fit(random_state=...) must override the random_state fixed at construction time"
+        )
+
+    def test_constructor_random_state_still_reproducible_when_fit_leaves_it_unset(self, regression_data):
+        """Regression guard: fixing the constructor-only precedence must not break
+        the existing case where fit() itself leaves random_state unset."""
+        X, y = regression_data
+
+        m1 = _make_regressor(SEED)
+        m1.fit(X, y)
+        p1 = m1.predict(X)
+
+        m2 = _make_regressor(SEED)
+        m2.fit(X, y)
+        p2 = m2.predict(X)
+
+        np.testing.assert_array_almost_equal(
+            p1,
+            p2,
+            decimal=5,
+            err_msg="Constructor-only random_state must still be reproducible",
+        )
+
+
+# ---------------------------------------------------------------------------
+# Step 8 — ambient seed_context()/set_seed() is honored when no random_state is set
+# ---------------------------------------------------------------------------
+
+
+class TestAmbientSeedRespectedWhenRandomStateUnset:
+    """fit() must not silently reseed with a hardcoded default when neither the
+    constructor nor fit() itself specify a random_state, so an ambient
+    seed_context()/set_seed() already in effect stays authoritative."""
+
+    def test_seed_context_controls_weights_when_random_state_never_set(self, regression_data):
+        X, y = regression_data
+
+        with seed_context(111):
+            m1 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS))
+            m1.fit(X, y)
+
+        with seed_context(222):
+            m2 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS))
+            m2.fit(X, y)
+
+        assert m1._task_model is not None
+        assert m2._task_model is not None
+        w1 = next(iter(m1._task_model.parameters()))
+        w2 = next(iter(m2._task_model.parameters()))
+        assert not torch.equal(w1, w2), (
+            "Different ambient seed_context() values must produce different weights "
+            "when random_state is left unset everywhere"
+        )
+
+    def test_seed_context_reproducible_when_random_state_never_set(self, regression_data):
+        X, y = regression_data
+
+        with seed_context(111):
+            m1 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS))
+            m1.fit(X, y)
+
+        with seed_context(111):
+            m2 = MLPRegressor(trainer_config=TrainerConfig(**_FIT_KWARGS))
+            m2.fit(X, y)
+
+        assert m1._task_model is not None
+        assert m2._task_model is not None
+        w1 = next(iter(m1._task_model.parameters()))
+        w2 = next(iter(m2._task_model.parameters()))
+        assert torch.equal(w1, w2), "Same ambient seed_context() value must reproduce the same weights"

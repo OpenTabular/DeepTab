@@ -220,7 +220,7 @@ class SklearnBaseClassifier(SklearnBase):
         embeddings=None,
         embeddings_val=None,
         max_epochs: int | None = None,
-        random_state: int = 101,
+        random_state: int | None = None,
         batch_size: int | None = None,
         shuffle: bool | None = None,
         stratify: bool | None = None,
@@ -262,8 +262,12 @@ class SklearnBaseClassifier(SklearnBase):
         max_epochs : int or None, default=None
             Maximum number of epochs for training. Falls back to the active
             `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
-        random_state : int, default=101
-            Controls the shuffling applied to the data before applying the split.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, no reseeding happens, so any external
+            ``set_seed``/``seed_context`` call already in effect is left
+            untouched.
         batch_size : int or None, default=None
             Number of samples per gradient update. Falls back to the active
             `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
@@ -423,7 +427,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
+        logits_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore
@@ -482,7 +486,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
+        logits_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore[arg-type]

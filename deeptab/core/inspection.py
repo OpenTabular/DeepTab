@@ -433,6 +433,14 @@ class InspectionMixin:
             "runtime": None,
         }
 
+        # Snapshot every attribute the dry-run build could set or mutate so it
+        # can be restored afterwards, keeping the estimator's state genuinely
+        # "left unchanged" rather than merely un-built.
+        _missing = object()
+        _snapshot_attrs = ("classes_", "n_features_in_", "input_columns_", "feature_names_in_", "_preprocessor")
+        _snapshot = {name: getattr(self, name, _missing) for name in _snapshot_attrs}
+        _estimator_snapshot = getattr(self, "_estimator", _missing)
+
         try:
             # ── 1. Build on a small sample if not already built ──────────────
             if not was_already_built:
@@ -499,7 +507,6 @@ class InspectionMixin:
                         "labels": list(_labels.shape),
                     }
 
-                    task_model.eval()
                     device = first_param.device if first_param is not None else torch.device("cpu")
 
                     num_feats_dev = [t.to(device) for t in num_feats] if num_feats else []
@@ -511,6 +518,21 @@ class InspectionMixin:
                         if embeddings and all(t is not None for t in embeddings)
                         else embeddings
                     )
+
+                    # Run one warm-up pass in training mode first so that any
+                    # data-dependent initialization (e.g. NODE/ENODE's
+                    # threshold init, which only fires on a training-mode
+                    # batch) happens on this genuine training sample rather
+                    # than being skipped and left uninitialized. Only needed
+                    # for the temporary dry-run build; an already-built model
+                    # has long since been through its first batch, and running
+                    # it in train mode here would needlessly perturb any
+                    # batch-statistics layers (e.g. BatchNorm).
+                    if not was_already_built:
+                        task_model.train()
+                        with torch.no_grad():
+                            task_model.estimator(num_feats_dev, cat_feats_dev, emb_dev)
+                    task_model.eval()
 
                     timings: list[float] = []
                     with torch.no_grad():
@@ -548,5 +570,22 @@ class InspectionMixin:
                     self._data_module = None  # type: ignore[assignment]
                 if hasattr(self, "is_fitted_"):
                     self.is_fitted_ = False
+
+                # Restore every attribute the build touched (classes_,
+                # n_features_in_, input_columns_, feature_names_in_,
+                # _preprocessor, _estimator) so a never-fitted estimator
+                # doesn't come out of profile() advertising fitted-looking
+                # state.
+                for name, value in _snapshot.items():
+                    if value is _missing:
+                        if hasattr(self, name):
+                            delattr(self, name)
+                    else:
+                        setattr(self, name, value)
+                if _estimator_snapshot is _missing:
+                    if hasattr(self, "_estimator"):
+                        delattr(self, "_estimator")
+                else:
+                    self._estimator = _estimator_snapshot
 
         return result

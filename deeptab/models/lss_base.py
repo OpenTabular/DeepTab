@@ -6,7 +6,7 @@ from collections.abc import Callable
 import lightning as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -45,7 +45,7 @@ class SklearnBaseLSS(SklearnBase):
         val_size: float = 0.2,
         X_val=None,
         y_val=None,
-        random_state: int = 101,
+        random_state: int | None = 101,
         batch_size: int = 128,
         shuffle: bool = True,
         lr: float | None = None,
@@ -71,7 +71,7 @@ class SklearnBaseLSS(SklearnBase):
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
             The validation target values. Required if `X_val` is provided.
-        random_state : int, default=101
+        random_state : int or None, default=101
             Controls the shuffling applied to the data before applying the split.
         batch_size : int, default=128
             Number of samples per gradient update.
@@ -199,7 +199,7 @@ class SklearnBaseLSS(SklearnBase):
         X_val=None,
         y_val=None,
         max_epochs: int | None = None,
-        random_state: int = 101,
+        random_state: int | None = None,
         batch_size: int | None = None,
         shuffle: bool | None = None,
         patience: int | None = None,
@@ -240,8 +240,12 @@ class SklearnBaseLSS(SklearnBase):
         max_epochs : int or None, default=None
             Maximum number of epochs for training. Falls back to the active
             `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
-        random_state : int, default=101
-            Controls the shuffling applied to the data before applying the split.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, no reseeding happens, so any external
+            ``set_seed``/``seed_context`` call already in effect is left
+            untouched.
         batch_size : int or None, default=None
             Number of samples per gradient update. Falls back to the active
             `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
@@ -321,8 +325,10 @@ class SklearnBaseLSS(SklearnBase):
         # Validate inputs before any preprocessing or model construction
         _validate_fit_inputs(X, y, regression=True, family=family)
 
-        # When random_state was fixed at construction time, honour it
-        if self.random_state is not None:
+        # An explicit fit() argument always wins over the random_state fixed at
+        # construction time; only fall back to the latter when the caller left
+        # the fit() argument unset.
+        if random_state is None:
             random_state = self.random_state
 
         if distributional_kwargs is None:
@@ -378,6 +384,15 @@ class SklearnBaseLSS(SklearnBase):
             filename="best_model",
         )
 
+        # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
+        # Optuna pruning callback) with the built-in ones instead of colliding
+        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
+        # single Callback instance is accepted too, matching Lightning's own
+        # `callbacks` contract.
+        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
+        if isinstance(_user_callbacks, Callback):
+            _user_callbacks = [_user_callbacks]
+
         # Initialize the trainer and train the model
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
@@ -385,9 +400,23 @@ class SklearnBaseLSS(SklearnBase):
                 early_stop_callback,
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
+                *_user_callbacks,
             ],
             **trainer_kwargs,
         )
+
+        # Warm up any data-aware initialization (e.g. NODE/ENODE's threshold
+        # init) on a genuine training batch before Lightning's sanity check
+        # runs. The sanity check evaluates in eval mode before any training
+        # step, and data-aware init only fires in train mode (so it never
+        # sees held-out validation data); without this warm-up, the sanity
+        # check's forward pass would see uninitialized (NaN) parameters.
+        self._task_model.train()  # type: ignore[union-attr]
+        self._data_module.setup("fit")  # type: ignore[union-attr]
+        with torch.no_grad():
+            _warmup_feats, _ = next(iter(self._data_module.train_dataloader()))  # type: ignore[union-attr]
+            self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
+
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
@@ -426,7 +455,7 @@ class SklearnBaseLSS(SklearnBase):
         self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
+        predictions_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]

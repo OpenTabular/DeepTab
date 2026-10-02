@@ -109,6 +109,47 @@ class TestProfileDryRun:
         assert clf._built
         assert clf._task_model is not None
 
+    def test_unfitted_classifier_does_not_leak_classes_or_feature_attrs(self):
+        """dry_run=True must not leave behind classes_/n_features_in_/input_columns_/
+        feature_names_in_ on an estimator that was never actually fitted."""
+        X, y = _binary_data()
+        clf = MLPClassifier()
+        assert not hasattr(clf, "classes_")
+        assert not hasattr(clf, "n_features_in_")
+        assert not hasattr(clf, "input_columns_")
+        assert not hasattr(clf, "feature_names_in_")
+
+        clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
+
+        assert not hasattr(clf, "classes_")
+        assert not hasattr(clf, "n_features_in_")
+        assert not hasattr(clf, "input_columns_")
+        assert not hasattr(clf, "feature_names_in_")
+
+    def test_unfitted_estimator_restores_estimator_class_reference(self):
+        """dry_run=True's temporary build turns self._estimator from the raw
+        architecture class into an instance; it must be restored afterwards."""
+        X, y = _binary_data()
+        clf = MLPClassifier()
+        assert isinstance(clf._estimator, type)
+
+        clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
+
+        assert isinstance(clf._estimator, type), "_estimator must be restored to the class reference"
+
+    def test_unfitted_estimator_predict_still_raises_after_profile(self):
+        """The estimator must genuinely remain unfitted end-to-end: predict()
+        still raises NotFittedError after a dry-run profile() call."""
+        from sklearn.exceptions import NotFittedError
+
+        X, y = _binary_data()
+        clf = MLPClassifier()
+
+        clf.profile(X, y, dry_run=True, random_state=RANDOM_STATE)
+
+        with pytest.raises(NotFittedError):
+            clf.predict(X)
+
     def test_dry_run_false_leaves_model_built(self):
         X, y = _binary_data()
         clf = MLPClassifier()

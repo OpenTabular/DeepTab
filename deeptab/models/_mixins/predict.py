@@ -40,6 +40,44 @@ class _PredictMixin:
         _task_model: ITaskModel | None
         _data_module: IDataModule | None
 
+    def _resolve_predict_trainer(self, device):
+        """Return the Lightning ``Trainer`` used to run inference.
+
+        When *device* is ``None``, reuses the ``Trainer`` built at fit time
+        (whichever accelerator it resolved to). When *device* is given (e.g.
+        to force CPU inference around an accelerator-specific kernel bug), a
+        lightweight, throwaway ``Trainer`` pinned to that device is built
+        instead, so the request actually takes effect rather than being
+        silently ignored.
+
+        Parameters
+        ----------
+        device : str, torch.device, or None
+            Device override. An invalid device string raises the same
+            ``RuntimeError`` that :class:`torch.device` raises.
+
+        Returns
+        -------
+        lightning.pytorch.Trainer
+        """
+        if device is None:
+            return self._trainer  # type: ignore[attr-defined]
+
+        resolved = torch.device(device)
+        accelerator = "gpu" if resolved.type == "cuda" else resolved.type
+        devices = [resolved.index if resolved.index is not None else 0] if resolved.type == "cuda" else 1
+
+        import lightning as pl
+
+        return pl.Trainer(
+            accelerator=accelerator,
+            devices=devices,
+            logger=False,
+            enable_progress_bar=False,
+            enable_model_summary=False,
+            enable_checkpointing=False,
+        )
+
     def predict(self, X, embeddings=None, device=None):
         """Return predictions for input *X*.
 

@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 import lightning as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
 from deeptab.configs import TrainerConfig
 from deeptab.core.preprocessing import build_preprocessor
@@ -93,7 +93,7 @@ class _FitMixin:
         embeddings=None,
         embeddings_val=None,
         num_classes: int | None = None,
-        random_state: int = 101,
+        random_state: int | None = 101,
         batch_size: int = 128,
         shuffle: bool = True,
         stratify: bool = True,
@@ -287,7 +287,7 @@ class _FitMixin:
         embeddings_val=None,
         num_classes: int | None = None,
         max_epochs: int | None = None,
-        random_state: int = 101,
+        random_state: int | None = None,
         batch_size: int | None = None,
         shuffle: bool | None = None,
         stratify: bool | None = None,
@@ -333,8 +333,13 @@ class _FitMixin:
         max_epochs : int or None, default=None
             Maximum number of training epochs. Falls back to the active
             ``TrainerConfig``'s value, or 100 when no ``TrainerConfig`` is set.
-        random_state : int, default=101
-            RNG seed for reproducibility.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, ``fit()`` performs no reseeding, so any external
+            :func:`~deeptab.core.reproducibility.set_seed` or
+            :func:`~deeptab.core.reproducibility.seed_context` call already in
+            effect is left untouched.
         batch_size : int or None, default=None
             Mini-batch size. Falls back to the active ``TrainerConfig``'s value,
             or 128 when no ``TrainerConfig`` is set.
@@ -431,12 +436,24 @@ class _FitMixin:
 
         _validate_fit_inputs(X, y, regression=regression)
 
-        # When random_state was fixed at construction time, honour it
-        if self.random_state is not None:
+        # From here on, fit() mutates estimator state (schema attributes,
+        # _data_module, _task_model, etc.) before training can even start.
+        # Mark the estimator as unfitted up front so a failure anywhere below
+        # (build, training, checkpoint loading) leaves is_fitted_ honestly
+        # False instead of a stale True from a previous successful fit() that
+        # now points at corrupted internal state.
+        self.is_fitted_ = False
+
+        # An explicit fit() argument always wins over the random_state fixed at
+        # construction time; only fall back to the latter when the caller left
+        # the fit() argument unset.
+        if random_state is None:
             random_state = self.random_state
 
         # Seed all RNGs so that weight init, dropout masks, and DataLoader
         # shuffling are all deterministic when a random_state is provided.
+        # Leaving both the constructor and fit() random_state unset skips this
+        # entirely, so it never clobbers an external set_seed()/seed_context().
         if random_state is not None:
             from deeptab.core.reproducibility import set_seed
 
@@ -563,12 +580,21 @@ class _FitMixin:
             filename="best_model",
         )
 
+        # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
+        # Optuna pruning callback) with the built-in ones instead of colliding
+        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
+        # single Callback instance is accepted too, matching Lightning's own
+        # `callbacks` contract.
+        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
+        if isinstance(_user_callbacks, Callback):
+            _user_callbacks = [_user_callbacks]
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
             callbacks=[
                 early_stop_callback,
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
+                *_user_callbacks,
             ],
             # Let an explicit `logger=` in trainer_kwargs override our default.
             logger=trainer_kwargs.pop(
@@ -579,6 +605,17 @@ class _FitMixin:
         )
         self._task_model.train()  # type: ignore[union-attr]
         self._task_model.estimator.train()  # type: ignore[union-attr]
+
+        # Warm up any data-aware initialization (e.g. NODE/ENODE's threshold
+        # init) on a genuine training batch before Lightning's sanity check
+        # runs. The sanity check evaluates in eval mode before any training
+        # step, and data-aware init only fires in train mode (so it never
+        # sees held-out validation data); without this warm-up, the sanity
+        # check's forward pass would see uninitialized (NaN) parameters.
+        self._data_module.setup("fit")  # type: ignore[union-attr]
+        with torch.no_grad():
+            _warmup_feats, _ = next(iter(self._data_module.train_dataloader()))  # type: ignore[union-attr]
+            self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
 
         _t_train = time.monotonic()
         self._emit_event(

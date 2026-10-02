@@ -26,7 +26,13 @@ class ModuleWithInit(nn.Module):
     def __call__(self, *args, **kwargs):
         if self._is_initialized_bool is None:
             self._is_initialized_bool = bool(self._is_initialized_tensor.item())
-        if not self._is_initialized_bool:
+        # Only initialize from a genuine training-mode batch. Lightning's
+        # validation sanity check runs the model in eval mode before the
+        # first training step, so without this guard the very first batch
+        # this module ever sees (and thus the one its thresholds/temperatures
+        # get initialized from) would be held-out validation data rather than
+        # training data.
+        if not self._is_initialized_bool and self.training:
             self.initialize(*args, **kwargs)
             self._is_initialized_tensor.data[...] = 1
             self._is_initialized_bool = True
