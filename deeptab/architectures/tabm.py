@@ -203,7 +203,11 @@ class TabM(BaseModel):
         # Shape (batch_size, (ensemble_size), num_classes) if not averaged
         x = self.final_layer(x)
 
-        if not self.hparams.average_ensembles:
+        # squeeze(-1) collapses (B, E, 1) to (B, E) for single-output regression
+        # and binary classification. In LSS mode the trailing axis is the
+        # distribution-parameter axis, which must survive even when the family
+        # has exactly one parameter (poisson, tweedie, ...).
+        if not self.hparams.average_ensembles and not getattr(self.hparams, "lss", False):
             x = x.squeeze(-1)
 
         return x
