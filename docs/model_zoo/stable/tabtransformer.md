@@ -41,6 +41,8 @@ DeepTab raises a `ValueError` if no categorical features are available. This is 
 
 The default config uses `d_model=128`, `n_layers=4`, `n_heads=8`, `transformer_activation=ReGLU()`, and `transformer_dim_feedforward=512`.
 
+> **Pooling note:** Pooling uses width `d_model` and counts only categorical and external embedding tokens. Numerical features bypass this sequence and are concatenated afterward. With two categorical tokens of width 16, learned flattening uses `Linear(32, 16)`, regardless of how many numerical features are present. A list of feature-group counts is not a valid token count.
+
 ## Practical Config
 
 ```python

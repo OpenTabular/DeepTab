@@ -38,6 +38,8 @@ Unlike `TabTransformer`, FTTransformer embeds all supported feature types before
 
 The default configuration uses `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.2`, and `ff_dropout=0.1`.
 
+> **Pooling note:** Learnable pooling receives the token width `d_model` explicitly. For `d_model=16`, attention pooling learns a width-16 vector. Previously, the shared helper read TabulaRNN's `dim_feedforward` field, which this config does not have, so selecting a learnable pooling method could fail during construction.
+
 ## Practical Config
 
 ```python

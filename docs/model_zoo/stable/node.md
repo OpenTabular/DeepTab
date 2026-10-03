@@ -34,7 +34,9 @@ features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree
 
 ## Implementation Notes
 
-`batch_norm`/`layer_norm` apply an optional normalization layer, sized to `num_layers * layer_dim`, after the dense block and before the head.
+`norm` selects optional normalization after the dense block and before the head. The inherited `batch_norm`/`layer_norm` flags do not select this layer.
+
+> **Configuration note:** `NODEConfig(num_layers=2, layer_dim=8, norm="LayerNorm")` normalizes a vector of width 16, not `d_model`. Previously, `norm` was accepted but never applied. The normalization helper now receives the tree-output width explicitly. `head_use_batch_norm` remains a separate setting inside the prediction head.
 
 `num_layers * layer_dim` determines the input dimension to the prediction head. Larger values increase capacity and memory use. `tree_dim` controls the output dimension per tree.
 

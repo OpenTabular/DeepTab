@@ -37,6 +37,10 @@ The default config uses `d_model=64`, `n_layers=4`, `d_state=128`, `d_conv=4`, `
 
 `mamba_version="mamba-torch"` selects DeepTab's local Mamba block; other values select `MambaOriginal`. `bidirectional`, `use_learnable_interaction`, and `use_pscan` expose implementation variants for research comparisons.
 
+> **Configuration note:** In the local Mamba block, `dilation=3` with `d_conv=3` gives padding 6 in each directional convolution. Padding and the existing crop preserve sequence length; previously, the forward convolution ignored dilation. If `use_pscan=True` but `mambapy` cannot be imported, the block switches to its sequential scan rather than calling a missing function. `AD_weight_decay=False` marks `A_log` and `D` for zero weight decay; module-based optimizer construction respects those markers independently of the bias/norm exemption flag.
+
+Learnable pooling uses the sequence width `d_model`, not a `dim_feedforward` field. For `d_model=16`, attention pooling learns a width-16 weight vector. This keeps the shared pooling helper independent of TabulaRNN's recurrent width.
+
 ## Practical Config
 
 ```python

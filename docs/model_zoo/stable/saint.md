@@ -38,6 +38,8 @@ The original SAINT paper also emphasizes contrastive pretraining and data augmen
 
 The default config uses `d_model=128`, `n_layers=1`, `n_heads=2`, `pooling_method="cls"`, and `use_cls=True`.
 
+> **Pooling note:** Learnable pooling operates on width-`d_model` tokens. The architecture passes that width explicitly, so attention, gated, recurrent, convolutional, and learned-flatten pooling do not depend on TabulaRNN's `dim_feedforward` field.
+
 ## Practical Config
 
 ```python

@@ -40,6 +40,10 @@ The config field `model_type` selects the recurrent cell family. Valid values fo
 
 The default config uses `d_model=128`, `model_type="RNN"`, `n_layers=4`, `rnn_dropout=0.2`, `dim_feedforward=256`, and `pooling_method="avg"`.
 
+> **Configuration note:** `rnn_dropout` is applied explicitly between recurrent blocks during training, not after the final block. Each block contains a single-layer RNN, so PyTorch's internal RNN dropout cannot regularize the gaps between these separate modules. Evaluation disables dropout, and a one-block model has no inter-block dropout.
+
+Pooling receives recurrent states of width `dim_feedforward`, which may differ from embedding width `d_model`. With two tokens and `dim_feedforward=32`, learned flattening uses `Linear(64, 32)`. Its token count is the total number of tokens, not a list of counts for each feature group.
+
 ## Practical Config
 
 ```python

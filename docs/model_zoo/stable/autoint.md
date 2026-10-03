@@ -4,7 +4,7 @@
 
 ## Overview
 
-AutoInt learns feature interactions with stacked multi-head self-attention layers. It treats tabular columns as feature tokens, repeatedly attends across tokens, flattens the final token sequence, and predicts with a linear head.
+AutoInt learns feature interactions with stacked multi-head self-attention layers. It treats tabular columns as feature tokens, repeatedly attends across tokens, then either flattens the sequence or selects a CLS token before predicting with a linear head.
 
 Use AutoInt when the main research question is automatic feature interaction learning rather than full Transformer encoder modeling.
 
@@ -14,27 +14,30 @@ DeepTab's `AutoInt` implementation uses:
 
 1. `EmbeddingLayer` to create a `(batch, n_features, d_model)` token sequence.
 2. A stack of `n_layers` attention interaction layers.
-3. Each layer applies `LayerNorm`, `nn.MultiheadAttention`, a residual connection, a linear projection, and a second residual connection.
-4. The final token sequence is flattened and passed to a linear output head.
+3. Each layer applies attention and a linear projection with residual connections; `fprenorm` selects normalization before attention or after its residual addition.
+4. With `fprenorm=True`, a final `LayerNorm` is applied to the token sequence.
+5. Select the CLS token when `use_cls=True`; otherwise flatten the sequence. Pass the result to a linear output head.
 
 ```text
-feature tokens -> [LayerNorm -> MultiheadAttention -> residual -> Linear -> residual] x n_layers -> flatten -> Linear
+feature tokens -> attention interaction layers -> optional final norm -> CLS selection or flatten -> Linear
 ```
 
 ## Main Building Blocks
 
-| Component           | DeepTab implementation                       | Role                                                 |
-| ------------------- | -------------------------------------------- | ---------------------------------------------------- |
-| Tokenizer           | `EmbeddingLayer`                             | Builds feature tokens.                               |
-| Interaction layer   | `nn.MultiheadAttention`                      | Learns pairwise and higher-order token interactions. |
-| Residual projection | `nn.Linear(d_model, d_model)`                | Updates each attended token.                         |
-| Output head         | `nn.Linear(d_model * n_inputs, num_classes)` | Uses all token states for prediction.                |
+| Component           | DeepTab implementation                   | Role                                                 |
+| ------------------- | ---------------------------------------- | ---------------------------------------------------- |
+| Tokenizer           | `EmbeddingLayer`                         | Builds feature tokens.                               |
+| Interaction layer   | `nn.MultiheadAttention`                  | Learns pairwise and higher-order token interactions. |
+| Residual projection | `nn.Linear(d_model, d_model)`            | Updates each attended token.                         |
+| Output head         | `nn.Linear(head_input_dim, num_classes)` | Uses CLS width or flattened token width.             |
 
 ## Implementation Notes
 
 `AutoIntConfig` exposes `kv_compression` and `kv_compression_sharing`, and the architecture constructs compression layers. In the current DeepTab forward path, those compression layers are not applied to the attention call; the runtime behavior is standard multi-head self-attention over all feature tokens.
 
-`AutoIntConfig.fprenorm` controls whether `last_norm` is applied before pooling (pre-norm) or after pooling (post-norm); the architecture reads this same field, so toggling it changes where the final normalization sits in the forward pass.
+`fprenorm=True` normalizes the attention input and enables a final `LayerNorm` before CLS selection or flattening. `fprenorm=False` normalizes after the attention residual addition and creates no final normalization layer. It does not move `last_norm` after pooling.
+
+> **Configuration note:** `use_cls=True` adds a summary token and selects that token for prediction. With two feature tokens of width 16, flattening would give 32 values without CLS and 48 with it. CLS selection instead gives 16 values, so the head must be `Linear(16, num_classes)`. Previously, the extra token was flattened into a head sized for the original feature count. The implementation now keeps token counting, selection, and head sizing consistent.
 
 ## Practical Config
 

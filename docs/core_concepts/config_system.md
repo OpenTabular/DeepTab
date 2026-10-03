@@ -131,6 +131,10 @@ model = MambularClassifier(
 
 Model configs inherit shared embedding and architecture fields from `BaseModelConfig`, including `use_embeddings`, `embedding_type`, `d_model`, `batch_norm`, `layer_norm`, `activation`, and `cat_encoding`. Individual models add their own fields; use the model-zoo pages or API reference for model-specific details.
 
+> **Embedding note:** On paths using `EmbeddingLayer`, `cat_encoding` selects how a single category ID becomes a token: `"int"` uses a learned lookup table, `"one-hot"` creates a one-hot vector and projects it, and `"linear"` casts the ID to a scalar and projects it. Already multi-dimensional categorical inputs use a linear projection regardless of this choice. This model setting is distinct from `PreprocessingConfig.categorical_method`; interpreting category IDs as scalars can impose an unintended ordering on nominal categories.
+
+An inherited field does not imply identical behavior in every architecture. For example, NODE and ENODE select their final normalization using `norm`, while AutoInt uses `fprenorm` for its attention normalization arrangement. Consult each architecture's notes rather than assuming generic `batch_norm`/`layer_norm` flags control all normalization layers.
+
 ## Preprocessing Config
 
 `PreprocessingConfig` is a thin wrapper around the fields PreTab 1.0's `Preprocessor` accepts. Fields set to `None` are omitted, leaving the preprocessor's own default in effect.
