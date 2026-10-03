@@ -113,8 +113,11 @@ class TabTransformer(BaseModel):
         )
 
         # pooling
-        n_inputs = n_inputs = [len(info) for info in feature_information]
-        self.initialize_pooling_layers(config=config, n_inputs=n_inputs)
+        # Only cat/embedding features pass through the encoder whose output
+        # gets pooled (numerical features are concatenated in separately),
+        # so n_inputs excludes num_feature_info.
+        n_inputs = int(np.sum([len(info) for info in feature_information[1:]]))
+        self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.d_model)
 
     def forward(self, *data):
         """Defines the forward pass of the model.

@@ -646,6 +646,7 @@ class EmbeddingLayer(nn.Module):
         )
         self.embedding_type = getattr(config, "embedding_type", "linear")
         self.embedding_bias = getattr(config, "embedding_bias", False)
+        self.cat_encoding = getattr(config, "cat_encoding", "int")
 
         # Sequence length
         self.seq_len = len(num_feature_info) + len(cat_feature_info)
@@ -686,25 +687,37 @@ class EmbeddingLayer(nn.Module):
         else:
             raise ValueError("Invalid embedding_type. Choose from 'linear', 'ndt', or 'plr'.")
 
-        self.cat_embeddings = nn.ModuleList(
-            [
-                (
-                    nn.Sequential(
-                        nn.Embedding(feature_info["categories"] + 1, self.d_model),
-                        self.embedding_activation,
-                    )
-                    if feature_info["dimension"] == 1
-                    else nn.Sequential(
-                        nn.Linear(
-                            feature_info["dimension"],
-                            self.d_model,
-                            bias=self.embedding_bias,
-                        ),
-                        self.embedding_activation,
-                    )
+        def _make_cat_embedding(feature_info):
+            # Multi-dimensional categorical features (e.g. already multi-hot
+            # encoded upstream) always go through a plain linear projection;
+            # cat_encoding only selects how a single integer category id is
+            # turned into a d_model-wide vector.
+            if feature_info["dimension"] != 1:
+                return nn.Sequential(
+                    nn.Linear(feature_info["dimension"], self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
                 )
-                for feature_name, feature_info in cat_feature_info.items()
-            ]
+            num_categories = feature_info["categories"] + 1
+            if self.cat_encoding == "one-hot":
+                return nn.Sequential(
+                    OneHotEncoding(num_categories),
+                    nn.Linear(num_categories, self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
+                )
+            if self.cat_encoding == "linear":
+                return nn.Sequential(
+                    _CategoricalAsContinuous(),
+                    nn.Linear(1, self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
+                )
+            # "int" (default): a learned embedding table indexed by category id
+            return nn.Sequential(
+                nn.Embedding(num_categories, self.d_model),
+                self.embedding_activation,
+            )
+
+        self.cat_embeddings = nn.ModuleList(
+            [_make_cat_embedding(feature_info) for feature_name, feature_info in cat_feature_info.items()]
         )
 
         if len(emb_feature_info) >= 1:
@@ -849,6 +862,16 @@ class OneHotEncoding(nn.Module):
 
     def forward(self, x):
         return torch.nn.functional.one_hot(x, num_classes=self.num_categories).float()
+
+
+class _CategoricalAsContinuous(nn.Module):
+    """Casts an integer-encoded categorical feature to float for cat_encoding='linear'."""
+
+    def forward(self, x):
+        x = x.float()
+        if x.ndim == 1:
+            x = x.unsqueeze(-1)
+        return x
 
 
 class LinearBatchEnsembleLayer(nn.Module):
@@ -1825,13 +1848,21 @@ class ConvRNN(nn.Module):
         self.rnns = nn.ModuleList()
         self.layernorms_rnn = nn.ModuleList()  # LayerNorms for RNN layers
 
+        # Each stacked block below is its own single-layer RNN module
+        # (num_layers=1), since the conv/layernorm steps are interleaved
+        # between them. PyTorch's RNN/LSTM/GRU only apply their internal
+        # `dropout=` argument between stacked layers *inside one module*, so
+        # passing it here would always be silently ignored (and warned about)
+        # regardless of rnn_dropout's value. Dropout between these blocks is
+        # applied explicitly in forward() instead.
+        self.rnn_dropout_layer = nn.Dropout(self.rnn_dropout)
+
         for i in range(self.num_layers):
             rnn_args = {
                 "input_size": self.input_size if i == 0 else self.hidden_size,
                 "hidden_size": self.hidden_size,
                 "num_layers": 1,
                 "batch_first": True,
-                "dropout": self.rnn_dropout if i < self.num_layers - 1 else 0,
                 "bias": self.bias,
             }
             if self.model_type == "RNN":
@@ -1871,6 +1902,12 @@ class ConvRNN(nn.Module):
 
             # Pass through the RNN layer
             x, _ = self.rnns[i](x)
+
+            # Apply dropout between stacked blocks (not after the last one),
+            # matching how PyTorch applies dropout between the layers of a
+            # single multi-layer RNN module.
+            if i < self.num_layers - 1:
+                x = self.rnn_dropout_layer(x)
 
             # Residual connection with learnable matrix
             if self.residuals:

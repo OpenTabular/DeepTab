@@ -150,25 +150,42 @@ class BaseModel(nn.Module):
         for name, count in self.parameter_count().items():
             print(f"  {name}: {count}")
 
-    def initialize_pooling_layers(self, config, n_inputs):
-        """Initializes the layers needed for learnable pooling methods based on self.hparams.pooling_method."""
+    def initialize_pooling_layers(self, config, n_inputs, hidden_size=None):
+        """Initializes the layers needed for learnable pooling methods based on self.hparams.pooling_method.
+
+        Parameters
+        ----------
+        config : BaseModelConfig
+            The model's configuration object.
+        n_inputs : int
+            Sequence length the pooling layers are sized for.
+        hidden_size : int, optional
+            Width of the sequence being pooled. Defaults to ``config.d_model``,
+            which is correct for the transformer/Mamba-style architectures
+            whose sequence width equals ``d_model``. Pass this explicitly for
+            architectures whose pooled sequence has a different width (e.g.
+            TabulaRNN pools its RNN output, sized to ``dim_feedforward``, not
+            ``d_model``).
+        """
+        hidden_size = hidden_size if hidden_size is not None else getattr(config, "d_model", 128)
+
         if self.hparams.pooling_method == "learned_flatten":
             # Flattening + Linear layer
-            self.learned_flatten_pooling = nn.Linear(n_inputs * config.dim_feedforward, config.dim_feedforward)
+            self.learned_flatten_pooling = nn.Linear(n_inputs * hidden_size, hidden_size)
 
         elif self.hparams.pooling_method == "attention":
             # Attention-based pooling with learnable attention weights
-            self.attention_weights = nn.Parameter(torch.randn(config.dim_feedforward))
+            self.attention_weights = nn.Parameter(torch.randn(hidden_size))
 
         elif self.hparams.pooling_method == "gated":
             # Gated pooling with a learned gating layer
-            self.gate_layer = nn.Linear(config.dim_feedforward, config.dim_feedforward)
+            self.gate_layer = nn.Linear(hidden_size, hidden_size)
 
         elif self.hparams.pooling_method == "rnn":
             # RNN-based pooling: Use a small RNN (e.g., LSTM)
             self.pooling_rnn = nn.LSTM(
-                input_size=config.dim_feedforward,
-                hidden_size=config.dim_feedforward,
+                input_size=hidden_size,
+                hidden_size=hidden_size,
                 num_layers=1,
                 batch_first=True,
                 bidirectional=False,
@@ -177,8 +194,8 @@ class BaseModel(nn.Module):
         elif self.hparams.pooling_method == "conv":
             # Conv1D-based pooling with global max pooling
             self.conv1d_pooling = nn.Conv1d(
-                in_channels=config.dim_feedforward,
-                out_channels=config.dim_feedforward,
+                in_channels=hidden_size,
+                out_channels=hidden_size,
                 kernel_size=3,  # or a configurable kernel size
                 padding=1,  # ensures output has the same sequence length
             )

@@ -68,6 +68,15 @@ class AutoInt(BaseModel):
         self.embedding_layer = EmbeddingLayer(*feature_information, config=config)
         n_inputs = int(np.sum([len(info) for info in feature_information]))
 
+        self.use_cls = getattr(config, "use_cls", False)
+        self.cls_position = getattr(config, "cls_position", 0)
+        self.fprenorm = getattr(config, "fprenorm", False)
+        if self.use_cls:
+            # The embedding layer prepends/appends one extra CLS position to the
+            # sequence, so every layer sized off the sequence length (KV
+            # compression, the output head) must account for it too.
+            n_inputs += 1
+
         # Key-Value Compression
         self.kv_compression = config.kv_compression
         self.kv_compression_sharing = config.kv_compression_sharing
@@ -111,9 +120,10 @@ class AutoInt(BaseModel):
             self.layers.append(layer)
 
         # Final Normalization & Output Head
-        self.last_norm = nn.LayerNorm(config.d_model) if getattr(config, "prenorm", False) else None
+        self.last_norm = nn.LayerNorm(config.d_model) if self.fprenorm else None
 
-        self.head = nn.Linear(config.d_model * n_inputs, num_classes)
+        head_input_dim = config.d_model if self.use_cls else config.d_model * n_inputs
+        self.head = nn.Linear(head_input_dim, num_classes)
 
     def _get_kv_compressions(self, layer):
         """
@@ -160,14 +170,19 @@ class AutoInt(BaseModel):
         for layer in self.layers:
             x_residual = x  # Store original input for residual connection
 
-            # Apply normalization before attention if prenormalization is enabled
-            x_residual = layer["norm0"](x_residual)  # type: ignore[index]
+            # Pre-norm: normalize before attention, on the residual branch only.
+            if self.fprenorm:
+                x_residual = layer["norm0"](x_residual)  # type: ignore[index]
 
             # Multihead Attention
             x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)  # type: ignore[index]
 
             # Apply residual connection
             x = x + x_residual
+
+            # Post-norm: normalize after attention and the residual connection.
+            if not self.fprenorm:
+                x = layer["norm0"](x)  # type: ignore[index]
 
             # Apply the linear transformation
             x_residual = layer["linear"](x)  # type: ignore[index]
@@ -176,5 +191,8 @@ class AutoInt(BaseModel):
         if self.last_norm:
             x = self.last_norm(x)  # Final normalization if prenormalization is used
 
-        x = x.flatten(1)  # Flatten from (N, J, d_model) to (N, J * d_model)
+        if self.use_cls:
+            x = x[:, 0, :] if self.cls_position == 0 else x[:, -1, :]
+        else:
+            x = x.flatten(1)  # Flatten from (N, J, d_model) to (N, J * d_model)
         return self.head(x)  # Final prediction

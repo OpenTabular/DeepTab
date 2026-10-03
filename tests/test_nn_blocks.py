@@ -1,11 +1,14 @@
-"""Unit tests for deeptab.nn.blocks.common and deeptab.nn.blocks.transformer.
+"""Unit tests for deeptab.nn.blocks.common, deeptab.nn.blocks.transformer, and
+deeptab.nn.blocks.mamba.
 
 Forward-pass-only tests — no training loop, no Lightning.
 """
 
 from __future__ import annotations
 
+import warnings
 from types import SimpleNamespace
+from typing import cast
 
 import pytest
 import torch
@@ -42,6 +45,7 @@ from deeptab.nn.blocks.common import (
     sparsemax,
     sparsemoid,
 )
+from deeptab.nn.blocks.mamba import MambaBlock
 from deeptab.nn.blocks.transformer import (
     GEGLU,
     GLU,
@@ -416,6 +420,45 @@ class TestEmbeddingLayer:
             layer([torch.randn(B, 1)], [], [])
 
 
+class TestEmbeddingLayerCatEncoding:
+    """cat_encoding was declared on the config but never consumed by EmbeddingLayer."""
+
+    @staticmethod
+    def _cat_embedding_seq(layer, index=0):
+        return cast(nn.Sequential, layer.cat_embeddings[index])
+
+    def test_int_default_uses_embedding_table(self):
+        layer = EmbeddingLayer({}, _cat_info(1), {}, _emb_cfg(cat_encoding="int"))
+        assert isinstance(self._cat_embedding_seq(layer)[0], nn.Embedding)
+        out = layer([], [torch.randint(0, 5, (B,))], [])
+        assert out.shape == (B, 1, 16)
+
+    def test_one_hot_encoding_builds_and_runs(self):
+        layer = EmbeddingLayer({}, _cat_info(1), {}, _emb_cfg(cat_encoding="one-hot"))
+        seq = self._cat_embedding_seq(layer)
+        assert isinstance(seq[0], OneHotEncoding)
+        linear = seq[1]
+        assert isinstance(linear, nn.Linear)
+        assert linear.in_features == 6  # categories + 1
+        out = layer([], [torch.randint(0, 5, (B,))], [])
+        assert out.shape == (B, 1, 16)
+
+    def test_linear_encoding_builds_and_runs(self):
+        layer = EmbeddingLayer({}, _cat_info(1), {}, _emb_cfg(cat_encoding="linear"))
+        linear = self._cat_embedding_seq(layer)[1]
+        assert isinstance(linear, nn.Linear)
+        assert linear.in_features == 1
+        out = layer([], [torch.randint(0, 5, (B,))], [])
+        assert out.shape == (B, 1, 16)
+
+    def test_missing_cat_encoding_attribute_defaults_to_int(self):
+        # Configs/namespaces that predate cat_encoding shouldn't change behavior.
+        cfg = _emb_cfg()
+        assert not hasattr(cfg, "cat_encoding")
+        layer = EmbeddingLayer({}, _cat_info(1), {}, cfg)
+        assert isinstance(self._cat_embedding_seq(layer)[0], nn.Embedding)
+
+
 class TestOneHotEncoding:
     def test_shape(self):
         enc = OneHotEncoding(num_categories=5)
@@ -605,13 +648,13 @@ class TestsLSTMblock:
 # ===========================================================================
 
 
-def _convrnn_cfg(model_type="RNN", n_layers=2, residuals=False):
+def _convrnn_cfg(model_type="RNN", n_layers=2, residuals=False, rnn_dropout=0.0):
     return SimpleNamespace(
         model_type=model_type,
         d_model=8,
         dim_feedforward=8,
         n_layers=n_layers,
-        rnn_dropout=0.0,
+        rnn_dropout=rnn_dropout,
         bias=True,
         conv_bias=True,
         rnn_activation="relu",
@@ -644,6 +687,37 @@ class TestConvRNN:
         out, _ = rnn(torch.randn(B, S, 8))
         assert out.shape == (B, S, 8)
 
+    def test_dropout_changes_output_across_calls_in_train_mode(self):
+        # rnn_dropout was silently a no-op: each stacked layer is its own
+        # single-layer RNN module, and the per-layer "dropout" kwarg has no
+        # effect on a single-layer RNN.
+        torch.manual_seed(0)
+        rnn = ConvRNN(_convrnn_cfg(rnn_dropout=0.9))
+        rnn.train()
+        x = torch.randn(B, S, 8)
+        out1, _ = rnn(x)
+        out2, _ = rnn(x)
+        assert not torch.allclose(out1, out2)
+
+    def test_zero_dropout_is_deterministic(self):
+        torch.manual_seed(0)
+        rnn = ConvRNN(_convrnn_cfg(rnn_dropout=0.0))
+        rnn.eval()
+        x = torch.randn(B, S, 8)
+        out1, _ = rnn(x)
+        out2, _ = rnn(x)
+        assert torch.allclose(out1, out2)
+
+    def test_no_pytorch_dropout_warning_emitted(self):
+        # PyTorch previously warned "dropout... expects num_layers greater than
+        # 1, but got ... num_layers=1" at *construction* time, since each
+        # stacked block is its own single-layer RNN module.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", UserWarning)
+            rnn = ConvRNN(_convrnn_cfg(rnn_dropout=0.5))
+            rnn.train()
+            rnn(torch.randn(B, S, 8))
+
 
 def _ensemble_convrnn_cfg(model_type="full"):
     return SimpleNamespace(
@@ -675,6 +749,39 @@ class TestEnsembleConvRNN:
         rnn = EnsembleConvRNN(_ensemble_convrnn_cfg("mini"))
         out, _ = rnn(torch.randn(B, S, 8))
         assert out.shape == (B, S, E, 8)
+
+
+# ===========================================================================
+# mamba.py — MambaBlock
+# ===========================================================================
+
+
+class TestMambaBlock:
+    def test_dilation_is_applied_to_both_convolutions(self):
+        # The forward convolution previously ignored the dilation argument.
+        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, dilation=2, bidirectional=True)
+        assert block.conv1d_fwd.dilation == (2,)
+        assert block.conv1d_bwd.dilation == (2,)
+
+    def test_forward_with_dilation_and_bidirectional_does_not_crash(self):
+        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, dilation=3, bidirectional=True)
+        x = torch.randn(2, 10, 8)
+        out = block(x)
+        assert out.shape == x.shape
+
+    def test_use_pscan_import_error_resets_use_pscan_flag(self):
+        # mambapy is not installed in the test environment, so this exercises
+        # the real ImportError fallback path, which previously left
+        # use_pscan=True while pscan=None, crashing on the next forward call.
+        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, use_pscan=True)
+        assert block.use_pscan is False
+        assert block.pscan is None
+
+    def test_forward_does_not_crash_with_use_pscan_requested(self):
+        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, use_pscan=True)
+        x = torch.randn(2, 6, 8)
+        out = block(x)
+        assert out.shape == x.shape
 
 
 # ===========================================================================

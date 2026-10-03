@@ -34,7 +34,7 @@ feature tokens -> [LayerNorm -> MultiheadAttention -> residual -> Linear -> resi
 
 `AutoIntConfig` exposes `kv_compression` and `kv_compression_sharing`, and the architecture constructs compression layers. In the current DeepTab forward path, those compression layers are not applied to the attention call; the runtime behavior is standard multi-head self-attention over all feature tokens.
 
-The config field is named `fprenorm`, while the architecture checks `prenorm` for `last_norm`. Unless this is aligned in code, the final optional normalization path is effectively inactive with the default config field name.
+`AutoIntConfig.fprenorm` controls whether `last_norm` is applied before pooling (pre-norm) or after pooling (post-norm); the architecture reads this same field, so toggling it changes where the final normalization sits in the forward pass.
 
 ## Practical Config
 

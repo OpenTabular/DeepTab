@@ -393,9 +393,6 @@ def build_parameter_groups(
     :func:`build_optimizer` : High-level factory that calls this function
         automatically when ``no_weight_decay_for_bias_and_norm=True``.
     """
-    if not no_weight_decay_for_bias_and_norm:
-        return [{"params": module.parameters(), "weight_decay": weight_decay}]
-
     decay_params: list[nn.Parameter] = []
     no_decay_params: list[nn.Parameter] = []
     no_decay_types = (nn.LayerNorm, nn.BatchNorm1d, nn.BatchNorm2d, nn.GroupNorm)
@@ -406,15 +403,23 @@ def build_parameter_groups(
             if id(param) in seen:
                 continue
             seen.add(id(param))
-            if isinstance(mod, no_decay_types) or param_name.endswith("bias"):
+            # A parameter can opt itself out of weight decay directly (e.g.
+            # Mambular's AD_weight_decay=False marks A_log/D as
+            # _no_weight_decay), independent of the bias/norm-type exemption
+            # below, which only applies when explicitly requested.
+            is_marked_no_decay = getattr(param, "_no_weight_decay", False)
+            is_bias_or_norm = no_weight_decay_for_bias_and_norm and (
+                isinstance(mod, no_decay_types) or param_name.endswith("bias")
+            )
+            if is_marked_no_decay or is_bias_or_norm:
                 no_decay_params.append(param)
             else:
                 decay_params.append(param)
 
-    return [
-        {"params": decay_params, "weight_decay": weight_decay},
-        {"params": no_decay_params, "weight_decay": 0.0},
-    ]
+    groups = [{"params": decay_params, "weight_decay": weight_decay}]
+    if no_decay_params:
+        groups.append({"params": no_decay_params, "weight_decay": 0.0})
+    return groups
 
 
 def build_optimizer(
@@ -525,11 +530,15 @@ def build_optimizer(
     cls = get_optimizer(optimizer_type)
     extra: dict[str, Any] = optimizer_kwargs or {}
 
-    if no_weight_decay_for_bias_and_norm and isinstance(module_or_params, nn.Module):
+    has_no_decay_markers = isinstance(module_or_params, nn.Module) and any(
+        getattr(p, "_no_weight_decay", False) for p in module_or_params.parameters()
+    )
+
+    if isinstance(module_or_params, nn.Module) and (no_weight_decay_for_bias_and_norm or has_no_decay_markers):
         params: Any = build_parameter_groups(
             module_or_params,
             weight_decay=weight_decay,
-            no_weight_decay_for_bias_and_norm=True,
+            no_weight_decay_for_bias_and_norm=no_weight_decay_for_bias_and_norm,
         )
         # weight_decay is embedded in param groups; don't pass it again
         return cls(params, lr=lr, **extra)  # type: ignore[call-arg]

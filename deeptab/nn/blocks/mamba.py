@@ -136,7 +136,7 @@ class ResidualBlock(nn.Module):
         d_conv=16,
         conv_bias=True,
         dropout=0.01,
-        dt_rank="auto",
+        dt_rank: str | int = "auto",
         d_state=32,
         dt_scale=1.0,
         dt_init="random",
@@ -297,7 +297,7 @@ class MambaBlock(nn.Module):
         d_conv=16,
         conv_bias=True,
         dropout=0.01,
-        dt_rank="auto",
+        dt_rank: str | int = "auto",
         d_state=32,
         dt_scale=1.0,
         dt_init="random",
@@ -323,7 +323,10 @@ class MambaBlock(nn.Module):
 
                 self.pscan = pscan  # Store the imported pscan function
             except ImportError:
-                self.pscan = None  # Set to None if pscan is not available
+                # Fall back to the sequential scan instead of leaving use_pscan
+                # True with no pscan function to call.
+                self.use_pscan = False
+                self.pscan = None
                 print("The 'mambapy' package is not installed. Please install it by running:\npip install mambapy")
         else:
             self.pscan = None
@@ -342,7 +345,8 @@ class MambaBlock(nn.Module):
             kernel_size=d_conv,
             bias=conv_bias,
             groups=self.d_inner,
-            padding=d_conv - 1,
+            padding=dilation * (d_conv - 1),
+            dilation=dilation,
         )
         if self.bidirectional:
             self.conv1d_bwd = nn.Conv1d(
@@ -351,7 +355,7 @@ class MambaBlock(nn.Module):
                 kernel_size=d_conv,
                 bias=conv_bias,
                 groups=self.d_inner,
-                padding=d_conv - 1,
+                padding=dilation * (d_conv - 1),
                 dilation=dilation,
             )
 

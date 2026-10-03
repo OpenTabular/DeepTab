@@ -15,10 +15,11 @@ DeepTab's `NODE` pipeline is:
 1. Use raw/preprocessed concatenated features, or optionally embed features and flatten them.
 2. Pass the vector through a `DenseBlock` of differentiable oblivious trees.
 3. Flatten the dense block output.
-4. Predict with `MLPhead`.
+4. Apply optional final normalization.
+5. Predict with `MLPhead`.
 
 ```text
-features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree_dim) -> MLPhead
+features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree_dim) -> optional norm -> MLPhead
 ```
 
 ## Main Building Blocks
@@ -32,6 +33,8 @@ features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree
 | Head                 | `MLPhead`                             | Maps tree representation to task output.  |
 
 ## Implementation Notes
+
+`batch_norm`/`layer_norm` apply an optional normalization layer, sized to `num_layers * layer_dim`, after the dense block and before the head.
 
 `num_layers * layer_dim` determines the input dimension to the prediction head. Larger values increase capacity and memory use. `tree_dim` controls the output dimension per tree.
 

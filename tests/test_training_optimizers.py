@@ -254,6 +254,40 @@ class TestBuildParameterGroups:
 
 
 # ---------------------------------------------------------------------------
+# AD_weight_decay: a per-parameter _no_weight_decay marker was ignored unless
+# no_weight_decay_for_bias_and_norm was also enabled.
+# ---------------------------------------------------------------------------
+
+
+class TestADWeightDecayMarkerRespected:
+    def test_marked_params_get_zero_weight_decay_even_when_flag_disabled(self):
+        module = nn.Module()
+        module.lin = nn.Linear(4, 4)  # type: ignore[assignment]
+        marked = nn.Parameter(torch.randn(3))
+        marked._no_weight_decay = True  # type: ignore[attr-defined]
+        module.marked = marked  # type: ignore[assignment]
+
+        opt = build_optimizer(
+            module,
+            optimizer_type="Adam",
+            lr=1e-3,
+            weight_decay=1e-2,
+            no_weight_decay_for_bias_and_norm=False,
+        )
+
+        weight_decay_by_param_id = {id(p): group["weight_decay"] for group in opt.param_groups for p in group["params"]}
+        assert weight_decay_by_param_id[id(marked)] == 0.0
+        assert weight_decay_by_param_id[id(module.lin.weight)] == 1e-2  # type: ignore[attr-defined]
+
+    def test_mamba_marks_a_log_and_d_when_ad_weight_decay_false(self):
+        from deeptab.nn.blocks.mamba import MambaBlock
+
+        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, AD_weight_decay=False)
+        assert getattr(block.A_log_fwd, "_no_weight_decay", False) is True
+        assert getattr(block.D_fwd, "_no_weight_decay", False) is True
+
+
+# ---------------------------------------------------------------------------
 # build_optimizer
 # ---------------------------------------------------------------------------
 
