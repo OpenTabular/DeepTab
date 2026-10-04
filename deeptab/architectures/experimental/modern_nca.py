@@ -146,7 +146,7 @@ class ModernNCA(BaseModel):
             x = self.post_encoder(x)
         return self.tabular_head(x)
 
-    def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
+    def train_with_candidates(self, *data, targets, candidate_x, candidate_y, query_indices=None):
         """NCA-style training forward pass selecting candidates.
 
         Parameters
@@ -159,9 +159,14 @@ class ModernNCA(BaseModel):
             each query can attend to its own batch.
         candidate_x : tuple
             Input tuple of tensors of num_features, cat_features, embeddings for
-            the candidate (training) rows.
+            training rows outside the current query batch. Callers must exclude
+            query identities from this pool before sampling.
         candidate_y : Tensor
             Targets for the candidate rows.
+        query_indices : Tensor or None
+            Dataset row identities for the queries. Repeated identities in a
+            replacement-sampled batch are excluded from each other's context.
+            If omitted, each query is assumed to have a distinct identity.
 
         Returns
         -------
@@ -193,7 +198,7 @@ class ModernNCA(BaseModel):
         # Select a subset of candidates
         data_size = candidate_x.shape[0]
         retrieval_size = int(data_size * self.sample_rate)
-        sample_idx = torch.randperm(data_size)[:retrieval_size]
+        sample_idx = torch.randperm(data_size, device=candidate_x.device)[:retrieval_size]
         candidate_x = candidate_x[sample_idx]
         candidate_y = candidate_y[sample_idx]
 
@@ -203,8 +208,14 @@ class ModernNCA(BaseModel):
 
         # Compute distances
         distances = torch.cdist(x, candidate_x, p=2) / self.T
-        # remove the label of training index
-        distances = distances.fill_diagonal_(torch.inf)
+        batch_size = len(x)
+        query_indices = (
+            torch.arange(batch_size, device=x.device) if query_indices is None else query_indices.to(x.device)
+        )
+        same_query = query_indices[:, None] == query_indices[None, :]
+        distances[:, :batch_size] = distances[:, :batch_size].masked_fill(same_query, torch.inf)
+        if torch.isinf(distances).all(dim=1).any():
+            raise ValueError("ModernNCA training requires at least one candidate with a different row identity.")
         distances = F.softmax(-distances, dim=-1)
 
         if self.hparams.lss:

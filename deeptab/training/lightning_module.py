@@ -7,6 +7,7 @@ from torchmetrics import Metric as TorchMetric
 from tqdm import tqdm
 
 from deeptab.core.utils import check_numpy
+from deeptab.data.dataset import TabularDataset
 from deeptab.training.optimizers import build_optimizer, normalize_optimizer_kwargs
 from deeptab.training.schedulers import build_scheduler
 
@@ -267,33 +268,18 @@ class TaskModel(pl.LightningModule):
 
     def setup(self, stage=None):
         if stage == "fit" and hasattr(self.estimator, "uses_candidates"):
-            all_train_num = []
-            all_train_cat = []
-            all_train_embeddings = []
-            all_train_targets = []
-
-            device = self.device if hasattr(self, "device") else self.trainer.device  # type: ignore[attr-defined]
-
-            for batch in self.trainer.datamodule.train_dataloader():  # type: ignore[attr-defined]
-                (num_features, cat_features, embeddings), labels = batch
-
-                all_train_num.append([f.to(device) for f in num_features])  # Keep lists
-                all_train_cat.append([f.to(device) for f in cat_features])  # Keep lists
-                if embeddings is not None:
-                    all_train_embeddings.append([f.to(device) for f in embeddings])
-                all_train_targets.append(labels.to(device))
-
-            # Maintain structure: each feature type remains a list of tensors
+            dataset = self.trainer.datamodule.train_dataset  # type: ignore[attr-defined]
+            if not isinstance(dataset, TabularDataset) or dataset.labels is None:
+                raise ValueError("Candidate-aware training requires a labeled TabularDataset.")
+            dataset.return_indices = True
             self.train_features = (
-                [torch.cat(features, dim=0) for features in zip(*all_train_num, strict=False)],
-                [torch.cat(features, dim=0) for features in zip(*all_train_cat, strict=False)],
-                (
-                    [torch.cat(features, dim=0) for features in zip(*all_train_embeddings, strict=False)]
-                    if all_train_embeddings
-                    else None
-                ),
+                [feature.to(self.device) for feature in dataset.num_features_list],
+                [feature.to(self.device) for feature in dataset.cat_features_list],
+                [feature.to(self.device) for feature in dataset.embeddings_list]
+                if dataset.embeddings_list is not None
+                else None,
             )
-            self.train_targets = torch.cat(all_train_targets, dim=0)
+            self.train_targets = dataset.labels.to(self.device)
 
     def forward(self, num_features, cat_features, embeddings):
         """Forward pass through the model.
@@ -389,18 +375,29 @@ class TaskModel(pl.LightningModule):
         Tensor
             Training loss.
         """
-        data, labels = batch
+        if hasattr(self.estimator, "train_with_candidates"):
+            if len(batch) != 3:
+                raise ValueError("Candidate-aware training requires dataset row indices in each batch.")
+            data, labels, query_indices = batch
+        else:
+            data, labels = batch
 
         # Check if the model has a `penalty_forward` method
         if hasattr(self.estimator, "penalty_forward"):
             preds, penalty = self.estimator.penalty_forward(*data)  # type: ignore[reportCallIssue]
             loss = self.compute_loss(preds, labels) + penalty
         elif hasattr(self.estimator, "train_with_candidates"):
+            keep = torch.ones(len(self.train_targets), dtype=torch.bool, device=self.train_targets.device)
+            keep[query_indices.to(keep.device)] = False
+            candidate_features = tuple(
+                [feature[keep] for feature in group] if group is not None else None for group in self.train_features
+            )
             preds = self.estimator.train_with_candidates(  # type: ignore[reportCallIssue]
                 *data,
                 targets=labels,
-                candidate_x=self.train_features,
-                candidate_y=self.train_targets,
+                candidate_x=candidate_features,
+                candidate_y=self.train_targets[keep],
+                query_indices=query_indices,
             )
             loss = self.compute_loss(preds, labels)
         else:
@@ -518,7 +515,7 @@ class TaskModel(pl.LightningModule):
         data, labels = batch
         if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
             preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
-                *data, candidates_x=self.train_features, candidates_y=self.train_targets
+                *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
         else:
             preds = self(*data)

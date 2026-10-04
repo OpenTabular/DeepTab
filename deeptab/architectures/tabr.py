@@ -262,7 +262,7 @@ class TabR(BaseModel):
             x = x + block(x + t)
         return self.head(x)
 
-    def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
+    def train_with_candidates(self, *data, targets, candidate_x, candidate_y, query_indices=None):
         """TabR-style training forward pass selecting candidates.
 
         Parameters
@@ -275,9 +275,14 @@ class TabR(BaseModel):
             each query can retrieve neighbors from its own batch.
         candidate_x : tuple
             Input tuple of tensors of num_features, cat_features, embeddings for
-            the candidate (training) rows.
+            training rows outside the current query batch. Callers must exclude
+            query identities from this pool before retrieval.
         candidate_y : Tensor
             Targets for the candidate rows.
+        query_indices : Tensor or None
+            Dataset row identities for the queries. Repeated identities in a
+            replacement-sampled batch are excluded from each other's context.
+            If omitted, each query is assumed to have a distinct identity.
 
         Returns
         -------
@@ -297,10 +302,11 @@ class TabR(BaseModel):
             x = concat_features(data)
             candidate_x = concat_features(candidate_x)
 
+        raw_x = x
         with torch.set_grad_enabled(torch.is_grad_enabled() and not self.memory_efficient):
             candidate_k = (
                 self._encode(candidate_x)[1]  # normalized candidate_x
-                if self.candidate_encoding_batch_size == 0
+                if self.candidate_encoding_batch_size == 0 or len(candidate_x) == 0
                 else torch.cat(
                     [
                         self._encode(x)[1]  # normalized x
@@ -315,7 +321,15 @@ class TabR(BaseModel):
 
         batch_size, d_main = k.shape
         device = k.device
-        context_size = self.context_size
+        query_indices = torch.arange(batch_size, device=device) if query_indices is None else query_indices.to(device)
+        same_query = query_indices[:, None] == query_indices[None, :]
+        max_self_matches = int(same_query.sum(dim=1).max().item())
+        candidate_k = torch.cat([k, candidate_k])
+        candidate_x = torch.cat([raw_x, candidate_x])
+        candidate_y = torch.cat([targets.reshape(batch_size, *candidate_y.shape[1:]), candidate_y])
+        context_size = min(self.context_size, len(candidate_k) - max_self_matches)
+        if context_size < 1:
+            raise ValueError("TabR training requires at least one candidate with a different row identity.")
 
         with torch.no_grad():
             # initializing the search index
@@ -331,20 +345,16 @@ class TabR(BaseModel):
             distances: Tensor
             context_idx: Tensor
             distances, context_idx = self.search_index.search(  # type: ignore[code]
-                k.to(torch.float32), context_size + 1
+                k.to(torch.float32), context_size + max_self_matches
             )
-            # NOTE: to avoid leakage, the index i must be removed from the i-th row,
-            # (because of how candidate_k is constructed).
-            distances[context_idx == torch.arange(batch_size, device=device)[:, None]] = torch.inf
-            # Not the most elegant solution to remove the argmax, but anyway.
-            context_idx = context_idx.gather(-1, distances.argsort()[:, :-1])
+            self_matches = (context_idx < batch_size) & same_query.gather(1, context_idx.clamp(max=batch_size - 1))
+            distances[self_matches] = torch.inf
+            context_idx = context_idx.gather(-1, distances.argsort()[:, :context_size])
 
         if self.memory_efficient and torch.is_grad_enabled():
             # Repeating the same computation,
             # but now only for the context objects and with autograd on.
-            context_k = self._encode(torch.cat([x, candidate_x])[context_idx].flatten(0, 1))[1].reshape(
-                batch_size, context_size, -1
-            )
+            context_k = self._encode(candidate_x[context_idx].flatten(0, 1))[1].reshape(batch_size, context_size, -1)
         else:
             context_k = candidate_k[context_idx]
 
@@ -425,7 +435,9 @@ class TabR(BaseModel):
         x, k = self._encode(x)  # encoded x and k
         _, d_main = k.shape
         device = k.device
-        context_size = self.context_size
+        context_size = min(self.context_size, len(candidate_k))
+        if context_size < 1:
+            raise ValueError("TabR evaluation requires at least one candidate row.")
 
         if self.search_index is None:
             self.search_index = (
@@ -515,7 +527,9 @@ class TabR(BaseModel):
         x, k = self._encode(x)  # encoded x and k
         _, d_main = k.shape
         device = k.device
-        context_size = self.context_size
+        context_size = min(self.context_size, len(candidate_k))
+        if context_size < 1:
+            raise ValueError("TabR prediction requires at least one candidate row.")
 
         if self.search_index is None:
             self.search_index = (

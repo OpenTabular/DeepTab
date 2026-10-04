@@ -55,7 +55,19 @@ w*{ij} = \mathrm{softmax}\_j(-d*{ij})
 
 For regression, the output is the weighted average of candidate targets. For classification, candidate labels are one-hot encoded and the weighted class probabilities are log-transformed before loss computation.
 
-During training, DeepTab concatenates the current batch with a sampled subset of training candidates. The diagonal self-match for the current batch is masked to avoid a row predicting from its own label.
+During training, the trainer first removes all current batch row identities from the external training pool. ModernNCA samples from that filtered pool, prepends the current batch, and masks each query's identity before computing the softmax. The mask covers repeated copies of the same row from replacement sampling, not only diagonal positions. Distinct rows with identical features can still act as neighbors.
+
+### Candidate safety example
+
+For a batch containing dataset rows `[7, 2]`, rows 7 and 2 must be absent from the external pool before `sample_rate` is applied. Otherwise, sampling could select row 7 again at an off-diagonal position; masking only the prepended copy would still let that query use its own label. Sampling fewer candidates reduces the chance of that old failure but does not prevent it.
+
+The trainer constructs the complete candidate pool in dataset order, independently of shuffling, replacement sampling, and dropped training batches. Validation, test, and prediction use the training pool only; their own labels are never added as candidates.
+
+```{important}
+Direct `train_with_candidates` callers must exclude current query identities from `candidate_x` and `candidate_y` before calling. Pass `query_indices` when repeated identities can occur within a batch; omitted IDs imply distinct queries. The built-in estimator training path supplies the filtered pool and IDs automatically.
+```
+
+Training needs at least one eligible neighbor per query after sampling and masking. A singleton batch with no sampled external neighbors cannot satisfy that requirement and raises an error instead of returning NaNs. Increase the sampled pool or choose batches containing another distinct row.
 
 ## Main Building Blocks
 

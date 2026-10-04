@@ -39,6 +39,22 @@ TabR sets `uses_candidates=True`, so it has specialized candidate-aware training
 
 The implementation lazily imports `delu` and `faiss`. Install the appropriate FAISS package for your hardware before using TabR in experiments.
 
+### Candidate identity and label leakage
+
+During training, the trainer excludes every row identity in the current batch from the external training pool. TabR then prepends the query keys and their labels to that filtered pool, so distinct queries can retrieve one another while each query's own identity is masked. Repeated copies of the same row from replacement sampling are masked too. Feature equality is not used to identify rows: two separate rows with identical features remain legitimate neighbors.
+
+For example, a batch containing dataset rows `[7, 2]` first removes rows 7 and 2 from the external pool. After prepending the batch, its positions 0 and 1 correspond to those query rows, so the self-match mask and candidate labels use the same indexing scheme. Masking positions 0 and 1 in an unmodified training pool would remove unrelated rows and leave the queries' own labels available.
+
+With `memory_efficient=True`, candidate search encoding does not retain encoder gradients. After selection, only the selected raw input rows are re-encoded with gradients. Raw feature width and `d_main` may differ; selected keys and labels refer to the same combined pool. Set `candidate_encoding_batch_size` to a positive value when enabling this mode.
+
+Re-encoding in training mode can draw new dropout masks. Do not expect bit-for-bit equivalence between memory modes when stochastic encoder layers are active; output and gradient parity can be checked with dropout disabled.
+
+`context_size` is capped at the available eligible neighbor count. Training raises a clear error if no different row identity is available. Validation, test, and prediction retrieve from the training pool without adding evaluation rows or their labels.
+
+```{important}
+Direct `train_with_candidates` callers must pass an external candidate pool that excludes the current query batch. Supply `query_indices` when a batch can contain repeated dataset identities. If omitted, queries are assumed distinct. The built-in estimator training path handles both requirements automatically. Passing the entire unfiltered training set directly can still leak labels.
+```
+
 ## Practical Config
 
 ```python

@@ -73,6 +73,20 @@ Practical starting points:
 
 `TabularDataModule.preprocess_data()` fits the preprocessor on the **training split only**. Validation and prediction data are transformed with that fitted state, which avoids leakage from preprocessing statistics.
 
+### Retrieval-based models
+
+[TabR](../model_zoo/stable/tabr) and [ModernNCA](../model_zoo/experimental/modernnca) use labeled training rows as retrieval candidates. Their training path must exclude a query's own row identity, even when the DataLoader shuffles or samples with replacement.
+
+`TaskModel.setup("fit")` builds the candidate pool directly from the labeled `TabularDataset`, in dataset order. Candidate-aware training enables indexed batches of the form `(features, labels, row_indices)`; ordinary datasets still return `(features, labels)` by default. Before each training call, the trainer removes all batch IDs from the external candidate features and targets. The architecture then adds the batch as peer context and masks self identities, including repeated IDs within a batch.
+
+The pool is not assembled from the training sampler, so replacement sampling and `drop_last` do not duplicate or omit candidate rows. Identity is independent of feature values: duplicate-valued records with different dataset indices are not automatically discarded.
+
+Validation, test, and prediction use the stored training pool without adding evaluation labels. Custom candidate-aware DataModules must provide a labeled `TabularDataset`; direct architecture calls must provide a candidate pool disjoint from the query batch. See each model's notes for its retrieval and sampling requirements.
+
+```{warning}
+This describes evaluation on a live fitted retrieval model with its candidate pool available. The current artifact-loading path does not restore those training candidate tensors automatically. Model weights alone do not establish a retrieval candidate bank for prediction after loading.
+```
+
 ### Inspecting fitted feature metadata
 
 ```python

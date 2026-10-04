@@ -76,6 +76,15 @@ def binary_classification_data():
 class TestTabularDatasetContract:
     """Test the contract and interface of TabularDataset."""
 
+    def test_indexed_tuple_tracks_rows_with_replacement_sampling(self):
+        features = torch.arange(5, dtype=torch.float32).unsqueeze(-1)
+        dataset = TabularDataset([], [features], [], features, return_indices=True)
+        loader = torch.utils.data.DataLoader(dataset, batch_size=3, sampler=[4, 1, 4])
+        data, labels, indices = next(iter(loader))
+        assert indices.tolist() == [4, 1, 4]
+        torch.testing.assert_close(data[0][0], features[indices])
+        torch.testing.assert_close(labels, features[indices])
+
     def test_dataset_initialization_with_features(self, simple_tensors):
         """Test dataset can be initialized with feature lists."""
         num_feats, cat_feats, embeddings, labels = simple_tensors
