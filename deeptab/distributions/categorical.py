@@ -16,14 +16,20 @@ class CategoricalDistribution(BaseDistribution):
     Parameters
     ----------
         name (str): The name of the distribution, defaulted to "Categorical".
+        num_classes (int): Number of categories and prediction columns. Defaults to ``1``.
         prob_transform (str or callable): Transformation for the probabilities to ensure
         they remain valid (i.e., non-negative and sum to 1).
     """
 
-    def __init__(self, name="Categorical", prob_transform="probabilities"):
-        param_names = ["probs"]
+    def __init__(self, name="Categorical", prob_transform="probabilities", *, num_classes: int = 1):
+        if num_classes < 1:
+            raise ValueError(f"num_classes must be >= 1, got {num_classes}.")
+        param_names = [f"class_{index}" for index in range(num_classes)]
         super().__init__(name, param_names)
         self.probs_transform = self.get_transform(prob_transform)
+
+    def forward(self, predictions):
+        return self.probs_transform(predictions)
 
     def compute_loss(self, predictions, y_true):
         probs = self.probs_transform(predictions)

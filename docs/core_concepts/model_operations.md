@@ -46,6 +46,7 @@ The bundle saved to disk is a PyTorch-serialised dictionary containing:
 | `preprocessor`          | Fitted `pretab.Preprocessor` object                                                                                                                                                 |
 | `feature_info`          | Numerical, categorical, and embedding feature metadata                                                                                                                              |
 | `config`                | Model config dataclass used during training                                                                                                                                         |
+| `distributional_kwargs` | LSS family constructor options, including quantiles, Tweedie power, mixture component count, and inferred output width                                                              |
 | `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks                                                                                                                   |
 | `input_columns`         | Ordered list of column names, for feature-name validation at predict time                                                                                                           |
 | `classes_`              | Class labels for classifiers                                                                                                                                                        |
@@ -93,6 +94,13 @@ Every artifact carries a `format_version` in its `artifact_metadata`, alongside 
 ```{note}
 Changing a default, such as the `output_dim` value a new fit resolves to, never changes an already-saved model. The loader always restores the requested configuration and fitted state recorded in the artifact itself, never today's constructor defaults, so a model saved under an older default keeps its original shape and behavior after upgrading DeepTab.
 ```
+
+LSS family options are also recorded in `task_info_["distributional_kwargs"]`.
+The loader reconstructs the distribution with these options before attaching it
+to the restored network. Older bundles without this field use family defaults;
+custom quantiles, Tweedie power, or mixture size omitted by an older save cannot
+be recovered automatically. Categorical and Dirichlet width can fall back to the
+saved output count.
 
 ### Verifying a round-trip
 

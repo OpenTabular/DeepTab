@@ -414,6 +414,9 @@ def build_save_bundle(
         classes_=getattr(estimator, "classes_", None),
     )
     feature_schema = artifact_metadata["feature_schema"]
+    distributional_kwargs = getattr(estimator, "distributional_kwargs_", {}) if lss else {}
+    if lss:
+        artifact_metadata["task"]["distributional_kwargs"] = _simplify(distributional_kwargs)
 
     get_architecture_state = getattr(estimator._estimator, "get_architecture_state", None)
     architecture_state = get_architecture_state() if callable(get_architecture_state) else None
@@ -435,6 +438,7 @@ def build_save_bundle(
         "num_classes": estimator._task_model.num_classes,
         "lss": lss,
         "family": family,
+        "distributional_kwargs": distributional_kwargs,
         "optimizer_type": estimator._optimizer_type,
         "optimizer_kwargs": estimator._optimizer_kwargs,
         "lr": estimator._task_model.lr,

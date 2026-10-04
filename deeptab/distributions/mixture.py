@@ -49,6 +49,12 @@ class MixtureOfGaussiansDistribution(BaseDistribution):
         log_scales = predictions[:, 2 * K :]  # (B, K) — log-scale logits
         return w_logits, means, log_scales
 
+    def forward(self, predictions):
+        w_logits, means, log_scales = self._split(predictions)
+        weights = torch.softmax(w_logits, dim=-1)
+        scales = torch.nn.functional.softplus(log_scales)
+        return torch.cat((weights, means, scales), dim=-1)
+
     def compute_loss(self, predictions, y_true):
         w_logits, means, log_scales = self._split(predictions)
 

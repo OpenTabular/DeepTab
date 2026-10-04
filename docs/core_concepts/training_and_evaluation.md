@@ -347,7 +347,7 @@ when that happens.
 | `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                                                                                                                     |
 | `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.                                                                                                         |
 
-### LSS-only argument
+### LSS-only arguments
 
 Distributional (`*LSS`) estimators accept a `family` argument in `fit()` that
 selects the output distribution:
@@ -358,6 +358,28 @@ from deeptab.models import MLPLSS
 model = MLPLSS()
 model.fit(X_train, y_train, family="normal", max_epochs=50)
 ```
+
+Pass `distributional_kwargs` for distribution constructor settings, separately
+from Lightning Trainer options:
+
+```python
+model.fit(
+    X_train, y_train,
+    family="quantile",
+    distributional_kwargs={"quantiles": [0.1, 0.5, 0.9]},
+    max_epochs=50,
+)
+```
+
+Other examples include `{"p": 1.7}` for `"tweedie"` and
+`{"n_components": 3}` for `"mog"`. The resolved settings survive estimator
+save/load. Categorical output width is inferred from the training labels;
+Dirichlet width is inferred from a target matrix of shape `(n_samples, K)`.
+Dirichlet targets must be positive proportions whose rows sum to one.
+
+LSS `fit()` seeds Python, NumPy, and PyTorch using the resolved `random_state`
+before model construction. Equal seeds support repeatable fits on the same
+environment, but do not guarantee identical results across devices or versions.
 
 ### Lightning Trainer passthrough
 
@@ -523,11 +545,11 @@ metrics = classifier.evaluate(
 
 ### Score method
 
-| Estimator  | Default `score()`       |
-| ---------- | ----------------------- |
-| Classifier | accuracy                |
-| Regressor  | R2                      |
-| LSS        | negative log-likelihood |
+| Estimator  | Default `score()` |
+| ---------- | ----------------- |
+| Classifier | accuracy          |
+| Regressor  | R2                |
+| LSS        | negative mean NLL |
 
 ### Custom metrics during training
 

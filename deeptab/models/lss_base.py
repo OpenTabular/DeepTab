@@ -2,6 +2,7 @@ import os
 import uuid
 import warnings
 from collections.abc import Callable
+from copy import deepcopy
 
 import lightning as pl
 import numpy as np
@@ -38,6 +39,34 @@ class SklearnBaseLSS(SklearnBase):
     distribution-transform post-processing in ``predict``.
     """
 
+    def _configure_distribution(self, y, family=None, distributional_kwargs=None, *, allow_change=True):
+        family = family or getattr(self, "family_name", "normal")
+        if distributional_kwargs is None and family == getattr(self, "family_name", None):
+            distributional_kwargs = getattr(self, "distributional_kwargs_", {})
+        options = deepcopy(distributional_kwargs or {})
+        if family == "categorical":
+            count = len(np.unique(y))
+            if options.get("num_classes", count) != count:
+                raise ValueError("Categorical num_classes must match the number of target classes")
+            options["num_classes"] = count
+        elif family == "dirichlet":
+            targets = np.asarray(y)
+            if targets.ndim != 2 or targets.shape[1] < 2:
+                raise ValueError(
+                    "Dirichlet targets must have shape (n_samples, n_components) with at least two components"
+                )
+            count = targets.shape[1]
+            if options.get("num_classes", count) != count:
+                raise ValueError("Dirichlet num_classes must match the number of target components")
+            options["num_classes"] = count
+        if not allow_change:
+            if family != getattr(self, "family_name", None) or options != getattr(self, "distributional_kwargs_", {}):
+                raise ValueError("Changing the distribution family or options requires rebuild=True")
+            return
+        self.family = get_distribution(family, **options)
+        self.family_name = family
+        self.distributional_kwargs_ = options
+
     def build_model(
         self,
         X,
@@ -55,6 +84,8 @@ class SklearnBaseLSS(SklearnBase):
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
         dataloader_kwargs=None,
+        family=None,
+        distributional_kwargs=None,
     ):
         """Builds the model using the provided training data.
 
@@ -93,6 +124,12 @@ class SklearnBaseLSS(SklearnBase):
             `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         dataloader_kwargs: dict, default={}
             The kwargs for the pytorch dataloader class.
+        family : str, optional
+            Distribution family. Reuses the selected family, or defaults to
+            ``"normal"`` on a new estimator.
+        distributional_kwargs : dict, optional
+            Family constructor options, such as quantiles or mixture size.
+            Reuses the selected options when omitted for the same family.
 
         Returns
         -------
@@ -101,6 +138,7 @@ class SklearnBaseLSS(SklearnBase):
         """
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
+        self._configure_distribution(y, family, distributional_kwargs)
 
         # When trainer_config is active, resolve lr / scheduler params from it
         if self.trainer_config is not None:
@@ -138,6 +176,14 @@ class SklearnBaseLSS(SklearnBase):
             X_val = ensure_dataframe(X_val)
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y = _encode_labels(y, self.classes_)
+            if y_val is not None:
+                y_val = _encode_labels(y_val, self.classes_, name="y_val")
 
         self._data_module = TabularDataModule(
             preprocessor=self._preprocessor,
@@ -148,6 +194,7 @@ class SklearnBaseLSS(SklearnBase):
             val_size=val_size,
             random_state=random_state,
             regression=getattr(self, "family_name", None) != "categorical",
+            vector_targets=self.family_name == "dirichlet",
             **dataloader_kwargs,
         )
         self._data_module.input_columns_ = self.input_columns_
@@ -330,12 +377,13 @@ class SklearnBaseLSS(SklearnBase):
         # the fit() argument unset.
         if random_state is None:
             random_state = self.random_state
+        if random_state is not None:
+            from deeptab.core.reproducibility import set_seed
 
-        if distributional_kwargs is None:
-            distributional_kwargs = {}
+            set_seed(random_state)
 
-        self.family = get_distribution(family, **distributional_kwargs)
-        self.family_name = family
+        self._configure_distribution(y, family, distributional_kwargs, allow_change=rebuild)
+        self.is_fitted_ = False
 
         if rebuild:
             self.build_model(
@@ -499,7 +547,9 @@ class SklearnBaseLSS(SklearnBase):
         """
         # Infer distribution family from model settings if not provided
         if distribution_family is None:
-            distribution_family = getattr(self._task_model, "distribution_family", "normal")
+            distribution_family = getattr(self, "family_name", None)
+            if distribution_family is None:
+                raise not_fitted_error(type(self).__name__, "evaluate")
 
         # Setup default metrics if none are provided
         if metrics is None:
@@ -511,6 +561,12 @@ class SklearnBaseLSS(SklearnBase):
         predictions_raw = self.predict(X, raw=True) if needs_any_raw else None
 
         y_true = np.asarray(y_true)
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y_true = _encode_labels(y_true, self.classes_)
         scores = {}
         for metric_name, metric_func in metrics.items():
             _needs_raw = getattr(metric_func, "needs_raw", False)
@@ -540,10 +596,13 @@ class SklearnBaseLSS(SklearnBase):
         dict
             ``{metric_name: callable}`` dictionary of metric functions.
         """
+        family = getattr(self, "family", None)
+        if distribution_family == getattr(self, "family_name", None) and family is not None:
+            return get_default_metrics_dict("lss", family=family)
         return get_default_metrics_dict("lss", family=distribution_family)
 
     def score(self, X, y, metric="NLL"):
-        """Calculate the score of the model using the specified metric.
+        """Return negative mean negative log-likelihood for sklearn scoring.
 
         Parameters
         ----------
@@ -552,16 +611,29 @@ class SklearnBaseLSS(SklearnBase):
         y : array-like of shape (n_samples,) or (n_samples, n_outputs)
             The true target values against which to evaluate the predictions.
         metric : str, default="NLL"
-            So far, only negative log-likelihood is supported
+            Only ``"NLL"`` is supported. Its sign is reversed so larger
+            scores represent better fits, as expected by scikit-learn.
 
         Returns
         -------
         score : float
-            The score calculated using the specified metric.
+            Negative mean NLL evaluated on raw network parameters. For
+            quantile models, this is the negative mean training loss.
         """
-        predictions = self.predict(X)
-        score = self._task_model.family.evaluate_nll(y, predictions)  # type: ignore
-        return score
+        if metric != "NLL":
+            raise ValueError(f"Unsupported score metric: {metric!r}; use 'NLL'")
+        predictions = self.predict(X, raw=True)
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y = _encode_labels(np.asarray(y), self.classes_)
+        loss = self.family.compute_loss(
+            torch.as_tensor(predictions, dtype=torch.float32),
+            torch.as_tensor(np.asarray(y), dtype=torch.float32).squeeze(-1),
+        )
+        return -float(loss.detach().cpu())
 
     def encode(self, X, batch_size=64):
         """
@@ -692,7 +764,10 @@ class SklearnBaseLSS(SklearnBase):
 
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
-        obj.family = get_distribution(bundle["family"])
+        obj.distributional_kwargs_ = deepcopy(bundle.get("distributional_kwargs", {}))
+        if bundle["family"] in {"categorical", "dirichlet"}:
+            obj.distributional_kwargs_.setdefault("num_classes", bundle["num_classes"])
+        obj.family = get_distribution(bundle["family"], **obj.distributional_kwargs_)
         obj.family_name = bundle["family"]
 
         obj._data_module = TabularDataModule(

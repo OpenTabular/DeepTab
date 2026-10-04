@@ -195,43 +195,69 @@ class CRPS(DeepTabMetric):
 
     Expected ``y_pred`` format (2-D array, columns are distribution parameters):
 
-    * **Normal / StudentT / LogNormal / JohnsonSU** — ``[loc, scale]``
+    * **Normal / LogNormal**: ``[loc, scale]``
+    * **StudentT**: ``[df, loc, scale]``
+    * **JohnsonSU**: ``[skew, shape, loc, scale]``
+    * **Mixture of Gaussians**: ``[weights..., means..., scales...]``
     * All other families — ``[mean, ...]``; CRPS is approximated from the
       predicted mean only (less informative).
 
-    For the ``normal`` family, the exact Gaussian CRPS is computed.
+    With ``properscoring`` installed, the exact Gaussian CRPS is computed for
+    ``normal``. Student-T and Johnson SU use a Gaussian location/scale
+    approximation, and mixtures use a moment-matched Gaussian. Without that
+    dependency, all families fall back to mean absolute error.
 
     Parameters
     ----------
     family : str, optional
         Distribution family key (e.g. ``"normal"``, ``"studentt"``).
-        When provided, enables family-specific CRPS formulas.
+        Selects the parameter layout and approximation.
+    loc_col, scale_col : int, optional
+        Override the family's location and scale column indices.
     """
 
     name = "crps"
     higher_is_better = False
 
-    def __init__(self, family: str = "normal") -> None:
+    def __init__(
+        self,
+        family: str = "normal",
+        loc_col: int | None = None,
+        scale_col: int | None = None,
+    ) -> None:
         self.family = family
+        self.loc_col = loc_col
+        self.scale_col = scale_col
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true, dtype=float).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
 
+        if self.family in ("normal", "lognormal", "studentt", "johnsonsu"):
+            default_columns = {"studentt": (1, 2), "johnsonsu": (2, 3)}
+            loc_col, scale_col = default_columns.get(self.family, (0, 1))
+            loc = _col(y_pred, self.loc_col if self.loc_col is not None else loc_col)
+            scale = np.clip(_col(y_pred, self.scale_col if self.scale_col is not None else scale_col), 1e-9, None)
+        elif self.family == "mog":
+            if y_pred.ndim != 2 or y_pred.shape[1] % 3 != 0:
+                raise ValueError("Mixture CRPS expects [weights..., means..., scales...] columns")
+            component_count = y_pred.shape[1] // 3
+            weights = np.clip(y_pred[:, :component_count], 0.0, None)
+            weights /= np.clip(weights.sum(axis=1, keepdims=True), 1e-9, None)
+            means = y_pred[:, component_count : 2 * component_count]
+            scales = np.clip(y_pred[:, 2 * component_count :], 1e-9, None)
+            loc = np.sum(weights * means, axis=1)
+            variance = np.sum(weights * (scales**2 + means**2), axis=1) - loc**2
+            scale = np.sqrt(np.clip(variance, 1e-18, None))
+        else:
+            loc = _col(y_pred, 0)
+            scale = np.full_like(loc, np.std(y_true - loc))
+
         try:
             import properscoring as ps
 
-            if self.family in ("normal", "lognormal", "studentt", "johnsonsu"):
-                loc = _col(y_pred, 0)
-                scale = np.clip(_col(y_pred, 1), 1e-9, None)
-                return float(np.mean(ps.crps_gaussian(y_true, mu=loc, sig=scale)))
-            else:
-                # Generic ensemble-based CRPS using predicted mean only
-                loc = _col(y_pred, 0)
-                return float(np.mean(ps.crps_gaussian(y_true, mu=loc, sig=np.std(y_true - loc))))
+            return float(np.mean(ps.crps_gaussian(y_true, mu=loc, sig=scale)))
         except ImportError:
-            # Fallback: energy form approximation, CRPS ~= MAE when sigma=0
-            loc = _col(y_pred, 0)
             return float(np.mean(np.abs(y_true - loc)))
 
     def __repr__(self) -> str:
@@ -311,15 +337,29 @@ class PoissonDeviance(DeepTabMetric):
     """Mean Poisson Deviance.
 
     Suitable for ``poisson`` and ``zip`` families.  Expected ``y_pred``:
-    predicted mean (1-D or first column of 2-D).
+    predicted mean (1-D or first column of 2-D), or ZIP parameters when
+    ``pi_col`` and ``rate_col`` select the zero-inflation and rate columns.
     """
 
     name = "poisson_deviance"
     higher_is_better = False
 
+    def __init__(self, pi_col: int | None = None, rate_col: int | None = None) -> None:
+        self.pi_col = pi_col
+        self.rate_col = rate_col
+
+    def predicted_mean(self, y_pred: np.ndarray) -> np.ndarray:
+        """Extract the mean, accounting for zero inflation when configured."""
+        if self.pi_col is not None and self.rate_col is not None:
+            pi = np.clip(_col(y_pred, self.pi_col), 0.0, 1.0)
+            rate = _col(y_pred, self.rate_col)
+            return (1.0 - pi) * rate
+        return _col(y_pred, 0)
+
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true, dtype=float).ravel()
-        mu = np.clip(_col(y_pred, 0), 1e-9, None)
+        mu = self.predicted_mean(y_pred)
+        mu = np.clip(mu, 1e-9, None)
         # Safe log: avoid log(0/0) when y_true == 0
         log_ratio = np.where(y_true > 0, np.log(np.where(y_true > 0, y_true / mu, 1.0)), 0.0)
         return float(2.0 * np.mean(y_true * log_ratio - (y_true - mu)))
@@ -329,15 +369,27 @@ class GammaDeviance(DeepTabMetric):
     """Mean Gamma Deviance.
 
     Suitable for ``gamma`` and ``inversegamma`` families.  Expected ``y_pred``:
-    predicted mean (1-D or first column of 2-D).
+    predicted mean (1-D or first column of 2-D), or Gamma parameters when
+    ``shape_col`` and ``rate_col`` select the shape and rate columns.
     """
 
     name = "gamma_deviance"
     higher_is_better = False
 
+    def __init__(self, shape_col: int | None = None, rate_col: int | None = None) -> None:
+        self.shape_col = shape_col
+        self.rate_col = rate_col
+
+    def predicted_mean(self, y_pred: np.ndarray) -> np.ndarray:
+        """Extract the mean, dividing Gamma shape by rate when configured."""
+        if self.shape_col is not None and self.rate_col is not None:
+            return _col(y_pred, self.shape_col) / np.clip(_col(y_pred, self.rate_col), 1e-9, None)
+        return _col(y_pred, 0)
+
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.clip(np.asarray(y_true, dtype=float).ravel(), 1e-9, None)
-        mu = np.clip(_col(y_pred, 0), 1e-9, None)
+        mu = self.predicted_mean(y_pred)
+        mu = np.clip(mu, 1e-9, None)
         return float(2.0 * np.mean(np.log(mu / y_true) + (y_true - mu) / mu))
 
 
@@ -423,9 +475,19 @@ class BetaBrierScore(DeepTabMetric):
     name = "beta_brier"
     higher_is_better = False
 
+    def __init__(self, alpha_col: int | None = None, beta_col: int | None = None) -> None:
+        self.alpha_col = alpha_col
+        self.beta_col = beta_col
+
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true, dtype=float).ravel()
-        mu = np.clip(_col(y_pred, 0), 1e-9, 1.0 - 1e-9)
+        if self.alpha_col is not None and self.beta_col is not None:
+            alpha = np.clip(_col(y_pred, self.alpha_col), 1e-9, None)
+            beta = np.clip(_col(y_pred, self.beta_col), 1e-9, None)
+            mu = alpha / (alpha + beta)
+        else:
+            mu = _col(y_pred, 0)
+        mu = np.clip(mu, 1e-9, 1.0 - 1e-9)
         return float(np.mean((mu - y_true) ** 2))
 
 
@@ -458,8 +520,9 @@ class DirichletError(DeepTabMetric):
 class StudentTLoss(DeepTabMetric):
     """Proper Student-T negative log-likelihood (mean) for the ``studentt`` family.
 
-    Expected ``y_pred`` columns: ``[loc, scale, (df)]``.  If only 2 columns
-    are present, ``df`` defaults to the constructor argument.
+    Expected ``y_pred`` columns: ``[df, loc, scale]``. If only 2 columns
+    are present, ``df`` defaults to the constructor argument and the columns
+    are interpreted as ``[loc, scale]``.
 
     Parameters
     ----------
@@ -471,19 +534,30 @@ class StudentTLoss(DeepTabMetric):
     name = "studentt_nll"
     higher_is_better = False
 
-    def __init__(self, default_df: float = 3.0) -> None:
+    def __init__(
+        self,
+        default_df: float = 3.0,
+        df_col: int = 0,
+        loc_col: int = 1,
+        scale_col: int = 2,
+    ) -> None:
         self.default_df = default_df
+        self.df_col = df_col
+        self.loc_col = loc_col
+        self.scale_col = scale_col
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         from scipy.special import gammaln
 
         y_true = np.asarray(y_true, dtype=float).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
-        mu = _col(y_pred, 0)
-        scale = np.clip(_col(y_pred, 1), 1e-9, None)
         if y_pred.ndim == 2 and y_pred.shape[1] >= 3:
-            df = np.clip(y_pred[:, 2], 2.0 + 1e-6, None)
+            mu = _col(y_pred, self.loc_col)
+            scale = np.clip(_col(y_pred, self.scale_col), 1e-9, None)
+            df = np.clip(_col(y_pred, self.df_col), 2.0 + 1e-6, None)
         else:
+            mu = _col(y_pred, 0)
+            scale = np.clip(_col(y_pred, 1), 1e-9, None)
             df = self.default_df
         # Student-T NLL: -log Γ((df+1)/2) + log Γ(df/2) + 0.5*log(π*df*σ²) + (df+1)/2 * log(1 + (y-μ)²/(df*σ²))
         nll = (

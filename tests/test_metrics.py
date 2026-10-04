@@ -16,6 +16,7 @@ import numpy as np
 import pytest
 
 import deeptab.metrics as dm
+from deeptab.distributions import GammaDistribution, Quantile
 from deeptab.metrics import (  # Classification; Distributional; Registry; Base; Regression
     AUPRC,
     AUROC,
@@ -46,6 +47,31 @@ from deeptab.metrics import (  # Classification; Distributional; Registry; Base;
     get_default_metrics,
     get_default_metrics_dict,
 )
+from deeptab.metrics.registry import get_default_lss_metrics
+
+
+@pytest.mark.parametrize(
+    "family,parameters,mean",
+    [
+        ("gamma", [[6.0, 2.0], [8.0, 4.0]], [3.0, 2.0]),
+        ("zip", [[0.25, 4.0], [0.5, 8.0]], [3.0, 4.0]),
+    ],
+)
+def test_default_lss_rmse_uses_derived_distribution_mean(family, parameters, mean):
+    metrics = get_default_metrics_dict("lss", family=family)
+    targets = np.array([1.0, 5.0])
+    expected = np.sqrt(np.mean((targets - np.asarray(mean)) ** 2))
+    assert metrics["rmse"](targets, np.asarray(parameters)) == pytest.approx(expected)
+
+
+def test_default_tweedie_metric_uses_fitted_power():
+    from deeptab.distributions import get_distribution
+
+    metrics = get_default_metrics_dict("lss", family=get_distribution("tweedie", p=1.7))
+    deviance = metrics["tweedie_deviance"]
+    assert isinstance(deviance, TweedieDeviance)
+    assert deviance.p == 1.7
+
 
 # ---------------------------------------------------------------------------
 # Shared fixtures
@@ -457,6 +483,90 @@ class TestDistributionalMetrics:
         y_true, y_pred = lss_data
         assert isinstance(StudentTLoss()(y_true, y_pred), float)
 
+    def test_default_student_t_loss_uses_df_loc_scale_columns(self):
+        from scipy.stats import t
+
+        y_true = np.array([0.0, 2.0])
+        y_pred = np.array([[8.0, 0.0, 1.0], [10.0, 1.0, 2.0]])
+        metric = get_default_lss_metrics("studentt")[0]
+
+        expected = -np.mean(t.logpdf(y_true, df=y_pred[:, 0], loc=y_pred[:, 1], scale=y_pred[:, 2]))
+        assert metric(y_true, y_pred) == pytest.approx(expected)
+
+    def test_default_zip_deviance_uses_expected_count(self):
+        y_true = np.array([0.5, 2.0])
+        y_pred = np.array([[0.5, 1.0], [0.2, 2.5]])
+        metric = get_default_lss_metrics("zip")[0]
+
+        expected_mean = (1.0 - y_pred[:, 0]) * y_pred[:, 1]
+        expected = PoissonDeviance()(y_true, expected_mean)
+        assert metric(y_true, y_pred) == pytest.approx(expected)
+
+    def test_default_gamma_deviance_uses_shape_over_rate(self):
+        y_true = np.array([2.0, 3.0])
+        y_pred = np.array([[4.0, 2.0], [6.0, 2.0]])
+        metric = get_default_lss_metrics("gamma")[0]
+
+        assert metric(y_true, y_pred) == pytest.approx(0.0, abs=1e-12)
+
+    def test_default_beta_brier_uses_alpha_over_concentration(self):
+        y_true = np.array([0.25, 0.75])
+        y_pred = np.array([[1.0, 3.0], [3.0, 1.0]])
+        metric = get_default_lss_metrics("beta")[0]
+
+        assert metric(y_true, y_pred) == pytest.approx(0.0, abs=1e-12)
+
+    def test_default_johnson_su_crps_uses_location_and_scale_columns(self):
+        y_true = np.array([1.0, 3.0])
+        y_pred = np.array([[0.1, 4.0, 1.0, 0.5], [0.2, 5.0, 2.0, 1.5]])
+        metric = get_default_lss_metrics("johnsonsu")[0]
+        expected_params = y_pred[:, [2, 3]]
+
+        assert metric(y_true, y_pred) == pytest.approx(CRPS(family="normal")(y_true, expected_params))
+
+    def test_default_mog_crps_uses_weighted_mean_and_scale(self):
+        y_true = np.array([3.0, 3.0])
+        y_pred = np.array(
+            [
+                [0.25, 0.75, 0.0, 4.0, 1.0, 2.0],
+                [0.6, 0.4, 2.0, 4.0, 0.5, 1.0],
+            ]
+        )
+        metric = get_default_lss_metrics("mog")[0]
+        weights = y_pred[:, :2]
+        means = y_pred[:, 2:4]
+        scales = y_pred[:, 4:]
+        mean = np.sum(weights * means, axis=1)
+        scale = np.sqrt(np.sum(weights * (scales**2 + means**2), axis=1) - mean**2)
+
+        assert metric(y_true, y_pred) == pytest.approx(CRPS(family="normal")(y_true, np.column_stack([mean, scale])))
+
+    def test_default_lognormal_metrics_only_score_outcome_scale_correctly(self):
+        assert [metric.name for metric in get_default_lss_metrics("lognormal")] == ["lognormal_nll"]
+
+    def test_default_quantile_metric_scores_median_column(self):
+        y_true = np.array([1.0])
+        y_pred = np.array([[100.0, 2.0, 0.0]])
+        metric = get_default_lss_metrics("quantile")[0]
+
+        assert metric(y_true, y_pred) == pytest.approx(0.5)
+
+    def test_quantile_metric_uses_configured_quantile_metadata(self):
+        y_true = np.array([1.0])
+        y_pred = np.array([[0.0, 10.0, 2.0]])
+        family = Quantile(quantiles=[0.75, 0.25, 0.5])
+        metric = get_default_lss_metrics(family)[0]
+
+        assert metric(y_true, y_pred) == pytest.approx(0.5)
+
+    def test_public_lss_factory_accepts_quantiles_keyword(self):
+        y_true = np.array([1.0])
+        y_pred = np.array([[0.0, 10.0, 2.0]])
+        metric = get_default_metrics("lss", "quantile", quantiles=[0.75, 0.25, 0.5])[0]
+
+        assert metric(y_true, y_pred) == pytest.approx(0.5)
+        assert metric.needs_raw is False
+
     def test_interval_score_returns_float(self):
         y_true = np.array([1.0, 2.0, 3.0])
         y_pred = np.column_stack([y_true - 0.5, y_true + 0.5])
@@ -521,6 +631,7 @@ class TestRegistry:
             "johnsonsu",
             "mog",
             "quantile",
+            "multinomial",
         ],
     )
     def test_all_lss_families_have_metrics(self, family):

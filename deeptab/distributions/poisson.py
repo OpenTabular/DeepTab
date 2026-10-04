@@ -47,7 +47,9 @@ class PoissonDistribution(BaseDistribution):
             .detach()
             .numpy()  # type: ignore
         )  # type: ignore
-        poisson_deviance = 2 * torch.sum(y_true_tensor * torch.log(y_true_tensor / rate) - (y_true_tensor - rate))  # type: ignore[operator]
+        poisson_deviance = 2 * torch.sum(
+            torch.special.xlogy(y_true_tensor, y_true_tensor / rate) - (y_true_tensor - rate)
+        )
 
         metrics["mse"] = mse_loss.detach().numpy()
         metrics["mae"] = mae

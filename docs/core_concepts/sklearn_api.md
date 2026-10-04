@@ -141,6 +141,25 @@ model = MambularLSS()
 model.fit(X_train, y_train, family="normal")
 ```
 
+LSS models can also be built before fitting. Choose the family and its constructor
+options at build time; a fresh build without a family defaults to `"normal"`:
+
+```python
+from deeptab.models import MLPLSS
+
+model = MLPLSS(random_state=42)
+model.build_model(
+    X_train, y_train,
+    family="quantile",
+    distributional_kwargs={"quantiles": [0.1, 0.5, 0.9]},
+)
+model.fit(X_train, y_train, family="quantile", rebuild=False)
+```
+
+For the same family, omitted `distributional_kwargs` reuse the selected options.
+Changing the family or options requires `rebuild=True`. `rebuild=False` continues
+training the existing network; it does not reinitialize its weights.
+
 ## Predict
 
 ```python
@@ -193,11 +212,17 @@ classifier.evaluate(
 
 `score()` follows the scikit-learn convention of one default metric per estimator family (higher is better):
 
-| Estimator  | Default `score()`       |
-| ---------- | ----------------------- |
-| Classifier | accuracy                |
-| Regressor  | R2                      |
-| LSS        | negative log-likelihood |
+| Estimator  | Default `score()` |
+| ---------- | ----------------- |
+| Classifier | accuracy          |
+| Regressor  | R2                |
+| LSS        | negative mean NLL |
+
+LSS `score()` returns a single float, computed from raw network outputs so that
+parameter transforms are applied exactly once. Higher is better; use
+`-lss_model.score(X_test, y_test)` to report mean negative log-likelihood (NLL)
+as a loss. LSS accepts only `metric="NLL"`. For quantile models, the returned
+value is the negative mean training pinball loss, not a likelihood.
 
 Pass a metric explicitly if you need F1, log loss, or another convention:
 
@@ -260,7 +285,15 @@ loaded.task_info_
 loaded.versions_
 ```
 
-`load()` keeps backward compatibility with older DeepTab artifacts that do not contain the richer metadata block, but newer artifacts are easier to audit and debug across environments.
+LSS artifacts also retain `distributional_kwargs`, including configured quantiles,
+Tweedie power, mixture component count, and inferred categorical or Dirichlet width.
+The options are available as `loaded.distributional_kwargs_` and in
+`loaded.task_info_["distributional_kwargs"]`.
+
+When older artifacts omit family options, loading falls back to constructor
+defaults. Missing custom options cannot be recovered from weights alone. See
+[model operations](model_operations.md)
+for the supported artifact versions.
 
 ## Model Inspection
 

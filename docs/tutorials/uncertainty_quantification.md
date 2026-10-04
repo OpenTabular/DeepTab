@@ -199,6 +199,25 @@ and a rate for `"gamma"`, degrees of freedom plus location and scale for
 `raw=True` to see the untransformed network outputs.
 ```
 
+Common transformed output layouts are:
+
+| Family        | Columns                                               | Mean used by default point metrics                      |
+| ------------- | ----------------------------------------------------- | ------------------------------------------------------- |
+| `normal`      | `loc, scale`                                          | `loc`                                                   |
+| `gamma`       | `shape, rate`                                         | `shape / rate`                                          |
+| `studentt`    | `df, loc, scale`                                      | `loc`                                                   |
+| `johnsonsu`   | `skew, shape, loc, scale`                             | No default point metric                                 |
+| `zip`         | `pi, rate`                                            | `(1 - pi) * rate`                                       |
+| `quantile`    | One column per configured quantile, in supplied order | Default pinball metric selects the quantile nearest 0.5 |
+| `categorical` | One probability per class in `classes_` order         | No regression mean                                      |
+| `dirichlet`   | One positive concentration per target component       | Normalized concentration vector                         |
+| `mog`         | All weights, then all means, then all scales          | Weighted component mean                                 |
+
+Categorical probabilities and mixture weights sum to one along each row.
+Dirichlet predictions are concentrations, not normalized probabilities.
+To configure a family, pass constructor options in `distributional_kwargs`, for
+example `{"quantiles": [0.1, 0.5, 0.9]}` or `{"n_components": 3}`.
+
 ## Building Prediction Intervals
 
 With a location and a scale per row, a central interval at any confidence level is
@@ -271,8 +290,12 @@ rewards both accuracy and well-calibrated sharpness) plus RMSE and MAE on the me
 print(lss.evaluate(X_test, y_test))
 # {"crps": ..., "rmse": ..., "mae": ...}
 
-print("NLL:", lss.score(X_test, y_test))   # negative log-likelihood, lower is better
+print("NLL:", -lss.score(X_test, y_test))
 ```
+
+`score()` itself returns negative mean NLL, so higher is better for scikit-learn
+model selection. Negating it gives the loss reported above. Quantile models use
+negative mean training pinball loss instead of NLL.
 
 ```{note}
 RMSE and accuracy alone cannot tell a confident-but-wrong model from a
@@ -286,6 +309,14 @@ The family encodes your assumptions about the target's support and tails. Match 
 to the data, then let a proper scoring rule settle close calls. Here we add a few
 heavy-tailed outliers and compare the thin-tailed normal against the heavy-tailed
 Student's t, selecting by CRPS.
+
+```{warning}
+The current CRPS implementation uses Gaussian location/scale approximations for
+Student's t and Johnson SU, and a moment-matched Gaussian approximation for
+mixtures. It is not an exact family-specific CRPS. Without the optional
+`properscoring` package, it falls back to mean absolute error. Use the raw-output
+NLL score to compare likelihoods when that approximation is unsuitable.
+```
 
 ```python
 contam = rng.random(len(y_train)) < 0.05

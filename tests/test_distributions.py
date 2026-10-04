@@ -145,6 +145,13 @@ def test_get_distribution_unknown_raises():
         get_distribution("not_a_family")
 
 
+@pytest.mark.parametrize("family", ["categorical", "dirichlet"])
+def test_get_distribution_forwards_num_classes(family):
+    from deeptab.distributions import get_distribution
+
+    assert get_distribution(family, num_classes=4).parameter_count == 4
+
+
 # ---------------------------------------------------------------------------
 # LogNormal
 # ---------------------------------------------------------------------------
@@ -401,6 +408,24 @@ class TestMixtureOfGaussiansDistribution:
         for key in ("NLL", "mse", "mae", "rmse"):
             assert key in metrics
 
+    def test_forward_transforms_weights_and_scales(self):
+        transformed = self.dist(self.preds)
+        weights = transformed[:, : self.K]
+        scales = transformed[:, 2 * self.K :]
+
+        assert transformed.shape == self.preds.shape
+        assert transformed.isfinite().all()
+        assert (weights >= 0).all()
+        assert self.torch.allclose(weights.sum(dim=-1), self.torch.ones(self.B))
+        assert (scales > 0).all()
+
+    def test_nll_uses_raw_predictions(self):
+        expected = self.dist.compute_loss(self.preds, self.y)
+        metrics = self.dist.evaluate_nll(self.y.numpy(), self.preds.numpy())
+
+        assert expected.isfinite()
+        assert metrics["NLL"] == pytest.approx(expected.item())
+
     @pytest.mark.parametrize("K", [1, 2, 5])
     def test_various_component_counts(self, K):
         from deeptab.distributions import MixtureOfGaussiansDistribution
@@ -459,6 +484,7 @@ class TestPoissonDistribution:
 
         from deeptab.distributions import PoissonDistribution
 
+        self.torch = torch
         self.dist = PoissonDistribution()
         self.B = 16
         self.y = torch.randint(0, 10, (self.B,)).float()
@@ -483,6 +509,17 @@ class TestPoissonDistribution:
         m = self.dist.evaluate_nll(self.y.numpy(), self.preds.detach().numpy())
         for k in ("NLL", "mse", "mae", "rmse", "poisson_deviance"):
             assert k in m
+
+    def test_poisson_deviance_is_finite_for_zero_counts(self):
+        y = self.torch.tensor([0.0, 1.0, 3.0])
+        raw_rates = self.torch.tensor([[0.0], [0.5], [1.0]])
+
+        metrics = self.dist.evaluate_nll(y.numpy(), raw_rates.numpy())
+
+        assert self.torch.isfinite(self.torch.tensor(metrics["poisson_deviance"]))
+        rates = self.dist.rate_transform(raw_rates[:, 0])
+        expected = 2 * (self.torch.special.xlogy(y, y / rates) - (y - rates)).sum()
+        assert metrics["poisson_deviance"] == pytest.approx(expected.item())
 
 
 # ---------------------------------------------------------------------------
@@ -597,15 +634,16 @@ class TestDirichletDistribution:
 
         from deeptab.distributions import DirichletDistribution
 
+        self.torch = torch
         self.K = 3
-        self.dist = DirichletDistribution()
+        self.dist = DirichletDistribution(num_classes=self.K)
         self.B = 16
         # targets must lie on the K-simplex (rows sum to 1, all > 0)
         self.y = torch.softmax(torch.randn(self.B, self.K), dim=-1)
         self.preds = torch.randn(self.B, self.K)
 
     def test_param_count(self):
-        assert self.dist.parameter_count == 1
+        assert self.dist.parameter_count == self.K
 
     def test_name(self):
         assert self.dist.name == "Dirichlet"
@@ -618,6 +656,13 @@ class TestDirichletDistribution:
         preds = self.preds.requires_grad_(True)
         self.dist.compute_loss(preds, self.y).backward()
         assert preds.grad is not None
+
+    def test_forward_transforms_each_class_concentration(self):
+        transformed = self.dist(self.preds)
+
+        assert transformed.shape == (self.B, self.K)
+        assert transformed.isfinite().all()
+        assert (transformed > 0).all()
 
 
 # ---------------------------------------------------------------------------
@@ -786,14 +831,15 @@ class TestCategoricalDistribution:
 
         from deeptab.distributions import CategoricalDistribution
 
+        self.torch = torch
         self.K = 4
-        self.dist = CategoricalDistribution()
+        self.dist = CategoricalDistribution(num_classes=self.K)
         self.B = 16
         self.y = torch.randint(0, self.K, (self.B,))  # integer class indices
         self.preds = torch.randn(self.B, self.K)
 
     def test_param_count(self):
-        assert self.dist.parameter_count == 1
+        assert self.dist.parameter_count == self.K
 
     def test_name(self):
         assert self.dist.name == "Categorical"
@@ -806,6 +852,14 @@ class TestCategoricalDistribution:
         preds = self.preds.requires_grad_(True)
         self.dist.compute_loss(preds, self.y).backward()
         assert preds.grad is not None
+
+    def test_forward_normalizes_categories_within_each_row(self):
+        transformed = self.dist(self.preds)
+
+        assert transformed.shape == (self.B, self.K)
+        assert transformed.isfinite().all()
+        assert (transformed >= 0).all()
+        assert self.torch.allclose(transformed.sum(dim=-1), self.torch.ones(self.B))
 
 
 # ---------------------------------------------------------------------------

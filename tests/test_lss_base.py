@@ -16,6 +16,7 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+import torch
 
 from deeptab.configs import TrainerConfig
 from deeptab.models.base import SklearnBase
@@ -230,3 +231,201 @@ class TestLSSSpecificMethods:
         """MLP does not have an embedding layer; encode should raise."""
         with pytest.raises(AttributeError):
             fitted_mlplss.encode(_X[:8])
+
+
+def test_score_is_scalar_negative_nll_on_raw_parameters(fitted_mlplss):
+    raw = fitted_mlplss.predict(_X, raw=True)
+    expected = -float(fitted_mlplss.family.compute_loss(torch.tensor(raw), torch.tensor(_Y)))
+    actual = fitted_mlplss.score(_X, _Y)
+    assert isinstance(actual, float)
+    assert actual == pytest.approx(expected)
+
+
+def test_score_rejects_unknown_metric(fitted_mlplss):
+    with pytest.raises(ValueError, match="Unsupported score metric"):
+        fitted_mlplss.score(_X, _Y, metric="RMSE")
+
+
+def test_score_single_column_targets_do_not_broadcast(fitted_mlplss):
+    assert fitted_mlplss.score(_X[:8], _Y[:8, None]) == pytest.approx(fitted_mlplss.score(_X[:8], _Y[:8]))
+
+
+def test_evaluate_uses_fitted_gamma_family(monkeypatch, fitted_mlplss):
+    from deeptab.distributions import get_distribution
+
+    model = fitted_mlplss
+    model.family_name = "gamma"
+    model.family = get_distribution("gamma")
+    predictions = np.array([[2.0, 1.0], [6.0, 2.0]])
+    monkeypatch.setattr(model, "predict", lambda *args, **kwargs: predictions)
+    scores = model.evaluate(_X[:2], np.array([2.0, 3.0]))
+    assert "gamma_deviance" in scores
+    assert "crps" not in scores
+    assert all(np.isfinite(value) for value in scores.values())
+
+
+def test_default_quantile_metric_uses_fitted_quantile_configuration(fitted_mlplss):
+    from deeptab.distributions import get_distribution
+
+    model = fitted_mlplss
+    model.family_name = "quantile"
+    model.family = get_distribution("quantile", quantiles=[0.5, 0.9])
+    metric = next(iter(model.get_default_metrics("quantile").values()))
+    assert metric.col == 0
+    assert metric.quantile == 0.5
+
+
+def _small_lss(seed=42):
+    from deeptab.configs import MLPConfig, PreprocessingConfig
+
+    return MLPLSS(
+        model_config=MLPConfig(d_model=16, dropout=0.0),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=7),
+        trainer_config=TrainerConfig(max_epochs=2, patience=1, lr_patience=1, batch_size=16),
+        random_state=seed,
+    )
+
+
+def test_standalone_build_selects_family_and_can_fit_without_rebuilding(tmp_path):
+    model = _small_lss()
+    assert (
+        model.build_model(
+            _X[:24],
+            _Y[:24],
+            X_val=_X[24:32],
+            y_val=_Y[24:32],
+            family="quantile",
+            distributional_kwargs={"quantiles": [0.1, 0.9]},
+        )
+        is model
+    )
+    assert model.family.param_count == 2
+    task = model._task_model
+    model.fit(
+        _X[:24],
+        _Y[:24],
+        family="quantile",
+        rebuild=False,
+        max_epochs=1,
+        accelerator="cpu",
+        enable_progress_bar=False,
+        default_root_dir=str(tmp_path),
+    )
+    assert model._task_model is task
+    assert model.family.quantiles == [0.1, 0.9]
+    assert model.predict(_X[:4]).shape == (4, 2)
+
+
+def test_standalone_build_defaults_to_normal():
+    model = _small_lss()
+    model.build_model(_X[:24], _Y[:24], X_val=_X[24:32], y_val=_Y[24:32])
+    assert model.family_name == "normal"
+    assert model.family.param_count == 2
+
+
+def test_lss_fit_seed_controls_initialization_and_training(tmp_path):
+    predictions = []
+    for global_seed in [1, 999]:
+        torch.manual_seed(global_seed)
+        model = _small_lss(seed=17)
+        model.fit(
+            _X[:24],
+            _Y[:24],
+            family="normal",
+            X_val=_X[24:32],
+            y_val=_Y[24:32],
+            max_epochs=1,
+            accelerator="cpu",
+            enable_progress_bar=False,
+            default_root_dir=str(tmp_path),
+        )
+        predictions.append(model.predict(_X[:4], raw=True))
+    np.testing.assert_allclose(predictions[0], predictions[1], rtol=0, atol=0)
+
+
+@pytest.mark.parametrize("family", ["categorical", "dirichlet"])
+def test_multivariate_families_build_and_fit_three_outputs(tmp_path, family):
+    model = _small_lss()
+    targets = np.tile(np.array([10, 20, 30]), 8) if family == "categorical" else np.tile([0.2, 0.3, 0.5], (24, 1))
+    model.fit(
+        _X[:24],
+        targets,
+        family=family,
+        X_val=_X[24:30],
+        y_val=targets[:6],
+        max_epochs=1,
+        accelerator="cpu",
+        enable_progress_bar=False,
+        default_root_dir=str(tmp_path),
+    )
+    predictions = model.predict(_X[:6])
+    assert predictions.shape == (6, 3)
+    assert np.isfinite(model.score(_X[:6], targets[:6]))
+    if family == "categorical":
+        np.testing.assert_allclose(predictions.sum(axis=1), 1, atol=1e-6)
+        assert set(model.evaluate(_X[:6], targets[:6])) == {"accuracy", "log_loss"}
+    else:
+        assert (predictions > 0).all()
+    path = str(tmp_path / f"{family}.deeptab")
+    model.save(path)
+    loaded = MLPLSS.load(path)
+    assert loaded.family.param_count == 3
+    np.testing.assert_allclose(loaded.predict(_X[:6]), predictions, atol=1e-6)
+    assert loaded.score(_X[:6], targets[:6]) == pytest.approx(model.score(_X[:6], targets[:6]))
+
+
+@pytest.mark.parametrize(
+    "family,options,attribute",
+    [
+        ("quantile", {"quantiles": [0.1, 0.5, 0.9, 0.95]}, "quantiles"),
+        ("tweedie", {"p": 1.7}, "p"),
+        ("mog", {"n_components": 3}, "n_components"),
+    ],
+)
+def test_custom_family_configuration_survives_artifact_roundtrip(tmp_path, family, options, attribute):
+    model = _small_lss()
+    targets = np.abs(_Y) + 0.5 if family == "tweedie" else _Y
+    model.fit(
+        _X[:24],
+        targets[:24],
+        family=family,
+        distributional_kwargs=options,
+        X_val=_X[24:32],
+        y_val=targets[24:32],
+        max_epochs=1,
+        accelerator="cpu",
+        enable_progress_bar=False,
+        default_root_dir=str(tmp_path),
+    )
+    before = model.predict(_X[:4])
+    score = model.score(_X[:4], targets[:4])
+    path = str(tmp_path / f"{family}.deeptab")
+    model.save(path)
+    loaded = MLPLSS.load(path)
+    assert getattr(loaded.family, attribute) == getattr(model.family, attribute)
+    assert loaded.distributional_kwargs_ == options
+    assert loaded.task_info_["distributional_kwargs"] == options
+    np.testing.assert_allclose(loaded.predict(_X[:4]), before, atol=1e-6)
+    assert loaded.score(_X[:4], targets[:4]) == pytest.approx(score)
+
+
+def test_reused_build_rejects_changed_options_without_mutating_family():
+    model = _small_lss()
+    model.build_model(_X[:24], _Y[:24], family="normal")
+    family = model.family
+    with pytest.raises(ValueError, match="requires rebuild=True"):
+        model.fit(_X[:24], _Y[:24], family="quantile", rebuild=False)
+    assert model.family is family
+    assert model.family_name == "normal"
+
+
+def test_legacy_lss_bundle_loads_without_distributional_kwargs(tmp_path, fitted_mlplss):
+    path = str(tmp_path / "legacy.deeptab")
+    fitted_mlplss.save(path)
+    bundle = torch.load(path, weights_only=False)
+    del bundle["distributional_kwargs"]
+    bundle["task_info"].pop("distributional_kwargs", None)
+    torch.save(bundle, path)
+    loaded = MLPLSS.load(path)
+    assert loaded.distributional_kwargs_ == {}
+    np.testing.assert_allclose(loaded.predict(_X[:4]), fitted_mlplss.predict(_X[:4]), atol=1e-6)

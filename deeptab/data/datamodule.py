@@ -1,3 +1,5 @@
+"""Prepare tabular features, labels, and data loaders for Lightning workflows."""
+
 import lightning as pl
 import numpy as np
 import torch
@@ -10,48 +12,88 @@ from deeptab.data.dataset import TabularDataset
 from deeptab.data.schema import FeatureSchema
 
 
-def _prepare_regression_labels(y) -> torch.Tensor:
-    """Build the (n_samples, 1) label tensor for regression, rejecting multi-target y.
+def _prepare_regression_labels(y, *, vector_targets: bool = False) -> torch.Tensor:
+    """Build float labels without flattening the sample-to-target alignment.
 
-    DeepTab's regression heads always emit a single output (see ``num_classes=1`` in
-    ``SklearnBaseRegressor``), so an (n_samples,) or (n_samples, 1) y is accepted and
-    normalized to (n_samples, 1); any other shape would silently corrupt the
-    sample-to-target alignment if reshaped, so it is rejected instead.
+    Parameters
+    ----------
+    y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Target values. A one-dimensional input becomes a single-column matrix.
+    vector_targets : bool, default=False
+        Allow multiple target columns for multivariate distribution families.
+        When false, only a vector or single-column matrix is accepted.
+
+    Returns
+    -------
+    torch.Tensor
+        Float32 labels of shape ``(n_samples, 1)`` for scalar targets, or
+        ``(n_samples, n_targets)`` when vector targets are enabled.
+
+    Raises
+    ------
+    DataError
+        If the target shape is unsupported, including multiple columns when
+        ``vector_targets`` is false.
     """
     y_arr = np.asarray(y)
     if y_arr.ndim == 1:
         y_arr = y_arr[:, None]
-    elif not (y_arr.ndim == 2 and y_arr.shape[1] == 1):
+    elif not (y_arr.ndim == 2 and (y_arr.shape[1] == 1 or vector_targets)):
         raise multi_output_regression_error(y_arr.shape)
     return torch.as_tensor(y_arr, dtype=torch.float32)
 
 
 class TabularDataModule(pl.LightningDataModule):
-    """A PyTorch Lightning data module for managing training and validation data loaders in a structured way.
+    """Manage tabular preprocessing, datasets, and Lightning data loaders.
 
-    This class simplifies the process of batch-wise data loading for training and validation datasets during
-    the training loop, and is particularly useful when working with PyTorch Lightning's training framework.
+    Training and validation features are transformed with a shared fitted
+    preprocessor. Labels are converted to tensors according to the task, and
+    optional weighted sampling controls how training rows are drawn.
 
-    Parameters:
-        preprocessor: object
-            An instance of your preprocessor class.
-        batch_size: int
-            Size of batches for the DataLoader.
-        shuffle: bool
-            Whether to shuffle the training data in the DataLoader.
-        X_val: DataFrame or None, optional
-            Validation features. If None, uses train-test split.
-        y_val: array-like or None, optional
-            Validation labels. If None, uses train-test split.
-        val_size: float, optional
-            Proportion of data to include in the validation split if `X_val` and `y_val` are None.
-        random_state: int or None, optional
-            Random seed for reproducibility in data splitting.
-        regression: bool, optional
-            Whether the problem is regression (True) or classification (False).
-        stratify: bool, optional
-            Whether to stratify the validation split on the labels for
-            classification tasks. Ignored for regression. Defaults to True.
+    Parameters
+    ----------
+    preprocessor : object
+        Preprocessor implementing ``fit``, ``transform``, and
+        ``get_feature_info`` for tabular features and optional embeddings.
+    batch_size : int
+        Number of samples per data-loader batch.
+    shuffle : bool
+        Shuffle training rows when no weighted sampler is configured.
+    regression : bool
+        Use floating-point regression labels when true. Otherwise, use
+        classification label shapes and dtypes.
+    X_val : pandas.DataFrame or array-like, optional
+        Validation features initially stored on the module. Training and
+        validation data are assigned by :meth:`preprocess_data`.
+    y_val : array-like, optional
+        Validation targets initially stored on the module.
+    val_size : float, default=0.2
+        Validation fraction stored on the module. Pass the desired split
+        fraction to :meth:`preprocess_data` when preparing data.
+    random_state : int or None, default=101
+        Seed for training-loader ordering and weighted sampling. The split
+        seed is supplied separately to :meth:`preprocess_data`. ``None`` uses
+        the generators' unseeded behavior.
+    stratify : bool, default=True
+        Preserve class proportions in automatic validation splits. Ignored
+        for regression and when explicit validation data are supplied.
+    sampler : bool, str or array-like, optional
+        ``True`` or ``"balanced"`` samples with inverse class frequencies.
+        An array supplies one sampling weight per original training row.
+        ``None`` or ``False`` disables weighted sampling.
+    vector_targets : bool, default=False
+        Preserve multiple target columns for multivariate regression
+        distributions. Ignored for classification.
+    **dataloader_kwargs : dict
+        Additional keyword arguments forwarded to PyTorch ``DataLoader``,
+        such as ``num_workers`` or ``pin_memory``.
+
+    Notes
+    -----
+    Call :meth:`preprocess_data` to fit preprocessing and assign the data,
+    then ``setup("fit")`` to create training and validation datasets.
+    Prediction and test datasets are assigned separately using
+    :meth:`assign_predict_dataset` and :meth:`assign_test_dataset`.
     """
 
     def __init__(
@@ -66,24 +108,10 @@ class TabularDataModule(pl.LightningDataModule):
         random_state: int | None = 101,
         stratify=True,
         sampler=None,
+        vector_targets=False,
         **dataloader_kwargs,
     ):
-        """Initialize the data module with the specified preprocessor, batch size, shuffle option, and optional
-        validation data settings.
-
-        Args:
-            preprocessor (object): An instance of the preprocessor class for data preprocessing.
-            batch_size (int): Size of batches for the DataLoader.
-            shuffle (bool): Whether to shuffle the training data in the DataLoader.
-            X_val (DataFrame or None, optional): Validation features. If None, uses train-test split.
-            y_val (array-like or None, optional): Validation labels. If None, uses train-test split.
-            val_size (float, optional): Proportion of data to include in the validation split
-            if `X_val` and `y_val` are None.
-            random_state (int or None, optional): Random seed for reproducibility in data splitting.
-            regression (bool, optional): Whether the problem is regression (True) or classification (False).
-            stratify (bool, optional): Whether to stratify the validation split on the labels for
-            classification tasks. Ignored for regression. Defaults to True.
-        """
+        """Initialize data handling with the options documented on the class."""
         super().__init__()
         self.preprocessor = preprocessor
         self.batch_size = batch_size
@@ -98,6 +126,7 @@ class TabularDataModule(pl.LightningDataModule):
         self.regression = regression
         self.stratify = stratify
         self.sampler = sampler
+        self.vector_targets = vector_targets
         self._train_sample_weights = None
         if self.regression:
             self.labels_dtype = torch.float32
@@ -124,30 +153,38 @@ class TabularDataModule(pl.LightningDataModule):
         val_size=0.2,
         random_state: int | None = 101,
     ):
-        """Preprocesses the training and validation data.
+        """Split data, fit preprocessing, and record feature metadata.
 
         Parameters
         ----------
-        X_train : DataFrame or array-like, shape (n_samples_train, n_features)
-            Training feature set.
-        y_train : array-like, shape (n_samples_train,)
-            Training target values.
+        X_train : pandas.DataFrame or array-like of shape (n_samples, n_features)
+            Training features before an optional validation split.
+        y_train : array-like of shape (n_samples,) or (n_samples, n_targets)
+            Targets aligned with training rows. Multiple target columns require
+            ``vector_targets=True`` when regression datasets are created.
+        X_val : pandas.DataFrame or array-like, optional
+            Explicit validation features. If either ``X_val`` or ``y_val`` is
+            missing, both validation arrays are created from the training data.
+        y_val : array-like, optional
+            Explicit validation targets aligned with ``X_val``.
         embeddings_train : array-like or list of array-like, optional
-            Training embeddings if available.
-        X_val : DataFrame or array-like, shape (n_samples_val, n_features), optional
-            Validation feature set. If None, a validation set will be created from `X_train`.
-        y_val : array-like, shape (n_samples_val,), optional
-            Validation target values. If None, a validation set will be created from `y_train`.
+            One or more embedding matrices aligned with training rows. They
+            are split alongside the features and targets when needed.
         embeddings_val : array-like or list of array-like, optional
-            Validation embeddings if available.
-        val_size : float, optional
-            Proportion of data to include in the validation split if `X_val` and `y_val` are None.
-        random_state : int or None, optional
-            Random seed for reproducibility in data splitting.
+            Embedding matrices aligned with explicit validation rows. With an
+            explicit validation set, embeddings are retained only when both
+            training and validation embeddings are supplied.
+        val_size : float, default=0.2
+            Fraction of training rows reserved for automatic validation.
+        random_state : int or None, default=101
+            Seed for the automatic split and matching sampling-weight split.
+            This argument does not change the module's loader seed.
 
-        Returns
-        -------
-        None
+        Notes
+        -----
+        The preprocessor is fitted only on the resulting training partition.
+        This method records data and feature metadata but does not create
+        datasets; call ``setup("fit")`` afterward.
         """
 
         if X_val is None or y_val is None:
@@ -215,11 +252,29 @@ class TabularDataModule(pl.LightningDataModule):
         ) = self.preprocessor.get_feature_info(verbose=False)
 
     def _resolve_train_sample_weights(self, y_full, val_size, random_state):
-        """Resolve explicit per-row sampling weights, splitting them to match the train set.
+        """Align explicit sampling weights with the training partition.
 
-        Returns the per-row weights aligned with ``self.y_train`` when ``self.sampler``
-        is an explicit array of weights, otherwise ``None`` (the ``"balanced"`` case is
-        computed lazily from the training labels in :meth:`train_dataloader`).
+        Parameters
+        ----------
+        y_full : array-like or None
+            Targets before an automatic split. ``None`` indicates an explicit
+            validation set, so weights already correspond to training rows.
+        val_size : float
+            Validation fraction used when splitting the original targets.
+        random_state : int or None
+            Seed used for the feature and target split.
+
+        Returns
+        -------
+        numpy.ndarray or None
+            Float64 sampling weights aligned with ``self.y_train``, or ``None``
+            when explicit weights are not configured. Balanced weights are
+            computed later from the training labels.
+
+        Raises
+        ------
+        ValueError
+            If the number of weights does not match the corresponding targets.
         """
         sampler = self.sampler
         if sampler is None or isinstance(sampler, bool | str):
@@ -242,7 +297,29 @@ class TabularDataModule(pl.LightningDataModule):
         return train_weights
 
     def setup(self, stage: str):
-        """Transform the data and create DataLoaders."""
+        """Transform training and validation data into tensor-backed datasets.
+
+        Parameters
+        ----------
+        stage : str
+            Lightning lifecycle stage. Only ``"fit"`` creates datasets; other
+            stages leave the module unchanged.
+
+        Raises
+        ------
+        DataError
+            If regression targets have an unsupported shape.
+
+        Notes
+        -----
+        Requires data and feature metadata prepared by :meth:`preprocess_data`.
+        Scalar regression labels have shape ``(n_samples, 1)`` and dtype
+        float32; vector regression labels retain their columns. Classification
+        with more than two training classes uses int64 labels of shape
+        ``(n_samples,)``. Otherwise, classification labels use float32 and
+        shape ``(n_samples, 1)``. Data loaders are created by the loader methods,
+        not by this method.
+        """
         if stage == "fit":
             train_preprocessed_data = self.preprocessor.transform(self.X_train, self.embeddings_train)
             val_preprocessed_data = self.preprocessor.transform(self.X_val, self.embeddings_val)
@@ -294,8 +371,8 @@ class TabularDataModule(pl.LightningDataModule):
             # Prepare labels with appropriate shape and dtype based on task.
             if self.regression:
                 # Regression: float32, shape (batch_size, 1)
-                train_labels = _prepare_regression_labels(self.y_train)
-                val_labels = _prepare_regression_labels(self.y_val)
+                train_labels = _prepare_regression_labels(self.y_train, vector_targets=self.vector_targets)
+                val_labels = _prepare_regression_labels(self.y_val, vector_targets=self.vector_targets)
             else:
                 # Classification: determine if binary or multiclass
                 num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
@@ -322,6 +399,25 @@ class TabularDataModule(pl.LightningDataModule):
             )
 
     def preprocess_new_data(self, X, embeddings=None):
+        """Transform new features into an unlabeled dataset.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like of shape (n_samples, n_features)
+            Features compatible with the fitted preprocessor.
+        embeddings : array-like or list of array-like, optional
+            Embedding matrices aligned with the feature rows.
+
+        Returns
+        -------
+        TabularDataset
+            Dataset containing transformed categorical, numerical, and
+            embedding tensors without labels.
+
+        Notes
+        -----
+        Reuses the fitted preprocessor and feature metadata without refitting.
+        """
         cat_tensors = []
         num_tensors = []
         emb_tensors = []
@@ -361,16 +457,48 @@ class TabularDataModule(pl.LightningDataModule):
         )
 
     def assign_predict_dataset(self, X, embeddings=None):
+        """Prepare and store the unlabeled prediction dataset.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like of shape (n_samples, n_features)
+            Features compatible with the fitted preprocessor.
+        embeddings : array-like or list of array-like, optional
+            Embedding matrices aligned with the feature rows.
+        """
         self.predict_dataset = self.preprocess_new_data(X, embeddings)
 
     def assign_test_dataset(self, X, embeddings=None):
+        """Prepare and store the unlabeled test dataset.
+
+        Parameters
+        ----------
+        X : pandas.DataFrame or array-like of shape (n_samples, n_features)
+            Features compatible with the fitted preprocessor.
+        embeddings : array-like or list of array-like, optional
+            Embedding matrices aligned with the feature rows.
+        """
         self.test_dataset = self.preprocess_new_data(X, embeddings)
 
     def _build_train_sampler(self):
-        """Build a :class:`WeightedRandomSampler` for the training set, if requested.
+        """Build a weighted training sampler when configured.
 
-        Returns ``None`` when no weighted sampling is configured, in which case the
-        DataLoader falls back to plain ``shuffle``.
+        Returns
+        -------
+        WeightedRandomSampler or None
+            Sampler drawing as many rows as the training partition, with
+            replacement, or ``None`` to use the loader's shuffle setting.
+
+        Raises
+        ------
+        ValueError
+            If a string sampler specification is not ``"balanced"``.
+
+        Notes
+        -----
+        Explicit weights must be aligned by :meth:`preprocess_data` first.
+        Balanced sampling uses inverse frequencies from the training labels.
+        A non-null ``random_state`` seeds the sampler's generator.
         """
         spec = self.sampler
         if spec is None or spec is False:
@@ -400,10 +528,23 @@ class TabularDataModule(pl.LightningDataModule):
         )
 
     def train_dataloader(self):
-        """Returns the training dataloader.
+        """Create a training loader with optional weighted sampling.
 
-        Returns:
-            DataLoader: DataLoader instance for the training dataset.
+        Returns
+        -------
+        DataLoader
+            Batches from the training dataset. Weighted sampling replaces
+            shuffling when a sampler is configured.
+
+        Raises
+        ------
+        ValueError
+            If ``setup("fit")`` has not created the training dataset.
+
+        Notes
+        -----
+        A non-null ``random_state`` seeds the loader's generator. Additional
+        loader options come from ``dataloader_kwargs``.
         """
         if hasattr(self, "train_dataset"):
             sampler = self._build_train_sampler()
@@ -433,10 +574,18 @@ class TabularDataModule(pl.LightningDataModule):
             raise ValueError("No training dataset provided!")
 
     def val_dataloader(self):
-        """Returns the validation dataloader.
+        """Create a loader for the validation dataset.
 
-        Returns:
-            DataLoader: DataLoader instance for the validation dataset.
+        Returns
+        -------
+        DataLoader
+            Validation batches in dataset order, unless overridden by
+            ``dataloader_kwargs``.
+
+        Raises
+        ------
+        ValueError
+            If ``setup("fit")`` has not created the validation dataset.
         """
         if hasattr(self, "val_dataset"):
             return DataLoader(self.val_dataset, batch_size=self.batch_size, **self.dataloader_kwargs)
@@ -444,10 +593,17 @@ class TabularDataModule(pl.LightningDataModule):
             raise ValueError("No validation dataset provided!")
 
     def test_dataloader(self):
-        """Returns the test dataloader.
+        """Create a loader for the unlabeled test dataset.
 
-        Returns:
-            DataLoader: DataLoader instance for the test dataset.
+        Returns
+        -------
+        DataLoader
+            Test batches using the configured batch size and loader options.
+
+        Raises
+        ------
+        ValueError
+            If :meth:`assign_test_dataset` has not assigned the test dataset.
         """
         if hasattr(self, "test_dataset"):
             return DataLoader(self.test_dataset, batch_size=self.batch_size, **self.dataloader_kwargs)
@@ -455,6 +611,19 @@ class TabularDataModule(pl.LightningDataModule):
             raise ValueError("No test dataset provided!")
 
     def predict_dataloader(self):
+        """Create a loader for the unlabeled prediction dataset.
+
+        Returns
+        -------
+        DataLoader
+            Prediction batches using the configured batch size and loader
+            options.
+
+        Raises
+        ------
+        ValueError
+            If :meth:`assign_predict_dataset` has not assigned a dataset.
+        """
         if hasattr(self, "predict_dataset"):
             return DataLoader(
                 self.predict_dataset,
@@ -466,13 +635,13 @@ class TabularDataModule(pl.LightningDataModule):
 
     @property
     def schema(self) -> FeatureSchema | None:
-        """Get the feature schema after preprocessing.
+        """Build a feature schema from the recorded preprocessing metadata.
 
         Returns
         -------
         FeatureSchema or None
-            Feature schema with metadata about categorical, numerical, and
-            embedding features, or None if preprocessing hasn't been done yet.
+            Schema describing categorical, numerical, and embedding features,
+            or ``None`` if numerical or categorical metadata is unavailable.
         """
         if self.num_feature_info is None or self.cat_feature_info is None:
             return None
