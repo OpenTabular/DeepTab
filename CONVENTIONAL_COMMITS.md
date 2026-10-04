@@ -66,8 +66,8 @@ just bump
 # View changelog
 cat CHANGELOG.md
 
-# Dry-run semantic release
-just release-dry
+# Preview the next version bump
+just bump-preview
 ```
 
 ## Breaking Changes
