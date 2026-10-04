@@ -61,6 +61,9 @@ class Trompt(BaseModel):
         self.cells = nn.ModuleList(TromptCell(feature_information, config) for _ in range(config.n_cycles))
         self.decoder = TromptDecoder(config.d_model, num_classes)
         self.init_rec = nn.Parameter(torch.empty(config.P, config.d_model))
+        # Matches the prompt-embedding initialisation in ImportanceGetter; without
+        # it the parameter keeps whatever torch.empty returned (NaNs in CI).
+        torch.nn.init.normal_(self.init_rec, std=0.01)
         self.n_cycles = config.n_cycles
 
     def forward(self, *data):
