@@ -14,8 +14,9 @@ Width, depth, dropout, and the activation function interact in ways that depend
 on your data, and the only reliable way to find a good combination is to search.
 DeepTab ships a single method, `optimize_hparams()`, that runs Gaussian-process
 Bayesian optimization over a search space derived automatically from each model's
-configuration, prunes unpromising trials early, and writes the winning settings
-straight back into the estimator's config so the next `fit()` uses them.
+configuration, prunes unpromising trials early, and refits the winning
+configuration before returning. The estimator is ready for prediction without
+another `fit()` call.
 
 This tutorial explains exactly what happens inside that method, then walks through
 a complete, runnable example for each of the three task types DeepTab supports:
@@ -44,8 +45,20 @@ is the full lifecycle of a single call, in order.
 2. **Establish a baseline.** The model is trained once with the current config to record a baseline validation loss and the validation loss reached at the pruning epoch. These two numbers seed the pruning thresholds.
 3. **Run Bayesian optimization.** [`skopt.gp_minimize`](https://scikit-optimize.github.io/stable/modules/generated/skopt.gp_minimize.html) fits a Gaussian-process surrogate to the trials seen so far and proposes the next configuration where it expects the largest improvement. This is far more sample-efficient than grid or random search because each new trial is informed by all previous ones.
 4. **Evaluate each trial.** For every proposed configuration the method writes the values onto the config, rebuilds the model with the task-aware builder, trains it (with pruning enabled), and measures the validation loss.
-5. **Prune early.** If a trial's loss at `prune_epoch` is worse than 1.5x the best epoch loss seen so far, training for that trial stops early instead of running all `max_epochs`. Hopeless configurations are abandoned quickly.
-6. **Write back the winner.** After all trials, the best configuration is written into `model.config`. The returned list is the raw best vector in search-space order; the durable result is the mutated `config`, so the very next `fit()` trains the tuned model.
+5. **Prune early.** Starting at `prune_epoch`, stop a trial if its current loss exceeds the pruning baseline plus half that baseline's absolute value. A tiny positive margin is used for a zero baseline. This permits worse losses for either sign without accidentally pruning improvements.
+6. **Refit the winner.** After all trials, write the best successful configuration into `model.config`, rebuild the model, and fit it without the trial's pruning threshold. The returned list is the raw winning vector in search-space order; predictions use the newly fitted winner, not the last trial.
+
+The baseline, every trial, and the winner all use the estimator's public
+`fit()` path to resolve training settings. Explicit fit options take precedence
+over `TrainerConfig` values as usual. Batch size, custom or weighted losses,
+sampling options, data-loader settings, and learning rates therefore apply
+consistently throughout the search. User callbacks are preserved; an internal
+callback sets pruning only for trials, without modifying the supplied callback
+list or attaching trial pruning to the final fit.
+
+HPO explicitly rebuilds the baseline, trials, and final winner. It does not
+continue a prior `pretrain()` warm start; the existing fit warning is emitted
+when pretrained embeddings are discarded.
 
 ### The objective: one direction for every task
 
@@ -63,6 +76,27 @@ always lower-is-better. That keeps the optimizer's direction identical across
 tasks and removes any mismatch between what the search optimizes and what the
 model trains on. You never select the metric direction yourself.
 
+### Failed trials and negative losses
+
+Negative log-likelihood can be negative, which is valid. Failed trials receive
+a finite positive penalty and are never eligible to win, even if the optimizer
+reports their parameter vector. Model-construction errors, fit errors, and
+nonfinite validation losses all make a trial unsuccessful. If every trial
+fails, the search raises `RuntimeError` instead of presenting a failed
+configuration as tuned. A nonfinite baseline loss raises `ValueError` before
+the search starts. Errors in the final winner fit propagate to the caller.
+
+For a baseline of `-2.0`, the pruning threshold is `-1.0`, not `-3.0`.
+A loss of `-2.5` is better and continues training; a loss above `-1.0` can be
+pruned. With `prune_by_epoch=True`, the baseline is the best loss measured
+at the selected epoch; otherwise it is the best overall validation loss.
+
+`prune_epoch` uses zero-based training indices: `0` is the first training
+epoch and `2` is the third. Sanity checks and standalone validation do not
+enter this history. If the baseline never reaches the requested epoch, or
+validation is skipped at that epoch, its epoch loss is infinity and no finite
+epoch-based pruning threshold is available until a trial records that epoch.
+
 ### Key parameters
 
 | Parameter             | Meaning                                                                                                                    |
@@ -72,13 +106,14 @@ model trains on. You never select the metric direction yourself.
 | `time`                | Number of optimization trials. **Must be at least 10** (the surrogate needs initial points before it can model the space). |
 | `max_epochs`          | Maximum epochs per trial. Combined with early stopping and pruning, most trials finish sooner.                             |
 | `prune_by_epoch`      | When `True`, prune by the loss at `prune_epoch`; when `False`, prune by the best validation loss so far.                   |
-| `prune_epoch`         | The epoch at which a trial is judged for pruning.                                                                          |
+| `prune_epoch`         | Zero-based training epoch at which pruning starts. Sanity checks do not count.                                             |
 | `fixed_params`        | A `{field: value}` dict of config fields to hold constant and exclude from the search.                                     |
 | `custom_search_space` | A `{field: skopt.space.Dimension}` dict that overrides or adds ranges for specific fields.                                 |
 
 ```{important}
 `time` is the single biggest cost lever. Each trial trains a full model, so a
-search with `time=20` trains up to twenty models. Keep it small while
+search with `time=20` can perform 22 fits: one baseline, twenty trials, and
+one final winner fit. Keep it small while
 prototyping, raise it for a final search, and always run the search on the
 training and validation splits only. The test set must never be visible to it.
 ```
@@ -212,13 +247,10 @@ print("Best vector:", best)
 print("Tuned dropout:", tuned.config.dropout, "| d_model:", tuned.config.d_model)
 ```
 
-`optimize_hparams()` has already written the winning values into `tuned.config`,
-so a final clean fit trains on the selected configuration. Compare against the
-baseline on the held-out test set:
+`optimize_hparams()` has already fitted the winning configuration. Compare
+against the baseline directly on the held-out test set:
 
 ```python
-set_seed(RANDOM_STATE)
-tuned.fit(X_train, y_train, X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 tuned_r2 = r2_score(y_test, tuned.predict(X_test))
 print(f"baseline R2: {base_r2:.4f}   tuned R2: {tuned_r2:.4f}")
 ```
@@ -263,12 +295,10 @@ print("Selected family:", lss.family_name)
 ```
 
 The search optimizes the validation negative log-likelihood, the same loss the
-LSS model trains on. After the search, fit once more and evaluate with the
-family's proper scoring rules:
+LSS model trains on. The search's final fit preserves the selected family;
+evaluate directly with that family's proper scoring rules:
 
 ```python
-set_seed(RANDOM_STATE)
-lss.fit(X_train, y_train, family="normal", X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 scores = lss.evaluate(X_test, y_test)
 for name, value in scores.items():
     print(f"{name:20s} {value:.4f}")
@@ -282,10 +312,10 @@ deeper treatment of distributional models, see the
 [Uncertainty Quantification](uncertainty_quantification) tutorial.
 
 ```{note}
-The `family` you pass to `optimize_hparams()` must match the one you pass to the
-final `fit()`. The search tunes architecture and regularization for that family;
-switching families afterwards would discard the assumption the search optimized
-under.
+The automatic final fit uses the `family` passed to `optimize_hparams()`.
+An additional `fit()` is optional, for example to increase the epoch budget.
+Keep the same family when retraining; switching families changes the task
+the search optimized.
 ```
 
 ---
@@ -342,8 +372,6 @@ best_clf = clf.optimize_hparams(
     prune_epoch=2,
 )
 
-set_seed(RANDOM_STATE)
-clf.fit(Xc_train, yc_train, X_val=Xc_val, y_val=yc_val, random_state=RANDOM_STATE)
 tuned_acc = accuracy_score(yc_test, clf.predict(Xc_test))
 print(f"baseline accuracy: {base_acc:.4f}   tuned accuracy: {tuned_acc:.4f}")
 ```
@@ -441,7 +469,7 @@ same values to `get_search_space()` and printing the result, exactly as in the
 - **Always pass a validation split.** The objective is measured on `X_val`/`y_val`. Without it the search cannot judge generalization.
 - **Start small, then scale.** Use `time=10` to `time=15` while iterating on the space, then raise `time` for the final run.
 - **Tune pruning to your patience.** Lowering `prune_epoch` prunes sooner and cheaper but risks discarding slow starters; raising it is safer but costs more.
-- **Reproducibility.** The optimizer uses a fixed seed internally, so repeated searches on the same data and space explore the same sequence of trials. Call `set_seed()` before each `fit()` for fully deterministic training.
+- **Reproducibility.** The optimizer uses the estimator's `random_state`, not a hardcoded seed. Set it when constructing the estimator; `None` leaves the search unseeded. Model-training randomness is separate, so also control training seeds and deterministic runtime settings when reproducibility matters.
 - **Keep the test set sacred.** Select on validation, report on test, once.
 
 ## Next Steps

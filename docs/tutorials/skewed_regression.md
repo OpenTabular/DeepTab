@@ -305,17 +305,16 @@ best_hparams = tuned.optimize_hparams(
 print("Best hyperparameters:", best_hparams)
 ```
 
-`optimize_hparams()` writes the winning values straight back into `tuned.config`,
-so a final clean fit trains on the selected configuration:
+`optimize_hparams()` updates `tuned.config` and refits the winning configuration
+before returning. Evaluate it directly without another training call:
 
 ```python
-set_seed(RANDOM_STATE)
-tuned.fit(X_train, y_train_log, X_val=X_val, y_val=y_val_log, random_state=RANDOM_STATE)
 results["tuned (HPO)"] = report(y_test, np.exp(tuned.predict(X_test)), "tuned (HPO)")
 ```
 
 ```{warning}
 Each trial trains a full model, so the search is the most expensive step here.
+The baseline and final winner fit add two fits to the trial budget.
 Keep `time` small while prototyping, run the search on the training and
 validation splits only, and never expose the test set to it.
 ```

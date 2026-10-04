@@ -3,6 +3,7 @@ from collections.abc import Callable
 import lightning as pl
 import torch
 import torch.nn as nn
+from lightning.pytorch.trainer.states import TrainerFn
 from torchmetrics import Metric as TorchMetric
 from tqdm import tqdm
 
@@ -561,9 +562,9 @@ class TaskModel(pl.LightningModule):
     def on_validation_epoch_end(self):
         """Callback executed at the end of each validation epoch.
 
-        This method retrieves the current validation loss from the trainer's callback metrics
-        and stores it in a list for tracking validation losses across epochs. It also applies
-        pruning logic to stop training early if the validation loss exceeds a specified threshold.
+        During fitting, stores the current validation loss at its zero-based
+        training epoch index and applies early pruning. Sanity checks and
+        standalone validation leave the history and pruning state unchanged.
 
         Parameters
         ----------
@@ -576,7 +577,8 @@ class TaskModel(pl.LightningModule):
         val_loss_value : float
             The validation loss for the current epoch, converted to a float.
         val_losses : list of float
-            A list storing the validation losses for each epoch.
+            Validation losses indexed by training epoch. Epochs without a
+            validation measurement contain infinity.
         pruning_epoch : int
             The epoch after which pruning logic will be applied.
         early_pruning_threshold : float, optional
@@ -589,11 +591,15 @@ class TaskModel(pl.LightningModule):
         loss exceeds the `early_pruning_threshold`, the training is stopped early by setting
         `self.trainer.should_stop` to True.
         """
+        if self.trainer.sanity_checking or self.trainer.state.fn != TrainerFn.FITTING:
+            return
+
         val_loss = self.trainer.callback_metrics.get("val_loss")
         if val_loss is not None:
             val_loss_value = val_loss.item()
-            # Store val_loss for each epoch
-            self.val_losses.append(val_loss_value)
+            if self.current_epoch >= len(self.val_losses):
+                self.val_losses.extend([float("inf")] * (self.current_epoch + 1 - len(self.val_losses)))
+            self.val_losses[self.current_epoch] = val_loss_value
 
             # Apply pruning logic if needed
             if self.current_epoch >= self.pruning_epoch:
@@ -611,7 +617,8 @@ class TaskModel(pl.LightningModule):
         Parameters
         ----------
         epoch : int
-            The epoch number for which the validation loss is requested.
+            Zero-based training epoch number. Sanity checks and standalone
+            validation are not included.
 
         Returns
         -------
@@ -624,7 +631,7 @@ class TaskModel(pl.LightningModule):
         This method relies on `self.val_losses` which stores the validation loss values
         at the end of each epoch during training.
         """
-        if epoch < len(self.val_losses):
+        if 0 <= epoch < len(self.val_losses):
             return self.val_losses[epoch]
         else:
             return float("inf")

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+import math
+from sys import float_info
+from typing import TYPE_CHECKING, Any, cast
 
+from lightning.pytorch.callbacks import Callback
 from skopt import gp_minimize
 
 from deeptab.hpo.search_space import activation_mapper, get_search_space, round_to_nearest_16
@@ -11,6 +14,17 @@ from deeptab.hpo.search_space import activation_mapper, get_search_space, round_
 if TYPE_CHECKING:
     from deeptab.data.datamodule import TabularDataModule
     from deeptab.training.lightning_module import TaskModel
+
+
+class _TrialPruningCallback(Callback):
+    def __init__(self, threshold: float, epoch: int):
+        self.threshold = threshold
+        self.epoch = epoch
+
+    def on_fit_start(self, trainer, pl_module):
+        task_model = cast("TaskModel", pl_module)
+        task_model.early_pruning_threshold = self.threshold
+        task_model.pruning_epoch = self.epoch
 
 
 class _HyperparameterMixin:
@@ -23,6 +37,7 @@ class _HyperparameterMixin:
         _trainer: Any
         _task_model: TaskModel | None
         _data_module: TabularDataModule | None
+        random_state: int | None
 
         def fit(self, X: Any, y: Any, **kwargs: Any) -> Any: ...
         def _build_model(self, X: Any, y: Any, **kwargs: Any) -> None: ...
@@ -72,19 +87,27 @@ class _HyperparameterMixin:
             Whether to prune based on a specific epoch (``True``) or the best
             validation loss (``False``).
         prune_epoch : int
-            The epoch at which to evaluate for pruning when ``prune_by_epoch``
-            is ``True``.
+            Zero-based training epoch at which pruning starts. Sanity checks
+            and standalone validation do not count as training epochs.
         fixed_params : dict
             Hyperparameters to hold fixed during the search.
-        custom_search_space : list or None, optional
-            Override the default search space for this model.
+        custom_search_space : dict or None, optional
+            Map parameter names to replacement search dimensions.
         **optimize_kwargs
             Additional keyword arguments passed to ``fit``.
 
         Returns
         -------
         best_hparams : list
-            Best hyperparameters found during optimisation.
+            Best successful trial's hyperparameters. The estimator is rebuilt
+            and fitted with these settings before this method returns.
+
+        Raises
+        ------
+        ValueError
+            If the baseline validation loss is not finite.
+        RuntimeError
+            If no trial completes with a finite validation loss.
         """
         param_names, param_space = get_search_space(
             self.config,
@@ -98,6 +121,7 @@ class _HyperparameterMixin:
         # external embeddings are only passed when actually supplied, because the
         # LSS fit() signature does not accept them.
         base_fit_kwargs = {"X_val": X_val, "y_val": y_val, **optimize_kwargs}
+        base_fit_kwargs.pop("rebuild", None)
         if embeddings is not None:
             base_fit_kwargs["embeddings"] = embeddings
         if embeddings_val is not None:
@@ -114,25 +138,27 @@ class _HyperparameterMixin:
             """
             return float(self._trainer.validate(self._task_model, self._data_module, verbose=False)[0]["val_loss"])
 
-        # Initial fit to establish a baseline validation loss. rebuild=True (the
-        # default) means this call also constructs the model; for LSS it sets the
+        # Initial fit to establish a baseline validation loss. rebuild=True
+        # constructs a fresh model; for LSS it sets the
         # distribution family that subsequent build_model() calls reuse.
-        self.fit(X, y, max_epochs=max_epochs, **base_fit_kwargs)
+        self.fit(X, y, max_epochs=max_epochs, rebuild=True, **base_fit_kwargs)
 
         best_val_loss = _validation_loss()
+        if not math.isfinite(best_val_loss):
+            raise ValueError("Baseline validation loss must be finite for hyperparameter search")
         best_epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
             prune_epoch
         )
+        best_trial_loss = float("inf")
+        best_hparams = None
 
-        def _objective(hyperparams):
-            nonlocal best_val_loss, best_epoch_val_loss
-
+        def _apply_hyperparams(hyperparams):
             head_layer_sizes = []
             head_layer_size_length = None
 
             for key, param_value in zip(param_names, hyperparams, strict=False):
                 if key == "head_layer_size_length":
-                    head_layer_size_length = param_value
+                    head_layer_size_length = int(param_value)
                 elif key.startswith("head_layer_size_"):
                     head_layer_sizes.append(round_to_nearest_16(param_value))
                 elif isinstance(param_value, str) and param_value in activation_mapper:
@@ -144,31 +170,29 @@ class _HyperparameterMixin:
 
             if head_layer_size_length is not None:
                 self.config.head_layer_sizes = head_layer_sizes[:head_layer_size_length]
+            elif head_layer_sizes:
+                self.config.head_layer_sizes = head_layer_sizes
 
-            # Rebuild the model with the candidate config using the task-aware
-            # public build_model(), which selects the correct head (regression,
-            # classification, or the LSS distribution family stored on self).
-            build_kwargs = {"X_val": X_val, "y_val": y_val, "lr": getattr(self.config, "lr", None)}
-            if embeddings is not None:
-                build_kwargs["embeddings"] = embeddings
-            if embeddings_val is not None:
-                build_kwargs["embeddings_val"] = embeddings_val
-            self.build_model(X, y, **build_kwargs)
-
-            if prune_by_epoch:
-                early_pruning_threshold = best_epoch_val_loss * 1.5
-            else:
-                early_pruning_threshold = best_val_loss * 1.5  # type: ignore[operator]
-
-            self._task_model.early_pruning_threshold = early_pruning_threshold  # type: ignore
-            self._task_model.pruning_epoch = prune_epoch  # type: ignore
+        def _objective(hyperparams):
+            nonlocal best_val_loss, best_epoch_val_loss, best_trial_loss, best_hparams
 
             try:
-                # rebuild=False trains the model just constructed above so that
-                # the pruning thresholds set on it are preserved.
-                self.fit(X, y, max_epochs=max_epochs, rebuild=False, **base_fit_kwargs)
+                _apply_hyperparams(hyperparams)
+                pruning_baseline = best_epoch_val_loss if prune_by_epoch else best_val_loss
+                early_pruning_threshold = pruning_baseline + max(abs(pruning_baseline) * 0.5, 1e-12)
+                trial_fit_kwargs = dict(base_fit_kwargs)
+                callbacks = trial_fit_kwargs.pop("callbacks", None) or []
+                if isinstance(callbacks, Callback):
+                    callbacks = [callbacks]
+                trial_fit_kwargs["callbacks"] = [
+                    *callbacks,
+                    _TrialPruningCallback(early_pruning_threshold, prune_epoch),
+                ]
+                self.fit(X, y, max_epochs=max_epochs, rebuild=True, **trial_fit_kwargs)
 
                 val_loss = _validation_loss()
+                if not math.isfinite(val_loss):
+                    raise ValueError("Trial validation loss must be finite")
 
                 epoch_val_loss = self._task_model.epoch_val_loss_at(  # type: ignore
                     prune_epoch
@@ -176,35 +200,24 @@ class _HyperparameterMixin:
 
                 if prune_by_epoch and epoch_val_loss < best_epoch_val_loss:
                     best_epoch_val_loss = epoch_val_loss
-                if val_loss < best_val_loss:  # type: ignore[operator]
+                if val_loss < best_val_loss:
                     best_val_loss = val_loss
+                if val_loss < best_trial_loss:
+                    best_trial_loss = val_loss
+                    best_hparams = list(hyperparams)
 
                 return val_loss
 
             except Exception as e:
                 print(f"Error encountered during fit with hyperparameters {hyperparams}: {e}")
-                return best_val_loss * 100  # type: ignore[operator]
+                return min(abs(best_val_loss) * 100 + 1_000_000, float_info.max)
 
-        result = gp_minimize(_objective, param_space, n_calls=time, random_state=42)
+        gp_minimize(_objective, param_space, n_calls=time, random_state=self.random_state)
+        if best_hparams is None:
+            raise RuntimeError("No hyperparameter trial completed successfully")
 
-        best_hparams = result.x  # type: ignore
-        head_layer_sizes = [] if "head_layer_sizes" in self.config.__dataclass_fields__ else None
-        layer_sizes = [] if "layer_sizes" in self.config.__dataclass_fields__ else None
-
-        for key, param_value in zip(param_names, best_hparams, strict=False):
-            if key.startswith("head_layer_size_") and head_layer_sizes is not None:
-                head_layer_sizes.append(round_to_nearest_16(param_value))
-            elif key.startswith("layer_size_") and layer_sizes is not None:
-                layer_sizes.append(round_to_nearest_16(param_value))
-            elif isinstance(param_value, str) and param_value in activation_mapper:
-                setattr(self.config, key, activation_mapper[param_value])
-            else:
-                setattr(self.config, key, param_value)
-
-        if head_layer_sizes is not None and head_layer_sizes:
-            self.config.head_layer_sizes = head_layer_sizes
-        if layer_sizes is not None and layer_sizes:
-            self.config.layer_sizes = layer_sizes
+        _apply_hyperparams(best_hparams)
+        self.fit(X, y, max_epochs=max_epochs, rebuild=True, **base_fit_kwargs)
 
         print("Best hyperparameters found:", best_hparams)
         return best_hparams

@@ -377,6 +377,26 @@ model.fit(
 
 ---
 
+## Hyperparameter Search and Final Fitting
+
+`optimize_hparams()` fits a baseline, evaluates the requested trial budget, and
+then rebuilds and fits the best successful configuration before returning.
+You can call `predict()` immediately; another `fit()` is optional retraining,
+not a requirement for using the tuned model. Budget for up to `time + 2` fits.
+The final fit retains the supplied validation split, task-specific options,
+and LSS family, but does not retain a trial's pruning threshold.
+
+Failed trials are never eligible to win. Model-construction errors, training
+errors, and nonfinite validation losses count as failures; all-failed searches
+raise `RuntimeError`. Negative validation losses are valid, and pruning adds a
+positive tolerance to the best loss instead of multiplying a negative loss
+into a stricter threshold.
+
+Pruning uses zero-based training epoch indices. Sanity checks and standalone
+validation do not enter training validation history. The search optimizer uses
+the estimator's `random_state`; training randomness needs its own controls.
+See [Hyperparameter Optimization](../tutorials/hpo) for examples and details.
+
 ## Reproducibility
 
 Getting the same result every time is essential for debugging, comparisons, and publication. DeepTab seeds every layer of randomness from data splitting through weight initialisation.
