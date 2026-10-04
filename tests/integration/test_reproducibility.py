@@ -1,27 +1,4 @@
-"""Reproducibility tests for DeepTab.
-
-This module verifies, step by step, that:
-
-1. ``set_seed`` and ``seed_context`` correctly seed PyTorch, NumPy, and Python
-   built-in RNGs (primitive correctness).
-2. An estimator trained with a fixed ``random_state`` produces identical
-   predictions on two completely independent runs (same-seed → same output).
-3. Two estimators trained with *different* seeds produce different predictions
-   (different-seed → different output), confirming that the seed actually has
-   an effect.
-4. Refitting the *same* estimator object with the same seed yields the same
-   predictions as the first fit (no cross-fit state leakage).
-5. Platform and device coverage: CPU, CUDA, MPS (Apple Silicon), Windows,
-   macOS, Linux.
-
-No data is shared between independently created estimator instances, so these
-tests also serve as a no-leakage guard.
-
-Notes
------
-Tests use ``MLPRegressor`` with ``max_epochs=3`` to keep CI fast.  The
-principles apply equally to every estimator in the library.
-"""
+"""Tests for reproducibility."""
 
 from __future__ import annotations
 
@@ -38,19 +15,15 @@ from deeptab.configs import TrainerConfig
 from deeptab.core.reproducibility import seed_context, set_seed
 from deeptab.models import MLPRegressor
 
-# ---------------------------------------------------------------------------
-# Constants
-# ---------------------------------------------------------------------------
-
 SEED = 42
-ALT_SEED = 99
-N_SAMPLES = 120
-N_FEATURES = 5
-_FIT_KWARGS: dict[str, Any] = {"max_epochs": 3, "batch_size": 32}
 
-# ---------------------------------------------------------------------------
-# Fixtures
-# ---------------------------------------------------------------------------
+ALT_SEED = 99
+
+N_SAMPLES = 120
+
+N_FEATURES = 5
+
+_FIT_KWARGS: dict[str, Any] = {"max_epochs": 3, "batch_size": 32}
 
 
 @pytest.fixture(scope="module")
@@ -69,85 +42,6 @@ def _make_regressor(seed: int) -> MLPRegressor:
         trainer_config=TrainerConfig(**_FIT_KWARGS),
         random_state=seed,
     )
-
-
-# ---------------------------------------------------------------------------
-# Step 1 — Primitive RNG correctness
-# ---------------------------------------------------------------------------
-
-
-class TestSetSeedPrimitives:
-    """set_seed correctly seeds each individual RNG layer."""
-
-    @pytest.mark.smoke
-    def test_torch_cpu(self):
-        """Same seed → identical CPU tensors."""
-        set_seed(SEED)
-        t1 = torch.randn(20)
-        set_seed(SEED)
-        t2 = torch.randn(20)
-        assert torch.equal(t1, t2), "torch.randn should be identical after re-seeding"
-
-    def test_numpy_legacy(self):
-        """Same seed → identical numpy arrays (legacy RNG)."""
-        set_seed(SEED)
-        a1 = np.random.randn(20)
-        set_seed(SEED)
-        a2 = np.random.randn(20)
-        np.testing.assert_array_equal(a1, a2)
-
-    def test_python_random(self):
-        """Same seed → identical Python random floats."""
-        import random
-
-        set_seed(SEED)
-        v1 = [random.random() for _ in range(20)]  # noqa: S311
-        set_seed(SEED)
-        v2 = [random.random() for _ in range(20)]  # noqa: S311
-        assert v1 == v2
-
-    def test_different_seeds_differ_torch(self):
-        """Different seeds produce different tensors."""
-        set_seed(SEED)
-        t1 = torch.randn(20)
-        set_seed(ALT_SEED)
-        t2 = torch.randn(20)
-        assert not torch.equal(t1, t2), "Different seeds should yield different tensors"
-
-    @pytest.mark.smoke
-    def test_invalid_seed_raises(self):
-        """Negative seeds raise ValueError."""
-        with pytest.raises(ValueError, match="non-negative integer"):
-            set_seed(-1)
-
-
-# ---------------------------------------------------------------------------
-# Step 2 — seed_context
-# ---------------------------------------------------------------------------
-
-
-class TestSeedContext:
-    """seed_context is a functional equivalent of set_seed used as a 'with' block."""
-
-    def test_context_torch(self):
-        """Context manager produces the same sequence as set_seed."""
-        with seed_context(SEED):
-            t1 = torch.randn(20)
-        with seed_context(SEED):
-            t2 = torch.randn(20)
-        assert torch.equal(t1, t2)
-
-    def test_context_numpy(self):
-        with seed_context(SEED):
-            a1 = np.random.randn(20)
-        with seed_context(SEED):
-            a2 = np.random.randn(20)
-        np.testing.assert_array_equal(a1, a2)
-
-
-# ---------------------------------------------------------------------------
-# Step 3 — End-to-end: same seed → same predictions
-# ---------------------------------------------------------------------------
 
 
 class TestSameSeedSamePredictions:
@@ -180,11 +74,6 @@ class TestSameSeedSamePredictions:
         assert np.all(np.isfinite(preds)), "Predictions contain non-finite values"
 
 
-# ---------------------------------------------------------------------------
-# Step 4 — Different seeds → different predictions (seed has real effect)
-# ---------------------------------------------------------------------------
-
-
 class TestDifferentSeedsDifferentPredictions:
     """Two estimators trained with different seeds produce different outputs."""
 
@@ -200,11 +89,6 @@ class TestDifferentSeedsDifferentPredictions:
         p2 = m2.predict(X)
 
         assert not np.allclose(p1, p2, atol=1e-4), "Different random_state values should yield different predictions"
-
-
-# ---------------------------------------------------------------------------
-# Step 5 — No leakage on refit
-# ---------------------------------------------------------------------------
 
 
 class TestNoLeakageOnRefit:
@@ -257,14 +141,12 @@ class TestNoLeakageOnRefit:
         )
 
 
-# ---------------------------------------------------------------------------
-# Step 6 — Platform and device coverage
-# ---------------------------------------------------------------------------
-
 _has_cuda = torch.cuda.is_available()
+
 _has_mps = hasattr(torch, "mps") and hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 
 _skip_no_cuda = pytest.mark.skipif(not _has_cuda, reason="CUDA not available on this host")
+
 _skip_no_mps = pytest.mark.skipif(not _has_mps, reason="MPS not available on this host")
 
 
@@ -383,11 +265,6 @@ class TestPlatformAndDeviceSeeding:
         )
 
 
-# ---------------------------------------------------------------------------
-# Step 7 — fit(random_state=...) precedence over the constructor's random_state
-# ---------------------------------------------------------------------------
-
-
 class TestFitRandomStateOverridesConstructor:
     """An explicit fit(random_state=...) always wins over the constructor's value."""
 
@@ -425,11 +302,6 @@ class TestFitRandomStateOverridesConstructor:
             decimal=5,
             err_msg="Constructor-only random_state must still be reproducible",
         )
-
-
-# ---------------------------------------------------------------------------
-# Step 8 — ambient seed_context()/set_seed() is honored when no random_state is set
-# ---------------------------------------------------------------------------
 
 
 class TestAmbientSeedRespectedWhenRandomStateUnset:

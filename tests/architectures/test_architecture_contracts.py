@@ -5,6 +5,7 @@ import os
 import pytest
 import torch
 
+from deeptab import architectures
 from deeptab.core import BaseModel
 
 # Paths for models and configs
@@ -17,7 +18,7 @@ EXCLUDED_CLASSES = {"TabR"}
 
 # Discover all models (stable + experimental)
 model_classes = []
-_arch_root = os.path.dirname(__file__) + "/../deeptab/architectures"
+_arch_root = os.path.dirname(architectures.__file__)
 _scan = [(MODEL_MODULE_PATH, _arch_root), (MODEL_MODULE_PATH + ".experimental", _arch_root + "/experimental")]
 for _mod_prefix, _dir in _scan:
     for filename in os.listdir(_dir):

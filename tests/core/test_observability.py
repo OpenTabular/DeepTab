@@ -1,16 +1,4 @@
-"""Tests for the observability layer (Phase 8).
-
-Covers:
-- Default instantiation imports no optional packages.
-- ``use_structlog=True`` raises ``ImportError`` when structlog is absent.
-- ``experiment_trackers=["mlflow"]`` raises ``ImportError`` when mlflow absent.
-- ``experiment_trackers=["tensorboard"]`` raises ``ImportError`` when tensorboard absent.
-- Unknown tracker name raises ``ValueError``.
-- User-provided logger is appended, not replaced.
-- ``configure_observability()`` works post-construction.
-- ``_observability_config`` is absent from ``get_params()`` output.
-- ``_emit_event`` is a no-op when no logger is configured.
-"""
+"""Tests for observability."""
 
 from __future__ import annotations
 
@@ -22,11 +10,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from deeptab.core.observability import ObservabilityConfig, build_lightning_loggers, build_structlog_logger
-from deeptab.models._mixins.observability import _ObservabilityMixin
-
-# ---------------------------------------------------------------------------
-# Helpers / fakes
-# ---------------------------------------------------------------------------
 
 
 class _FakeLogger:
@@ -37,11 +20,6 @@ class _FakeLogger:
 
     def info(self, event: str, **kwargs: Any) -> None:
         self.calls.append((event, kwargs))
-
-
-# ---------------------------------------------------------------------------
-# ObservabilityConfig
-# ---------------------------------------------------------------------------
 
 
 def test_observability_config_defaults():
@@ -86,11 +64,6 @@ def test_observability_config_is_dataclass():
     }
 
 
-# ---------------------------------------------------------------------------
-# build_structlog_logger — absent package path
-# ---------------------------------------------------------------------------
-
-
 def test_root_dir_derives_all_paths():
     """Custom root_dir propagates to all three sub-paths."""
     cfg = ObservabilityConfig(root_dir="runs/proj")
@@ -130,11 +103,6 @@ def test_build_structlog_logger_returns_info_compatible_object(monkeypatch, caps
     captured = capsys.readouterr()
     assert "test_event" in captured.out
     assert "key=value" in captured.out
-
-
-# ---------------------------------------------------------------------------
-# build_lightning_loggers
-# ---------------------------------------------------------------------------
 
 
 def test_build_lightning_loggers_empty_config():
@@ -191,89 +159,3 @@ def test_build_lightning_loggers_user_logger_does_not_replace(monkeypatch):
     result = build_lightning_loggers(cfg)
     assert len(result) == 2
     assert result[-1] is user_logger
-
-
-# ---------------------------------------------------------------------------
-# _ObservabilityMixin
-# ---------------------------------------------------------------------------
-
-
-def test_emit_event_noop_by_default():
-    """_emit_event does nothing when no logger is attached."""
-
-    class _Estimator(_ObservabilityMixin):
-        pass
-
-    est = _Estimator()
-    # Should not raise
-    est._emit_event("fit_started", n_samples=100)
-
-
-def test_emit_event_dispatches_to_logger():
-    logger = _FakeLogger()
-
-    class _Estimator(_ObservabilityMixin):
-        pass
-
-    est = _Estimator()
-    est._event_logger = logger
-    est._emit_event("fit_started", n_samples=100)
-    assert logger.calls == [("fit_started", {"n_samples": 100})]
-
-
-def test_configure_observability_wires_structlog(monkeypatch, capsys):
-    fake_structlog = MagicMock()
-    monkeypatch.setitem(sys.modules, "structlog", fake_structlog)
-
-    class _Estimator(_ObservabilityMixin):
-        pass
-
-    est = _Estimator()
-    assert est._event_logger is None
-    est.configure_observability(ObservabilityConfig(structured_logging=True, log_to_console=True, log_to_file=False))
-    assert est._event_logger is not None
-    est._emit_event("fit.started")
-    captured = capsys.readouterr()
-    assert "fit.started" in captured.out
-
-
-def test_configure_observability_no_structlog_no_logger():
-    """No-op when structured_logging=False and no tracker — _event_logger stays None."""
-
-    class _Estimator(_ObservabilityMixin):
-        pass
-
-    est = _Estimator()
-    est.configure_observability(ObservabilityConfig())
-    assert est._event_logger is None
-
-
-# ---------------------------------------------------------------------------
-# SklearnBase integration
-# ---------------------------------------------------------------------------
-
-
-def test_observability_config_not_in_get_params():
-    """_observability_config is hidden from sklearn get_params/clone."""
-    from deeptab.configs import MLPConfig
-    from deeptab.models import MLPClassifier
-
-    clf = MLPClassifier()
-    clf._observability_config = ObservabilityConfig()
-    params = clf.get_params()
-    assert "_observability_config" not in params
-    assert "observability_config" not in params
-
-
-def test_configure_observability_post_construction(monkeypatch):
-    """configure_observability() can be called after construction."""
-    fake_structlog = MagicMock()
-    fake_structlog.wrap_logger.return_value = MagicMock()
-    monkeypatch.setitem(sys.modules, "structlog", fake_structlog)
-
-    from deeptab.models import MLPClassifier
-
-    clf = MLPClassifier()
-    assert clf._event_logger is None
-    clf.configure_observability(ObservabilityConfig(structured_logging=True))
-    assert clf._event_logger is not None

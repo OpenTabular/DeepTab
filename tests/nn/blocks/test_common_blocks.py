@@ -1,8 +1,4 @@
-"""Unit tests for deeptab.nn.blocks.common, deeptab.nn.blocks.transformer, and
-deeptab.nn.blocks.mamba.
-
-Forward-pass-only tests — no training loop, no Lightning.
-"""
+"""Tests for common blocks."""
 
 from __future__ import annotations
 
@@ -13,7 +9,6 @@ from typing import cast
 import pytest
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 from deeptab.nn.blocks.common import (
     BatchNorm,
@@ -22,10 +17,8 @@ from deeptab.nn.blocks.common import (
     EmbeddingLayer,
     EnsembleConvRNN,
     GroupNorm,
-    InstanceNorm,
     LayerNorm,
     LearnableFourierFeatures,
-    LearnableFourierMask,
     LearnableLayerScaling,
     LearnableRandomPositionalPerturbation,
     LearnableRandomProjection,
@@ -45,36 +38,18 @@ from deeptab.nn.blocks.common import (
     sparsemax,
     sparsemoid,
 )
-from deeptab.nn.blocks.mamba import MambaBlock
-from deeptab.nn.blocks.transformer import (
-    GEGLU,
-    GLU,
-    Attention,
-    AttentionNetBlock,
-    BatchEnsembleTransformerEncoder,
-    BatchEnsembleTransformerEncoderLayer,
-    CustomTransformerEncoderLayer,
-    FeedForward,
-    ReGLU,
-    Reshape,
-    RowColTransformer,
-    Transformer,
-)
 
-# ---------------------------------------------------------------------------
-# Shared test dimensions
-# ---------------------------------------------------------------------------
 B = 4  # batch size
+
 D = 32  # embedding dim (divisible by H=4)
+
 S = 6  # sequence length
+
 E = 4  # ensemble size
+
 H = 4  # attention heads
+
 NF = 4  # number of features
-
-
-# ===========================================================================
-# common.py — sparse / math helpers
-# ===========================================================================
 
 
 class TestSNLinear:
@@ -142,11 +117,6 @@ class TestSparsemax:
         assert torch.allclose(x1.grad.squeeze(1), x3.grad[:, 0, :])
 
 
-# ===========================================================================
-# common.py — normalisation layers
-# ===========================================================================
-
-
 class TestNormalizationLayers:
     def test_rmsnorm(self):
         assert RMSNorm(D)(torch.randn(B, D)).shape == (B, D)
@@ -177,11 +147,6 @@ class TestNormalizationLayers:
         assert LearnableLayerScaling(D)(torch.randn(B, D)).shape == (B, D)
 
 
-# ===========================================================================
-# common.py — structural blocks
-# ===========================================================================
-
-
 class TestBlockDiagonal:
     def test_forward_shape(self):
         block = BlockDiagonal(in_features=8, out_features=16, num_blocks=4)
@@ -190,11 +155,6 @@ class TestBlockDiagonal:
     def test_indivisible_raises(self):
         with pytest.raises(ValueError):
             BlockDiagonal(in_features=8, out_features=10, num_blocks=3)
-
-
-# ===========================================================================
-# common.py — learnable positional / Fourier features
-# ===========================================================================
 
 
 class TestLearnableFourier:
@@ -258,11 +218,6 @@ class TestPositionalInvariance:
             PositionalInvariance(cfg, "unknown_type", seq_len=S)
 
 
-# ===========================================================================
-# common.py — Periodic embeddings
-# ===========================================================================
-
-
 class TestPeriodic:
     def test_periodic_shape(self):
         p = Periodic(n_features=NF, k=8, sigma=0.01)
@@ -289,11 +244,6 @@ class TestPeriodic:
             PeriodicEmbeddings(n_features=NF, d_embedding=16, activation=False, lite=True)
 
 
-# ===========================================================================
-# common.py — NeuralEmbeddingTree
-# ===========================================================================
-
-
 class TestNeuralEmbeddingTree:
     def test_forward_shape(self):
         # output_dim must be a power of 2
@@ -303,11 +253,6 @@ class TestNeuralEmbeddingTree:
     def test_with_temperature(self):
         tree = NeuralEmbeddingTree(input_dim=8, output_dim=4, temperature=1.0)
         assert tree(torch.randn(B, 8)).shape == (B, 4)
-
-
-# ===========================================================================
-# common.py — PeriodicLinearEncodingLayer
-# ===========================================================================
 
 
 class TestPeriodicLinearEncoding:
@@ -320,11 +265,6 @@ class TestPeriodicLinearEncoding:
         enc = PeriodicLinearEncodingLayer(bins=8, learn_bins=False)
         x = torch.linspace(0.0, 1.0, B).unsqueeze(1)
         assert enc(x).shape == (B, 8)
-
-
-# ===========================================================================
-# common.py — EmbeddingLayer
-# ===========================================================================
 
 
 def _num_info(n):
@@ -477,11 +417,6 @@ class TestScaledPolynomialLayer:
         assert out.shape[0] == B
 
 
-# ===========================================================================
-# common.py — LinearBatchEnsembleLayer
-# ===========================================================================
-
-
 class TestLinearBatchEnsembleLayer:
     def test_2d_input(self):
         layer = LinearBatchEnsembleLayer(in_features=8, out_features=16, ensemble_size=E)
@@ -510,11 +445,6 @@ class TestLinearBatchEnsembleLayer:
     def test_ensemble_bias(self):
         layer = LinearBatchEnsembleLayer(in_features=8, out_features=16, ensemble_size=E, ensemble_bias=True)
         assert layer(torch.randn(B, 8)).shape == (B, E, 16)
-
-
-# ===========================================================================
-# common.py — MultiHeadAttentionBatchEnsemble
-# ===========================================================================
 
 
 class TestMultiHeadAttentionBatchEnsemble:
@@ -559,11 +489,6 @@ class TestMultiHeadAttentionBatchEnsemble:
         assert self._mha(scaling_init=init)(x, x, x).shape == (B, S, E, D)
 
 
-# ===========================================================================
-# common.py — RNNBatchEnsembleLayer
-# ===========================================================================
-
-
 class TestRNNBatchEnsembleLayer:
     def test_3d_input(self):
         rnn = RNNBatchEnsembleLayer(input_size=8, hidden_size=16, ensemble_size=E)
@@ -604,11 +529,6 @@ class TestRNNBatchEnsembleLayer:
         assert out.shape == (B, S, E, 16)
 
 
-# ===========================================================================
-# common.py — mLSTMblock / sLSTMblock
-# ===========================================================================
-
-
 class TestmLSTMblock:
     def test_forward_shape(self):
         # hidden_size and num_layers: BlockDiagonal needs hidden_size % num_layers == 0
@@ -641,11 +561,6 @@ class TestsLSTMblock:
         block = sLSTMblock(input_size=8, hidden_size=8, num_layers=2)
         block(torch.randn(B, S, 8))
         block(torch.randn(B * 2, S, 8))  # must not raise
-
-
-# ===========================================================================
-# common.py — ConvRNN / EnsembleConvRNN
-# ===========================================================================
 
 
 def _convrnn_cfg(model_type="RNN", n_layers=2, residuals=False, rnn_dropout=0.0):
@@ -749,262 +664,3 @@ class TestEnsembleConvRNN:
         rnn = EnsembleConvRNN(_ensemble_convrnn_cfg("mini"))
         out, _ = rnn(torch.randn(B, S, 8))
         assert out.shape == (B, S, E, 8)
-
-
-# ===========================================================================
-# mamba.py — MambaBlock
-# ===========================================================================
-
-
-class TestMambaBlock:
-    def test_dilation_is_applied_to_both_convolutions(self):
-        # The forward convolution previously ignored the dilation argument.
-        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, dilation=2, bidirectional=True)
-        assert block.conv1d_fwd.dilation == (2,)
-        assert block.conv1d_bwd.dilation == (2,)
-
-    def test_forward_with_dilation_and_bidirectional_does_not_crash(self):
-        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, dilation=3, bidirectional=True)
-        x = torch.randn(2, 10, 8)
-        out = block(x)
-        assert out.shape == x.shape
-
-    def test_use_pscan_import_error_resets_use_pscan_flag(self):
-        # mambapy is not installed in the test environment, so this exercises
-        # the real ImportError fallback path, which previously left
-        # use_pscan=True while pscan=None, crashing on the next forward call.
-        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, use_pscan=True)
-        assert block.use_pscan is False
-        assert block.pscan is None
-
-    def test_forward_does_not_crash_with_use_pscan_requested(self):
-        block = MambaBlock(d_model=8, expand_factor=1, d_conv=3, d_state=8, dt_rank=4, use_pscan=True)
-        x = torch.randn(2, 6, 8)
-        out = block(x)
-        assert out.shape == x.shape
-
-
-# ===========================================================================
-# transformer.py — activation functions
-# ===========================================================================
-
-
-class TestActivations:
-    def test_reglu_shape(self):
-        assert ReGLU()(torch.randn(B, D * 2)).shape == (B, D)
-
-    def test_glu_shape(self):
-        assert GLU()(torch.randn(B, D * 2)).shape == (B, D)
-
-    def test_glu_odd_dim_raises(self):
-        with pytest.raises(ValueError):
-            GLU()(torch.randn(B, 7))
-
-    def test_geglu_shape(self):
-        assert GEGLU()(torch.randn(B, D * 2)).shape == (B, D)
-
-    def test_feedforward_shape(self):
-        ff = FeedForward(dim=D, mult=2, dropout=0.0)
-        assert ff(torch.randn(B, S, D)).shape == (B, S, D)
-
-
-# ===========================================================================
-# transformer.py — SAINT-style Attention / Transformer
-# ===========================================================================
-
-
-class TestSAINTAttention:
-    def test_attention_output_shape(self):
-        attn = Attention(dim=D, heads=H, dim_head=8, dropout=0.0)
-        out, weights = attn(torch.randn(B, S, D))
-        assert out.shape == (B, S, D)
-        assert weights.shape[0] == B
-
-    def test_transformer_no_attn(self):
-        model = Transformer(dim=D, depth=2, heads=H, dim_head=8, attn_dropout=0.0, ff_dropout=0.0)
-        out = model(torch.randn(B, S, D))
-        assert out.shape == (B, S, D)
-
-    def test_transformer_return_attn(self):
-        model = Transformer(dim=D, depth=2, heads=H, dim_head=8, attn_dropout=0.0, ff_dropout=0.0)
-        out, attns = model(torch.randn(B, S, D), return_attn=True)
-        assert out.shape == (B, S, D)
-        assert attns.shape[0] == 2  # depth
-
-
-# ===========================================================================
-# transformer.py — CustomTransformerEncoderLayer
-# ===========================================================================
-
-
-def _custom_cfg(activation=F.relu):
-    return SimpleNamespace(
-        d_model=D,
-        n_heads=H,
-        transformer_dim_feedforward=D * 2,
-        attn_dropout=0.0,
-        transformer_activation=activation,
-        layer_norm_eps=1e-5,
-        norm_first=False,
-        bias=True,
-    )
-
-
-class TestCustomTransformerEncoderLayer:
-    # Standard transformer shape: (seq_len, batch, d_model) when batch_first=False
-    def test_relu_activation(self):
-        layer = CustomTransformerEncoderLayer(_custom_cfg())
-        assert layer(torch.randn(S, B, D)).shape == (S, B, D)
-
-    def test_reglu_activation(self):
-        # Must pass an instance (not the class) so forward() is called correctly.
-        layer = CustomTransformerEncoderLayer(_custom_cfg(activation=ReGLU()))
-        assert layer(torch.randn(S, B, D)).shape == (S, B, D)
-
-    def test_glu_activation(self):
-        layer = CustomTransformerEncoderLayer(_custom_cfg(activation=GLU()))
-        assert layer(torch.randn(S, B, D)).shape == (S, B, D)
-
-
-# ===========================================================================
-# transformer.py — BatchEnsembleTransformerEncoderLayer
-# ===========================================================================
-
-
-class TestBatchEnsembleTransformerEncoderLayer:
-    def test_forward_shape(self):
-        layer = BatchEnsembleTransformerEncoderLayer(
-            embed_dim=D, num_heads=H, ensemble_size=E, dim_feedforward=D * 2, dropout=0.0
-        )
-        assert layer(torch.randn(B, S, E, D)).shape == (B, S, E, D)
-
-    def test_gelu_activation(self):
-        layer = BatchEnsembleTransformerEncoderLayer(
-            embed_dim=D, num_heads=H, ensemble_size=E, dim_feedforward=D * 2, dropout=0.0, activation="gelu"
-        )
-        assert layer(torch.randn(B, S, E, D)).shape == (B, S, E, D)
-
-    def test_batch_ensemble_ffn(self):
-        # batch_ensemble_ffn=True passes 4D (B, S, E, D) to LinearBatchEnsembleLayer
-        # which only accepts 2D or 3D input — production code bug, skip for now.
-        pytest.skip("LinearBatchEnsembleLayer does not handle 4D input from batch_ensemble_ffn path")
-
-    def test_invalid_activation_raises(self):
-        with pytest.raises(ValueError):
-            BatchEnsembleTransformerEncoderLayer(embed_dim=D, num_heads=H, ensemble_size=E, activation="tanh")  # type: ignore[arg-type]
-
-
-# ===========================================================================
-# transformer.py — BatchEnsembleTransformerEncoder
-# ===========================================================================
-
-
-def _be_encoder_cfg(model_type="full"):
-    return SimpleNamespace(
-        d_model=D,
-        n_heads=H,
-        transformer_dim_feedforward=D * 2,
-        attn_dropout=0.0,
-        transformer_activation="relu",
-        n_layers=2,
-        ff_dropout=0.0,
-        batch_ensemble_projections=["query"],
-        scaling_init="ones",
-        batch_ensemble_ffn=False,
-        ensemble_bias=False,
-        model_type=model_type,
-        ensemble_size=E,
-    )
-
-
-class TestBatchEnsembleTransformerEncoder:
-    def test_3d_input_expanded(self):
-        # expand() returns a non-contiguous tensor; the downstream view() call fails.
-        # This is a production code bug (should use reshape or .contiguous()).  Skip.
-        pytest.skip("BatchEnsembleTransformerEncoder: expand→view stride mismatch (production bug)")
-
-    def test_4d_input_passthrough(self):
-        enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())
-        out = enc(torch.randn(B, S, E, D))
-        assert out.shape == (B, S, E, D)
-
-    def test_mini_model_type(self):
-        # "mini" model_type uses the same 3D→4D expand path which creates a
-        # non-contiguous tensor and causes view() to fail downstream.
-        pytest.skip("BatchEnsembleTransformerEncoder: expand→view stride mismatch (production bug)")
-
-    def test_invalid_2d_input_raises(self):
-        enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())
-        with pytest.raises(ValueError):
-            enc(torch.randn(B, S))
-
-    def test_ensemble_size_mismatch_raises(self):
-        enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())
-        with pytest.raises(ValueError):
-            enc(torch.randn(B, S, E + 1, D))
-
-
-# ===========================================================================
-# transformer.py — RowColTransformer
-# ===========================================================================
-
-
-class TestRowColTransformer:
-    def test_forward_shape(self):
-        # D=32 must be divisible by H=4 (32/4=8 ✓)
-        # D*NF = 128 must be divisible by H=4 (128/4=32 ✓)
-        cfg = SimpleNamespace(d_model=D, n_layers=2, n_heads=H, attn_dropout=0.0, ff_dropout=0.0, activation=nn.GELU())
-        model = RowColTransformer(n_features=NF, config=cfg)
-        out = model(torch.randn(B, NF, D))
-        assert out.shape == (B, NF, D)
-
-
-# ===========================================================================
-# transformer.py — Reshape
-# ===========================================================================
-
-
-class TestReshape:
-    @pytest.mark.parametrize("method", ["linear", "conv1d"])
-    def test_reshape_from_flat(self, method):
-        model = Reshape(j=NF, dim=8, method=method)
-        out = model(torch.randn(B, 8))
-        assert out.shape == (B, NF, 8)
-
-    def test_embedding_method(self):
-        model = Reshape(j=NF, dim=8, method="embedding")
-        out = model(torch.randint(0, 8, (B,)))
-        assert out.shape == (B, NF, 8)
-
-    def test_invalid_method_raises(self):
-        with pytest.raises(ValueError):
-            Reshape(j=NF, dim=8, method="unknown")
-
-
-# ===========================================================================
-# transformer.py — AttentionNetBlock
-# ===========================================================================
-
-
-class TestAttentionNetBlock:
-    def test_forward_shape(self):
-        block = AttentionNetBlock(
-            channels=NF,
-            in_channels=8,
-            d_model=8,
-            n_heads=2,
-            n_layers=1,
-            dim_feedforward=16,
-            transformer_activation="relu",
-            output_dim=4,
-            attn_dropout=0.0,
-            layer_norm_eps=1e-5,
-            norm_first=False,
-            bias=True,
-            activation=F.relu,
-            embedding_activation=F.relu,
-            norm_f=None,
-            method="linear",
-        )
-        out = block(torch.randn(B, 8))
-        assert out.shape == (B, 4)

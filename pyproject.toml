@@ -93,6 +93,7 @@ norecursedirs = [
 ]
 markers = [
   "smoke: fast sanity-check tests that should pass in under 60 s (selected in the CI smoke job)",
+  "integration: cross-module workflows collected from tests/integration",
 ]
 filterwarnings = [
   # Lightning trainer noise (dataloader workers, log interval, checkpoint dir, tensorboard)
