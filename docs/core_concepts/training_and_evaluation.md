@@ -368,6 +368,15 @@ when that happens.
 | `balanced_sampler` | `False` | Draw class-balanced mini-batches with a `WeightedRandomSampler`.                                                                                                                     |
 | `sample_weight`    | `None`  | Explicit per-row sampling weights. Takes precedence over `balanced_sampler`.                                                                                                         |
 
+```{warning}
+Classifier continuation with `rebuild=False` preserves the existing loss and sampler.
+Supplying `class_weight`, `loss_fct`, `balanced_sampler=True`, or `sample_weight`
+raises `ValueError` instead of silently ignoring the request. Use `rebuild=True`
+to apply new settings; this constructs a fresh model and does not preserve its
+trained weights. The same rule applies when `rebuild=None` continues a model
+after `pretrain()`.
+```
+
 ### LSS-only arguments
 
 Distributional (`*LSS`) estimators accept a `family` argument in `fit()` that
@@ -397,6 +406,9 @@ Other examples include `{"p": 1.7}` for `"tweedie"` and
 save/load. Categorical output width is inferred from the training labels;
 Dirichlet width is inferred from a target matrix of shape `(n_samples, K)`.
 Dirichlet targets must be positive proportions whose rows sum to one.
+
+Targets for `gamma`, `inversegamma`, and `lognormal` must be strictly positive.
+Zero or negative targets raise `DataError` before preprocessing or model construction.
 
 LSS `fit()` seeds Python, NumPy, and PyTorch using the resolved `random_state`
 before model construction. Equal seeds support repeatable fits on the same

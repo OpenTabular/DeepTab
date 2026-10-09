@@ -135,14 +135,13 @@ class TabTransformer(BaseModel):
         num_features, cat_features, emb_features = data
         cat_embeddings = self.embedding_layer(*(None, cat_features, emb_features))
 
-        num_features = torch.cat(num_features, dim=1)
-        num_features = self.num_norm(num_features)
-
         x = self.encoder(cat_embeddings)
 
         x = self.pool_sequence(x)
 
-        x = torch.cat((x, num_features), axis=1)  # type: ignore
+        if num_features:
+            numerical = self.num_norm(torch.cat(num_features, dim=1))
+            x = torch.cat((x, numerical), dim=1)
         preds = self.tabular_head(x)
 
         return preds

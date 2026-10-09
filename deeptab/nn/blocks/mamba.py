@@ -1,4 +1,5 @@
 import math
+from typing import cast
 
 import torch
 import torch.nn as nn
@@ -641,6 +642,9 @@ class OriginalResidualBlock(nn.Module):
         output = self.layers(self.norm(x)) + x
         return output
 
+    def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
+        return self.layers.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
+
 
 class MambaOriginal(nn.Module):
     def __init__(self, config):
@@ -719,9 +723,14 @@ class MambaOriginal(nn.Module):
         )
 
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
+        layers = list(self.fwd_layers)
+        if self.bidirectional:
+            layers.extend(self.bckwd_layers)
         return {
-            i: layer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
-            for i, layer in enumerate(self.layers)  # type: ignore[arg-type]
+            index: cast(OriginalResidualBlock, layer).allocate_inference_cache(
+                batch_size, max_seqlen, dtype=dtype, **kwargs
+            )
+            for index, layer in enumerate(layers)
         }
 
     def forward(self, x):

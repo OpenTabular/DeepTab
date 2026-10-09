@@ -182,6 +182,17 @@ receive the 2-D ``predict_proba`` output, while ``labels`` metrics receive the
 Distributional / LSS Metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
+.. warning::
+
+  ``CRPS`` uses predicted location and scale for normal and lognormal layouts,
+  Gaussian approximations for Student's t and Johnson SU, and a moment-matched
+  Gaussian for mixtures. Other family layouts return mean absolute error of
+  the first predicted column, even when ``properscoring`` is installed.
+  That column must contain a predicted mean, not an arbitrary raw family
+  parameter. Missing ``properscoring`` also produces an MAE fallback for the
+  supported layouts. MAE does not assess predictive uncertainty; use a
+  family-specific metric or raw-output NLL when that distinction matters.
+
 .. list-table::
    :header-rows: 1
    :widths: 30 22 17 14 17
@@ -205,7 +216,7 @@ Distributional / LSS Metrics
      - ``crps``
      - ``False``
      - ``False``
-     - Vectorised via ``properscoring``; all continuous families
+     - Gaussian CRPS for supported layouts; otherwise a documented MAE fallback
    * - :class:`IntervalScore`
      - ``interval_score``
      - ``False``

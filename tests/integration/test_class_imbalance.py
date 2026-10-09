@@ -13,6 +13,7 @@ import pytest
 import torch
 import torch.nn as nn
 
+from deeptab.configs import MLPConfig, TrainerConfig
 from deeptab.models import MLPClassifier
 from deeptab.training.losses import (
     BaseLoss,
@@ -131,6 +132,79 @@ def _imbalanced_multiclass_data():
     X = rng.standard_normal((len(y), n_features))
     df = pd.DataFrame({f"f{i}": X[:, i] for i in range(n_features)})
     return df, y
+
+
+@pytest.fixture(scope="module")
+def continuation_classifier(tmp_path_factory):
+    features, targets = _imbalanced_binary_data()
+    model = MLPClassifier(
+        model_config=MLPConfig(layer_sizes=[16]),
+        trainer_config=TrainerConfig(
+            max_epochs=1,
+            batch_size=64,
+            checkpoint_path=str(tmp_path_factory.mktemp("continuation")),
+        ),
+        random_state=42,
+    )
+    model.fit(
+        features,
+        targets,
+        class_weight="balanced",
+        balanced_sampler=True,
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+    )
+    return model, features, targets
+
+
+class TestClassifierContinuation:
+    @pytest.mark.parametrize("rebuild,pretrained", [(False, False), (None, True)])
+    @pytest.mark.parametrize("option", ["class_weight", "loss_fct", "loss_module", "balanced_sampler", "sample_weight"])
+    def test_new_loss_and_sampling_options_are_rejected_before_mutation(
+        self, continuation_classifier, rebuild, pretrained, option
+    ):
+        model, features, targets = continuation_classifier
+        options = {
+            "class_weight": {"class_weight": "balanced"},
+            "loss_fct": {"loss_fct": "focal"},
+            "loss_module": {"loss_fct": FocalLoss()},
+            "balanced_sampler": {"balanced_sampler": True},
+            "sample_weight": {"sample_weight": np.ones(len(targets))},
+        }[option]
+        task_model = model._task_model
+        data_module = model._data_module
+        classes = model.classes_.copy()
+        model._is_pretrained = pretrained
+        try:
+            with pytest.raises(ValueError, match="requires rebuild=True"):
+                model.fit(features, targets, rebuild=rebuild, **options)
+            assert model._task_model is task_model
+            assert model._data_module is data_module
+            assert model.is_fitted_ is True
+            assert model._is_pretrained is pretrained
+            np.testing.assert_array_equal(model.classes_, classes)
+        finally:
+            model._is_pretrained = False
+
+    def test_continuation_without_new_options_preserves_existing_loss_and_sampler(self, continuation_classifier):
+        model, features, targets = continuation_classifier
+        assert model._task_model is not None
+        assert model._data_module is not None
+        loss = model._task_model.loss_fct
+        assert isinstance(loss, WeightedBCEWithLogitsLoss)
+        sampler = model._data_module.sampler
+        model.fit(
+            features,
+            targets,
+            rebuild=False,
+            accelerator="cpu",
+            logger=False,
+            enable_progress_bar=False,
+        )
+        assert model._task_model.loss_fct is loss
+        assert model._data_module.sampler == sampler == "balanced"
+        assert model.predict(features).shape == (len(features),)
 
 
 class TestClassifierClassWeight:

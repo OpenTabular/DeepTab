@@ -42,7 +42,7 @@ class MambaTabConfig(BaseModelConfig):
         Floor value for decision tree initialization.
     axis : int, default=1
         Axis along which operations are applied, if applicable.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the fully connected layers in the model's head.
     head_dropout : float, default=0.0
         Dropout rate for the head layers.

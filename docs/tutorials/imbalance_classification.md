@@ -227,6 +227,14 @@ weights = compute_class_weights("balanced", y_train)
 print(weights)   # e.g. [0.549, 5.556]
 ```
 
+```{warning}
+When continuing a fitted classifier with `rebuild=False`, omit loss and sampling
+arguments to retain its current configuration. Passing `class_weight`, `loss_fct`,
+`balanced_sampler=True`, or `sample_weight` raises `ValueError`. Changing these
+settings requires `rebuild=True`, which starts a fresh model rather than continuing
+the trained weights. This also applies to automatic continuation after `pretrain()`.
+```
+
 ## Strategy 2: Focal Loss
 
 Focal loss (Lin et al., 2017) tackles a different problem: even weighted BCE still

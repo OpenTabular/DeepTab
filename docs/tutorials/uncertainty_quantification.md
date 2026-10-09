@@ -314,8 +314,11 @@ Student's t, selecting by CRPS.
 The current CRPS implementation uses Gaussian location/scale approximations for
 Student's t and Johnson SU, and a moment-matched Gaussian approximation for
 mixtures. It is not an exact family-specific CRPS. Without the optional
-`properscoring` package, it falls back to mean absolute error. Use the raw-output
-NLL score to compare likelihoods when that approximation is unsuitable.
+`properscoring` package, it falls back to mean absolute error. Other family
+layouts also use MAE of the first predicted column, regardless of whether the
+package is installed; that column must contain a predicted mean. This fallback
+does not score predictive uncertainty. Use the raw-output NLL score or a
+family-specific metric when the approximation or fallback is unsuitable.
 ```
 
 ```python

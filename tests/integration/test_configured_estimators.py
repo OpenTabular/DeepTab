@@ -104,6 +104,31 @@ def test_fit_with_drop_last_keeps_validation_and_prediction_rows(model_cls, samp
     assert len(model.predict(X)) == sample_count
 
 
+@pytest.mark.parametrize("model_cls", [TabTransformerClassifier, TabTransformerRegressor])
+def test_tabtransformer_fits_categorical_only_data(model_cls, tmp_path):
+    features = pd.DataFrame(
+        {
+            "city": pd.Categorical(np.tile(["NYC", "LA", "Berlin"], 20)),
+            "size": pd.Categorical(np.tile(["small", "large"], 30)),
+        }
+    )
+    targets = np.tile([0, 1, 2], 20) if model_cls is TabTransformerClassifier else np.linspace(0, 1, 60)
+    model = model_cls(
+        model_config=TabTransformerConfig(d_model=8, n_heads=2, n_layers=1),
+        preprocessing_config=PreprocessingConfig(categorical_method="int", output_dim=8),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=16, checkpoint_path=str(tmp_path / "checkpoints")),
+        random_state=42,
+    )
+    model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+    assert model._data_module.num_feature_info == {}
+    predictions = model.predict(features)
+    assert predictions.shape == (60,)
+    assert np.isfinite(predictions).all()
+    path = str(tmp_path / "categorical.deeptab")
+    model.save(path)
+    np.testing.assert_allclose(model_cls.load(path).predict(features), predictions, rtol=1e-5, atol=1e-5)
+
+
 class TestEstimatorFitPredict:
     """Functional smoke tests: fit → predict with the split-config API."""
 

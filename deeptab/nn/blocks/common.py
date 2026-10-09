@@ -86,7 +86,7 @@ class SparsemaxFunction(Function):
         """
         ctx.dim = dim
         max_val, _ = input_.max(dim=dim, keepdim=True)
-        input_ -= max_val  # Numerical stability trick, as with softmax.
+        input_ = input_ - max_val
         tau, supp_size = SparsemaxFunction._threshold_and_support(input_, dim=dim)
         output = torch.clamp(input_ - tau, min=0)
         ctx.save_for_backward(supp_size, output)

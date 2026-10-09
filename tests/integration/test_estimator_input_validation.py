@@ -5,6 +5,21 @@ import pandas as pd
 import pytest
 
 
+@pytest.mark.parametrize("family", ["inversegamma", "lognormal"])
+@pytest.mark.parametrize("invalid_target", [0.0, -1.0])
+def test_lss_rejects_non_positive_targets_before_building(family, invalid_target):
+    from deeptab.core.exceptions import DataError
+    from deeptab.models import MLPLSS
+
+    features = np.ones((6, 2))
+    targets = np.array([1.0, 2.0, invalid_target, 3.0, 4.0, 5.0])
+    model = MLPLSS()
+    with pytest.raises(DataError, match="strictly positive"):
+        model.fit(features, targets, family=family, max_epochs=1)
+    assert model._data_module is None
+    assert model._built is False
+
+
 class TestEdgeCaseInputs:
     """fit() with input shapes that previously crashed instead of failing cleanly or working."""
 

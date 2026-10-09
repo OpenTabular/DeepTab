@@ -31,7 +31,7 @@ class SAINTConfig(BaseModelConfig):
         transformer block.
     bias : bool, default=True
         Whether to use bias in linear layers.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the fully connected layers in the model's head.
     head_dropout : float, default=0.5
         Dropout rate for the head layers.

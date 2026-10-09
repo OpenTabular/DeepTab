@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
+import torch.nn as nn
 
-from deeptab.nn.blocks.mamba import MambaBlock
+from deeptab.configs import MambularConfig
+from deeptab.nn.blocks.mamba import MambaBlock, MambaOriginal, OriginalResidualBlock
 
 B = 4  # batch size
 
@@ -17,6 +20,27 @@ E = 4  # ensemble size
 H = 4  # attention heads
 
 NF = 4  # number of features
+
+
+@pytest.mark.parametrize("bidirectional", [False, True])
+def test_original_mamba_allocates_cache_for_every_direction(monkeypatch, bidirectional):
+    class NativeMambaStub(nn.Module):
+        def __init__(self, **kwargs):
+            super().__init__()
+            self.layer_idx = kwargs["layer_idx"]
+
+        def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
+            return self.layer_idx, batch_size, max_seqlen, dtype, kwargs
+
+    monkeypatch.setattr(OriginalResidualBlock, "MambaBlock", NativeMambaStub)
+    config = MambularConfig(n_layers=2, d_model=8, bidirectional=bidirectional)
+    model = MambaOriginal(config)
+    cache = model.allocate_inference_cache(3, 12, dtype=torch.float64, device="cpu")
+
+    expected_count = config.n_layers * (2 if bidirectional else 1)
+    assert set(cache) == set(range(expected_count))
+    for index in range(expected_count):
+        assert cache[index] == (index, 3, 12, torch.float64, {"device": "cpu"})
 
 
 class TestMambaBlock:

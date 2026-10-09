@@ -321,7 +321,9 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             default) rebuilds unless the current model was warm-started via
             :meth:`pretrain`, in which case it continues training the
             pretrained model instead of discarding it. Pass ``True``/``False``
-            explicitly to override that behavior either way.
+            explicitly to override that behavior either way. Continuing keeps
+            the existing loss and sampler; supplying new loss or sampling
+            options requires ``rebuild=True``.
         class_weight : {"balanced"}, dict, array-like, or None, default=None
             Weights associated with classes for imbalanced data. ``"balanced"``
             mirrors scikit-learn and uses ``n_samples / (n_classes * bincount(y))``
@@ -353,7 +355,22 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         -------
         self : object
             The fitted classifier.
+
+        Raises
+        ------
+        ValueError
+            If loss or sampling options are supplied while continuing an
+            existing model without rebuilding it.
         """
+
+        effective_rebuild = rebuild if rebuild is not None else not getattr(self, "_is_pretrained", False)
+        if not effective_rebuild and (
+            class_weight is not None or loss_fct is not None or balanced_sampler or sample_weight is not None
+        ):
+            raise ValueError(
+                "Supplying class_weight, loss_fct, balanced_sampler, or sample_weight requires rebuild=True. "
+                "Continuing a model preserves its existing loss and sampling setup."
+            )
 
         self.classes_ = np.unique(y)
         num_classes = len(self.classes_)

@@ -70,6 +70,21 @@ class TestSNLinear:
 
 
 class TestSparsemax:
+    @pytest.mark.parametrize("dim", [0, -1])
+    def test_forward_and_backward_preserve_parameter_values(self, dim):
+        values = nn.Parameter(torch.tensor([[1.1, 1.3, -0.8], [2.0, -0.9, 2.4]], dtype=torch.double))
+        original = values.detach().clone()
+        output = sparsemax(values, dim=dim)
+
+        torch.testing.assert_close(values, original, rtol=0, atol=0)
+        torch.testing.assert_close(output.sum(dim=dim), torch.ones_like(output.sum(dim=dim)))
+        torch.testing.assert_close(output, sparsemax(original + 10, dim=dim))
+        weights = torch.arange(values.numel(), dtype=values.dtype).reshape_as(values)
+        (output * weights).sum().backward()
+        assert values.grad is not None
+        assert torch.isfinite(values.grad).all()
+        torch.testing.assert_close(values, original, rtol=0, atol=0)
+
     def test_output_shape(self):
         out = sparsemax(torch.randn(B, 10))
         assert out is not None
@@ -94,10 +109,7 @@ class TestSparsemax:
     @pytest.mark.parametrize("shape", [(6, 4, 1), (3, 1, 5), (2, 1, 1, 7)])
     def test_backward_gradcheck_with_singleton_dims(self, shape):
         x = torch.randn(*shape, dtype=torch.double, requires_grad=True)
-        # sparsemax's forward mutates its input in place (tracked separately as
-        # issue #426); clone here so gradcheck's finite-difference probing of x
-        # isn't corrupted by that unrelated defect.
-        assert torch.autograd.gradcheck(lambda t: sparsemax(t.clone(), dim=-1), (x,))
+        assert torch.autograd.gradcheck(lambda inputs: sparsemax(inputs, dim=-1), (x,))
 
     def test_backward_matches_no_singleton_case(self):
         """The other axes' size shouldn't change the gradient sparsemax computes."""

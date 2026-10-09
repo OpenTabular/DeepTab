@@ -205,6 +205,8 @@ class TaskModel(pl.LightningModule):
         self.early_pruning_threshold = early_pruning_threshold
         self.pruning_epoch = pruning_epoch
         self.val_losses = []
+        self.train_features = None
+        self.train_targets = None
 
         # Store custom metrics
         self.train_metrics = train_metrics or {}
@@ -388,6 +390,8 @@ class TaskModel(pl.LightningModule):
             preds, penalty = self.estimator.penalty_forward(*data)  # type: ignore[reportCallIssue]
             loss = self.compute_loss(preds, labels) + penalty
         elif hasattr(self.estimator, "train_with_candidates"):
+            if self.train_features is None or self.train_targets is None:
+                raise RuntimeError("Candidate-aware training requires a training bank initialized by setup('fit').")
             keep = torch.ones(len(self.train_targets), dtype=torch.bool, device=self.train_targets.device)
             keep[query_indices.to(keep.device)] = False
             candidate_features = tuple(

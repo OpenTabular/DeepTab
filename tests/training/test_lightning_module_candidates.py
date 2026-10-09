@@ -60,6 +60,35 @@ def test_setup_keeps_complete_dataset_order_without_training_sampler(monkeypatch
     torch.testing.assert_close(task.train_features[1][0], torch.arange(6))
 
 
+@pytest.mark.parametrize("step", ["validation_step", "test_step", "predict_step"])
+@pytest.mark.parametrize("restore_weights", [False, True])
+def test_candidate_evaluation_without_prior_fit_has_initialized_guards(monkeypatch, step, restore_weights):
+    class StandaloneCandidateEstimator(_CandidateEstimator):
+        def forward(self, *data):
+            return self.scale.expand(len(data[0][0]), 1)
+
+        def validate_with_candidates(self, *data, candidate_x, candidate_y):
+            return self.predict_with_candidates(*data, candidate_x=candidate_x, candidate_y=candidate_y)
+
+    kwargs = {
+        "model_class": StandaloneCandidateEstimator,
+        "config": MLPConfig(),
+        "feature_information": ({"feature": {"dimension": 2}}, {}, {}),
+    }
+    task = TaskModel(**kwargs)
+    if restore_weights:
+        restored = TaskModel(**kwargs)
+        restored.load_state_dict(task.state_dict())
+        task = restored
+    assert task.train_features is None
+    assert task.train_targets is None
+    monkeypatch.setattr(task, "log", Mock())
+    data = ([torch.ones(2, 2)], [], [])
+    batch = data if step == "predict_step" else (data, torch.zeros(2, 1))
+    assert torch.isfinite(getattr(task, step)(batch, 0)).all()
+    assert task.estimator.received is None
+
+
 def test_training_excludes_row_ids_and_preserves_other_identical_features(monkeypatch):
     task, dataset = _setup_task(monkeypatch)
     data, labels, indices = next(iter(torch.utils.data.DataLoader(dataset, batch_size=3, sampler=[4, 1, 4])))
@@ -118,6 +147,15 @@ def test_modernnca_trainer_prediction_does_not_depend_on_own_pool_label(monkeypa
     assert predictions[0].argmax(dim=-1).item() == 2
 
 
+@pytest.mark.parametrize("missing_bank", ["train_features", "train_targets"])
+def test_candidate_training_requires_a_complete_bank(monkeypatch, missing_bank):
+    task, _ = _setup_task(monkeypatch)
+    setattr(task, missing_bank, None)
+    data = ([torch.ones(2, 2)], [], [])
+    with pytest.raises(RuntimeError, match="training bank"):
+        task.training_step((data, torch.ones(2), torch.tensor([0, 1])), 0)
+
+
 def test_lightning_fit_and_test_use_candidate_aware_paths(tmp_path):
     from deeptab.architectures.experimental.modern_nca import ModernNCA
 
@@ -157,4 +195,5 @@ def test_lightning_fit_and_test_use_candidate_aware_paths(tmp_path):
     trainer.fit(task, datamodule=datamodule)
     results = trainer.test(task, datamodule=datamodule)
     assert torch.isfinite(torch.tensor(results[0]["test_loss_epoch"]))
+    assert task.train_targets is not None
     assert len(task.train_targets) == 6

@@ -40,7 +40,7 @@ class TabulaRNNConfig(BaseModelConfig):
         Dilation factor for the convolution.
     conv_bias : bool, default=True
         Whether to use bias in the convolutional layers.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the layers in the head of the model.
     head_dropout : float, default=0.5
         Dropout rate for the head layers.

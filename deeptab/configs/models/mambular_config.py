@@ -52,7 +52,7 @@ class MambularConfig(BaseModelConfig):
         Whether to use layer norm on the B and C matrices
     shuffle_embeddings : bool, default=False
         Whether to shuffle embeddings before being passed to Mamba layers.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the layers in the model's head.
     head_dropout : float, default=0.5
         Dropout rate for the head layers.

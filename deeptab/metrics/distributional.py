@@ -189,9 +189,9 @@ class LogScore(DeepTabMetric):
 class CRPS(DeepTabMetric):
     """Continuous Ranked Probability Score (CRPS) for univariate distributions.
 
-    Uses vectorised ``properscoring`` routines when available.  Falls back to
-    a pure-NumPy energy-form approximation when ``properscoring`` is not
-    installed.
+    Uses vectorised Gaussian ``properscoring`` routines for supported
+    parameter layouts when available. Otherwise returns a mean absolute
+    error fallback without estimating predictive spread from observed targets.
 
     Expected ``y_pred`` format (2-D array, columns are distribution parameters):
 
@@ -199,13 +199,20 @@ class CRPS(DeepTabMetric):
     * **StudentT**: ``[df, loc, scale]``
     * **JohnsonSU**: ``[skew, shape, loc, scale]``
     * **Mixture of Gaussians**: ``[weights..., means..., scales...]``
-    * All other families — ``[mean, ...]``; CRPS is approximated from the
-      predicted mean only (less informative).
+        * All other families: ``[mean, ...]``; returns mean absolute error of
+            the first predicted column.
 
     With ``properscoring`` installed, the exact Gaussian CRPS is computed for
     ``normal``. Student-T and Johnson SU use a Gaussian location/scale
     approximation, and mixtures use a moment-matched Gaussian. Without that
     dependency, all families fall back to mean absolute error.
+
+    Notes
+    -----
+    The mean absolute error fallback is a point-forecast score, not a score
+    of the full predictive distribution. It remains exposed under the
+    ``"crps"`` metric name for compatibility. For unsupported family layouts,
+    supply a predicted mean in the first column rather than raw family parameters.
 
     Parameters
     ----------
@@ -251,7 +258,7 @@ class CRPS(DeepTabMetric):
             scale = np.sqrt(np.clip(variance, 1e-18, None))
         else:
             loc = _col(y_pred, 0)
-            scale = np.full_like(loc, np.std(y_true - loc))
+            return float(np.mean(np.abs(y_true - loc)))
 
         try:
             import properscoring as ps

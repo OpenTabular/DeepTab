@@ -10,19 +10,24 @@ from .base import BaseDistribution
 
 
 class NormalDistribution(BaseDistribution):
-    """
-    Represents a Normal (Gaussian) distribution with parameters for mean and variance,
-    including functionality for transforming these parameters and computing the loss.
-
-    Inherits from BaseDistribution.
+    """Normal distribution parameterized by mean and standard deviation.
 
     Parameters
     ----------
-        name (str): The name of the distribution. Defaults to "Normal".
-        mean_transform (str or callable): The transformation for the mean parameter.
-        Defaults to "none".
-        var_transform (str or callable): The transformation for the variance parameter.
-        Defaults to "positive".
+    name : str, default="Normal"
+        Name of the distribution.
+    mean_transform : str or callable, default="none"
+        Transformation applied to the predicted mean.
+    var_transform : str or callable, default="positive"
+        Transformation applied to the predicted standard deviation (scale).
+
+    Notes
+    -----
+    The second parameter retains the public name ``"variance"`` for
+    compatibility, but its transformed value is passed as the standard
+    deviation to :class:`torch.distributions.Normal`. It represents
+    ``sigma``, not ``sigma**2``. The names ``var_transform`` and
+    ``variance_transform`` follow the same convention.
     """
 
     def __init__(self, name="Normal", mean_transform="none", var_transform="positive"):

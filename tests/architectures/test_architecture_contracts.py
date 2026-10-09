@@ -46,6 +46,31 @@ def get_model_config(model_class):
     pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}")
 
 
+@pytest.mark.parametrize("num_classes", [1, 3])
+@pytest.mark.parametrize("with_embeddings", [False, True])
+def test_tabtransformer_categorical_only_forward_and_backward(num_classes, with_embeddings):
+    from deeptab.architectures.tabtransformer import TabTransformer
+    from deeptab.configs import TabTransformerConfig
+
+    categorical_info = {"city": {"dimension": 1, "categories": 2, "preprocessing": "int"}}
+    embedding_info = {"text": {"dimension": 3}} if with_embeddings else {}
+    model = TabTransformer(
+        feature_information=({}, categorical_info, embedding_info),
+        num_classes=num_classes,
+        config=TabTransformerConfig(d_model=8, n_heads=2, n_layers=1),
+    )
+    categories = [torch.tensor([[0], [1], [0], [1]])]
+    embeddings = [torch.ones(4, 3)] if with_embeddings else []
+    predictions = model([], categories, embeddings)
+
+    assert predictions.shape == (4, num_classes)
+    assert torch.isfinite(predictions).all()
+    predictions.sum().backward()
+    gradients = [parameter.grad for parameter in model.parameters() if parameter.grad is not None]
+    assert gradients
+    assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+
 @pytest.mark.smoke
 @pytest.mark.parametrize("model_class", model_classes)
 def test_model_inherits_base_model(model_class):

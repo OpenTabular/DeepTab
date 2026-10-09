@@ -8,6 +8,8 @@ TabTransformer uses self-attention to contextualize categorical feature embeddin
 
 Use it when categorical interactions are central to the task. If the dataset has no categorical features, use FTTransformer, MLP, ResNet, or TabM instead.
 
+Categorical-only datasets are supported. When there are no numerical features, the pooled categorical representation passes directly to the prediction head, with no numerical normalization or concatenation.
+
 ## Architectural Details
 
 DeepTab's `TabTransformer` pipeline is:
@@ -16,7 +18,7 @@ DeepTab's `TabTransformer` pipeline is:
 2. Embed categorical and external embedding features with `EmbeddingLayer`.
 3. Apply a Transformer encoder to the categorical token sequence.
 4. Pool the contextualized categorical tokens.
-5. Concatenate the pooled categorical representation with layer-normalized numerical features.
+5. Concatenate the pooled categorical representation with layer-normalized numerical features, if any.
 6. Predict with `MLPhead`.
 
 ```text

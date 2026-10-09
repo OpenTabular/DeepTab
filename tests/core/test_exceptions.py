@@ -1249,12 +1249,20 @@ class TestValidateFitInputs:
         y = np.abs(np.random.randn(30)) + 0.01
         _validate_fit_inputs(self._X(30), y, regression=True, family="gamma")
 
-    def test_binomial_non_binary_raises(self):
+    @pytest.mark.parametrize("family", ["inversegamma", "lognormal"])
+    @pytest.mark.parametrize("invalid_target", [0.0, -1.0])
+    def test_positive_support_families_reject_non_positive_targets(self, family, invalid_target):
         from deeptab.models.base import _validate_fit_inputs
 
-        y = np.array([0, 1, 2, 0] * 5)
-        with pytest.raises(DataError, match="binomial"):
-            _validate_fit_inputs(self._X(20), y, regression=False, family="binomial")
+        targets = np.array([1.0, invalid_target, 2.0])
+        with pytest.raises(DataError, match="strictly positive"):
+            _validate_fit_inputs(self._X(3), targets, regression=True, family=family)
+
+    @pytest.mark.parametrize("family", ["inversegamma", "lognormal"])
+    def test_positive_support_families_accept_positive_targets(self, family):
+        from deeptab.models.base import _validate_fit_inputs
+
+        _validate_fit_inputs(self._X(3), np.array([0.1, 1.0, 2.0]), regression=True, family=family)
 
     def test_high_nan_columns_warns(self):
         from deeptab.models.base import _validate_fit_inputs
@@ -1272,6 +1280,13 @@ class TestValidateFitInputs:
 
 
 class TestDistributionRegistry:
+    @pytest.mark.parametrize("family", ["inversegaussian", "binomial"])
+    def test_unregistered_family_names_are_rejected(self, family):
+        from deeptab.distributions import get_distribution
+
+        with pytest.raises(InvalidParamError, match="family"):
+            get_distribution(family)
+
     def test_unknown_family_raises_invalid_param_error(self):
         from deeptab.distributions import get_distribution
 

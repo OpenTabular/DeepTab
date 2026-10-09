@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import sys
+from unittest.mock import Mock
+
 import numpy as np
 import pytest
 
@@ -87,6 +90,22 @@ def proportion_data():
 
 
 class TestDistributionalMetrics:
+    @pytest.mark.parametrize("family", ["poisson", "gamma", "inversegamma", "beta"])
+    @pytest.mark.parametrize("properscoring_available", [False, True])
+    def test_generic_crps_fallback_uses_pointwise_mae(self, monkeypatch, family, properscoring_available):
+        scoring = Mock()
+        monkeypatch.setitem(sys.modules, "properscoring", scoring if properscoring_available else None)
+        targets = np.array([1.0, 4.0, 5.0])
+        predictions = np.column_stack(([1.0, 2.0, 4.0], [0.5, 0.7, 0.2]))
+        metric = CRPS(family=family)
+
+        score = metric(targets, predictions)
+        assert score == pytest.approx(np.mean(np.abs(targets - predictions[:, 0])))
+        split_score = (metric(targets[:1], predictions[:1]) + 2 * metric(targets[1:], predictions[1:])) / 3
+        assert score == pytest.approx(split_score)
+        assert metric(predictions[:, 0], predictions) == 0.0
+        scoring.crps_gaussian.assert_not_called()
+
     def test_crps_nonnegative(self, lss_data):
         y_true, y_pred = lss_data
         assert CRPS(family="normal")(y_true, y_pred) >= 0.0
