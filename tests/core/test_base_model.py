@@ -69,6 +69,28 @@ class TestSaveModelLoadModelLogging:
         assert any("Model parameters loaded from" in record.message for record in caplog.records)
 
 
+class TestLogParameters:
+    @pytest.mark.parametrize("custom_logger", [False, True])
+    def test_logs_saved_namespace_hyperparameters(self, caplog, custom_logger):
+        model = _TinyModel()
+        model.config = FTTransformerConfig(d_model=16)
+        model.extra_hparams = {"label": "example", "ignored": "hidden"}
+        model.save_hyperparameters(ignore=["ignored"])
+        original = vars(model.hparams).copy()
+        logger_name = "deeptab.tests.parameters" if custom_logger else "deeptab.core.base_model"
+        supplied_logger = logging.getLogger(logger_name) if custom_logger else None
+
+        with caplog.at_level(logging.INFO, logger=logger_name):
+            model.log_parameters(logger=supplied_logger)
+
+        assert "Hyperparameters:" in caplog.text
+        assert "d_model: 16" in caplog.text
+        assert "label: example" in caplog.text
+        assert "ignored" not in caplog.text
+        assert "Total number of trainable parameters: 6" in caplog.text
+        assert vars(model.hparams) == original
+
+
 NUM_INFO = {"f0": {"preprocessing": "", "dimension": 1, "categories": None}}
 CAT_INFO = {"c0": {"preprocessing": "", "dimension": 1, "categories": 5}}
 

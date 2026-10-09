@@ -23,6 +23,33 @@ def test_lss_rejects_non_positive_targets_before_building(family, invalid_target
 class TestEdgeCaseInputs:
     """fit() with input shapes that previously crashed instead of failing cleanly or working."""
 
+    @pytest.mark.parametrize("string_labels", [False, True])
+    def test_fit_with_rare_class_only_in_unstratified_validation(self, string_labels, tmp_path):
+        from sklearn.model_selection import train_test_split
+
+        from deeptab.configs import MLPConfig, TrainerConfig
+        from deeptab.data import TabularDataModule
+        from deeptab.models import MLPClassifier
+
+        features = np.random.default_rng(0).normal(size=(30, 2))
+        targets = np.tile([0, 1], 15)
+        _, validation_indices = train_test_split(np.arange(30), test_size=0.2, random_state=42)
+        targets[validation_indices[0]] = 2
+        if string_labels:
+            targets = np.array(["common", "other", "rare"])[targets]
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[16]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=str(tmp_path)),
+            random_state=42,
+        )
+        model.fit(features, targets, stratify=False, accelerator="cpu", logger=False, enable_progress_bar=False)
+        assert isinstance(model._data_module, TabularDataModule)
+        assert model._data_module.num_classes == 3
+        assert len(np.unique(model._data_module.y_train)) == 2
+        probabilities = model.predict_proba(features)
+        assert probabilities.shape == (30, 3)
+        assert np.isfinite(probabilities).all()
+
     def test_duplicate_columns_raise_duplicate_columns_error(self):
         from deeptab.core.exceptions import DuplicateColumnsError
         from deeptab.models import MLPRegressor

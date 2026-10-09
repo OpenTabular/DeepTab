@@ -63,10 +63,10 @@ from deeptab import InferenceModel
 model = InferenceModel.from_path("my_model.deeptab")
 ```
 
-`from_path` calls the estimator's own `load()` classmethod internally, so the artifact format is identical to what `estimator.load()` reads. Any `.deeptab` file saved by `model.save()` is valid input.
+`from_path` deserializes the artifact once on CPU and uses the estimator's bundle-reconstruction path. It reads the same format as `estimator.load()` without reopening the file. Any `.deeptab` file saved by `model.save()` is valid input, including LSS artifacts with saved distribution options.
 
 ```{note}
-A `UserWarning` is emitted when the file does not end with `.deeptab`. The file is still loaded correctly; the warning is advisory only.
+A single `UserWarning` is emitted when the file does not end with `.deeptab`. The file is still loaded correctly; the warning is advisory only.
 ```
 
 ```{note}

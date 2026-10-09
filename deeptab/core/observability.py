@@ -470,6 +470,7 @@ def build_lightning_loggers(
         If ``experiment_trackers`` contains an unrecognised tracker name.
     """
     import os
+    from urllib.parse import urlparse
 
     from deeptab.core.optional_deps import require_mlflow, require_tensorboard
 
@@ -479,6 +480,13 @@ def build_lightning_loggers(
         if tracker == "mlflow":
             require_mlflow()
             from lightning.pytorch.loggers import MLFlowLogger
+
+            tracking_url = urlparse(config.mlflow_tracking_uri)
+            if tracking_url.scheme == "sqlite" and not tracking_url.netloc:
+                database_path = tracking_url.path.removeprefix("/")
+                database_parent = os.path.dirname(database_path)
+                if database_path != ":memory:" and database_parent:
+                    os.makedirs(database_parent, exist_ok=True)
 
             # Ensure the artifact location directory exists
             if config.mlflow_artifact_location:

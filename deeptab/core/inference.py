@@ -136,6 +136,9 @@ class InferenceModel:
             Lightning's automatic hardware selection; ``"auto"`` still uses a
             single device, never distributed multi-device inference.
 
+        The artifact is deserialized once on CPU, then reconstructed for the
+        requested inference device.
+
         Returns
         -------
         InferenceModel
@@ -171,9 +174,6 @@ class InferenceModel:
         from deeptab.core.serialization import _warn_extension
 
         _warn_extension(path)
-        # Peeking at the artifact's class only needs metadata, so force this onto
-        # CPU regardless of *device* to avoid failing on a machine that lacks
-        # whatever hardware the artifact happens to have been saved from.
         bundle = torch.load(path, weights_only=False, map_location="cpu")
 
         estimator_class = bundle.get("_class")
@@ -183,7 +183,7 @@ class InferenceModel:
                 "It may have been saved by an older version of DeepTab."
             )
 
-        estimator = estimator_class.load(path, device=device)
+        estimator = estimator_class._load_from_bundle(bundle, device=device, path=path)
         return cls(estimator)
 
     @classmethod

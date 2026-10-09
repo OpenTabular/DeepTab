@@ -759,9 +759,14 @@ class SklearnBaseLSS(SklearnBase):
         'normal'
         """
         _warn_extension(path)
-        accelerator, devices, map_location = resolve_inference_accelerator(device)
+        map_location = resolve_inference_accelerator(device)[2]
         bundle = torch.load(path, weights_only=False, map_location=map_location)
+        return cls._load_from_bundle(bundle, device=device, path=path)
 
+    @classmethod
+    def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
+        """Reconstruct distributional inference state from a loaded bundle."""
+        accelerator, devices, _ = resolve_inference_accelerator(device)
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
         obj.distributional_kwargs_ = deepcopy(bundle.get("distributional_kwargs", {}))

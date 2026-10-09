@@ -406,6 +406,18 @@ class TestClassifierFocalLoss:
 
 
 class TestWeightedSampling:
+    @pytest.mark.parametrize("method", ["fit", "build_model"])
+    @pytest.mark.parametrize("as_list", [False, True])
+    def test_all_zero_sample_weights_are_rejected_before_building(self, method, as_list):
+        features, targets = _imbalanced_binary_data()
+        weights = np.zeros(len(targets))
+        model = MLPClassifier()
+        with pytest.raises(ValueError, match="at least one non-zero"):
+            getattr(model, method)(features, targets, sample_weight=weights.tolist() if as_list else weights)
+        assert model._task_model is None
+        assert model._data_module is None
+        assert model._built is False
+
     def test_balanced_sampler_builds_weighted_sampler(self):
         from torch.utils.data import WeightedRandomSampler
 

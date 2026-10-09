@@ -104,7 +104,7 @@ class BaseModel(nn.Module):
         if logger is None:
             logger = logging.getLogger(__name__)
         logger.info("Hyperparameters:")
-        for key, value in self.hparams.items():
+        for key, value in vars(self.hparams).items():
             logger.info(f"  {key}: {value}")
         logger.info(f"Total number of trainable parameters: {self.count_parameters()}")
 

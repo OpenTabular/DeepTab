@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import warnings
 from typing import Any
 
 import numpy as np
@@ -9,8 +10,9 @@ import pandas as pd
 import pytest
 
 from deeptab import InferenceModel
+from deeptab.configs import MLPConfig, TrainerConfig
 from deeptab.core.exceptions import DeviceUnavailableError, InvalidDeviceError
-from deeptab.models import MLPClassifier, MLPRegressor
+from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
 
 # ---------------------------------------------------------------------------
 # Shared constants / data helpers
@@ -145,10 +147,7 @@ class TestConstruction:
             with pytest.raises(DeviceUnavailableError, match="not available"):
                 InferenceModel.from_path(path, device="cuda")
 
-    def test_from_path_peek_load_uses_cpu_map_location(self, fitted_reg):
-        """The metadata "peek" load inside from_path() must stay on CPU
-        regardless of the requested device, so it never fails on a machine
-        that lacks whatever hardware the artifact was saved from."""
+    def test_from_path_deserializes_once_on_cpu(self, fitted_reg):
         from unittest.mock import patch
 
         import torch
@@ -158,7 +157,50 @@ class TestConstruction:
             fitted_reg.save(path)
             with patch("torch.load", wraps=torch.load) as mock_load:
                 InferenceModel.from_path(path)
+        assert mock_load.call_count == 1
         assert mock_load.call_args_list[0].kwargs["map_location"] == "cpu"
+
+    @pytest.mark.parametrize("task", ["classification", "regression", "normal", "quantile"])
+    @pytest.mark.parametrize("suffix", [".deeptab", ".pt"])
+    def test_single_load_preserves_predictions_metadata_and_extension_warning(self, task, suffix, tmp_path):
+        from unittest.mock import patch
+
+        import torch
+
+        from deeptab.training import TaskModel
+
+        features, targets = _make_clf_data() if task == "classification" else _make_reg_data()
+        model_cls = MLPClassifier if task == "classification" else MLPRegressor if task == "regression" else MLPLSS
+        model = model_cls(
+            model_config=MLPConfig(layer_sizes=[16]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=64, checkpoint_path=str(tmp_path / "checkpoints")),
+            random_state=42,
+        )
+        family_options = {}
+        if task in {"normal", "quantile"}:
+            family_options["family"] = task
+        if task == "quantile":
+            family_options["distributional_kwargs"] = {"quantiles": [0.1, 0.9]}
+        model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False, **family_options)
+        expected = model.predict(features)
+        path = tmp_path / f"model{suffix}"
+        model.save(str(path))
+        with warnings.catch_warnings(record=True) as records:
+            warnings.simplefilter("always")
+            with patch("torch.load", wraps=torch.load) as mock_load:
+                restored = InferenceModel.from_path(path)
+        assert mock_load.call_count == 1
+        assert mock_load.call_args.kwargs["map_location"] == "cpu"
+        extension_warnings = [record for record in records if "DeepTab artifacts should" in str(record.message)]
+        assert len(extension_warnings) == (1 if suffix == ".pt" else 0)
+        np.testing.assert_allclose(restored.predict(features), expected, rtol=1e-5, atol=1e-5)
+        assert restored.feature_names == FEATURE_NAMES
+        assert isinstance(model._task_model, TaskModel)
+        assert restored.task_info["num_classes"] == model._task_model.num_classes
+        if task in {"normal", "quantile"}:
+            assert restored.task_info["family"] == task
+        if task == "quantile":
+            assert restored._estimator.distributional_kwargs_ == {"quantiles": [0.1, 0.9]}
 
 
 # ---------------------------------------------------------------------------

@@ -133,6 +133,49 @@ def test_build_lightning_loggers_mlflow_absent(monkeypatch):
         build_lightning_loggers(cfg)
 
 
+@pytest.mark.parametrize("uri_kind", ["default", "relative", "absolute", "remote", "memory"])
+def test_mlflow_sqlite_parent_is_ready_before_logger_construction(monkeypatch, tmp_path, uri_kind):
+    import sqlite3
+
+    monkeypatch.chdir(tmp_path)
+    root = tmp_path / "runs"
+    database_path = root / "mlflow" / "backend" / "mlflow.db"
+    tracking_uri = ""
+    if uri_kind == "relative":
+        database_path = tmp_path / "custom" / "backend" / "tracking.db"
+        tracking_uri = "sqlite:///custom/backend/tracking.db"
+    elif uri_kind == "absolute":
+        database_path = tmp_path / "absolute" / "backend" / "tracking.db"
+        tracking_uri = f"sqlite:///{database_path}"
+    elif uri_kind == "remote":
+        tracking_uri = "https://tracking.example.com"
+    elif uri_kind == "memory":
+        tracking_uri = "sqlite:///:memory:"
+
+    def create_logger(**kwargs):
+        if uri_kind in {"remote", "memory"}:
+            assert not database_path.parent.exists()
+        else:
+            with sqlite3.connect(database_path) as connection:
+                connection.execute("CREATE TABLE runs (id INTEGER)")
+        return MagicMock()
+
+    monkeypatch.setattr("deeptab.core.optional_deps.require_mlflow", lambda: None)
+    fake_loggers = MagicMock()
+    fake_loggers.MLFlowLogger.side_effect = create_logger
+    monkeypatch.setitem(sys.modules, "lightning.pytorch.loggers", fake_loggers)
+    config = ObservabilityConfig(
+        experiment_trackers=["mlflow"],
+        root_dir=str(root),
+        mlflow_tracking_uri=tracking_uri,
+    )
+    assert not database_path.parent.exists()
+    assert len(build_lightning_loggers(config)) == 1
+    assert (root / "mlflow" / "artifacts").is_dir()
+    fake_loggers.MLFlowLogger.assert_called_once()
+    assert fake_loggers.MLFlowLogger.call_args.kwargs["tracking_uri"] == config.mlflow_tracking_uri
+
+
 def test_build_lightning_loggers_tensorboard_absent(monkeypatch):
     """ImportError with install hint when tensorboard is not installed."""
     # The guard checks ``torch.utils.tensorboard``, so simulate its absence.

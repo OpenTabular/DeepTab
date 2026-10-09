@@ -63,13 +63,13 @@ class TabularDataModule(pl.LightningDataModule):
         Use floating-point regression labels when true. Otherwise, use
         classification label shapes and dtypes.
     X_val : pandas.DataFrame or array-like, optional
-        Validation features initially stored on the module. Training and
-        validation data are assigned by :meth:`preprocess_data`.
+        Default validation features for :meth:`preprocess_data`. Must be
+        supplied together with ``y_val``. Method arguments take precedence.
     y_val : array-like, optional
-        Validation targets initially stored on the module.
+        Default validation targets aligned with ``X_val``.
     val_size : float, default=0.2
-        Validation fraction stored on the module. Pass the desired split
-        fraction to :meth:`preprocess_data` when preparing data.
+        Default validation fraction for automatic splits. An explicit
+        :meth:`preprocess_data` argument overrides it.
     random_state : int or None, default=101
         Seed for training-loader ordering and weighted sampling. The split
         seed is supplied separately to :meth:`preprocess_data`. ``None`` uses
@@ -114,6 +114,8 @@ class TabularDataModule(pl.LightningDataModule):
     ):
         """Initialize data handling with the options documented on the class."""
         super().__init__()
+        if (X_val is None) != (y_val is None):
+            raise ValueError("X_val and y_val must be provided together.")
         self.preprocessor = preprocessor
         self.batch_size = batch_size
         self.shuffle = shuffle
@@ -122,9 +124,12 @@ class TabularDataModule(pl.LightningDataModule):
         self.embedding_feature_info = None
         self.X_val = X_val
         self.y_val = y_val
+        self._initial_X_val = X_val
+        self._initial_y_val = y_val
         self.val_size = val_size
         self.random_state = random_state
         self.regression = regression
+        self.num_classes = None
         self.stratify = stratify
         self.sampler = sampler
         self.vector_targets = vector_targets
@@ -151,7 +156,7 @@ class TabularDataModule(pl.LightningDataModule):
         y_val=None,
         embeddings_train=None,
         embeddings_val=None,
-        val_size=0.2,
+        val_size=None,
         random_state: int | None = 101,
     ):
         """Split data, fit preprocessing, and record feature metadata.
@@ -164,8 +169,9 @@ class TabularDataModule(pl.LightningDataModule):
             Targets aligned with training rows. Multiple target columns require
             ``vector_targets=True`` when regression datasets are created.
         X_val : pandas.DataFrame or array-like, optional
-            Explicit validation features. If either ``X_val`` or ``y_val`` is
-            missing, both validation arrays are created from the training data.
+            Explicit validation features, supplied together with ``y_val``.
+            If both are omitted, use the constructor validation set or create
+            an automatic split when no constructor set was supplied.
         y_val : array-like, optional
             Explicit validation targets aligned with ``X_val``.
         embeddings_train : array-like or list of array-like, optional
@@ -175,8 +181,9 @@ class TabularDataModule(pl.LightningDataModule):
             Embedding matrices aligned with explicit validation rows. With an
             explicit validation set, embeddings are retained only when both
             training and validation embeddings are supplied.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             Fraction of training rows reserved for automatic validation.
+            ``None`` uses the constructor's ``val_size``.
         random_state : int or None, default=101
             Seed for the automatic split and matching sampling-weight split.
             This argument does not change the module's loader seed.
@@ -188,7 +195,15 @@ class TabularDataModule(pl.LightningDataModule):
         datasets; call ``setup("fit")`` afterward.
         """
 
-        if X_val is None or y_val is None:
+        if (X_val is None) != (y_val is None):
+            raise ValueError("X_val and y_val must be provided together.")
+        if X_val is None:
+            X_val, y_val = self._initial_X_val, self._initial_y_val
+        val_size = self.val_size if val_size is None else val_size
+        if not self.regression:
+            self.num_classes = len(np.unique(y_train))
+
+        if X_val is None:
             split_data = [X_train, y_train]
 
             # Stratify classification splits on the labels when enabled; a
@@ -236,7 +251,7 @@ class TabularDataModule(pl.LightningDataModule):
 
         # Align explicit per-row sampling weights with the (possibly auto-split) train set.
         self._train_sample_weights = self._resolve_train_sample_weights(
-            y_train if (X_val is None or y_val is None) else None,
+            y_train if X_val is None else None,
             val_size=val_size,
             random_state=random_state,
         )
@@ -316,7 +331,7 @@ class TabularDataModule(pl.LightningDataModule):
         Requires data and feature metadata prepared by :meth:`preprocess_data`.
         Scalar regression labels have shape ``(n_samples, 1)`` and dtype
         float32; vector regression labels retain their columns. Classification
-        with more than two training classes uses int64 labels of shape
+        with more than two classes in the full training targets uses int64 labels of shape
         ``(n_samples,)``. Otherwise, classification labels use float32 and
         shape ``(n_samples, 1)``. Data loaders are created by the loader methods,
         not by this method.
@@ -376,7 +391,9 @@ class TabularDataModule(pl.LightningDataModule):
                 val_labels = _prepare_regression_labels(self.y_val, vector_targets=self.vector_targets)
             else:
                 # Classification: determine if binary or multiclass
-                num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
+                num_classes = self.num_classes
+                if num_classes is None:
+                    num_classes = len(np.unique(self.y_train))  # type: ignore[arg-type]
                 if num_classes > 2:
                     # Multiclass: long dtype, shape (batch_size,) - no unsqueeze
                     train_labels = torch.as_tensor(np.asarray(self.y_train).reshape(-1), dtype=torch.long)

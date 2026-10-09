@@ -127,6 +127,13 @@ The metadata is tiny next to the weights. Schema, config, task info, and version
 
 With a bare `.pt` file you have to recreate the architecture by hand and re-attach a preprocessor before the weights mean anything. A pickled estimator can capture more, but it stores a live Python object graph that breaks the moment a class is renamed or a dependency shifts, and unpickling it runs arbitrary code. `.deeptab` sidesteps both problems by storing structured metadata alongside the weights and reconstructing the model through DeepTab's own loader.
 
+```{warning}
+Directly pickling a DeepTab estimator is not a supported way to preserve a fitted model.
+Pickle state excludes the task model, trainer, and datamodule, including indirect
+Lightning references. Unpickling resets fitted and built state, so predictions
+require refitting. Use `save()` and `load()` to restore a ready-to-predict model.
+```
+
 ```{important}
 The self-contained reload is a feature of the DeepTab package, not of the file on its own. Loading a `.deeptab` artifact needs `deeptab` installed, ideally at a compatible version, which is exactly why the version snapshot is saved. The file is not a framework-independent interchange format. If you need a model that runs in a non-Python or non-DeepTab runtime, export to ONNX or TorchScript instead.
 ```

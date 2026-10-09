@@ -1,6 +1,7 @@
 """Tests for save load."""
 
 import os
+import pickle
 import tempfile
 from typing import Any
 
@@ -10,8 +11,10 @@ import pytest
 import torch
 import torch.nn as nn
 from sklearn.base import clone
+from sklearn.exceptions import NotFittedError
 from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
+from sklearn.utils.validation import check_is_fitted
 
 from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import InvalidDeviceError
@@ -87,6 +90,64 @@ def test_regressor_save_load_predictions(regression_data):
     )
     assert loaded._best_model_path is None
     assert loaded.score(X_test, y_test) == pytest.approx(r2_score(y_test, preds_after))
+
+
+@pytest.mark.parametrize("model_cls", [MLPRegressor, MLPClassifier, MLPLSS])
+def test_pickle_state_excludes_training_modules_and_invalidates_fitted_state(model_cls, monkeypatch):
+    class UnpicklableTrainingState:
+        def __reduce__(self):
+            raise AssertionError("Training modules must not be pickled.")
+
+    model = model_cls(random_state=42)
+    training_state = UnpicklableTrainingState()
+    monkeypatch.setattr(model, "_task_model", training_state)
+    monkeypatch.setattr(model, "_trainer", training_state)
+    monkeypatch.setattr(model, "_data_module", training_state)
+    model._built = True
+    model._is_pretrained = True
+    model.is_fitted_ = True
+
+    state = model.__getstate__()
+    assert state["_task_model"] is None
+    assert state["_trainer"] is None
+    assert state["_data_module"] is None
+    assert "task_model" not in state
+    restored = pickle.loads(pickle.dumps(model))
+    assert restored._task_model is None
+    assert restored._trainer is None
+    assert restored._data_module is None
+    assert restored._built is False
+    assert restored._is_pretrained is False
+    with pytest.raises(NotFittedError):
+        check_is_fitted(restored)
+    assert restored.random_state == 42
+    assert model._task_model is training_state
+    assert model._trainer is training_state
+    assert model._data_module is training_state
+    assert model.is_fitted_ is True
+
+
+def test_fitted_pickle_does_not_serialize_the_lightning_task(regression_data, monkeypatch, tmp_path):
+    features, _, targets, _ = regression_data
+    model = MLPRegressor(
+        model_config=MLPConfig(layer_sizes=[16]),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=64, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+    expected = model.predict(features)
+    assert getattr(model._data_module, "trainer", None) is model._trainer
+
+    def reject_task_serialization(self):
+        raise AssertionError("Pickle must not reach the Lightning task through runtime references.")
+
+    monkeypatch.setattr(TaskModel, "__getstate__", reject_task_serialization)
+    restored = pickle.loads(pickle.dumps(model))
+    assert restored._task_model is None
+    assert restored._data_module is None
+    with pytest.raises(NotFittedError):
+        check_is_fitted(restored)
+    np.testing.assert_array_equal(model.predict(features), expected)
 
 
 def test_regressor_save_raises_when_unfitted():

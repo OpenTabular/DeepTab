@@ -18,7 +18,8 @@ class TabularDataset(Dataset):
     num_features_list : list of Tensors
         A list of tensors representing the numerical features.
     embeddings_list : list of Tensors, optional
-        A list of tensors representing the embeddings.
+        A list of tensors representing the embeddings. Tuple samples use an
+        empty list when omitted so PyTorch's default collation works.
     labels : Tensor, optional
         A tensor of labels. If None, the dataset is used for prediction.
     return_batch_object : bool, default=False
@@ -79,9 +80,10 @@ class TabularDataset(Dataset):
             embeddings = None
 
         label = self.labels[idx] if self.labels is not None else None
+        tuple_embeddings = embeddings if embeddings is not None else []
 
         if self.return_indices and label is not None:
-            return (num_features, cat_features, embeddings), label, idx
+            return (num_features, cat_features, tuple_embeddings), label, idx
 
         if self.return_batch_object:
             return TabularBatch(
@@ -93,6 +95,6 @@ class TabularDataset(Dataset):
         else:
             # Legacy tuple format
             if label is not None:
-                return (num_features, cat_features, embeddings), label
+                return (num_features, cat_features, tuple_embeddings), label
             else:
-                return (num_features, cat_features, embeddings)
+                return (num_features, cat_features, tuple_embeddings)

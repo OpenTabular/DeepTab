@@ -25,6 +25,28 @@ def simple_tensors():
 class TestTabularDatasetContract:
     """Test the contract and interface of TabularDataset."""
 
+    @pytest.mark.parametrize("categorical_only", [False, True])
+    @pytest.mark.parametrize("labeled", [False, True])
+    @pytest.mark.parametrize("indexed", [False, True])
+    def test_default_embeddings_are_collatable(self, categorical_only, labeled, indexed):
+        features = torch.arange(5).unsqueeze(1)
+        labels = torch.arange(5) if labeled else None
+        dataset = TabularDataset(
+            [features] if categorical_only else [],
+            [] if categorical_only else [features],
+            labels=labels,
+            return_indices=indexed,
+        )
+        batches = list(torch.utils.data.DataLoader(dataset, batch_size=3))
+        collected = []
+        for batch in batches:
+            groups = batch[0] if labeled else batch
+            assert groups[2] == []
+            collected.append(groups[1 if categorical_only else 0][0])
+            if labeled and indexed:
+                torch.testing.assert_close(batch[1], batch[2])
+        torch.testing.assert_close(torch.cat(collected), features)
+
     def test_indexed_tuple_tracks_rows_with_replacement_sampling(self):
         features = torch.arange(5, dtype=torch.float32).unsqueeze(-1)
         dataset = TabularDataset([], [features], [], features, return_indices=True)
@@ -134,7 +156,7 @@ class TestTabularDatasetContract:
         num_features, cat_features, embeddings = features
         assert len(num_features) > 0
         assert len(cat_features) == 0
-        assert embeddings is None  # type: ignore[unreachable]
+        assert embeddings == []
 
     def test_dataset_with_only_categorical_features(self):
         """Test dataset works with only categorical features."""

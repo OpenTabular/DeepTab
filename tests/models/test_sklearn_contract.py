@@ -87,8 +87,8 @@ _XFAIL_CHECKS: dict[str, str] = {
     # Persistence: pickle is not the supported serialisation mechanism
     # ------------------------------------------------------------------
     "check_estimators_pickle": (
-        "SklearnBase.__getstate__ clears task_model to avoid serialising "
-        "Lightning modules. Use estimator.save() / estimator.load() for "
+        "SklearnBase.__getstate__ clears the task model, trainer, and datamodule "
+        "to avoid serialising Lightning runtime state. Use estimator.save() / estimator.load() for "
         "persistence. Standard pickle is intentionally not supported."
     ),
     # ------------------------------------------------------------------

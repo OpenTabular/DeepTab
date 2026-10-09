@@ -102,6 +102,12 @@ The run identifier combines a timestamp and a short hash, so concurrent or repea
 `experiment_trackers` is a list, not a single string. Pass `["tensorboard"]`, `["mlflow"]`, or `["mlflow", "tensorboard"]` to activate one or both.
 ```
 
+For local SQLite tracking URIs, DeepTab creates the database's parent directory
+before constructing the MLflow logger. This includes the default
+`<root_dir>/mlflow/backend/mlflow.db` and custom relative or absolute SQLite paths.
+Remote tracking URIs and in-memory SQLite stores do not create database directories.
+MLflow's configured local artifact directory is created separately.
+
 ---
 
 ## Verbosity levels

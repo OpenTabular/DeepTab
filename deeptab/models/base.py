@@ -494,9 +494,16 @@ class SklearnBase(
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state["task_model"] = None  # Avoid serializing the task model
+        state["_task_model"] = None
+        state["_trainer"] = None
+        state["_data_module"] = None
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self._task_model = None  # Reinitialize task model
+        self._task_model = None
+        self._trainer = None
+        self._data_module = None
+        self._built = False
+        self._is_pretrained = False
+        self.is_fitted_ = False

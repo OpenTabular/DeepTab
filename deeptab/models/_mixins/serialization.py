@@ -2,9 +2,10 @@
 
 The :meth:`save` / :meth:`load` pair is the canonical persistence
 mechanism.  Standard :mod:`pickle` is intentionally **not** supported:
-``__getstate__`` clears ``task_model`` to avoid serialising Lightning
-modules, so a pickled estimator cannot make predictions after
-unpickling.  Use :meth:`save` / :meth:`load` for all persistence needs.
+``__getstate__`` clears ``_task_model``, ``_trainer``, and ``_data_module``
+to avoid serialising the Lightning training graph. Unpickling resets the
+fitted and built flags, so the estimator cannot make predictions without
+refitting. Use :meth:`save` / :meth:`load` for fitted-model persistence.
 """
 
 from __future__ import annotations
@@ -35,11 +36,12 @@ class _SerializationMixin:
     weights, fitted preprocessor, feature schema, column order, task
     metadata, and a version snapshot.
 
-    Note
-    ----
+    Notes
+    -----
     :class:`pickle` is **not** supported.  ``__getstate__`` intentionally
-    clears ``task_model`` to prevent serialising Lightning modules.  Always
-    use :meth:`save` / :meth:`load` instead.
+    clears the task model, trainer, and datamodule to prevent serialising
+    Lightning runtime references. Unpickling does not restore a fitted
+    model. Always use :meth:`save` / :meth:`load` instead.
     """
 
     if TYPE_CHECKING:
@@ -147,9 +149,14 @@ class _SerializationMixin:
         6
         """
         _warn_extension(path)
-        accelerator, devices, map_location = resolve_inference_accelerator(device)
+        map_location = resolve_inference_accelerator(device)[2]
         bundle = torch.load(path, weights_only=False, map_location=map_location)
+        return cls._load_from_bundle(bundle, device=device, path=path)
 
+    @classmethod
+    def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
+        """Reconstruct inference state from an already deserialized bundle."""
+        accelerator, devices, _ = resolve_inference_accelerator(device)
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
 

@@ -1,10 +1,13 @@
 """Tests for datamodule."""
 
+from typing import Any
+
 import numpy as np
 import pandas as pd
 import pytest
 import torch
 from sklearn.datasets import make_classification, make_regression
+from sklearn.model_selection import train_test_split
 
 from deeptab.data import FeatureSchema, TabularDataModule, TabularDataset
 
@@ -79,6 +82,83 @@ def binary_classification_data():
 
 class TestTabularDataModuleContract:
     """Test the contract and interface of TabularDataModule."""
+
+    @pytest.mark.parametrize("override", [False, True])
+    def test_constructor_validation_set_is_used_unless_overridden(self, regression_data, override):
+        from pretab.preprocessor import Preprocessor
+
+        features, targets = regression_data
+        training_features, training_targets = features.iloc[:150], targets[:150]
+        weights = np.linspace(1.0, 2.0, 150)
+        datamodule = TabularDataModule(
+            Preprocessor(),
+            32,
+            False,
+            True,
+            X_val=features.iloc[180:],
+            y_val=targets[180:],
+            val_size=0.5,
+            sampler=weights,
+        )
+        overrides = {"X_val": features.iloc[150:180], "y_val": targets[150:180]} if override else {}
+        datamodule.preprocess_data(training_features, training_targets, **overrides)
+        expected_features = features.iloc[150:180] if override else features.iloc[180:]
+        expected_targets = targets[150:180] if override else targets[180:]
+        pd.testing.assert_frame_equal(datamodule.X_val, expected_features)
+        np.testing.assert_array_equal(datamodule.y_val, expected_targets)
+        assert datamodule.X_train is not None
+        assert len(datamodule.X_train) == 150
+        np.testing.assert_array_equal(datamodule._train_sample_weights, weights)
+
+    def test_constructor_split_fraction_and_method_override(self, regression_data):
+        from pretab.preprocessor import Preprocessor
+
+        features, targets = regression_data
+        datamodule = TabularDataModule(Preprocessor(), 32, False, True, val_size=0.3)
+        datamodule.preprocess_data(features, targets, val_size=0.1)
+        assert datamodule.X_val is not None
+        assert len(datamodule.X_val) == 20
+        datamodule.preprocess_data(features.iloc[:100], targets[:100])
+        assert datamodule.X_train is not None
+        assert datamodule.X_val is not None
+        assert len(datamodule.X_train) == 70
+        assert len(datamodule.X_val) == 30
+
+    @pytest.mark.parametrize("where", ["constructor", "preprocess"])
+    @pytest.mark.parametrize("argument", ["X_val", "y_val"])
+    def test_incomplete_validation_pairs_are_rejected(self, where, argument):
+        options: dict[str, Any] = {argument: np.ones((3, 1))}
+        with pytest.raises(ValueError, match="X_val and y_val must be provided together"):
+            if where == "constructor":
+                TabularDataModule(None, 4, False, True, **options)
+            else:
+                datamodule = TabularDataModule(None, 4, False, True)
+                datamodule.preprocess_data(np.ones((10, 1)), np.ones(10), **options)
+
+    def test_multiclass_label_shape_survives_a_class_missing_from_training_split(self):
+        from pretab.preprocessor import Preprocessor
+
+        features = pd.DataFrame({"feature": np.arange(30, dtype=float)})
+        targets = np.tile([0, 1], 15)
+        _, validation_indices = train_test_split(np.arange(30), test_size=0.2, random_state=42)
+        targets[validation_indices[0]] = 2
+        datamodule = TabularDataModule(
+            Preprocessor(output_structure="blocks"),
+            8,
+            False,
+            False,
+            stratify=False,
+        )
+        datamodule.preprocess_data(features, targets, random_state=42)
+        datamodule.setup("fit")
+        assert datamodule.num_classes == 3
+        assert len(np.unique(datamodule.y_train)) == 2
+        assert datamodule.y_val is not None
+        assert 2 in datamodule.y_val
+        for dataset in (datamodule.train_dataset, datamodule.val_dataset):
+            assert dataset.labels is not None
+            assert dataset.labels.ndim == 1
+            assert dataset.labels.dtype == torch.long
 
     def test_datamodule_initialization(self):
         """Test datamodule can be initialized with required parameters."""
