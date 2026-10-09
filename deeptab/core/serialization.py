@@ -425,6 +425,10 @@ def build_save_bundle(
         "_class": type(estimator),
         "config": estimator.config,
         "config_kwargs": estimator._config_kwargs,
+        "model_config": estimator.model_config,
+        "preprocessing_config": estimator.preprocessing_config,
+        "trainer_config": estimator.trainer_config,
+        "random_state": estimator.random_state,
         "preprocessor_kwargs": getattr(estimator, "_preprocessor_kwargs", {}),
         "preprocessor": estimator._preprocessor,
         "feature_info": {
@@ -491,6 +495,8 @@ def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
     ``trainer`` — those require task-specific wiring handled by each
     ``load()`` classmethod.
     """
+    from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+
     obj.config = bundle["config"]
     obj._config_kwargs = bundle["config_kwargs"]
     obj._preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
@@ -499,10 +505,24 @@ def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
     obj._optimizer_kwargs = bundle["optimizer_kwargs"]
     obj._built = True
     obj.is_fitted_ = True
-    obj.model_config = None
-    obj.preprocessing_config = None
-    obj.trainer_config = None
-    obj.random_state = None
+    obj._is_pretrained = False
+    obj._best_model_path = None
+    obj.model_config = bundle.get("model_config", bundle["config"])
+    if "preprocessing_config" in bundle:
+        obj.preprocessing_config = bundle["preprocessing_config"]
+    else:
+        preprocessing_fields = {field.name for field in fields(PreprocessingConfig)}
+        obj.preprocessing_config = PreprocessingConfig(
+            **{key: value for key, value in obj._preprocessor_kwargs.items() if key in preprocessing_fields}
+        )
+    if "trainer_config" in bundle:
+        obj.trainer_config = bundle["trainer_config"]
+    else:
+        trainer_fields = {field.name for field in fields(TrainerConfig)}
+        trainer_kwargs = {key: value for key, value in bundle.items() if key in trainer_fields}
+        trainer_kwargs["optimizer_kwargs"] = bundle["optimizer_kwargs"]
+        obj.trainer_config = TrainerConfig(**trainer_kwargs)
+    obj.random_state = bundle.get("random_state")
     obj._preprocessor_arg_names = list(_PREPROCESSOR_ARG_NAMES)
 
 

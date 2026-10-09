@@ -5,6 +5,7 @@ from collections.abc import Callable
 
 import numpy as np
 import torch
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score, log_loss
 
 from deeptab.core.exceptions import NotFittedError, not_fitted_error
@@ -64,7 +65,7 @@ def _encode_labels(y, classes: np.ndarray, *, name: str = "y") -> np.ndarray:
     return indices
 
 
-class SklearnBaseClassifier(SklearnBase):
+class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
     _task = "classification"
 
     def __init__(

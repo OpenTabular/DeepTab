@@ -9,6 +9,35 @@ from sklearn.datasets import make_classification, make_regression
 from deeptab.data import FeatureSchema, TabularDataModule, TabularDataset
 
 
+@pytest.mark.parametrize("sample_count", [7, 20])
+@pytest.mark.parametrize("drop_last", [False, True])
+def test_drop_last_only_applies_to_training(sample_count, drop_last):
+    datamodule = TabularDataModule(
+        preprocessor=None,
+        batch_size=16,
+        shuffle=False,
+        regression=True,
+        drop_last=drop_last,
+        num_workers=0,
+        pin_memory=False,
+    )
+    datamodule.train_dataset = TabularDataset([], [torch.arange(35).unsqueeze(1)], [], torch.arange(35))
+    dataset = TabularDataset([], [torch.arange(sample_count).unsqueeze(1)], [], torch.arange(sample_count))
+    datamodule.val_dataset = dataset
+    datamodule.test_dataset = dataset
+    datamodule.predict_dataset = dataset
+
+    train_loader = datamodule.train_dataloader()
+    assert train_loader.drop_last is drop_last
+    assert sum(len(batch[1]) for batch in train_loader) == (32 if drop_last else 35)
+    for loader in (datamodule.val_dataloader(), datamodule.test_dataloader(), datamodule.predict_dataloader()):
+        assert loader.drop_last is False
+        assert loader.num_workers == 0
+        assert loader.pin_memory is False
+        torch.testing.assert_close(torch.cat([batch[1] for batch in loader]), torch.arange(sample_count))
+    assert datamodule.dataloader_kwargs["drop_last"] is drop_last
+
+
 @pytest.fixture
 def regression_data():
     """Generate synthetic regression dataset."""

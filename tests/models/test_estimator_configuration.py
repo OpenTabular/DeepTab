@@ -7,7 +7,9 @@
 import numpy as np
 import pandas as pd
 import pytest
-from sklearn.base import clone
+from sklearn.base import clone, is_classifier, is_regressor
+from sklearn.model_selection import StratifiedKFold, check_cv
+from sklearn.utils import get_tags
 
 from deeptab.configs import MLPConfig, PreprocessingConfig, ResNetConfig, TrainerConfig
 from deeptab.models.fttransformer import FTTransformerRegressor
@@ -28,6 +30,29 @@ X_reg = pd.DataFrame(RNG.standard_normal((N, 6)), columns=[f"f{i}" for i in rang
 y_reg = RNG.standard_normal(N)
 
 _FAST_TRAINER = TrainerConfig(max_epochs=1, batch_size=64, patience=1)
+
+
+@pytest.mark.parametrize("model_cls", [MLPClassifier, ResNetClassifier, TabMClassifier])
+def test_classifier_task_tags_and_default_cv(model_cls):
+    model = model_cls()
+    assert is_classifier(model)
+    assert not is_regressor(model)
+    tags = get_tags(model)
+    assert tags.estimator_type == "classifier"
+    assert tags.classifier_tags is not None
+    assert tags.target_tags.required
+    assert isinstance(check_cv(3, y_cls, classifier=is_classifier(model)), StratifiedKFold)
+
+
+@pytest.mark.parametrize("model_cls", [MLPRegressor, FTTransformerRegressor])
+def test_regressor_task_tags(model_cls):
+    model = model_cls()
+    assert is_regressor(model)
+    assert not is_classifier(model)
+    tags = get_tags(model)
+    assert tags.estimator_type == "regressor"
+    assert tags.regressor_tags is not None
+    assert tags.target_tags.required
 
 
 class TestEstimatorSplitConfigInit:

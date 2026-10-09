@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import torch
+from sklearn.base import RegressorMixin
 from sklearn.metrics import r2_score
 
 from deeptab.core.exceptions import not_fitted_error
@@ -8,7 +9,7 @@ from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase
 
 
-class SklearnBaseRegressor(SklearnBase):
+class SklearnBaseRegressor(RegressorMixin, SklearnBase):
     def __init__(
         self,
         model_config=None,

@@ -55,7 +55,8 @@ class _SerializationMixin:
         architecture/config, neural-network weights, fitted preprocessing
         state, feature schema, column order, task metadata, classifier
         classes (when available), and package versions for debugging
-        reloads across environments.
+        reloads across environments. Constructor model, preprocessing, and
+        trainer configs and the constructor seed are retained for refitting.
 
         Parameters
         ----------
@@ -125,7 +126,8 @@ class _SerializationMixin:
         -------
         estimator
             A fully reconstructed, ready-to-predict estimator of the same
-            type that was saved.
+            type that was saved. Saved constructor configs and the seed are
+            restored for parameter inspection, cloning, and refitting.
 
         Raises
         ------

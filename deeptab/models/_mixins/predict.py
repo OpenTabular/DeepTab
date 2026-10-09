@@ -160,9 +160,10 @@ class _PredictMixin:
             The metric value computed on the predictions.
         """
         # Explicitly load the best model state if needed
-        if hasattr(self, "_trainer") and self._best_model_path:
+        best_model_path = getattr(self, "_best_model_path", None)
+        if hasattr(self, "_trainer") and best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
-            checkpoint = torch.load(self._best_model_path, weights_only=False)
+            checkpoint = torch.load(best_model_path, weights_only=False)
             self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
 
         predictions = self.predict(X, embeddings)

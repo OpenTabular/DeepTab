@@ -8,6 +8,8 @@ import numpy as np
 import pandas as pd
 import pytest
 from sklearn.base import clone
+from sklearn.ensemble import VotingClassifier
+from sklearn.linear_model import LogisticRegression
 
 from deeptab.configs import (
     AutoIntConfig,
@@ -32,7 +34,7 @@ from deeptab.models.fttransformer import FTTransformerClassifier, FTTransformerR
 from deeptab.models.mambatab import MambaTabClassifier, MambaTabRegressor
 from deeptab.models.mambattention import MambAttentionClassifier, MambAttentionRegressor
 from deeptab.models.mambular import MambularClassifier, MambularRegressor
-from deeptab.models.mlp import MLPClassifier, MLPRegressor
+from deeptab.models.mlp import MLPLSS, MLPClassifier, MLPRegressor
 from deeptab.models.ndtf import NDTFClassifier, NDTFRegressor
 from deeptab.models.node import NODEClassifier, NODERegressor
 from deeptab.models.resnet import ResNetClassifier, ResNetRegressor
@@ -55,6 +57,51 @@ X_reg = pd.DataFrame(RNG.standard_normal((N, 6)), columns=[f"f{i}" for i in rang
 y_reg = RNG.standard_normal(N)
 
 _FAST_TRAINER = TrainerConfig(max_epochs=1, batch_size=64, patience=1)
+
+
+@pytest.mark.parametrize("voting", ["hard", "soft"])
+def test_classifier_works_in_voting_classifier(voting, tmp_path):
+    class CPUClassifier(MLPClassifier):
+        def fit(self, X, y, **kwargs):
+            return super().fit(X, y, accelerator="cpu", logger=False, enable_progress_bar=False, **kwargs)
+
+    classifier = CPUClassifier(
+        model_config=MLPConfig(layer_sizes=[16]),
+        trainer_config=TrainerConfig(max_epochs=1, checkpoint_path=str(tmp_path / "checkpoints")),
+        random_state=42,
+    )
+    ensemble = VotingClassifier(estimators=[("deeptab", classifier), ("linear", LogisticRegression())], voting=voting)
+    ensemble.fit(X_cls, y_cls)
+    assert ensemble.predict(X_cls).shape == (N,)
+    if voting == "soft":
+        assert ensemble.predict_proba(X_cls).shape == (N, 3)
+
+
+@pytest.mark.parametrize("model_cls", [MLPClassifier, MLPRegressor, MLPLSS])
+@pytest.mark.parametrize("sample_count", [50, 100])
+def test_fit_with_drop_last_keeps_validation_and_prediction_rows(model_cls, sample_count, tmp_path):
+    X, y = (X_cls, y_cls) if model_cls is MLPClassifier else (X_reg, y_reg)
+    X, y = X.iloc[:sample_count], y[:sample_count]
+    model = model_cls(
+        model_config=MLPConfig(layer_sizes=[16]),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=16, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    family_kwargs = {"family": "normal"} if model_cls is MLPLSS else {}
+    model.fit(
+        X,
+        y,
+        dataloader_kwargs={"drop_last": True},
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+        **family_kwargs,
+    )
+    assert model._data_module.train_dataloader().drop_last is True
+    assert model._data_module.val_dataloader().drop_last is False
+    assert len(model._data_module.val_dataloader()) == (sample_count // 5 + 15) // 16
+    assert "val_loss" in model._trainer.callback_metrics
+    assert len(model.predict(X)) == sample_count
 
 
 class TestEstimatorFitPredict:

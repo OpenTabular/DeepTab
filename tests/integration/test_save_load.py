@@ -9,8 +9,11 @@ import pandas as pd
 import pytest
 import torch
 import torch.nn as nn
+from sklearn.base import clone
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import InvalidDeviceError
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
 from deeptab.training import TaskModel
@@ -57,7 +60,7 @@ def binary_classification_data():
 
 
 def test_regressor_save_load_predictions(regression_data):
-    X_train, X_test, y_train, _y_test = regression_data
+    X_train, X_test, y_train, y_test = regression_data
     model = MLPRegressor()
     model.fit(X_train, y_train, **FIT_KWARGS)
 
@@ -82,6 +85,8 @@ def test_regressor_save_load_predictions(regression_data):
         preds_after,
         err_msg="MLPRegressor predictions changed after save/load round-trip",
     )
+    assert loaded._best_model_path is None
+    assert loaded.score(X_test, y_test) == pytest.approx(r2_score(y_test, preds_after))
 
 
 def test_regressor_save_raises_when_unfitted():
@@ -89,6 +94,69 @@ def test_regressor_save_raises_when_unfitted():
     with pytest.raises(ValueError, match="fitted"):
         with tempfile.NamedTemporaryFile(suffix=".pt") as f:
             model.save(f.name)
+
+
+@pytest.mark.parametrize("model_cls", [MLPRegressor, MLPClassifier, MLPLSS])
+@pytest.mark.parametrize("older_bundle", [False, True])
+def test_save_load_preserves_configs_for_refit(model_cls, older_bundle, regression_data, classification_data, tmp_path):
+    data = classification_data if model_cls is MLPClassifier else regression_data
+    X_train, X_test, y_train, _y_test = data
+    model = model_cls(
+        model_config=MLPConfig(layer_sizes=[16]),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=8),
+        trainer_config=TrainerConfig(
+            max_epochs=1,
+            batch_size=16,
+            lr=0.05,
+            optimizer_type="SGD",
+            optimizer_kwargs={"momentum": 0.5},
+            checkpoint_path=str(tmp_path / "checkpoints"),
+        ),
+        random_state=42,
+    )
+    assert model.trainer_config is not None
+    family_kwargs: dict[str, Any] = {"family": "normal"} if model_cls is MLPLSS else {}
+    model.fit(X_train, y_train, accelerator="cpu", logger=False, enable_progress_bar=False, **family_kwargs)
+    path = str(tmp_path / "model.deeptab")
+    model.save(path)
+    if older_bundle:
+        bundle = torch.load(path, weights_only=False)
+        for key in ("model_config", "preprocessing_config", "trainer_config", "random_state"):
+            bundle.pop(key)
+        torch.save(bundle, path)
+
+    loaded = model_cls.load(path)
+    assert loaded.model_config.layer_sizes == [16]
+    assert loaded.preprocessing_config.numerical_method == "standardization"
+    assert loaded.preprocessing_config.output_dim == 8
+    assert loaded.trainer_config.batch_size == 16
+    assert loaded.trainer_config.lr == 0.05
+    assert loaded.trainer_config.optimizer_type == "SGD"
+    assert loaded.random_state == (None if older_bundle else 42)
+    assert loaded.get_params()["model_config__layer_sizes"] == [16]
+
+    if not older_bundle:
+        assert loaded.trainer_config.get_params() == model.trainer_config.get_params()
+        assert loaded.config is loaded.model_config
+        cloned = clone(loaded)
+        assert isinstance(cloned, (MLPClassifier, MLPRegressor, MLPLSS))
+        assert cloned.trainer_config is not None
+        assert cloned.trainer_config.get_params() == model.trainer_config.get_params()
+
+    loaded.fit(
+        X_train,
+        y_train,
+        max_epochs=1,
+        checkpoint_path=str(tmp_path / "refit"),
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+        **family_kwargs,
+    )
+    assert loaded._data_module.batch_size == 16
+    assert loaded._task_model.lr == 0.05
+    assert loaded._task_model.optimizer_type == "SGD"
+    assert len(loaded.predict(X_test)) == len(X_test)
 
 
 def test_classifier_save_load_predictions(classification_data):

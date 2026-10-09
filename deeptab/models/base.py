@@ -3,7 +3,7 @@ from __future__ import annotations
 import warnings
 from dataclasses import fields as dataclass_fields
 from dataclasses import is_dataclass
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import lightning as pl
 import numpy as np
@@ -249,8 +249,6 @@ class SklearnBase(
         #   estimator._data_module_factory = MyFactory()
         self._data_module_factory: IDataModuleFactory = DefaultDataModuleFactory()
         self._task_model_factory: ITaskModelFactory = DefaultTaskModelFactory()
-        # Observability — wire up backends if a config was provided.
-        # Underscore-prefix: hidden from sklearn get_params/set_params/clone.
         # Only wire up for a genuine ObservabilityConfig; like the model and
         # preprocessing configs above, an unexpected value is stored as-is and
         # validation is deferred rather than raising inside __init__.
@@ -290,6 +288,7 @@ class SklearnBase(
                 "model_config": self.model_config,
                 "preprocessing_config": self.preprocessing_config,
                 "trainer_config": self.trainer_config,
+                "observability_config": getattr(self, "_observability_config", None),
                 "random_state": self.random_state,
             }
             if deep:
@@ -315,6 +314,7 @@ class SklearnBase(
             "model_config": self.model_config,
             "preprocessing_config": self.preprocessing_config,
             "trainer_config": self.trainer_config,
+            "observability_config": getattr(self, "_observability_config", None),
             "random_state": self.random_state,
             **self._config_kwargs,
             **self._preprocessor_kwargs,
@@ -332,6 +332,9 @@ class SklearnBase(
         clone() reliable for both the split-config and flat-kwargs styles
         (GH #410).
         """
+        observability_config = cast(
+            "ObservabilityConfig | None", sklearn_clone(getattr(self, "_observability_config", None), safe=False)
+        )
         if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
             return type(self)(
                 model_config=sklearn_clone(self.model_config) if self.model_config is not None else None,
@@ -339,10 +342,14 @@ class SklearnBase(
                     sklearn_clone(self.preprocessing_config) if self.preprocessing_config is not None else None
                 ),
                 trainer_config=sklearn_clone(self.trainer_config) if self.trainer_config is not None else None,
+                observability_config=observability_config,
                 random_state=self.random_state,
             )
 
-        new_object = type(self)(random_state=self.random_state)
+        new_object = type(self)(
+            observability_config=observability_config,
+            random_state=self.random_state,
+        )
         extra_params = {**self._config_kwargs, **self._preprocessor_kwargs}
         if extra_params:
             new_object.set_params(**extra_params)
@@ -447,13 +454,8 @@ class SklearnBase(
         # never reads, so set_params() silently had no effect on the model
         # actually built (GH #410).
         direct_keys = {"model_config", "preprocessing_config", "trainer_config", "random_state"}
-        # observability_config is a real __init__ parameter but, like
-        # _observability_config, is intentionally excluded from get_params()
-        # (see test_observability_config_not_in_get_params); set_params() must
-        # still accept it without raising.
-        hidden_keys = {"observability_config"}
         valid_config_fields = {f.name for f in dataclass_fields(self.config)} if is_dataclass(self.config) else set()
-        valid_keys = valid_config_fields | set(self._preprocessor_arg_names) | direct_keys | hidden_keys
+        valid_keys = valid_config_fields | set(self._preprocessor_arg_names) | direct_keys | {"observability_config"}
         invalid_keys = set(parameters) - valid_keys
         if invalid_keys:
             raise ValueError(

@@ -86,7 +86,8 @@ class TabularDataModule(pl.LightningDataModule):
         distributions. Ignored for classification.
     **dataloader_kwargs : dict
         Additional keyword arguments forwarded to PyTorch ``DataLoader``,
-        such as ``num_workers`` or ``pin_memory``.
+        such as ``num_workers`` or ``pin_memory``. ``drop_last`` applies only
+        to training; validation, test, and prediction retain partial batches.
 
     Notes
     -----
@@ -588,7 +589,9 @@ class TabularDataModule(pl.LightningDataModule):
             If ``setup("fit")`` has not created the validation dataset.
         """
         if hasattr(self, "val_dataset"):
-            return DataLoader(self.val_dataset, batch_size=self.batch_size, **self.dataloader_kwargs)
+            return DataLoader(
+                self.val_dataset, batch_size=self.batch_size, **{**self.dataloader_kwargs, "drop_last": False}
+            )
         else:
             raise ValueError("No validation dataset provided!")
 
@@ -606,7 +609,9 @@ class TabularDataModule(pl.LightningDataModule):
             If :meth:`assign_test_dataset` has not assigned the test dataset.
         """
         if hasattr(self, "test_dataset"):
-            return DataLoader(self.test_dataset, batch_size=self.batch_size, **self.dataloader_kwargs)
+            return DataLoader(
+                self.test_dataset, batch_size=self.batch_size, **{**self.dataloader_kwargs, "drop_last": False}
+            )
         else:
             raise ValueError("No test dataset provided!")
 
@@ -628,7 +633,7 @@ class TabularDataModule(pl.LightningDataModule):
             return DataLoader(
                 self.predict_dataset,
                 batch_size=self.batch_size,
-                **self.dataloader_kwargs,
+                **{**self.dataloader_kwargs, "drop_last": False},
             )
         else:
             raise ValueError("No predict dataset provided!")

@@ -8,6 +8,7 @@ import pytest
 import torch
 from sklearn.model_selection import train_test_split
 
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import DeviceUnavailableError, InvalidDeviceError
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
 
@@ -135,6 +136,8 @@ def test_restore_base_state(regression_data):
 
     assert obj._built is True
     assert obj.is_fitted_ is True
+    assert obj._is_pretrained is False
+    assert obj._best_model_path is None
     assert obj.model_config is None
     assert obj.preprocessing_config is None
     assert obj.trainer_config is None
@@ -143,6 +146,41 @@ def test_restore_base_state(regression_data):
     assert obj._preprocessor is bundle["preprocessor"]
     assert obj._optimizer_type == bundle["optimizer_type"]
     assert obj._preprocessor_arg_names == list(_PREPROCESSOR_ARG_NAMES)
+
+
+def test_restore_base_state_recovers_older_bundle_configs():
+    from deeptab.core.serialization import restore_base_state
+
+    config = MLPConfig(layer_sizes=[16])
+    bundle = {
+        "config": config,
+        "config_kwargs": config.get_params(),
+        "preprocessor_kwargs": {"numerical_method": "standardization", "output_dim": 8},
+        "preprocessor": None,
+        "optimizer_type": "SGD",
+        "optimizer_kwargs": {"momentum": 0.5},
+        "batch_size": 16,
+        "lr": 0.05,
+        "lr_patience": 3,
+        "lr_factor": 0.2,
+        "weight_decay": 0.01,
+    }
+    obj = object.__new__(MLPRegressor)
+    restore_base_state(obj, bundle)
+
+    assert obj.model_config is config
+    assert isinstance(obj.preprocessing_config, PreprocessingConfig)
+    assert obj.preprocessing_config.numerical_method == "standardization"
+    assert obj.preprocessing_config.output_dim == 8
+    assert isinstance(obj.trainer_config, TrainerConfig)
+    assert obj.trainer_config.batch_size == 16
+    assert obj.trainer_config.lr == 0.05
+    assert obj.trainer_config.lr_patience == 3
+    assert obj.trainer_config.lr_factor == 0.2
+    assert obj.trainer_config.weight_decay == 0.01
+    assert obj.trainer_config.optimizer_type == "SGD"
+    assert obj.trainer_config.optimizer_kwargs == {"momentum": 0.5}
+    assert obj.random_state is None
 
 
 def test_lss_bundle_structure(regression_data):

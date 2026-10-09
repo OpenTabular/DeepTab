@@ -162,19 +162,49 @@ _XFAIL_CHECKS: dict[str, str] = {
 # ---------------------------------------------------------------------------
 
 
+_TASK_XFAIL_CHECKS = {
+    "check_classifier_data_not_an_array": (
+        "Classifier label discovery calls np.unique before coercing array-like targets."
+    ),
+    "check_regressor_data_not_an_array": (
+        "Fit validation calls len before coercing sklearn's array-like input wrapper."
+    ),
+    "check_classifiers_train": (
+        "Mismatched X/y lengths raise DataError, but the message lacks sklearn's "
+        "expected 'inconsistent numbers of samples' wording."
+    ),
+    "check_regressors_train": (
+        "Mismatched X/y lengths raise DataError, but the message lacks sklearn's "
+        "expected 'inconsistent numbers of samples' wording."
+    ),
+    "check_classifiers_regression_target": (
+        "Continuous classification targets fail at stratified splitting rather than "
+        "raising sklearn's expected 'Unknown label type' error."
+    ),
+    "check_supervised_y_no_nan": (
+        "Target validation does not implement sklearn's full finite-value checks and expected NaN/Inf error wording."
+    ),
+    "check_supervised_y_2d": ("Column-vector targets are accepted without sklearn's required DataConversionWarning."),
+    "check_requires_y_none": ("A missing target raises TypeError before sklearn's expected requires-y ValueError."),
+}
+
+
 @parametrize_with_checks(
     [
         MLPClassifier(trainer_config=_FAST_TRAINER),
         MLPRegressor(trainer_config=_FAST_TRAINER),
     ]
 )
-def test_sklearn_compatible_estimator(estimator, check):
+def test_sklearn_compatible_estimator(estimator, check, request):
     """Run every sklearn estimator contract check.
 
-    Checks listed in _XFAIL_CHECKS are expected to fail for the documented
-    reasons.  All other checks must pass.
+    Checks in the expected-failure registries document remaining compliance
+    gaps. Newly enabled task-specific checks run with strict markers so an
+    unexpected pass requires updating the registry. Other checks must pass.
     """
     name = _check_name(check)
     if name in _XFAIL_CHECKS:
         pytest.xfail(_XFAIL_CHECKS[name])
+    if name in _TASK_XFAIL_CHECKS:
+        request.node.add_marker(pytest.mark.xfail(reason=_TASK_XFAIL_CHECKS[name], strict=True))
     check(estimator)

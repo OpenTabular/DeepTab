@@ -159,6 +159,27 @@ If no validation data is supplied DeepTab creates an internal split. For researc
 model.fit(X_train, y_train, X_val=X_val, y_val=y_val)
 ```
 
+### Partial batches
+
+Pass PyTorch loader options through `dataloader_kwargs`:
+
+```python
+model.fit(X_train, y_train, batch_size=16, dataloader_kwargs={"drop_last": True})
+```
+
+`drop_last=True` discards an incomplete **training** batch only. Validation,
+test, and prediction loaders always retain partial batches, so checkpoint
+selection uses the full validation set and predictions remain aligned with
+every input row. A validation set smaller than `batch_size` still yields one
+batch. Other loader options, such as `num_workers` and `pin_memory`, remain in
+effect.
+
+```{warning}
+If the training partition itself is smaller than one batch, `drop_last=True`
+still leaves the training loader empty. Reduce `batch_size` or disable
+`drop_last` in that case.
+```
+
 ### Early stopping and checkpointing
 
 Early stopping monitors `TrainerConfig.monitor` (default `"val_loss"`). The best checkpoint is

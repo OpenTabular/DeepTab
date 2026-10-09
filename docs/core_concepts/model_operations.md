@@ -23,6 +23,52 @@ loaded = MLPClassifier.load("my_model.deeptab")
 predictions = loaded.predict(X_test)
 ```
 
+### Scoring and refitting a loaded estimator
+
+Loaded estimators support `score()` as well as prediction. A regressor returns
+R2 and a classifier returns accuracy. Scoring uses the weights in the artifact;
+the original training checkpoint file is not needed.
+
+Artifacts also retain the constructor's `model_config`, `preprocessing_config`,
+`trainer_config`, and `random_state`. These remain available through `get_params()`
+and `set_params()`, so a later fit uses the same reusable configuration:
+
+```python
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+from deeptab.models import MLPRegressor
+
+model = MLPRegressor(
+    model_config=MLPConfig(layer_sizes=[32, 16]),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+    trainer_config=TrainerConfig(max_epochs=5, batch_size=16, lr=0.05),
+    random_state=42,
+)
+model.fit(X_train, y_train)
+model.save("regressor.deeptab")
+
+loaded = MLPRegressor.load("regressor.deeptab")
+print(loaded.score(X_test, y_test))
+assert loaded.get_params()["trainer_config__batch_size"] == 16
+assert loaded.random_state == 42
+loaded.fit(X_train, y_train)
+```
+
+```{note}
+A normal refit rebuilds the network and refits preprocessing. It does not resume
+optimizer state or the previous epoch. Put reusable settings in the constructor
+configs; per-call `fit()` overrides, including a fit-only seed or Lightning
+trainer options, are not recorded as constructor parameters. The `device`
+argument to `load()` controls inference, not the accelerator used by a later fit.
+```
+
+```{warning}
+Older bundles without explicit constructor configs recover the saved model
+config, preprocessing options, batch size, and available optimizer settings.
+Fields that were never saved cannot be recovered: an absent seed remains `None`,
+and absent trainer fields use current defaults. Review the restored configs
+before refitting an older artifact.
+```
+
 ```{tip}
 `load()` reconstructs whatever model type was saved, regardless of which estimator class you call it on. Calling `MLPRegressor.load("classifier.deeptab")` still returns an `MLPClassifier`. Calling `load()` from the matching class keeps the intent clear, but the returned object always has the saved type.
 ```
@@ -39,19 +85,21 @@ loaded = MLPClassifier.load("my_model.deeptab", device="cuda")
 
 The bundle saved to disk is a PyTorch-serialised dictionary containing:
 
-| Key                     | Contents                                                                                                                                                                            |
-| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `task_model_state_dict` | Neural network weights (Lightning module state dict)                                                                                                                                |
-| `loss_fct`              | The fitted loss module (e.g. class-weighted or focal losses), so a reload trains or reports on the same loss, not a default inferred from `num_classes`                             |
-| `preprocessor`          | Fitted `pretab.Preprocessor` object                                                                                                                                                 |
-| `feature_info`          | Numerical, categorical, and embedding feature metadata                                                                                                                              |
-| `config`                | Model config dataclass used during training                                                                                                                                         |
-| `distributional_kwargs` | LSS family constructor options, including quantiles, Tweedie power, mixture component count, and inferred output width                                                              |
-| `artifact_metadata`     | Architecture, schema, preprocessing, task, and version sub-blocks                                                                                                                   |
-| `input_columns`         | Ordered list of column names, for feature-name validation at predict time                                                                                                           |
-| `classes_`              | Class labels for classifiers                                                                                                                                                        |
-| `versions`              | Python, platform, and key package versions (`deeptab`, `torch`, `lightning`, `numpy`, `pandas`, `scikit-learn`, `pretab`, ...)                                                      |
-| `architecture_state`    | Extra constructor arguments for architectures that randomize part of their own shape at construction time (e.g. NDTF's per-tree depth); `None` for architectures with a fixed shape |
+| Key                                                      | Contents                                                                                                                                                                            |
+| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `task_model_state_dict`                                  | Neural network weights (Lightning module state dict)                                                                                                                                |
+| `loss_fct`                                               | The fitted loss module (e.g. class-weighted or focal losses), so a reload trains or reports on the same loss, not a default inferred from `num_classes`                             |
+| `preprocessor`                                           | Fitted `pretab.Preprocessor` object                                                                                                                                                 |
+| `feature_info`                                           | Numerical, categorical, and embedding feature metadata                                                                                                                              |
+| `config`                                                 | Model config dataclass used during training                                                                                                                                         |
+| `model_config`, `preprocessing_config`, `trainer_config` | Constructor configs used for parameter inspection, cloning, and refitting                                                                                                           |
+| `random_state`                                           | Constructor seed; `None` when no seed was configured                                                                                                                                |
+| `distributional_kwargs`                                  | LSS family constructor options, including quantiles, Tweedie power, mixture component count, and inferred output width                                                              |
+| `artifact_metadata`                                      | Architecture, schema, preprocessing, task, and version sub-blocks                                                                                                                   |
+| `input_columns`                                          | Ordered list of column names, for feature-name validation at predict time                                                                                                           |
+| `classes_`                                               | Class labels for classifiers                                                                                                                                                        |
+| `versions`                                               | Python, platform, and key package versions (`deeptab`, `torch`, `lightning`, `numpy`, `pandas`, `scikit-learn`, `pretab`, ...)                                                      |
+| `architecture_state`                                     | Extra constructor arguments for architectures that randomize part of their own shape at construction time (e.g. NDTF's per-tree depth); `None` for architectures with a fixed shape |
 
 ### Why everything lives in one bundle
 

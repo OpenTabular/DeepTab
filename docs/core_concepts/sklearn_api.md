@@ -20,8 +20,17 @@ scikit-learn defines a small set of conventions that every estimator is expected
 | `predict_proba` (classifiers)  | Probability estimates for classification tasks                                    |    ✓    |
 
 ```{note}
-DeepTab implements `score` directly rather than inheriting `ClassifierMixin` / `RegressorMixin`, but it follows the same "higher is better" convention, so `GridSearchCV` and friends behave as expected.
+DeepTab classifiers inherit `ClassifierMixin`, and point-estimate regressors
+inherit `RegressorMixin`. Their sklearn task tags make `is_classifier()` and
+`is_regressor()` identify them correctly. Classification cross-validation uses
+stratified folds by default, and classifiers can be used in `VotingClassifier`
+with hard or soft voting. DeepTab still provides its own `score()` methods,
+following the "higher is better" convention.
 ```
+
+Task recognition does not imply that every sklearn estimator compliance check
+passes. Some array-like input, target-validation, error-message, and warning
+conventions remain unsupported and are tracked in the estimator contract tests.
 
 ```{important}
 Because every constructor argument is stored untouched and all heavy lifting happens in `fit`, DeepTab estimators are safe to clone and reuse inside `Pipeline` and cross-validation. Avoid mutating private (underscore-prefixed) attributes if you rely on cloning, since those are deliberately hidden from `get_params`.
@@ -98,6 +107,33 @@ model = MLPRegressor(
 
 The split-config API is the recommended style for new code.
 
+### Cloning and observability
+
+`get_params()` reports `observability_config` alongside the model, preprocessing,
+trainer, and seed parameters. `set_params(observability_config=...)` replaces it.
+Cloning copies the observability configuration in both the split-config and
+default-constructor paths, but does not copy fitted state or an active run.
+
+```python
+from sklearn.base import clone
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.models import MLPClassifier
+
+obs = ObservabilityConfig(root_dir="experiments", experiment_name="cv")
+classifier = MLPClassifier(observability_config=obs, random_state=42)
+cloned = clone(classifier)
+cloned_obs = cloned.get_params()["observability_config"]
+assert cloned_obs == obs
+assert cloned_obs is not obs
+```
+
+```{note}
+Each cloned estimator creates its own run directory when fitted. Cross-validation
+and parameter searches therefore retain run tracking, but may create many runs.
+Optional structured logging and experiment trackers still require their usual
+dependencies.
+```
+
 ## Fit
 
 You can train in one of two ways. Pass `X` and `y` alone and DeepTab holds out a validation fraction internally, or pass your own `X_val` and `y_val` to control the split yourself.
@@ -130,6 +166,7 @@ Useful fit arguments:
 | `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                                              |
 | `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments.                          |
 | `train_metrics`, `val_metrics`               | Optional metrics logged during training; accepts `torchmetrics.Metric` or `DeepTabMetric` instances. |
+| `dataloader_kwargs`                          | PyTorch loader options; `drop_last` affects training only.                                           |
 | `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                                                      |
 
 For LSS models, `family` is required:
@@ -261,7 +298,14 @@ model.save("model.deeptab")
 
 loaded = type(model).load("model.deeptab")
 predictions = loaded.predict(X_test)
+score = loaded.score(X_test, y_test)
 ```
+
+The constructor's model, preprocessing, trainer configs, and seed are restored
+for parameter inspection, cloning, and refitting. A normal refit starts fresh
+rather than resuming a Lightning checkpoint. See
+[model operations](model_operations.md)
+for an example and the limits of recovering settings from older bundles.
 
 The saved estimator bundle is designed as a fitted inference artifact. It includes:
 
