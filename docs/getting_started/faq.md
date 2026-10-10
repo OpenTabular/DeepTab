@@ -6,52 +6,17 @@ Frequently asked questions about DeepTab and troubleshooting common issues.
 
 ### What's the difference between DeepTab v1 and v2?
 
-v2.0 is a ground-up restructuring of DeepTab. The high-level estimator workflow stays familiar, but the package layout, configuration objects, and import paths have changed. Three things affect existing code:
-
-1. **Import paths** were reorganised under the `deeptab` namespace.
-2. **Config classes** dropped their `Default` prefix (`DefaultMambularConfig` is now `MambularConfig`) and settings are split across `MambularConfig` (architecture), `PreprocessingConfig` (feature handling), and `TrainerConfig` (training).
-3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset`; the old `Mambular*` aliases are deprecated.
-
-The split-config API is the main thing you reach for day to day. In v1 every option was a flat keyword argument on the estimator; in v2 the same options live in dedicated config objects, while `fit`, `predict`, and `evaluate` behave exactly as before.
-
-```python
-# v1: settings passed as flat keyword arguments
-model = MambularClassifier(d_model=128, n_layers=4, numerical_preprocessing="ple")
-```
-
-```python
-# v2: settings grouped into focused config objects
-from deeptab.configs import MambularConfig, PreprocessingConfig
-
-model = MambularClassifier(
-    model_config=MambularConfig(d_model=128, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_method="ple"),
-)
-```
-
-You only pass the configs you want to change; `MambularClassifier()` uses sensible defaults for all three.
-
-```{important}
-v2.0 is not backward compatible with v1, and v1 is no longer maintained. If you need to stay on v1, pin `deeptab<2.0`, but note that the v1 branch receives no bug fixes or security updates.
-```
-
-For a step-by-step upgrade walkthrough, see [Migrating from v1 to v2](migration).
-
-See the [Overview](overview) for the full v2 data API, and the [homepage](../index) for the complete list of new features.
+v2 keeps the `fit` / `predict` workflow but changes import paths and separates architecture, preprocessing, and training settings into dedicated config objects. It is not backward compatible with v1, which is no longer maintained. See [Migrating from v1 to v2](migration) for upgrade examples and the [Config System](../core_concepts/config_system) for current options.
 
 ### Which model should I use?
 
-```{tip}
-When in doubt, start with `MambularClassifier` or `MambularRegressor`.
-```
-
-Mambular tends to work well across a variety of tabular problems.
+Start with a lightweight baseline, then compare models using the same validation split and metric.
 
 | Goal                            | Try                  |
 | ------------------------------- | -------------------- |
 | Strong general-purpose baseline | `TabM` or `Mambular` |
 | Many categorical features       | `TabTransformer`     |
-| Fastest baseline                | `MLP` or `ResNet`    |
+| Lightweight baseline            | `MLP` or `ResNet`    |
 | Uncertainty estimates           | any `LSS` variant    |
 | Interpretability                | `NODE` or `NDTF`     |
 
@@ -59,16 +24,7 @@ These are starting points, not rules. For the detailed comparison by dataset siz
 
 ### Do I need a GPU?
 
-No, DeepTab runs on CPU. Whether a GPU helps depends on your dataset more than on any single rule: the number of rows, the number of features (and how dense or high-cardinality they are), the model's per-batch cost, the batch size, and how many epochs you train all interact. The [Model Zoo Comparison Tables](../model_zoo/comparison_tables) give the per-model cost driver and rough crossover points; treat the guidance below as a starting heuristic, not a hard threshold.
-
-As a practical rule, reach for a GPU when several of these hold at once:
-
-- **Dense, wide data**: many numerical features per row, so each forward and backward pass does substantially more matrix work that parallelises well on a GPU.
-- **Long training runs**: more than ~100 epochs, where even a modest per-epoch speedup compounds into a large wall-clock difference.
-- **Larger batch sizes**: bigger batches expose more parallelism, which a GPU can absorb while a CPU saturates. Conversely, very small batches may not fill the device and can erase the benefit.
-- **Attention- or sequence-heavy architectures**: models whose cost grows faster than linearly with features or rows (for example `SAINT`'s row attention, or the transformer and recurrent families) hit the GPU-recommended regime at much smaller dataset sizes than `MLP`, `ResNet`, `TabM`, or `MambaTab`.
-
-For small datasets, short runs, or the lightweight models above, CPU is usually fine and avoids data-transfer overhead. When in doubt, profile one configuration both ways and compare wall-clock time per epoch.
+No. CPU is often sufficient for small datasets and lightweight models. GPUs can help with wide data, larger batches, and expensive attention or sequence models, but transfer overhead can make small workloads slower. Benchmark the same configuration on both devices rather than relying on a fixed dataset-size threshold. See the [Model Comparison](../model_zoo/comparison_tables) for model-specific guidance.
 
 ### How do I know if my GPU is being used?
 
@@ -98,53 +54,6 @@ print(info["num_devices"])   # number of devices in use
 
 ```{warning}
 By default DeepTab lets Lightning auto-select the best available accelerator, but an explicit `accelerator=` you pass to `fit()` always wins. If you accidentally pass `accelerator="cpu"`, training stays on the CPU even when a GPU is present, and `runtime_info()["accelerator"]` will report `"CPUAccelerator"`. Drop the argument (or set `accelerator="auto"`) to let DeepTab use the GPU.
-```
-
-### Can I use DeepTab with PyTorch dataloaders?
-
-```{note}
-For normal training you never build a `DataLoader` yourself: `model.fit(...)` constructs the `TabularDataModule` and its loaders internally. Reach for this lower-level path only when you need behaviour the estimator does not expose, such as a custom or weighted sampler, or running DeepTab data through your own training/evaluation loop.
-```
-
-Yes. The estimator does not accept a custom `DataLoader` directly, but after `fit` the fitted data module exposes a ready-to-use, preprocessed `TabularDataset`. You can wrap that dataset in any `DataLoader` (with your own sampler) and run the fitted network on the batches yourself.
-
-```python
-import torch
-from torch.utils.data import DataLoader, WeightedRandomSampler
-from deeptab.models import MambularClassifier
-
-model = MambularClassifier()
-model.fit(X_train, y_train, max_epochs=1)   # fits the preprocessor and builds the network
-
-# The fitted data module holds the preprocessed training dataset
-dm = model._data_module
-dm.setup("fit")
-dataset = dm.train_dataset                  # a TabularDataset of preprocessed tensors
-
-# Wrap it in your own DataLoader, e.g. to oversample minority classes
-sampler = WeightedRandomSampler(sample_weights, num_samples=len(dataset))
-dataloader = DataLoader(dataset, batch_size=128, sampler=sampler)
-```
-
-Each item is a `((num_features, cat_features, embeddings), label)` tuple, the same format DeepTab uses internally, so the default `DataLoader` collation batches it without a custom `collate_fn`. Feed those batches into the fitted network for a custom training or scoring loop:
-
-```python
-net = model._task_model                     # the LightningModule (internal API)
-device = next(net.parameters()).device
-net.eval()
-
-with torch.no_grad():
-    for (num_features, cat_features, embeddings), labels in dataloader:
-        num_features = [t.to(device) for t in num_features]
-        cat_features = [t.to(device) for t in cat_features]
-        embeddings = [t.to(device) for t in embeddings] if embeddings else None
-
-        logits = net(num_features, cat_features, embeddings)
-        # compute your own loss / metrics, or collect predictions ...
-```
-
-```{warning}
-`model._data_module` and `model._task_model` are internal attributes and may change between releases. For standard training and inference, prefer the estimator API (`fit`, `predict`, `evaluate`), which manages preprocessing, batching, and device placement for you.
 ```
 
 ## Data and preprocessing
@@ -262,50 +171,32 @@ model.fit(df, y, max_epochs=50)
 
 ### How do I speed up training?
 
-Start by checking what hardware DeepTab is actually using, then adjust the parts that matter most.
+Check [which device is actually being used](#how-do-i-know-if-my-gpu-is-being-used), then measure time per epoch while changing one setting at a time:
 
-**1. Confirm you are on an accelerator.** Print the detected hardware:
-
-```python
-from deeptab import print_hardware_info
-
-print_hardware_info()
-```
-
-If the recommended accelerator is `cpu` but you expect a GPU, install a CUDA-enabled PyTorch build (see the [installation guide](installation)). DeepTab uses the first available GPU automatically, but you can also force it explicitly:
-
-```python
-model.fit(X_train, y_train, accelerator="gpu", max_epochs=100)
-```
-
-**2. Use a batch size that keeps the accelerator busy.** GPUs and MPS only pay off with larger batches. Try 256 or more; on very small datasets (under ~1K rows) the CPU can be faster because of transfer overhead.
-
-**3. Check the learning rate.** Training that crawls for many epochs is often a learning-rate problem, not a hardware one. The default is conservative; a slightly higher rate can converge in far fewer epochs. Raise it carefully and watch the loss.
-
-**4. Lean on early stopping instead of a fixed epoch count**, and speed up data loading with extra workers.
+- Increase `batch_size` within the device's memory limit and check validation quality.
+- Try a smaller model if the current architecture is unnecessarily expensive.
+- Tune `lr` while watching validation loss; a higher rate is not always better.
+- Use early stopping to avoid epochs after validation performance stops improving.
+- Benchmark additional data-loader workers; they can add overhead for small in-memory datasets.
 
 ```python
 from deeptab.configs import TrainerConfig
 
 model = MambularClassifier(
     trainer_config=TrainerConfig(
-        batch_size=512,   # keep the accelerator busy
-        lr=1e-3,          # raise from the default if convergence is slow
-        patience=10,      # stop once the validation metric plateaus
+        batch_size=256,
+        lr=1e-3,
+        patience=10,
     )
 )
 
-# num_workers is a DataLoader option, so pass it via dataloader_kwargs
-model.fit(X_train, y_train, dataloader_kwargs={"num_workers": 4}, max_epochs=100)
+model.fit(
+    X_train, y_train, accelerator="auto", max_epochs=100,
+    dataloader_kwargs={"num_workers": 4},
+)
 ```
 
-```{note}
-A GPU is not always faster. For small datasets or tiny batches the transfer overhead can outweigh the speedup, and the CPU may win. Benchmark both on your data.
-```
-
-```{warning}
-Raising the learning rate too far makes training unstable and the loss can diverge. If that happens, lower it again and see [Training is unstable (loss explodes)](#training-is-unstable-loss-explodes).
-```
+If the loss diverges, see [Training is unstable](#training-is-unstable-loss-explodes).
 
 ### How do I use multiple GPUs?
 
@@ -425,25 +316,14 @@ Or check for unexpected non-numeric values in numerical columns.
 
 ### ImportError: No module named 'deeptab'
 
-Ensure DeepTab is installed in the active environment:
+Install DeepTab in the same Python environment used by your script or notebook:
 
 ```bash
-pip list | grep deeptab
+python -m pip show deeptab
+python -m pip install deeptab
 ```
 
-If not listed:
-
-```bash
-pip install deeptab
-```
-
-### AttributeError: 'TabularDataModule' object has no attribute 'embedding_feature_info'
-
-This was a bug in early v2.0 pre-releases. Upgrade to v2.0.0 or later:
-
-```bash
-pip install --upgrade deeptab
-```
+If it is already installed, check your editor's selected interpreter or notebook kernel. See [Installation](installation) for environment setup.
 
 ### Training is unstable (loss explodes)
 
@@ -470,39 +350,22 @@ model.fit(X_train, y_train, gradient_clip_val=0.5)
 
 ### RuntimeError: Expected all tensors to be on the same device
 
-```{note}
-The high-level estimator API handles device management automatically. This error typically occurs only with custom training loops.
-```
-
-Ensure all tensors are on the same device:
+The model's weights and input tensors must be on the same device. For prediction, you can request CPU inference explicitly:
 
 ```python
-batch = batch.to("cuda")  # Move entire batch
+predictions = model.predict(X_test, device="cpu")
 ```
 
-The estimator API handles this automatically.
+In custom loops, move each numerical, categorical, and embedding tensor to the model's device. A DeepTab batch contains nested lists or tuples, so calling `.to()` on the whole batch does not work.
 
 ## Choosing a model
 
-### What's the difference between Mambular and MambaTab?
-
-Both use Mamba (State Space Model) blocks, but differ in how they present features to the block:
-
-- **Mambular**: embeds each feature into its own token, then runs Mamba over that sequence of feature tokens and pools the result. Modelling features as a sequence lets it capture richer interactions between them, at a higher compute cost.
-- **MambaTab**: concatenates all features and projects them through a single linear layer into one representation before the Mamba block. This is lighter and faster, but models feature interactions less explicitly.
-
-Mambular is the stronger general-purpose choice, reach for MambaTab when you want a more compact, faster Mamba-based model.
-
 ### When should I use distributional regression (LSS)?
-
-```{tip}
-Use LSS models when you need uncertainty estimates, not just point predictions.
-```
 
 Use `LSS` models when you need:
 
 - **Uncertainty quantification**: Know when predictions are confident vs uncertain
-- **Prediction intervals**: Generate confidence bounds (e.g., 95% intervals)
+- **Prediction intervals**: Estimate ranges for future observations (e.g., 95% intervals)
 - **Heteroscedastic noise**: Model varying noise levels across inputs
 - **Risk-aware decisions**: Use full distributions for downstream optimization
 
@@ -523,6 +386,8 @@ std = params[:, 1]
 lower = mean - 1.96 * std
 upper = mean + 1.96 * std
 ```
+
+For `family="normal"`, the second transformed parameter is the standard deviation, despite its legacy name `variance`. These are prediction intervals under the fitted normal-distribution assumption, not confidence intervals for the mean or guaranteed calibrated uncertainty. See [Training and Evaluation](../core_concepts/training_and_evaluation) for distributional workflows.
 
 ### Can I use my own custom architecture?
 
@@ -563,23 +428,30 @@ Note: DeepTab does its own preprocessing, so additional preprocessing steps in t
 
 ### Does GridSearchCV work?
 
-Yes:
+Yes. Construct the configs explicitly before tuning their nested parameters:
 
 ```python
 from sklearn.model_selection import GridSearchCV
+from deeptab.configs import MambularConfig, TrainerConfig
+from deeptab.models import MambularClassifier
 
 search = GridSearchCV(
-    estimator=MambularClassifier(),
+    estimator=MambularClassifier(
+        model_config=MambularConfig(),
+        trainer_config=TrainerConfig(max_epochs=50),
+        random_state=42,
+    ),
     param_grid={
         "model_config__d_model": [64, 128],
         "trainer_config__lr": [1e-3, 5e-4],
     },
     cv=5,
+    n_jobs=1,
 )
 search.fit(X_train, y_train)
 ```
 
-Note: Set `n_jobs=1` in GridSearchCV if using GPU, as each model will try to use the GPU.
+Nested keys such as `model_config__d_model` require the corresponding config object. Keep `n_jobs=1` when sharing one accelerator to avoid concurrent fits competing for its memory.
 
 ### Can I deploy DeepTab models?
 
@@ -647,17 +519,29 @@ When `loss_fct` is an `nn.Module`, it is used as given and `class_weight` is ign
 
 ### How do I extract learned features?
 
-Use the public `encode()` method on a fitted model. It runs the backbone and returns dense representations as a tensor of shape `(n_samples, embedding_dim)`, which you can feed into clustering, similarity search, or another downstream model.
+Use `encode()` on a fitted FTTransformer, TabTransformer, SAINT, Mambular, MambAttention, or TabulaRNN estimator, including their LSS variants. Encoding requires both an embedding layer and a supported contextualizing block; MLP does not support it, even with `use_embeddings=True`.
+
+The method runs the backbone in evaluation mode with gradients disabled and returns the unpooled token sequence as a tensor of shape `(n_samples, n_tokens, hidden_dim)`. The token count includes a CLS token when enabled and any external embedding tokens. The final dimension is the backbone's output width, which can differ from `d_model` for recurrent models. The model stays in evaluation mode after the call.
 
 ```python
-model = MambularClassifier()
+from deeptab.models import FTTransformerClassifier
+
+model = FTTransformerClassifier()
 model.fit(X_train, y_train, max_epochs=50)
 
-embeddings = model.encode(X_test)   # torch.Tensor, shape (n_samples, embedding_dim)
-print(embeddings.shape)
+tokens = model.encode(X_test)
+print(tokens.shape)
+
+features = tokens.mean(dim=1).cpu().numpy()
 ```
 
-If you also passed external `embeddings` at fit time, supply them again with `model.encode(X_test, embeddings=...)` so the rows stay aligned.
+For clustering or another estimator that expects a two-dimensional matrix, choose an explicit pooling method, such as the token mean above. If a CLS token is enabled, you can instead select its configured prepend or append position. `encode()` itself does not pool or apply the prediction head.
+
+Classifier and regressor wrappers accept external embeddings with `model.encode(X_test, embeddings=...)`; supply them again if they were used at fit time, keeping the rows aligned. LSS retains `encode(X_test, batch_size=64)`, with `batch_size` also accepted as the second positional argument.
+
+```{note}
+Evaluation mode disables dropout but does not remove cross-row interactions. Models such as SAINT can produce different tokens when batch composition or `batch_size` changes, even in evaluation mode. Exact reproducibility across devices or numerical backends is not guaranteed.
+```
 
 ## Still have questions?
 
