@@ -46,6 +46,34 @@ def get_model_config(model_class):
     pytest.fail(f"Could not find or instantiate config {config_class_name} for {model_name}")
 
 
+@pytest.mark.parametrize("architecture_name", ["TabM", "Trompt"])
+@pytest.mark.parametrize("lss", [False, True])
+@pytest.mark.parametrize("output_dim", [1, 2])
+@pytest.mark.parametrize("batch_size", [1, 5])
+def test_ensemble_output_preserves_lss_parameter_axis(architecture_name, lss, output_dim, batch_size):
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == architecture_name)
+    config = get_model_config(model_class)
+    config.d_model = 8
+    if architecture_name == "TabM":
+        config.layer_sizes = [8, 4]
+        config.ensemble_size = 3
+        config.dropout = 0.0
+    else:
+        config.n_cycles = 3
+        config.P = 4
+    feature_information = ({f"feature_{index}": {"dimension": 1} for index in range(3)}, {}, {})
+    model = model_class(feature_information, num_classes=output_dim, config=config, lss=lss).eval()
+    predictions = model([torch.randn(batch_size, 1) for _ in range(3)], [], [])
+
+    expected_shape = (batch_size, 3, output_dim) if lss or output_dim > 1 else (batch_size, 3)
+    assert predictions.shape == expected_shape
+    assert torch.isfinite(predictions).all()
+    predictions.sum().backward()
+    gradients = [parameter.grad for parameter in model.parameters() if parameter.grad is not None]
+    assert gradients
+    assert all(torch.isfinite(gradient).all() for gradient in gradients)
+
+
 @pytest.mark.parametrize("architecture_name", ["MLP", "TabM", "Tangos"])
 @pytest.mark.parametrize("use_glu", [False, True])
 @pytest.mark.parametrize("batch_norm", [False, True])

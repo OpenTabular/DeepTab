@@ -21,6 +21,8 @@ In DeepTab, Trompt is implemented as a sequence of `TromptCell` modules. Each ce
 
 The model returns predictions from every cycle, so DeepTab treats Trompt as an ensemble-like model (`returns_ensemble=True`).
 
+For LSS tasks, the architecture preserves all three output axes: `(batch_size, n_cycles, parameter_count)`. A single-output family such as Poisson therefore produces `(batch_size, n_cycles, 1)`, not `(batch_size, n_cycles)`. Training sums the cycle losses; `TromptLSS.predict` averages raw cycle outputs before applying the distribution's parameter transforms and returns `(n_samples, parameter_count)`. Ordinary scalar regression and binary classification keep the shape `(batch_size, n_cycles)`.
+
 | Property                  | DeepTab Trompt                                |
 | ------------------------- | --------------------------------------------- |
 | Inductive bias            | Prompt/prototype-mediated feature aggregation |

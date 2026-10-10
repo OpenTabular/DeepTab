@@ -37,6 +37,10 @@ features -> optional embeddings -> BatchEnsemble MLP blocks -> ensemble output/h
 
 When `average_ensembles=False`, `TabM` returns one prediction per ensemble member and sets `returns_ensemble=True`. When `average_ensembles=True`, the model averages member states before the final head.
 
+For LSS tasks, per-member outputs have shape `(batch_size, ensemble_size, parameter_count)`, including `(batch_size, ensemble_size, 1)` for single-output families such as Poisson and Tweedie. The training wrapper sums the member losses. `TabMLSS.predict` averages raw member outputs before applying the distribution's parameter transforms and returns `(n_samples, parameter_count)` for both raw and transformed predictions. With `average_ensembles=True`, the architecture produces `(batch_size, parameter_count)` directly and the wrapper computes one distribution loss.
+
+Ordinary scalar regression and binary classification retain the per-member shape `(batch_size, ensemble_size)`.
+
 `batch_norm=True` and `norm` add normalization after the first ensemble layer, sized to that layer's projection width. Batch normalization normalizes each feature over the batch and member axes during training and uses running statistics at inference. `norm` accepts `"LayerNorm"`, `"RMSNorm"`, `"BatchNorm"`, and `"LearnableLayerScaling"`, which all keep members independent at inference.
 
 ```{important}

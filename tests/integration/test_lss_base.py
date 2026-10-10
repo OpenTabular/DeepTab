@@ -413,6 +413,80 @@ def test_multivariate_families_build_and_fit_three_outputs(tmp_path, family):
     assert loaded.score(_X[:6], targets[:6]) == pytest.approx(model.score(_X[:6], targets[:6]))
 
 
+@pytest.mark.parametrize("model_name", ["TabM", "TabM-averaged", "Trompt"])
+@pytest.mark.parametrize(
+    "family,options",
+    [
+        ("poisson", {}),
+        ("tweedie", {}),
+        ("quantile", {"quantiles": [0.5]}),
+        ("normal", {}),
+        ("categorical", {}),
+        ("dirichlet", {}),
+    ],
+)
+def test_ensemble_lss_families_fit_predict_and_roundtrip(model_name, family, options, tmp_path):
+    from deeptab.configs import PreprocessingConfig, TabMConfig
+    from deeptab.configs.experimental.trompt_config import TromptConfig
+    from deeptab.models import TabMLSS
+    from deeptab.models.experimental import TromptLSS
+
+    model_class = TabMLSS if model_name.startswith("TabM") else TromptLSS
+    config = (
+        TabMConfig(
+            d_model=8,
+            layer_sizes=[8, 4],
+            ensemble_size=3,
+            dropout=0.0,
+            average_ensembles=model_name == "TabM-averaged",
+        )
+        if model_class is TabMLSS
+        else TromptConfig(d_model=8, n_cycles=3, P=4)
+    )
+    model = model_class(
+        model_config=config,
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=7),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    targets = (
+        np.tile([0.2, 0.3, 0.5], (32, 1))
+        if family == "dirichlet"
+        else np.tile([10, 20, 30, 10], 8)
+        if family == "categorical"
+        else np.arange(32) % 4
+    )
+    model.fit(
+        _X[:24],
+        targets[:24],
+        family=family,
+        distributional_kwargs=options,
+        X_val=_X[24:32],
+        y_val=targets[24:32],
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+    )
+    raw = model.predict(_X[:5], raw=True)
+    predictions = model.predict(_X[:5])
+    assert raw.shape == predictions.shape == (5, model.family.param_count)
+    assert model.predict(_X[:1]).shape == (1, model.family.param_count)
+    assert np.isfinite(raw).all()
+    assert np.isfinite(predictions).all()
+    assert np.isfinite(model.score(_X[:5], targets[:5]))
+    if family == "categorical":
+        np.testing.assert_allclose(predictions.sum(axis=1), 1, atol=1e-6)
+    elif family in {"poisson", "tweedie", "dirichlet"}:
+        assert (predictions > 0).all()
+
+    path = str(tmp_path / "ensemble.deeptab")
+    model.save(path)
+    loaded = model_class.load(path)
+    assert loaded.family.param_count == model.family.param_count
+    np.testing.assert_array_equal(loaded.predict(_X[:5], raw=True), raw)
+    np.testing.assert_array_equal(loaded.predict(_X[:5]), predictions)
+
+
 @pytest.mark.parametrize(
     "family,options,attribute",
     [

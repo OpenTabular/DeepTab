@@ -86,6 +86,8 @@ class Trompt(BaseModel):
             # print(self.tdown(O).shape)
             outputs.append(self.decoder(O))
 
-        out = torch.stack(outputs, dim=1).squeeze(-1)
+        out = torch.stack(outputs, dim=1)
+        if not getattr(self.hparams, "lss", False):
+            out = out.squeeze(-1)
         # preds = out.mean(dim=1)
         return out

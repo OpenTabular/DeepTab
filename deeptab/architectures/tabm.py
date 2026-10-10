@@ -215,7 +215,7 @@ class TabM(BaseModel):
         # Shape (batch_size, (ensemble_size), num_classes) if not averaged
         x = self.final_layer(x)
 
-        if not self.hparams.average_ensembles:
+        if not self.hparams.average_ensembles and not getattr(self.hparams, "lss", False):
             x = x.squeeze(-1)
 
         return x
