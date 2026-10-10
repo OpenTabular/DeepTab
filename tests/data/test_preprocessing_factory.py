@@ -295,6 +295,27 @@ class TestPresets:
         assert pre.output_dim == 7
 
 
+class TestEffectiveOutputWidths:
+    @pytest.mark.parametrize(
+        ("requested", "effective"),
+        [(7, 7), (50, 50), (64, 50)],
+    )
+    def test_bspline_requested_and_effective_widths(self, requested, effective):
+        config = PreprocessingConfig(
+            numerical_method="bspline",
+            output_dim=requested,
+            target_aware=False,
+            placement_strategy="uniform",
+        )
+        pre = build_preprocessor(config, task="regression")
+        features = pd.DataFrame({"amount": np.linspace(0, 1, 200)})
+        fit_preprocessor(pre, features, features["amount"].to_numpy())
+        assert config.output_dim == requested
+        assert pre.output_dim == requested
+        assert pre.output_dims_["amount"] == effective
+        assert pre.transform(features)["num_amount"].shape == (200, effective)
+
+
 class TestListAvailableRepresentations:
     def test_returns_nonempty_sorted_list(self):
         names = list_available_representations()

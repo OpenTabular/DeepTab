@@ -20,13 +20,14 @@ every field here.
 
 ```{important}
 **The default `output_dim` changed from 64 to 7.** A fit that omits `output_dim` (and
-its legacy aliases `n_bins`/`n_knots`) now builds a narrower, more efficient
-representation by default, matching PreTab's own `preset="standard"` starting point.
-Passing `output_dim=64` explicitly reproduces the old width. A model saved before
-this change keeps loading with its original fitted width: **the loader restores
-dimensions from the saved artifact, never from today's constructor defaults.** The
-first fit that relies on the new default emits a one-time `FutureWarning`.
+its legacy aliases `n_bins`/`n_knots`) uses the narrower default and emits a
+`FutureWarning`. `output_dim` is a requested width, not a guarantee: current PreTab
+caps B-splines at **50 columns**, so `output_dim=64` fits 50, not 64. Check
+`preprocessor.output_dims_` after fitting for each feature's effective width.
 ```
+
+Saved dimensions survive only a compatible reload. Before upgrading an existing
+model, check the [historical artifact assessment](../core_concepts/model_operations.md).
 
 `PreprocessingConfig` field names also changed. Renames fall into two categories:
 

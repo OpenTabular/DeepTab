@@ -144,10 +144,21 @@ Because the artifact is pickle-backed under the hood, only load `.deeptab` files
 
 ### Checkpoint format compatibility
 
-Every artifact carries a `format_version` in its `artifact_metadata`, alongside the full package version snapshot, so a saved model records exactly which DeepTab release produced it. The current DeepTab release only guarantees loading artifacts saved by that same release line; older, pre-2.1 checkpoints are not guaranteed to reload and may need their original `deeptab`/`torch`/`pretab` environment reinstalled to load at all. If you need to keep an older model working, pin the package versions recorded in its `versions_` metadata rather than upgrading in place.
+`format_version` describes the bundle layout; the package snapshot records its
+producer environment. Neither guarantees compatibility with newer dependencies.
+
+Six artifacts generated with unmodified DeepTab `v2.0.0` and PreTab `0.0.1` were
+tested: MLP classifier, regressor, and normal-family LSS, each with default
+preprocessing and explicit `n_bins=64`. All use PLE and reload with identical
+predictions in their producer environment. All six fail under PreTab `1.0.0` with
+`ModuleNotFoundError: pretab.transformers.ple`, a removed pickle import path.
+Keep the recorded package versions for inference, or retrain in the new
+environment. Other architectures, preprocessors, and weights-only checkpoints
+were not assessed.
 
 ```{note}
-Changing a default, such as the `output_dim` value a new fit resolves to, never changes an already-saved model. The loader always restores the requested configuration and fitted state recorded in the artifact itself, never today's constructor defaults, so a model saved under an older default keeps its original shape and behavior after upgrading DeepTab.
+A successful reload restores saved fitted dimensions, not today's constructor
+defaults. This does not make an incompatible preprocessor loadable.
 ```
 
 LSS family options are also recorded in `task_info_["distributional_kwargs"]`.
