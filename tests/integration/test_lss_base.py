@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -20,6 +21,7 @@ import torch
 
 from deeptab.configs import TrainerConfig
 from deeptab.models.base import SklearnBase
+from deeptab.models.fttransformer import FTTransformerClassifier, FTTransformerLSS, FTTransformerRegressor
 from deeptab.models.lss_base import SklearnBaseLSS
 from deeptab.models.mlp import MLPLSS
 
@@ -42,6 +44,43 @@ def fitted_mlplss():
     model = MLPLSS(trainer_config=_FAST_TRAINER)
     model.fit(_X, _Y, family="normal")
     return model
+
+
+@pytest.mark.parametrize("model_class", [FTTransformerClassifier, FTTransformerRegressor, FTTransformerLSS])
+def test_encode_uses_eval_without_gradients_and_preserves_batches(model_class, monkeypatch):
+    class EncodingBackbone(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding_layer = torch.nn.Identity()
+            self.dropout = torch.nn.Dropout(0.75)
+            self.weight = torch.nn.Parameter(torch.ones(1))
+            self.batch_sizes = []
+
+        def encode(self, data):
+            assert not self.training
+            assert not torch.is_grad_enabled()
+            numerical, categorical, embeddings = data
+            self.batch_sizes.append(len(numerical))
+            return self.dropout(torch.stack([numerical, categorical, embeddings], dim=1) * self.weight)
+
+    features = torch.arange(40, dtype=torch.float32).reshape(10, 4)
+    dataset = [(row, row + 100, row + 200) for row in features]
+    model = model_class()
+    task_model = torch.nn.Module()
+    task_model.estimator = EncodingBackbone()
+    monkeypatch.setattr(model, "_task_model", task_model)
+    monkeypatch.setattr(model, "_data_module", SimpleNamespace(preprocess_new_data=lambda *args: dataset))
+
+    first = model.encode(features.numpy(), batch_size=4)
+    second = model.encode(features.numpy(), batch_size=4)
+
+    assert not task_model.training
+    assert task_model.estimator.batch_sizes == [4, 4, 2, 4, 4, 2]
+    assert first.shape == (10, 3, 4)
+    assert not first.requires_grad
+    assert first.grad_fn is None
+    torch.testing.assert_close(first, second, rtol=0, atol=0)
+    torch.testing.assert_close(first, torch.stack([features, features + 100, features + 200], dim=1))
 
 
 # ---------------------------------------------------------------------------

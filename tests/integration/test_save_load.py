@@ -19,6 +19,7 @@ from sklearn.utils.validation import check_is_fitted
 from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import InvalidDeviceError
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
+from deeptab.models.fttransformer import FTTransformerClassifier, FTTransformerLSS, FTTransformerRegressor
 from deeptab.training import TaskModel
 from deeptab.training.losses import FocalLoss, WeightedBCEWithLogitsLoss, WeightedCrossEntropyLoss
 
@@ -90,6 +91,48 @@ def test_regressor_save_load_predictions(regression_data):
     )
     assert loaded._best_model_path is None
     assert loaded.score(X_test, y_test) == pytest.approx(r2_score(y_test, preds_after))
+
+
+@pytest.mark.parametrize("model_class", [FTTransformerClassifier, FTTransformerRegressor, FTTransformerLSS])
+@pytest.mark.parametrize("use_cls", [False, True])
+def test_encode_is_repeatable_and_preserved_after_save_load(model_class, use_cls, tmp_path):
+    from deeptab.configs import FTTransformerConfig
+
+    features = np.random.default_rng(42).standard_normal((40, 4)).astype(np.float32)
+    targets = (features[:, 0] > 0).astype(int) if model_class is FTTransformerClassifier else features[:, 0]
+    model = model_class(
+        model_config=FTTransformerConfig(
+            d_model=8,
+            n_heads=2,
+            n_layers=1,
+            transformer_dim_feedforward=16,
+            attn_dropout=0.5,
+            use_cls=use_cls,
+        ),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=16, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    fit_kwargs: dict[str, Any] = {"family": "normal"} if model_class is FTTransformerLSS else {}
+    model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False, **fit_kwargs)
+    task_model = model._task_model
+    assert isinstance(task_model, torch.nn.Module)
+    task_model.train()
+    path = str(tmp_path / "encoded.deeptab")
+    model.save(path)
+
+    first = model.encode(features, batch_size=7)
+    second = model.encode(features, batch_size=7)
+    restored = model_class.load(path)
+    restored_output = restored.encode(features, batch_size=7)
+
+    assert first.shape == (40, 5 if use_cls else 4, 8)
+    assert torch.isfinite(first).all()
+    assert not first.requires_grad
+    assert not task_model.training
+    torch.testing.assert_close(first, second, rtol=0, atol=0)
+    torch.testing.assert_close(first, restored_output, rtol=0, atol=0)
+    if model_class is FTTransformerLSS:
+        torch.testing.assert_close(first, model.encode(features, 7), rtol=0, atol=0)
 
 
 @pytest.mark.parametrize("model_cls", [MLPRegressor, MLPClassifier, MLPLSS])

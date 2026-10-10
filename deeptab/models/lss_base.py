@@ -8,8 +8,6 @@ import lightning as pl
 import numpy as np
 import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
-from torch.utils.data import DataLoader
-from tqdm import tqdm
 
 from deeptab.configs import TrainerConfig
 from deeptab.core.exceptions import not_fitted_error
@@ -636,8 +634,11 @@ class SklearnBaseLSS(SklearnBase):
         return -float(loss.detach().cpu())
 
     def encode(self, X, batch_size=64):
-        """
-        Encodes input data using the trained model's embedding layer.
+        """Return contextualized feature tokens from a fitted LSS backbone.
+
+        Uses the shared encoding path in evaluation mode without gradients.
+        The model remains in evaluation mode afterward. No pooling or
+        distribution-parameter head is applied.
 
         Parameters
         ----------
@@ -648,13 +649,24 @@ class SklearnBaseLSS(SklearnBase):
 
         Returns
         -------
-        torch.Tensor
-            Encoded representations of the input data.
+        torch.Tensor of shape (n_samples, n_tokens, hidden_dim)
+            Contextualized tokens in input order, including a CLS token when
+            enabled. The final dimension is the backbone's output width.
 
         Raises
         ------
         ValueError
-            If the model or data module is not fitted.
+            If the model or data module is not fitted, or the backbone has
+            no supported contextualizing block.
+        AttributeError
+            If the backbone has no embedding layer.
+
+        Notes
+        -----
+        Encoding requires an embedding layer and a contextualizing block,
+        as in FTTransformerLSS, TabTransformerLSS, SAINTLSS, MambularLSS,
+        MambAttentionLSS, and TabulaRNNLSS. MLPLSS does not support encoding.
+        The second positional argument remains ``batch_size``.
         """
         # Ensure model and data module are initialized
         if self._task_model is None or self._data_module is None:
@@ -663,20 +675,7 @@ class SklearnBaseLSS(SklearnBase):
             raise AttributeError(
                 f"{type(self._task_model.estimator).__name__} does not have an embedding_layer."  # type: ignore[union-attr]
             )
-        encoded_dataset = self._data_module.preprocess_new_data(X)
-
-        data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
-
-        # Process data in batches
-        encoded_outputs = []
-        for num_features, cat_features in tqdm(data_loader):
-            embeddings = self._task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
-            encoded_outputs.append(embeddings)
-
-        # Concatenate all encoded outputs
-        encoded_outputs = torch.cat(encoded_outputs, dim=0)
-
-        return encoded_outputs
+        return super().encode(X, batch_size=batch_size)
 
     # ------------------------------------------------------------------
     # Persistence

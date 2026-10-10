@@ -171,10 +171,11 @@ class _PredictMixin:
         return metric(y, predictions)
 
     def encode(self, X, embeddings=None, batch_size=64):
-        """Return dense embedding vectors from the model backbone.
+        """Return contextualized feature tokens from the fitted model backbone.
 
-        Runs the fitted model's ``encode`` method on batches of *X* and
-        concatenates the results into a single tensor.
+        Runs the backbone in evaluation mode without gradients and concatenates
+        batches in input order. The model remains in evaluation mode afterward,
+        as it does after ``predict``. No pooling or prediction head is applied.
 
         Parameters
         ----------
@@ -187,21 +188,36 @@ class _PredictMixin:
 
         Returns
         -------
-        torch.Tensor of shape (n_samples, embedding_dim)
-            Encoded representations of the input data.
+        torch.Tensor of shape (n_samples, n_tokens, hidden_dim)
+            Contextualized tokens without gradients. The token count includes
+            the CLS token when enabled and any external embedding tokens.
+            The final dimension is the backbone's output width, which can
+            differ from ``d_model`` for recurrent models.
 
         Raises
         ------
         ValueError
-            If the model has not been fitted yet.
+            If the model has not been fitted, lacks an embedding layer, or
+            has no supported contextualizing block.
+
+        Notes
+        -----
+        Supported backbones include FTTransformer, TabTransformer, SAINT,
+        Mambular, MambAttention, and TabulaRNN. They require an embedding layer
+        and a contextualizing block named ``encoder``, ``mamba``, ``rnn``, or
+        ``lstm``. MLP does not support encoding, even with embeddings enabled,
+        because it lacks such a block. Models with cross-row attention, such
+        as SAINT, can depend on batch composition even in evaluation mode.
 
         Examples
         --------
-        >>> clf = MLPClassifier()
+        >>> from deeptab.configs import FTTransformerConfig
+        >>> from deeptab.models import FTTransformerClassifier
+        >>> clf = FTTransformerClassifier(model_config=FTTransformerConfig(d_model=16, n_heads=4))
         >>> clf.fit(X_train, y_train)
-        >>> embeddings = clf.encode(X_test)        # (n_samples, embedding_dim)
-        >>> embeddings.shape
-        torch.Size([100, 64])
+        >>> tokens = clf.encode(X_test)
+        >>> tokens.ndim
+        3
         """
         if self._task_model is None or self._data_module is None:
             raise ValueError("The model or data module has not been fitted yet.")
@@ -209,9 +225,11 @@ class _PredictMixin:
         encoded_dataset = self._data_module.preprocess_new_data(X, embeddings)
         data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
 
+        self._task_model.eval()
         encoded_outputs = []
-        for batch in tqdm(data_loader):
-            emb = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
-            encoded_outputs.append(emb)
+        with torch.no_grad():
+            for batch in tqdm(data_loader):
+                emb = self._task_model.estimator.encode(batch)  # type: ignore[union-attr]
+                encoded_outputs.append(emb)
 
         return torch.cat(encoded_outputs, dim=0)
