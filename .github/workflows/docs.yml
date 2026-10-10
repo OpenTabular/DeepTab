@@ -1,6 +1,7 @@
 name: Docs
 
 on:
+  workflow_call:
   workflow_dispatch:
   pull_request:
     # Only run on PRs that touch docs-related files to keep checks fast.
@@ -20,8 +21,11 @@ on:
       - "v*"
 
 concurrency:
-  group: docs-${{ github.head_ref || github.ref }}
+  group: docs-${{ github.workflow }}-${{ github.head_ref || github.ref }}
   cancel-in-progress: true
+
+permissions:
+  contents: read
 
 jobs:
   build-docs:

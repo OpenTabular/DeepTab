@@ -18,6 +18,8 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 
 Runs on every push to `main` and every pull request targeting `main`. In-progress runs for the same branch are cancelled via `concurrency`.
 
+The CI, docs, and build-check workflows also expose `workflow_call` so release workflows can require their checks on the exact tagged commit. Concurrency groups distinguish a release invocation from ordinary CI and docs runs, so those runs do not cancel one another.
+
 | Job         | Runner / Python | What it does                               | Depends on |
 | ----------- | --------------- | ------------------------------------------ | ---------- |
 | `lint`      | ubuntu / 3.10   | `ruff check .` and `ruff format --check .` | -          |
@@ -55,17 +57,29 @@ On `main` pushes, the built HTML is deployed to ReadTheDocs automatically via th
 
 ## build-check.yml (manual dry-run)
 
-A `workflow_dispatch`-only workflow. Builds the package with Poetry and validates it with `twine check` without publishing anywhere. Use it to validate a release candidate before tagging:
+A manually triggered or reusable workflow. It builds the wheel and source distribution with Poetry, validates both with `twine check`, and installs the wheel with its dependencies into a fresh virtual environment. The installed-wheel check runs outside the checkout with Python's isolated mode. It trains an MLP classifier and regressor with default and explicit preprocessing widths, saves each estimator, reloads it on CPU, and checks predictions, original class labels, and class probabilities. Importing the checkout instead of the installed package fails the check.
+
+For a version tag, the package version must match the tag before building. The workflow uploads the validated distributions as the `dist` artifact only after all package checks succeed. Use it without publishing to validate a release candidate before tagging:
 
 1. Navigate to **Actions → Build & Check (dry run)** in the GitHub UI.
 2. Click **Run workflow** and select the release branch.
-3. Confirm `twine check dist/*` passes before cutting the tag.
+3. Confirm package validation and the installed-wheel training and reload checks pass before cutting the tag.
 
 ---
 
 ## Publishing (publish-testpypi.yml / publish-pypi.yml)
 
-Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Each builds with `poetry build`, publishes, then creates a GitHub release.
+Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Before either publisher runs, three required jobs validate the tagged commit:
+
+- `ci` calls the full CI workflow, including lint, formatting, type checking, the Python/OS test matrix, smoke tests, and coverage collection.
+- `docs` calls the Sphinx workflow, which builds with warnings treated as errors.
+- `package` calls build-check, which validates the tag version, wheel, source distribution, and installed-wheel training and reload behavior.
+
+```{important}
+If any required job fails, is cancelled, or is skipped, publication does not run. Coverage collection remains governed by the CI workflow; this dependency does not itself add a minimum coverage threshold.
+```
+
+The publisher downloads the validated `dist` artifact from the same workflow run and publishes those files without rebuilding them. Only the publish job receives write permissions and an OIDC token; validation jobs have read-only repository permissions. After publication, the workflow creates the matching GitHub release. The RC workflow retains its post-publication TestPyPI installation check.
 
 | Workflow               | Tag pattern        | Target                                             | Release type |
 | ---------------------- | ------------------ | -------------------------------------------------- | ------------ |
