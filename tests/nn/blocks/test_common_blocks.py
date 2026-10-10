@@ -17,8 +17,10 @@ from deeptab.nn.blocks.common import (
     EmbeddingLayer,
     EnsembleConvRNN,
     GroupNorm,
+    InstanceNorm,
     LayerNorm,
     LearnableFourierFeatures,
+    LearnableFourierMask,
     LearnableLayerScaling,
     LearnableRandomPositionalPerturbation,
     LearnableRandomProjection,
@@ -147,9 +149,12 @@ class TestNormalizationLayers:
         assert norm(torch.randn(B, D)).shape == (B, D)
 
     def test_instancenorm(self):
-        # InstanceNorm expects 4D (B, C, H, W); the output weight-scaling in the
-        # production code has a shape mismatch when H != 1, so construction only.
-        pytest.skip("InstanceNorm output scaling has a shape bug when H > 1")
+        inputs = torch.randn(B, D, 3, 5, requires_grad=True)
+        actual = InstanceNorm(D)(inputs)
+        expected = torch.nn.functional.instance_norm(inputs)
+        torch.testing.assert_close(actual, expected)
+        actual.square().sum().backward()
+        assert inputs.grad is not None
 
     def test_groupnorm(self):
         # D=32 divisible by num_groups=4
@@ -157,6 +162,43 @@ class TestNormalizationLayers:
 
     def test_learnable_layer_scaling(self):
         assert LearnableLayerScaling(D)(torch.randn(B, D)).shape == (B, D)
+
+    @pytest.mark.parametrize("norm_class", [BatchNorm, InstanceNorm, GroupNorm])
+    @pytest.mark.parametrize("shape", [(4, 8), (4, 6, 8)])
+    def test_feature_last_train_eval_and_backward(self, norm_class, shape):
+        norm = norm_class(2, 8) if norm_class is GroupNorm else norm_class(8)
+        for training in [True, False]:
+            norm.train(training)
+            inputs = torch.randn(*shape, requires_grad=True)
+            output = norm(inputs)
+            assert output.shape == inputs.shape
+            assert torch.isfinite(output).all()
+            output.square().sum().backward()
+            assert inputs.grad is not None
+            assert torch.isfinite(inputs.grad).all()
+
+    def test_batchnorm_running_statistics_use_all_non_feature_axes(self):
+        norm = BatchNorm(8, momentum=0.5)
+        inputs = torch.randn(4, 6, 8, requires_grad=True)
+        output = norm(inputs)
+        mean = inputs.mean(dim=(0, 1))
+        variance = inputs.var(dim=(0, 1), unbiased=False)
+        torch.testing.assert_close(output, (inputs - mean) / torch.sqrt(variance + norm.eps))
+        torch.testing.assert_close(norm.running_mean, 0.5 * mean.detach())
+        torch.testing.assert_close(norm.running_var, 0.5 + 0.5 * variance.detach())
+        assert not norm.running_mean.requires_grad
+        assert not norm.running_var.requires_grad
+        output.square().sum().backward()
+        norm(torch.randn(4, 6, 8, requires_grad=True)).square().sum().backward()
+
+    def test_sequence_norms_match_feature_last_references(self):
+        inputs = torch.randn(4, 6, 8)
+        expected_instance = (inputs - inputs.mean(dim=1, keepdim=True)) / torch.sqrt(
+            inputs.var(dim=1, unbiased=False, keepdim=True) + 1e-5
+        )
+        torch.testing.assert_close(InstanceNorm(8)(inputs), expected_instance)
+        expected_group = torch.nn.functional.group_norm(inputs.transpose(1, 2), 2).transpose(1, 2)
+        torch.testing.assert_close(GroupNorm(2, 8)(inputs), expected_group)
 
 
 class TestBlockDiagonal:
@@ -171,18 +213,20 @@ class TestBlockDiagonal:
 
 class TestLearnableFourier:
     def test_lff_shape(self):
-        # num_features must equal the last dim of input; d_model must equal K (seq len)
-        lff = LearnableFourierFeatures(num_features=D, d_model=NF)
+        lff = LearnableFourierFeatures(num_features=NF, d_model=D)
         assert lff(torch.randn(B, NF, D)).shape == (B, NF, D)
 
     def test_lfm_shape(self):
-        # LearnableFourierMask.__init__ does in-place assignment on nn.Parameter,
-        # which PyTorch forbids.  Skip until the production code is fixed.
-        pytest.skip("LearnableFourierMask has an in-place Parameter assignment bug")
+        mask = LearnableFourierMask(NF)
+        torch.testing.assert_close(mask.mask, torch.tensor([1.0, 1.0, 0.0, 0.0]))
+        inputs = torch.randn(B, NF, D, requires_grad=True)
+        output = mask(inputs)
+        assert output.shape == inputs.shape
+        output.square().sum().backward()
+        assert mask.mask.grad is not None
 
     def test_lrpp_shape(self):
-        # num_features must match the last dim (D) of input for expand to work
-        lrpp = LearnableRandomPositionalPerturbation(num_features=D, d_model=D)
+        lrpp = LearnableRandomPositionalPerturbation(num_features=NF, d_model=D)
         assert lrpp(torch.randn(B, NF, D)).shape == (B, NF, D)
 
     def test_lrp_shape(self):
@@ -197,21 +241,16 @@ class TestPositionalInvariance:
         return SimpleNamespace(**base)
 
     def test_lfm(self):
-        # Depends on LearnableFourierMask which has an in-place Parameter bug.
-        pytest.skip("LearnableFourierMask has an in-place Parameter assignment bug")
+        layer = PositionalInvariance(self._cfg(), "lfm", seq_len=NF)
+        assert layer(torch.randn(B, NF, D)).shape == (B, NF, D)
 
     def test_lff(self):
-        # LearnableFourierFeatures requires seq_len == feature_dim (design constraint).
-        # Use square input (B, NF, NF) with d_model=NF so broadcasting works.
-        cfg = self._cfg(d_model=NF)
-        pi = PositionalInvariance(cfg, "lff", seq_len=NF)
-        assert pi(torch.randn(B, NF, NF)).shape == (B, NF, NF)
+        pi = PositionalInvariance(self._cfg(), "lff", seq_len=NF)
+        assert pi(torch.randn(B, NF, D)).shape == (B, NF, D)
 
     def test_lprp(self):
-        # Same seq_len == feature_dim constraint applies to LRPP.
-        cfg = self._cfg(d_model=NF)
-        pi = PositionalInvariance(cfg, "lprp", seq_len=NF)
-        assert pi(torch.randn(B, NF, NF)).shape == (B, NF, NF)
+        pi = PositionalInvariance(self._cfg(), "lprp", seq_len=NF)
+        assert pi(torch.randn(B, NF, D)).shape == (B, NF, D)
 
     def test_lrp(self):
         pi = PositionalInvariance(self._cfg(), "lrp", seq_len=NF)
@@ -221,7 +260,21 @@ class TestPositionalInvariance:
         in_ch = 8
         pi = PositionalInvariance(self._cfg(), "conv", seq_len=S, in_channels=in_ch)
         out = pi(torch.randn(B, in_ch, S))
-        assert out.shape[0] == B and out.shape[1] == in_ch
+        assert out.shape == (B, in_ch, S)
+
+    @pytest.mark.parametrize("kind", ["lfm", "lff", "lprp", "lrp", "conv"])
+    @pytest.mark.parametrize("sequence_length", [3, 6])
+    def test_rectangular_forward_and_backward(self, kind, sequence_length):
+        layer = PositionalInvariance(self._cfg(), kind, seq_len=sequence_length)
+        inputs = torch.randn(B, sequence_length, D, requires_grad=True)
+        output = layer(inputs)
+        width = 16 if kind == "lrp" else D
+        assert output.shape == (B, sequence_length, width)
+        assert torch.isfinite(output).all()
+        output.square().sum().backward()
+        assert inputs.grad is not None
+        assert torch.isfinite(inputs.grad).all()
+        assert all(parameter.grad is not None for parameter in layer.parameters())
 
     def test_invalid_type_raises(self):
         # The error message reads config.invariance_type, so the attribute must exist.
@@ -472,6 +525,39 @@ class TestMultiHeadAttentionBatchEnsemble:
         x = torch.randn(B, S, E, D)
         assert self._mha()(x, x, x).shape == (B, S, E, D)
 
+    @pytest.mark.parametrize("projection", ["query", "key", "value", "out_proj"])
+    @pytest.mark.parametrize("non_contiguous", [False, True])
+    def test_projection_preserves_sequence_and_ensemble_axes(self, projection, non_contiguous):
+        layer = self._mha(projections=[])
+        inputs = torch.randn(B, S, E, D)
+        if non_contiguous:
+            inputs = torch.randn(B, E, S, D).transpose(1, 2)
+        projection_name = {"query": "q_proj", "key": "k_proj", "value": "v_proj", "out_proj": "out_proj"}[projection]
+        projection_layer = getattr(layer, projection_name)
+        torch.testing.assert_close(
+            layer.process_projection(inputs, projection_layer, projection), projection_layer(inputs)
+        )
+
+    def test_attention_matches_independent_members(self):
+        layer = self._mha(scaling_init="ones")
+        reference = nn.MultiheadAttention(D, H, batch_first=True, dropout=0.0)
+        with torch.no_grad():
+            reference.in_proj_weight.copy_(torch.cat([layer.q_proj.weight, layer.k_proj.weight, layer.v_proj.weight]))
+            reference.in_proj_bias.copy_(torch.cat([layer.q_proj.bias, layer.k_proj.bias, layer.v_proj.bias]))
+            reference.out_proj.load_state_dict(layer.out_proj.state_dict())
+        inputs = torch.randn(B, S, E, D, requires_grad=True)
+        expected = torch.stack(
+            [
+                reference(inputs[:, :, member], inputs[:, :, member], inputs[:, :, member], need_weights=False)[0]
+                for member in range(E)
+            ],
+            dim=2,
+        )
+        output = layer(inputs, inputs, inputs)
+        torch.testing.assert_close(output, expected)
+        output.square().sum().backward()
+        assert inputs.grad is not None
+
     def test_embed_not_divisible_raises(self):
         with pytest.raises(ValueError):
             MultiHeadAttentionBatchEnsemble(embed_dim=10, num_heads=3, ensemble_size=E)
@@ -563,16 +649,44 @@ class TestmLSTMblock:
 
 class TestsLSTMblock:
     def test_forward_runs(self):
-        # sLSTMblock averages over batch/seq dims internally;
-        # output shape reflects the mean reduction, not (B, S, D)
         block = sLSTMblock(input_size=8, hidden_size=8, num_layers=2)
         out, _ = block(torch.randn(B, S, 8))
-        assert out is not None
+        assert out.shape == (B, S, 8)
 
     def test_state_reinit_on_batch_change(self):
         block = sLSTMblock(input_size=8, hidden_size=8, num_layers=2)
         block(torch.randn(B, S, 8))
         block(torch.randn(B * 2, S, 8))  # must not raise
+
+
+@pytest.mark.parametrize("block_class", [mLSTMblock, sLSTMblock])
+def test_lstm_blocks_are_batch_independent_and_explicitly_stateful(block_class):
+    block = block_class(input_size=8, hidden_size=8, num_layers=2, dropout=0.0).double().eval()
+    inputs = torch.randn(4, 6, 8, dtype=torch.double, requires_grad=True)
+    output, state = block(inputs)
+    independent = torch.cat([block(row.unsqueeze(0))[0] for row in inputs], dim=0)
+    torch.testing.assert_close(output, independent)
+    torch.testing.assert_close(output, block(inputs)[0], rtol=0, atol=0)
+    assert output.shape == inputs.shape
+    assert all(tensor.shape == (4, 8) for tensor in state)
+    assert all(tensor.dtype == inputs.dtype for tensor in state)
+    continued, next_state = block(inputs, state=state)
+    assert not torch.allclose(output, continued)
+    assert all(torch.isfinite(tensor).all() for tensor in next_state)
+    continued.square().sum().backward()
+    assert inputs.grad is not None
+    assert torch.isfinite(inputs.grad).all()
+    with pytest.raises(ValueError, match="state"):
+        block(inputs[:1], state=state)
+
+
+def test_slstm_explicit_state_matches_whole_sequence():
+    block = sLSTMblock(input_size=8, hidden_size=12, num_layers=2, dropout=0.0).eval()
+    inputs = torch.randn(4, 6, 8)
+    expected, _ = block(inputs)
+    first, state = block(inputs[:, :2])
+    second, _ = block(inputs[:, 2:], state=state)
+    torch.testing.assert_close(torch.cat([first, second], dim=1), expected)
 
 
 def _convrnn_cfg(model_type="RNN", n_layers=2, residuals=False, rnn_dropout=0.0):

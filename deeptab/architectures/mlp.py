@@ -80,10 +80,12 @@ class MLP(BaseModel):
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
+        projection_factor = 2 if self.hparams.use_glu else 1
+
         # Input layer
-        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0]))
+        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0] * projection_factor))
         if self.hparams.batch_norm:
-            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0]))
+            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0] * projection_factor))
 
         if self.hparams.use_glu:
             self.layers.append(nn.GLU())
@@ -94,11 +96,12 @@ class MLP(BaseModel):
 
         # Hidden layers
         for i in range(1, len(self.hparams.layer_sizes)):
-            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i]))
+            projection_size = self.hparams.layer_sizes[i] * projection_factor
+            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], projection_size))
             if self.hparams.batch_norm:
-                self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.BatchNorm1d(projection_size))
             if self.hparams.layer_norm:
-                self.layers.append(nn.LayerNorm(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.LayerNorm(projection_size))
             if self.hparams.use_glu:
                 self.layers.append(nn.GLU())
             else:

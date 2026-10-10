@@ -38,6 +38,8 @@ feature tokens -> optional shuffle -> Mamba/Attention hybrid stack -> pooling ->
 
 The default config uses `d_model=64`, `n_layers=4`, `n_heads=8`, `n_attention_layers=1`, `n_mamba_per_attention=1`, and `last_layer="attn"`.
 
+With `shuffle_embeddings=True`, the token permutation is drawn once at construction and registered as the `perm` buffer. It is saved with the model and restored on load, so a reloaded model reads features in the same order it was trained with. Earlier versions did not save the permutation, so their shuffled models cannot recover the original order and fail strict loading; retrain them.
+
 > **Configuration note:** Pooling operates on width-`d_model` tokens, not TabulaRNN's `dim_feedforward` width. The local Mamba residual blocks also use the shared fixes for dilated convolution padding, missing-`mambapy` sequential fallback, and `AD_weight_decay=False` parameter markers. Final normalization after pooling is selected by `norm` and is separate from normalization inside the residual blocks.
 
 ## Practical Config

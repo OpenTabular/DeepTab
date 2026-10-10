@@ -126,6 +126,8 @@ class BaseModelConfig(BaseEstimator):
         Initial scale for PLR frequency components.
     embedding_projection : bool, default=True
         Whether to apply a linear projection after embeddings.
+    cls_position : int, default=0
+        Position of an enabled CLS token: ``0`` prepends it and ``1`` appends it.
     batch_norm : bool, default=False
         Whether to use batch normalisation in the model body.
     layer_norm : bool, default=False
@@ -150,6 +152,7 @@ class BaseModelConfig(BaseEstimator):
     n_frequencies: int = 48
     frequencies_init_scale: float = 0.01
     embedding_projection: bool = True
+    cls_position: int = 0
 
     # Architecture parameters
     batch_norm: bool = False
@@ -161,6 +164,8 @@ class BaseModelConfig(BaseEstimator):
     def __post_init__(self) -> None:  # type: ignore[override]
         if self.d_model < 1:
             raise invalid_param_error(type(self).__name__, "d_model", self.d_model, "must be >= 1")
+        if self.cls_position not in (0, 1):
+            raise invalid_param_error(type(self).__name__, "cls_position", self.cls_position, "must be 0 or 1")
         if self.cat_encoding not in _VALID_CAT_ENCODING:
             raise invalid_param_error(
                 type(self).__name__,

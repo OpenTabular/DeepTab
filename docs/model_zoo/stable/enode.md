@@ -35,6 +35,8 @@ feature tokens -> ENODEDenseBlock -> mean over feature axis -> optional norm -> 
 
 The model always constructs an `EmbeddingLayer`. Unlike `NODE`, it does not branch to a raw concatenated input path. The architecture computes `input_dim` as the number of feature tokens and uses `d_model` as the embedding dimension inside the tree block, plus `d_model` as the `MLPhead` input width. `norm` selects optional normalization after pooling and before the head; the inherited `batch_norm`/`layer_norm` flags do not select this layer.
 
+With `tree_dim` greater than 1, each tree contributes `tree_dim` separate response channels, which the dense block appends as additional tokens before averaging. Previously, the tree layer summed its response channels into one, so the extra channels added parameters without adding distinct outputs.
+
 > **Configuration note:** With `d_model=16`, `head_layer_sizes=[32, 64]`, and three outputs, the head's linear widths are `16 -> 32 -> 64 -> 3`. Previously, ENODE always built `16 -> 16 -> 3` regardless of the requested hidden sizes. Using `MLPhead` makes hidden sizes, activation, skip connections, and head batch normalization configurable. `norm="LayerNorm"` separately normalizes the pooled width-16 vector before that head.
 
 ## Practical Config

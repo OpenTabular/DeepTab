@@ -85,12 +85,14 @@ class NODE(BaseModel):
         )
 
         self.tabular_head = MLPhead(
-            input_dim=self.hparams.num_layers * self.hparams.layer_dim,
+            input_dim=self.hparams.num_layers * self.hparams.layer_dim * self.hparams.tree_dim,
             config=config,
             output_dim=num_classes,
         )
 
-        self.norm_f = get_normalization_layer(config, dim=self.hparams.num_layers * self.hparams.layer_dim)
+        self.norm_f = get_normalization_layer(
+            config, dim=self.hparams.num_layers * self.hparams.layer_dim * self.hparams.tree_dim
+        )
 
     def forward(self, *data):
         """Forward pass through the NODE model.

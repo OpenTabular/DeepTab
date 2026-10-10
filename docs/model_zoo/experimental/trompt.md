@@ -79,6 +79,8 @@ The implementation lives in `deeptab/architectures/experimental/trompt.py` and `
 `n_cells` is present in `TromptConfig`, but the current DeepTab implementation constructs one `TromptCell` per cycle. Treat `n_cycles` and `P` as the primary practical controls.
 ```
 
+`init_rec` is drawn from a normal distribution with standard deviation 0.01, so it is seeded by `random_state` like every other weight. Previously, it was allocated with `torch.empty` and never initialized, so it started from whatever values were left in memory.
+
 ## Configuration
 
 | Parameter  | Default | Practical Effect                                                                              |

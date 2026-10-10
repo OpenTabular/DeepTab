@@ -42,6 +42,14 @@ The default config uses `d_model=128`, `model_type="RNN"`, `n_layers=4`, `rnn_dr
 
 > **Configuration note:** `rnn_dropout` is applied explicitly between recurrent blocks during training, not after the final block. Each block contains a single-layer RNN, so PyTorch's internal RNN dropout cannot regularize the gaps between these separate modules. Evaluation disables dropout, and a one-block model has no inter-block dropout.
 
+`model_type="mLSTM"` and `model_type="sLSTM"` carry their recurrent state from one feature token to the next within each row, so a row's prediction never depends on the other rows in its batch.
+
+> **Configuration note:** Previously, both blocks averaged their state across the batch and the sequence. Predictions changed with batch composition, and sLSTM collapsed every batch into a single token. Models saved by earlier versions with either block no longer reproduce their old predictions, and sLSTM checkpoints also contain a normalization layer that no longer exists, so they fail strict loading. Retrain them.
+
+```{note}
+mLSTM and sLSTM step through the feature tokens one at a time, because each state update depends on the previous one. Their cost grows linearly with the number of features, and they are slower than the fused PyTorch kernels behind `"RNN"`, `"LSTM"`, and `"GRU"`. On CPU builds of PyTorch without oneDNN support (see `torch.backends.mkldnn.is_available()`), the backward pass of the depthwise convolutions is the larger cost for every `model_type`: in a benchmark with 20 features and batch size 256, it took about two thirds of each training step.
+```
+
 Pooling receives recurrent states of width `dim_feedforward`, which may differ from embedding width `d_model`. With two tokens and `dim_feedforward=32`, learned flattening uses `Linear(64, 32)`. Its token count is the total number of tokens, not a list of counts for each feature group.
 
 ## Practical Config

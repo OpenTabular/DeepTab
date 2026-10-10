@@ -175,8 +175,12 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             The built classifier.
         """
 
-        self.classes_ = np.unique(y)
-        num_classes = len(self.classes_)
+        classes = np.unique(y)
+        num_classes = len(classes)
+        if num_classes < 2:
+            received = "one class" if num_classes == 1 else "no classes"
+            raise ValueError(f"Classification requires at least 2 classes; received {received}.")
+        self.classes_ = classes
 
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
@@ -372,8 +376,12 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
                 "Continuing a model preserves its existing loss and sampling setup."
             )
 
-        self.classes_ = np.unique(y)
-        num_classes = len(self.classes_)
+        classes = np.unique(y)
+        num_classes = len(classes)
+        if num_classes < 2:
+            received = "one class" if num_classes == 1 else "no classes"
+            raise ValueError(f"Classification requires at least 2 classes; received {received}.")
+        self.classes_ = classes
 
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes

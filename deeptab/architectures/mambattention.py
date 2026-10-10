@@ -100,7 +100,7 @@ class MambAttention(BaseModel):
         )
 
         if self.shuffle_embeddings:
-            self.perm = torch.randperm(self.embedding_layer.seq_len)
+            self.register_buffer("perm", torch.randperm(self.embedding_layer.seq_len))
 
         # pooling
         n_inputs = np.sum([len(info) for info in feature_information])

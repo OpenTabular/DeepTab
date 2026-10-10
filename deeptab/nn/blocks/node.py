@@ -672,7 +672,9 @@ class ODSTE(ModuleWithInit):
         response_weights = torch.prod(bin_matches, dim=2)
 
         # Compute final response
-        response = torch.einsum("bnds,ncds->bnd", response_weights, self.response)
+        response = torch.einsum("bnds,ncds->bncd", response_weights, self.response)
+        if self.flatten_output:
+            response = response.flatten(1, 2)
         return response
 
     def __repr__(self):

@@ -37,6 +37,16 @@ features -> optional embeddings -> BatchEnsemble MLP blocks -> ensemble output/h
 
 When `average_ensembles=False`, `TabM` returns one prediction per ensemble member and sets `returns_ensemble=True`. When `average_ensembles=True`, the model averages member states before the final head.
 
+`batch_norm=True` and `norm` add normalization after the first ensemble layer, sized to that layer's projection width. Batch normalization normalizes each feature over the batch and member axes during training and uses running statistics at inference. `norm` accepts `"LayerNorm"`, `"RMSNorm"`, `"BatchNorm"`, and `"LearnableLayerScaling"`, which all keep members independent at inference.
+
+```{important}
+`norm="InstanceNorm"` and `norm="GroupNorm"` raise `InvalidParamError`. Both compute statistics across the ensemble members of the same row, so changing one member's weights would shift every other member's prediction, even at inference. That coupling defeats the purpose of an ensemble.
+```
+
+`use_glu=True` doubles each ensemble projection so that GLU returns the configured `layer_sizes` width. Normalization before GLU acts on the doubled width.
+
+> **Configuration note:** `TabMConfig(layer_sizes=[7, 5], use_glu=True, norm="LayerNorm")` builds a first projection of width 14, normalizes those 14 features, and passes 7 features to the next layer. Previously, any `norm` value failed during construction, `batch_norm=True` treated the ensemble axis as channels, and GLU halved the configured widths without resizing the next layer.
+
 ## Practical Config
 
 ```python

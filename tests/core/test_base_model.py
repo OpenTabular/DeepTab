@@ -115,3 +115,52 @@ class TestPoolingHiddenSizeFix:
         model = TabulaRNN(feature_information=(NUM_INFO, CAT_INFO, {}), num_classes=2, config=config)
         out = model([torch.randn(4, 1)], [torch.randint(0, 5, (4,))], [])
         assert out.shape == (4, 2)
+
+
+class TestEncodingAndClsPooling:
+    @pytest.mark.parametrize("cls_position", [0, 1])
+    def test_pooling_respects_embedding_cls_position(self, cls_position):
+        from deeptab.architectures.ft_transformer import FTTransformer
+
+        model = FTTransformer(
+            (NUM_INFO, {}, {}),
+            config=FTTransformerConfig(
+                d_model=8, n_layers=1, n_heads=2, use_cls=True, cls_position=cls_position, pooling_method="cls"
+            ),
+        )
+        sequence = model.embedding_layer([torch.randn(4, 1)], [], [])
+        expected_index = 0 if cls_position == 0 else -1
+        torch.testing.assert_close(model.pool_sequence(sequence), sequence[:, expected_index])
+        torch.testing.assert_close(
+            model.pool_sequence(sequence), model.embedding_layer.cls_token.squeeze(1).expand(4, -1)
+        )
+
+    @pytest.mark.parametrize("architecture_name", ["FTTransformer", "Mambular", "MambAttention", "TabulaRNN"])
+    def test_encode_calls_selected_block_once_and_preserves_gradient_mode(self, architecture_name):
+        import deeptab.configs as configs
+        from deeptab import architectures
+
+        model_class = getattr(architectures, architecture_name)
+        config_class = getattr(configs, f"{architecture_name}Config")
+        config = config_class(d_model=8, n_layers=1)
+        if hasattr(config, "n_heads"):
+            config.n_heads = 2
+        if hasattr(config, "d_state"):
+            config.d_state = 4
+        if hasattr(config, "shuffle_embeddings"):
+            config.shuffle_embeddings = True
+        feature_info = ({f"feature_{index}": {"dimension": 1} for index in range(3)}, {}, {})
+        model = model_class(feature_info, config=config).eval()
+        block = next(getattr(model, name) for name in ["mamba", "rnn", "lstm", "encoder"] if hasattr(model, name))
+        calls = []
+        hook = block.register_forward_hook(lambda module, args, output: calls.append(output))
+        data = ([torch.randn(4, 1) for _ in range(3)], [], [])
+        without_grad = model.encode(data)
+        assert len(calls) == 1
+        assert not without_grad.requires_grad
+        with_grad = model.encode(data, grad=True)
+        assert len(calls) == 2
+        assert with_grad.requires_grad
+        torch.testing.assert_close(with_grad, without_grad)
+        with_grad.square().sum().backward()
+        hook.remove()

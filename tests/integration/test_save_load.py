@@ -157,6 +157,30 @@ def test_regressor_save_raises_when_unfitted():
             model.save(f.name)
 
 
+@pytest.mark.parametrize("architecture_name", ["Mambular", "MambAttention"])
+def test_shuffled_embeddings_save_load_preserves_predictions(architecture_name, regression_data, tmp_path):
+    import deeptab.configs as configs
+    import deeptab.models as models
+
+    model_class = getattr(models, f"{architecture_name}Regressor")
+    config_class = getattr(configs, f"{architecture_name}Config")
+    config = config_class(d_model=8, n_layers=1, d_state=4, shuffle_embeddings=True)
+    if architecture_name == "MambAttention":
+        config.n_heads = 2
+    features, test_features, targets, _ = regression_data
+    model = model_class(
+        model_config=config,
+        trainer_config=TrainerConfig(max_epochs=1, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+    expected = model.predict(test_features)
+    path = str(tmp_path / "shuffled.deeptab")
+    model.save(path)
+    restored = model_class.load(path)
+    np.testing.assert_array_equal(restored.predict(test_features), expected)
+
+
 @pytest.mark.parametrize("model_cls", [MLPRegressor, MLPClassifier, MLPLSS])
 @pytest.mark.parametrize("older_bundle", [False, True])
 def test_save_load_preserves_configs_for_refit(model_cls, older_bundle, regression_data, classification_data, tmp_path):

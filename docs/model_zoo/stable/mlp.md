@@ -39,7 +39,9 @@ features -> optional EmbeddingLayer -> flatten/concat -> Linear blocks -> output
 
 The default `MLPConfig` uses `layer_sizes=[256, 128, 32]` and `dropout=0.2`. The model does not require embeddings, so it works well with standard numerical preprocessing and integer/one-hot categorical preprocessing.
 
-`use_glu=True` changes the hidden representation width because PyTorch `nn.GLU` halves the selected dimension. Use it only after checking layer dimensions, or prefer the default activation path for baseline experiments.
+`use_glu=True` doubles each hidden projection before `nn.GLU` halves it again, so every `layer_sizes` entry remains the width passed to the next layer. Batch and layer normalization act on the doubled pre-GLU width. Skip connections compare the previous width with that doubled projection, so equal `layer_sizes` receive no residual addition when GLU is enabled.
+
+> **Configuration note:** `MLPConfig(layer_sizes=[8, 4], use_glu=True)` builds linear layers with output widths 16 and 8, and GLU reduces them to 8 and 4. Previously, the projections used the configured widths directly, GLU halved them to 4 and 2, and the next layer failed with a shape mismatch.
 
 ## Practical Config
 

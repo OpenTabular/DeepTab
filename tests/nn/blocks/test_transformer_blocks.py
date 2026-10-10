@@ -20,6 +20,7 @@ from deeptab.nn.blocks.transformer import (
     FeedForward,
     ReGLU,
     Reshape,
+    RotaryTransformerEncoderLayer,
     RowColTransformer,
     Transformer,
 )
@@ -103,6 +104,102 @@ class TestCustomTransformerEncoderLayer:
         layer = CustomTransformerEncoderLayer(_custom_cfg(activation=GLU()))
         assert layer(torch.randn(S, B, D)).shape == (S, B, D)
 
+    @pytest.mark.parametrize("norm_first", [False, True])
+    def test_ordering_matches_pytorch_with_masks(self, norm_first):
+        config = _custom_cfg()
+        config.norm_first = norm_first
+        layer = CustomTransformerEncoderLayer(config)
+        reference = nn.TransformerEncoderLayer(
+            D,
+            H,
+            dim_feedforward=D * 2,
+            dropout=0.0,
+            batch_first=True,
+            norm_first=norm_first,
+        )
+        reference.load_state_dict(layer.state_dict())
+        inputs = torch.randn(B, S, D, requires_grad=True)
+        mask = torch.ones(S, S, dtype=torch.bool).triu(1)
+        padding = torch.zeros(B, S, dtype=torch.bool)
+        padding[:, -1] = True
+        torch.testing.assert_close(
+            layer(inputs, src_mask=mask, src_key_padding_mask=padding, is_causal=True),
+            reference(inputs, src_mask=mask, src_key_padding_mask=padding, is_causal=True),
+        )
+        layer(inputs).square().sum().backward()
+        assert inputs.grad is not None
+
+    @pytest.mark.parametrize("activation", [ReGLU, GLU])
+    def test_activation_classes(self, activation):
+        layer = CustomTransformerEncoderLayer(_custom_cfg(activation=activation))
+        layer(torch.randn(B, S, D)).sum().backward()
+
+    def test_feed_forward_hidden_activations_are_not_dropped(self):
+        config = _custom_cfg()
+        config.attn_dropout = 0.5
+        layer = CustomTransformerEncoderLayer(config).train()
+        layer.self_attn.dropout = 0.0
+        layer.dropout1.p = 0.0
+        layer.dropout2.p = 0.0
+        inputs = torch.randn(B, S, D)
+        training_output = layer(inputs)
+        torch.testing.assert_close(training_output, layer.eval()(inputs))
+
+
+@pytest.fixture(params=["identity", "optional"])
+def rotary_backend(request, monkeypatch):
+    if request.param == "optional":
+        pytest.importorskip("rotary_embedding_torch")
+        return
+    from deeptab.nn.blocks import transformer
+
+    class IdentityRotaryEmbedding:
+        def __init__(self, dim):
+            self.dim = dim
+
+        def rotate_queries_or_keys(self, inputs):
+            return inputs
+
+    monkeypatch.setattr(transformer, "RotaryEmbedding", IdentityRotaryEmbedding)
+
+
+@pytest.mark.usefixtures("rotary_backend")
+class TestRotaryTransformerEncoderLayer:
+    @pytest.mark.parametrize("norm_first", [False, True])
+    @pytest.mark.parametrize("batch_first", [False, True])
+    def test_persistent_projections_and_gradients(self, norm_first, batch_first):
+        layer = RotaryTransformerEncoderLayer(D, H, dropout=0.0, norm_first=norm_first, batch_first=batch_first)
+        layer.eval()
+        shape = (B, S, D) if batch_first else (S, B, D)
+        inputs = torch.randn(*shape)
+        first = layer(inputs)
+        torch.testing.assert_close(first, layer(inputs), rtol=0, atol=0)
+        first.square().sum().backward()
+        assert layer.self_attn.in_proj_weight.grad is not None
+        assert layer.self_attn.out_proj.weight.grad is not None
+        assert torch.isfinite(layer.self_attn.in_proj_weight.grad).all()
+        assert torch.isfinite(layer.self_attn.out_proj.weight.grad).all()
+
+    @pytest.mark.parametrize("floating_mask", [False, True])
+    def test_identity_rotation_matches_pytorch_mask_semantics(self, floating_mask, monkeypatch):
+        layer = RotaryTransformerEncoderLayer(D, H, dropout=0.0, batch_first=True, activation=F.relu)
+        reference = nn.TransformerEncoderLayer(D, H, dropout=0.0, batch_first=True)
+        reference.load_state_dict(
+            {key: value for key, value in layer.state_dict().items() if not key.startswith("rotary_embedding.")}
+        )
+        monkeypatch.setattr(layer.rotary_embedding, "forward", lambda query, key: (query, key))
+        inputs = torch.randn(B, S, D)
+        mask = torch.ones(S, S, dtype=torch.bool).triu(1)
+        padding = torch.zeros(B, S, dtype=torch.bool)
+        padding[:, -1] = True
+        if floating_mask:
+            mask = torch.zeros(S, S).masked_fill(mask, float("-inf"))
+            padding = torch.zeros(B, S).masked_fill(padding, float("-inf"))
+        torch.testing.assert_close(
+            layer(inputs, src_mask=mask, src_key_padding_mask=padding, is_causal=True),
+            reference(inputs, src_mask=mask, src_key_padding_mask=padding, is_causal=True),
+        )
+
 
 class TestBatchEnsembleTransformerEncoderLayer:
     def test_forward_shape(self):
@@ -147,9 +244,8 @@ def _be_encoder_cfg(model_type="full"):
 
 class TestBatchEnsembleTransformerEncoder:
     def test_3d_input_expanded(self):
-        # expand() returns a non-contiguous tensor; the downstream view() call fails.
-        # This is a production code bug (should use reshape or .contiguous()).  Skip.
-        pytest.skip("BatchEnsembleTransformerEncoder: expand→view stride mismatch (production bug)")
+        enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())
+        assert enc(torch.randn(B, S, D)).shape == (B, S, E, D)
 
     def test_4d_input_passthrough(self):
         enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())
@@ -157,9 +253,8 @@ class TestBatchEnsembleTransformerEncoder:
         assert out.shape == (B, S, E, D)
 
     def test_mini_model_type(self):
-        # "mini" model_type uses the same 3D→4D expand path which creates a
-        # non-contiguous tensor and causes view() to fail downstream.
-        pytest.skip("BatchEnsembleTransformerEncoder: expand→view stride mismatch (production bug)")
+        enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg(model_type="mini"))
+        assert enc(torch.randn(B, S, D)).shape == (B, S, E, D)
 
     def test_invalid_2d_input_raises(self):
         enc = BatchEnsembleTransformerEncoder(_be_encoder_cfg())

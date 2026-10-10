@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Literal
 
 import numpy as np
@@ -49,6 +50,8 @@ class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
         )
         self.bias = getattr(config, "bias", True)
         self.custom_activation = getattr(config, "transformer_activation", F.relu)
+        # Dropout applies to sublayer outputs only, not to the feed-forward hidden activations.
+        self.dropout = nn.Identity()
 
         # Additional setup based on the activation function
         if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
@@ -62,21 +65,11 @@ class CustomTransformerEncoderLayer(nn.TransformerEncoderLayer):
                 self.linear2.out_features,
                 bias=self.bias,
             )
+            if isinstance(self.custom_activation, type):
+                self.activation = self.custom_activation()
 
     def forward(self, src, src_mask=None, src_key_padding_mask=None, is_causal=False):
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask, key_padding_mask=src_key_padding_mask)[0]
-        src = src + self.dropout1(src2)
-        src = self.norm1(src)
-
-        # Use the provided activation function
-        if self.custom_activation in [ReGLU, GLU] or isinstance(self.custom_activation, ReGLU | GLU):
-            src2 = self.linear2(self.custom_activation(self.linear1(src)))
-        else:
-            src2 = self.linear2(self.custom_activation(self.linear1(src)))
-
-        src = src + self.dropout2(src2)
-        src = self.norm2(src)
-        return src
+        return super().forward(src, src_mask, src_key_padding_mask, is_causal=is_causal)
 
 
 class BatchEnsembleTransformerEncoderLayer(nn.Module):
@@ -645,7 +638,7 @@ class RotaryTransformerEncoderLayer(nn.TransformerEncoderLayer):
         nhead,
         dim_feedforward=2048,
         dropout=0.1,
-        activation=nn.SELU(),  # noqa: B008
+        activation: str | Callable[[torch.Tensor], torch.Tensor] = nn.SELU(),  # noqa: B008
         layer_norm_eps=1e-5,
         norm_first=False,
         bias=True,
@@ -668,46 +661,57 @@ class RotaryTransformerEncoderLayer(nn.TransformerEncoderLayer):
         self.nhead = nhead
         self.d_model = d_model
 
-    def _sa_block(self, x, attn_mask, key_padding_mask):  # type: ignore
-        # Multi-head attention with rotary embedding
-        device = x.device
-        _batch_size, _seq_length, d_model = x.size()
-        head_dim = d_model // self.nhead
-        qkv = nn.Linear(d_model, d_model * 3, bias=False).to(device)(x)
+    def _sa_block(self, x, attn_mask, key_padding_mask, is_causal=False):
+        if not self.self_attn.batch_first:
+            x = x.transpose(0, 1)
+        batch_size, sequence_length, _ = x.shape
+        qkv = F.linear(x, self.self_attn.in_proj_weight, self.self_attn.in_proj_bias)
         q, k, v = qkv.chunk(3, dim=-1)
         q, k, v = (rearrange(t, "b n (h d) -> b h n d", h=self.nhead) for t in (q, k, v))
 
         # Apply rotary embeddings to queries and keys
         q, k = self.rotary_embedding(q, k)
 
-        q = q * (head_dim**-0.5)
-        sim = torch.einsum("b h i d, b h j d -> b h i j", q, k)
+        attention_mask = None
         if attn_mask is not None:
-            sim = sim.masked_fill(attn_mask == 0, float("-inf"))
-        attn = sim.softmax(dim=-1)
-        if self.training:
-            attn = self.dropout(attn)
-
-        out = torch.einsum("b h i j, b h j d -> b h i d", attn, v)
+            attention_mask = (
+                x.new_zeros(attn_mask.shape).masked_fill(attn_mask, float("-inf"))
+                if attn_mask.dtype == torch.bool
+                else attn_mask
+            )
+            if attention_mask.ndim == 3:
+                attention_mask = attention_mask.reshape(batch_size, self.nhead, sequence_length, sequence_length)
+        if key_padding_mask is not None:
+            padding_mask = (
+                x.new_zeros(key_padding_mask.shape).masked_fill(key_padding_mask, float("-inf"))
+                if key_padding_mask.dtype == torch.bool
+                else key_padding_mask
+            )[:, None, None, :]
+            attention_mask = padding_mask if attention_mask is None else attention_mask + padding_mask
+        if is_causal:
+            causal_mask = torch.ones(sequence_length, sequence_length, device=x.device, dtype=torch.bool).triu(1)
+            causal_bias = x.new_zeros(sequence_length, sequence_length).masked_fill(causal_mask, float("-inf"))
+            attention_mask = causal_bias if attention_mask is None else attention_mask + causal_bias
+        out = F.scaled_dot_product_attention(
+            q,
+            k,
+            v,
+            attn_mask=attention_mask,
+            dropout_p=self.self_attn.dropout if self.training else 0.0,
+        )
         out = rearrange(out, "b h n d -> b n (h d)")
-        return nn.Linear(d_model, d_model, bias=False).to(device)(out)
+        out = self.self_attn.out_proj(out)
+        if not self.self_attn.batch_first:
+            out = out.transpose(0, 1)
+        return self.dropout1(out)
 
     def forward(self, src, src_mask=None, src_key_padding_mask=None, is_causal=False):
-        # Pre-norm if required
-        device = src.device
         if self.norm_first:
-            src = self.norm1(src)
-            src2 = self._sa_block(src, src_mask, src_key_padding_mask).to(device)
-            src = src + self.dropout1(src2)
-            src = self.norm2(src)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
-            src = src + self.dropout2(src2)
+            src = src + self._sa_block(self.norm1(src), src_mask, src_key_padding_mask, is_causal=is_causal)
+            src = src + self._ff_block(self.norm2(src))
         else:
-            src2 = self._sa_block(self.norm1(src), src_mask, src_key_padding_mask).to(device)
-            src = src + self.dropout1(src2)
-            src2 = self.linear2(self.dropout(self.activation(self.linear1(self.norm2(src)))))
-            src = src + self.dropout2(src2)
-
+            src = self.norm1(src + self._sa_block(src, src_mask, src_key_padding_mask, is_causal=is_causal))
+            src = self.norm2(src + self._ff_block(src))
         return src
 
 

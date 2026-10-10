@@ -36,10 +36,10 @@ class AutoInt(BaseModel):
     kv_compression : float or None
         The proportion of key-value compression. If `None`, no compression is applied.
     kv_compression_sharing : str or None
-        Defines how key-value compression is shared across layers. Options:
-        - `"layerwise"`: One shared compression layer for all layers.
-        - `"headwise"`: Separate key compression per head.
-        - `"key-value"`: Separate compression layers for `k` and `v`.
+        ``"layerwise"`` shares one compression across all layers.
+        ``"headwise"`` uses separate key and value compression per layer,
+        shared across attention heads. ``"key-value"`` shares one compression
+        between keys and values within each layer.
     shared_kv_compression : nn.Linear or None
         Shared key-value compression layer, used when `kv_compression_sharing="layerwise"`.
     layers : nn.ModuleList
@@ -80,18 +80,25 @@ class AutoInt(BaseModel):
         # Key-Value Compression
         self.kv_compression = config.kv_compression
         self.kv_compression_sharing = config.kv_compression_sharing
+        if self.kv_compression is not None:
+            if not 0 < self.kv_compression <= 1:
+                raise ValueError("kv_compression must be in (0, 1].")
+            if self.kv_compression_sharing not in {"layerwise", "headwise", "key-value"}:
+                raise ValueError("kv_compression_sharing must be 'layerwise', 'headwise', or 'key-value'.")
 
-        def make_kv_compression():
+        def make_kv_compression(ratio: float):
             compression = nn.Linear(
                 n_inputs,
-                int(n_inputs * config.kv_compression),
+                max(1, int(n_inputs * ratio)),
                 bias=False,
             )
             nn_init.xavier_uniform_(compression.weight)
             return compression
 
         self.shared_kv_compression = (
-            make_kv_compression() if self.kv_compression and self.kv_compression_sharing == "layerwise" else None
+            make_kv_compression(self.kv_compression)
+            if self.kv_compression and self.kv_compression_sharing == "layerwise"
+            else None
         )
 
         # Transformer-based Interaction Layers
@@ -111,9 +118,9 @@ class AutoInt(BaseModel):
             )
 
             if self.kv_compression and self.shared_kv_compression is None:
-                layer["key_compression"] = make_kv_compression()
+                layer["key_compression"] = make_kv_compression(self.kv_compression)
                 if self.kv_compression_sharing == "headwise":
-                    layer["value_compression"] = make_kv_compression()
+                    layer["value_compression"] = make_kv_compression(self.kv_compression)
                 else:
                     assert self.kv_compression_sharing == "key-value"  # noqa: S101
 
@@ -175,7 +182,16 @@ class AutoInt(BaseModel):
                 x_residual = layer["norm0"](x_residual)  # type: ignore[index]
 
             # Multihead Attention
-            x_residual, _ = layer["attention"](x_residual, x_residual, x_residual)  # type: ignore[index]
+            key_compression, value_compression = self._get_kv_compressions(layer)
+            keys = (
+                x_residual if key_compression is None else key_compression(x_residual.transpose(1, 2)).transpose(1, 2)
+            )
+            values = (
+                x_residual
+                if value_compression is None
+                else value_compression(x_residual.transpose(1, 2)).transpose(1, 2)
+            )
+            x_residual, _ = layer["attention"](x_residual, keys, values, need_weights=False)  # type: ignore[index]
 
             # Apply residual connection
             x = x + x_residual
@@ -186,7 +202,7 @@ class AutoInt(BaseModel):
 
             # Apply the linear transformation
             x_residual = layer["linear"](x)  # type: ignore[index]
-            x = x + x_residual  # Second residual connection
+            x = nn.functional.relu(x + x_residual)
 
         if self.last_norm:
             x = self.last_norm(x)  # Final normalization if prenormalization is used

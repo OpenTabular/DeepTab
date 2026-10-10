@@ -38,7 +38,7 @@ features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree
 
 > **Configuration note:** `NODEConfig(num_layers=2, layer_dim=8, norm="LayerNorm")` normalizes a vector of width 16, not `d_model`. Previously, `norm` was accepted but never applied. The normalization helper now receives the tree-output width explicitly. `head_use_batch_norm` remains a separate setting inside the prediction head.
 
-`num_layers * layer_dim` determines the input dimension to the prediction head. Larger values increase capacity and memory use. `tree_dim` controls the output dimension per tree.
+`num_layers * layer_dim * tree_dim` determines the input dimension to the prediction head and to `norm`. Larger values increase capacity and memory use. `tree_dim` controls how many response channels each tree outputs; `num_layers=2`, `layer_dim=8`, and `tree_dim=2` give a width of 32. Previously, the head and `norm` were sized as if `tree_dim` were 1, so any larger value failed with a shape mismatch.
 
 ## Practical Config
 

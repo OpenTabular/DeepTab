@@ -73,6 +73,8 @@ The implementation lives in `deeptab/architectures/experimental/tangos.py`.
 | Orthogonality loss        | Cosine similarity between neuron attributions                        | Encourages diverse hidden units                     |
 | Output head               | `nn.Linear(last_hidden, num_classes)`                                | Task prediction                                     |
 
+With `use_glu=True`, each linear projection is doubled before GLU halves it, so the representation keeps the configured `layer_sizes` widths and the Jacobian is taken over those widths. Normalization acts on the doubled pre-GLU width. Previously, GLU halved the configured widths without resizing the next layer, which failed with a shape mismatch.
+
 ## Configuration
 
 | Parameter          | Default                   | Practical Effect                               |

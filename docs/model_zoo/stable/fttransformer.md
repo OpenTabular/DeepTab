@@ -38,6 +38,10 @@ Unlike `TabTransformer`, FTTransformer embeds all supported feature types before
 
 The default configuration uses `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.2`, and `ff_dropout=0.1`.
 
+Each encoder layer follows PyTorch's `nn.TransformerEncoderLayer` ordering. `norm_first=True` builds pre-norm layers; the default `False` keeps post-norm. `attn_dropout` sets dropout on the attention weights and on each sublayer output before its residual addition. The feed-forward hidden activations are not dropped out, and `ff_dropout` is part of the config but is not used by this encoder layer.
+
+> **Configuration note:** `norm`, `"LayerNorm"` by default, normalizes the pooled vector once, right before `MLPhead`. Previously, the same module was also registered as the encoder's final normalization, so tokens were normalized before pooling and the pooled vector was normalized again with shared parameters. The encoder layer also ignored `norm_first=True`. Checkpoints saved by earlier versions with `norm` set contain an extra `encoder.norm` entry and fail strict loading; retrain them.
+
 > **Pooling note:** Learnable pooling receives the token width `d_model` explicitly. For `d_model=16`, attention pooling learns a width-16 vector. Previously, the shared helper read TabulaRNN's `dim_feedforward` field, which this config does not have, so selecting a learnable pooling method could fail during construction.
 
 ## Practical Config

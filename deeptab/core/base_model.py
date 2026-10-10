@@ -213,7 +213,8 @@ class BaseModel(nn.Module):
         elif self.hparams.pooling_method == "last":
             return out[:, -1, :]
         elif self.hparams.pooling_method == "cls":
-            return out[:, 0, :]
+            position = 0 if getattr(self.hparams, "cls_position", 0) == 0 else -1
+            return out[:, position, :]
         elif self.hparams.pooling_method == "learned_flatten":
             # Flatten sequence and apply a learned linear layer
             batch_size, _, _ = out.shape
@@ -289,7 +290,6 @@ class BaseModel(nn.Module):
                 if available_layer == "rnn":
                     embeddings, _ = layer(x)  # type: ignore[reportCallIssue]
                 else:
-                    embeddings = self.encoder(x)  # type: ignore[reportCallIssue]
                     embeddings = layer(x)  # type: ignore[reportCallIssue]
         else:
             x = self.embedding_layer(*data)  # type: ignore[reportCallIssue]

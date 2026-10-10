@@ -182,7 +182,7 @@ _TASK_XFAIL_CHECKS = {
         "raising sklearn's expected 'Unknown label type' error."
     ),
     "check_supervised_y_no_nan": (
-        "Target validation does not implement sklearn's full finite-value checks and expected NaN/Inf error wording."
+        "Regressor target validation does not implement sklearn's full finite-value checks and expected NaN/Inf error wording."
     ),
     "check_supervised_y_2d": ("Column-vector targets are accepted without sklearn's required DataConversionWarning."),
     "check_requires_y_none": ("A missing target raises TypeError before sklearn's expected requires-y ValueError."),
@@ -205,6 +205,6 @@ def test_sklearn_compatible_estimator(estimator, check, request):
     name = _check_name(check)
     if name in _XFAIL_CHECKS:
         pytest.xfail(_XFAIL_CHECKS[name])
-    if name in _TASK_XFAIL_CHECKS:
+    if name in _TASK_XFAIL_CHECKS and (name != "check_supervised_y_no_nan" or isinstance(estimator, MLPRegressor)):
         request.node.add_marker(pytest.mark.xfail(reason=_TASK_XFAIL_CHECKS[name], strict=True))
     check(estimator)

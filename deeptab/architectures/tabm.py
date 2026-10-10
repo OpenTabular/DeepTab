@@ -3,7 +3,8 @@ import torch
 import torch.nn as nn
 
 from deeptab.core import BaseModel, concat_features, get_feature_dimensions
-from deeptab.nn.blocks.common import EmbeddingLayer, LinearBatchEnsembleLayer, SNLinear
+from deeptab.core.exceptions import invalid_param_error
+from deeptab.nn.blocks.common import BatchNorm, EmbeddingLayer, LinearBatchEnsembleLayer, SNLinear
 from deeptab.nn.normalization import get_normalization_layer
 
 from ..configs.models.tabm_config import TabMConfig
@@ -61,6 +62,15 @@ class TabM(BaseModel):
 
         # Save hparams including config attributes
         self.save_hyperparameters(ignore=["feature_information"])
+        if self.hparams.norm in {"InstanceNorm", "GroupNorm"}:
+            raise invalid_param_error(
+                "TabMConfig",
+                "norm",
+                self.hparams.norm,
+                "must keep ensemble members independent; InstanceNorm and GroupNorm "
+                "would compute statistics across members",
+                valid_values=[None, "LayerNorm", "RMSNorm", "BatchNorm", "LearnableLayerScaling"],
+            )
         if not self.hparams.average_ensembles:
             self.returns_ensemble = True  # Directly set ensemble flag
         else:
@@ -84,11 +94,13 @@ class TabM(BaseModel):
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
+        projection_factor = 2 if self.hparams.use_glu else 1
+
         # Input layer with batch ensembling
         self.layers.append(
             LinearBatchEnsembleLayer(
                 in_features=input_dim,
-                out_features=self.hparams.layer_sizes[0],
+                out_features=self.hparams.layer_sizes[0] * projection_factor,
                 ensemble_size=self.hparams.ensemble_size,
                 ensemble_scaling_in=self.hparams.ensemble_scaling_in,
                 ensemble_scaling_out=self.hparams.ensemble_scaling_out,
@@ -97,11 +109,11 @@ class TabM(BaseModel):
             )
         )
         if self.hparams.batch_norm:
-            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0]))
+            self.layers.append(BatchNorm(self.hparams.layer_sizes[0] * projection_factor))
 
-        self.norm_f = get_normalization_layer(config)
+        self.norm_f = get_normalization_layer(config, dim=self.hparams.layer_sizes[0] * projection_factor)
         if self.norm_f is not None:
-            self.layers.append(self.norm_f(self.hparams.layer_sizes[0]))
+            self.layers.append(self.norm_f)
 
         # Optional activation and dropout
         if self.hparams.use_glu:
@@ -117,7 +129,7 @@ class TabM(BaseModel):
                 self.layers.append(
                     LinearBatchEnsembleLayer(
                         in_features=self.hparams.layer_sizes[i - 1],
-                        out_features=self.hparams.layer_sizes[i],
+                        out_features=self.hparams.layer_sizes[i] * projection_factor,
                         ensemble_size=self.hparams.ensemble_size,
                         ensemble_scaling_in=False,
                         ensemble_scaling_out=False,
@@ -129,7 +141,7 @@ class TabM(BaseModel):
                 self.layers.append(
                     LinearBatchEnsembleLayer(
                         in_features=self.hparams.layer_sizes[i - 1],
-                        out_features=self.hparams.layer_sizes[i],
+                        out_features=self.hparams.layer_sizes[i] * projection_factor,
                         ensemble_size=self.hparams.ensemble_size,
                         ensemble_scaling_in=self.hparams.ensemble_scaling_in,
                         ensemble_scaling_out=self.hparams.ensemble_scaling_out,

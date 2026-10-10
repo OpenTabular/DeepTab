@@ -9,14 +9,45 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
 from deeptab.architectures.enode import ENODE
 from deeptab.configs import ENODEConfig
 from deeptab.nn.blocks.mlp import MLPhead
+from deeptab.nn.blocks.node import ODSTE
 
 NUM_INFO = {"f0": {"preprocessing": "", "dimension": 1, "categories": None}}
+
+
+@pytest.mark.parametrize("flatten_output", [False, True])
+def test_odste_preserves_response_channels(flatten_output):
+    layer = ODSTE(in_features=4, num_trees=3, embed_dim=8, depth=2, tree_dim=3, flatten_output=flatten_output)
+    with torch.no_grad():
+        for channel in range(3):
+            layer.response[:, channel].fill_(channel + 1)
+    predictions = layer(torch.randn(5, 4, 8))
+    expected = torch.arange(1, 4, dtype=predictions.dtype).view(1, 1, 3, 1).expand(5, 3, 3, 8)
+    if flatten_output:
+        expected = expected.flatten(1, 2)
+    torch.testing.assert_close(predictions, expected)
+    predictions.sum().backward()
+    assert layer.response.grad is not None
+    assert (layer.response.grad.abs().sum(dim=(0, 2, 3)) > 0).all()
+
+
+@pytest.mark.parametrize("tree_dim", [2, 3])
+def test_enode_supports_multiple_response_channels(tree_dim):
+    model = ENODE(
+        (NUM_INFO, {}, {}),
+        num_classes=3,
+        config=ENODEConfig(d_model=8, num_layers=2, layer_dim=3, depth=2, tree_dim=tree_dim),
+    )
+    predictions = model([torch.randn(5, 1)], [], [])
+    assert predictions.shape == (5, 3)
+    assert torch.isfinite(predictions).all()
+    predictions.sum().backward()
 
 
 class TestENODEHeadOptions:

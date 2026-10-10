@@ -23,6 +23,19 @@ def test_lss_rejects_non_positive_targets_before_building(family, invalid_target
 class TestEdgeCaseInputs:
     """fit() with input shapes that previously crashed instead of failing cleanly or working."""
 
+    @pytest.mark.parametrize("method", ["fit", "build_model"])
+    @pytest.mark.parametrize("label", [0, 1, "only"])
+    def test_single_class_is_rejected_before_building(self, method, label):
+        from deeptab.models import MLPClassifier
+
+        model = MLPClassifier()
+        with pytest.raises(ValueError, match="at least 2 classes"):
+            getattr(model, method)(np.ones((6, 2)), np.full(6, label))
+        assert model._data_module is None
+        assert model._task_model is None
+        assert not model._built
+        assert not hasattr(model, "classes_")
+
     @pytest.mark.parametrize("string_labels", [False, True])
     def test_fit_with_rare_class_only_in_unstratified_validation(self, string_labels, tmp_path):
         from sklearn.model_selection import train_test_split
