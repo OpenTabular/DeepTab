@@ -27,7 +27,7 @@ The CI, docs, and build-check workflows also expose `workflow_call` so release w
 | `build`     | ubuntu / 3.10   | `poetry build` and `twine check dist/*`    | -          |
 | `tests`     | full matrix     | `pytest tests/ -v`                         | -          |
 | `smoke`     | ubuntu / 3.12   | `pytest tests/ -m smoke --tb=short`        | `lint`     |
-| `coverage`  | ubuntu / 3.12   | branch coverage uploaded to Codecov        | `tests`    |
+| `coverage`  | ubuntu / 3.12   | line coverage >=90%; upload to Codecov     | `tests`    |
 
 The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix covers every supported Python and OS combination listed in the [Support Matrix](support_matrix.md).
 
@@ -76,7 +76,7 @@ Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-pu
 - `package` calls build-check, which validates the tag version, wheel, source distribution, and installed-wheel training and reload behavior.
 
 ```{important}
-If any required job fails, is cancelled, or is skipped, publication does not run. Coverage collection remains governed by the CI workflow; this dependency does not itself add a minimum coverage threshold.
+If any required job fails, is cancelled, or is skipped, publication does not run. The CI coverage job enforces at least 90% line coverage across `deeptab` using `--cov-fail-under=90`. A result below that threshold blocks publication even when all tests pass or the Codecov upload succeeds.
 ```
 
 The publisher downloads the validated `dist` artifact from the same workflow run and publishes those files without rebuilding them. Only the publish job receives write permissions and an OIDC token; validation jobs have read-only repository permissions. After publication, the workflow creates the matching GitHub release. The RC workflow retains its post-publication TestPyPI installation check.

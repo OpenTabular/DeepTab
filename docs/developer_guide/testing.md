@@ -83,14 +83,16 @@ fail so the exception can be removed. Run `pytest -ra` to inspect both categorie
 
 ## Coverage
 
-A coverage report is printed after every `just test` run. For an interactive HTML report:
+`just test` and the CI coverage job require at least **90% line coverage** across `deeptab`. Both pass `--cov-fail-under=90`, so a lower result fails the command even when every test passes. CI publishes its coverage report to Codecov, but the local threshold determines success independently of that upload. A failed CI coverage job also blocks release publication.
+
+For an interactive HTML report with the same threshold:
 
 ```bash
-poetry run pytest --cov=deeptab --cov-report=html tests/
+poetry run pytest --cov=deeptab --cov-fail-under=90 --cov-report=html tests/
 open htmlcov/index.html
 ```
 
-To include branch coverage:
+Branch coverage is an optional diagnostic, not the release gate's metric:
 
 ```bash
 poetry run pytest tests/ --cov=deeptab --cov-branch --cov-report=term-missing

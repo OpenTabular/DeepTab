@@ -183,7 +183,7 @@ jobs:
         run: poetry run pytest tests/ -v -m smoke --tb=short
 
   coverage:
-    name: Coverage (stable modules)
+    name: Coverage (90% line minimum)
     runs-on: ubuntu-latest
     needs: tests
 
@@ -214,7 +214,7 @@ jobs:
         run: |
           poetry run pytest tests/ \
             --cov=deeptab \
-            --cov-branch \
+            --cov-fail-under=90 \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             -q

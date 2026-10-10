@@ -1,6 +1,7 @@
 """Release publishing must depend on validation of the distributed package."""
 
 from pathlib import Path
+from shlex import split
 
 import pytest
 import yaml
@@ -81,3 +82,17 @@ def test_reusable_ci_includes_all_existing_quality_checks():
         "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
         "python-version": ["3.10", "3.11", "3.12", "3.13"],
     }
+
+
+@pytest.mark.parametrize("source", ["ci", "just"])
+def test_coverage_commands_enforce_ninety_percent_line_coverage(source):
+    if source == "ci":
+        steps = _workflow("ci.yml")["jobs"]["coverage"]["steps"]
+        command = next(step["run"] for step in steps if step.get("name") == "Run tests with coverage")
+    else:
+        lines = (WORKFLOWS.parents[1] / "justfile").read_text().splitlines()
+        command = lines[lines.index("test:") + 1].strip()
+    arguments = split(command.replace("\\\n", ""))
+    assert "--cov=deeptab" in arguments
+    assert "--cov-fail-under=90" in arguments
+    assert "--cov-branch" not in arguments

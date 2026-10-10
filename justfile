@@ -35,9 +35,9 @@ format:
 types:
     poetry run pyright
 
-# run tests with coverage
+# run tests with at least 90% line coverage
 test:
-    poetry run pytest --cov=deeptab tests/
+    poetry run pytest --cov=deeptab --cov-fail-under=90 tests/
 
 # build HTML docs locally (warnings treated as errors)
 docs:
