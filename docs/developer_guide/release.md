@@ -87,16 +87,12 @@ Vulnerabilities with no upstream fix available should be noted and tracked as kn
 
 Run all checks in the order shown below. **Each step must pass cleanly before proceeding to the next.**
 
-## 3. Quality checks
-
-Run these in order. **Each must pass cleanly before proceeding to the next.**
-
 | Step   | Command       | What it does                                                          |
 | ------ | ------------- | --------------------------------------------------------------------- |
 | Lint   | `just lint`   | `ruff check --fix`; review and resolve any errors it cannot auto-fix. |
 | Format | `just format` | `ruff format` for consistent code style.                              |
 | Hooks  | `just check`  | All pre-commit hooks across all files: ruff, prettier, and Pyright.   |
-| Tests  | `just test`   | Full test suite with coverage.                                        |
+| Tests  | `just test`   | Full test suite with at least 90% line coverage.                      |
 
 ```{important}
 If `just check` modifies any files, stage and commit them before continuing:

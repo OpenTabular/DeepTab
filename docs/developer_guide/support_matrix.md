@@ -13,11 +13,17 @@ This page lists the officially supported versions of Python and core dependencie
 
 ```{warning}
 **Intel Mac (macOS x86_64) is not supported.** Upstream PyTorch no longer publishes
-x86_64 macOS wheels for `torch >= 2.3`, nor for Python 3.13 on any macOS
-architecture. Since DeepTab requires `torch >= 2.2.2`, installing `deeptab` on an
-Intel Mac can fail to resolve a compatible PyTorch build. This is an upstream
-PyTorch packaging constraint, not a DeepTab defect, and there is no DeepTab-side
-fix. See [Installation](../getting_started/installation) for the workaround.
+x86_64 macOS wheels for `torch >= 2.3` or Python 3.13. **Apple Silicon PyTorch
+wheels are available for Python 3.13**, including `torch==2.9.1`. Intel Macs are
+outside the CI matrix; see [Installation](../getting_started/installation) for the
+Python 3.12 / PyTorch 2.2.2 workaround.
+```
+
+```{warning}
+**TabR is not validated on Apple Silicon.** The PyPI `faiss-cpu` build can
+segfault on macOS arm64, so CI skips TabR classifier, regressor, and LSS tests
+on that platform. Use Linux or Windows for TabR. An alternative FAISS build is
+not covered by this CI matrix.
 ```
 
 ---
