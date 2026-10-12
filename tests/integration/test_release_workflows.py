@@ -2,11 +2,36 @@
 
 from pathlib import Path
 from shlex import split
+from unittest.mock import MagicMock
 
 import pytest
 import yaml
 
 WORKFLOWS = Path(__file__).resolve().parents[2] / ".github" / "workflows"
+
+
+@pytest.mark.parametrize(
+    "directory,marker",
+    [
+        ("integration", "integration"),
+        ("contracts", "contract"),
+        ("learnability", "learnability"),
+        ("lifecycle", "lifecycle"),
+        ("metrics/oracles", "metric_oracle"),
+        ("boundaries", "boundary"),
+        ("environments", "environment"),
+    ],
+)
+def test_category_collection_marks_nested_files(pytestconfig, directory, marker):
+    root = WORKFLOWS.parents[1] / "tests"
+    plugin = pytestconfig.pluginmanager.get_plugin(str(root / "conftest.py"))
+    assert plugin is not None
+    item = MagicMock()
+    item.path = root / directory / "nested" / "test_behavior.py"
+    plugin.pytest_collection_modifyitems([item])
+    item.add_marker.assert_called_once()
+    assert item.add_marker.call_args.args[0].name == marker
+    assert any(value.startswith(f"{marker}:") for value in pytestconfig.getini("markers"))
 
 
 def _workflow(name):
@@ -75,13 +100,60 @@ def test_package_gate_validates_tag_and_installed_wheel_before_upload():
 
 def test_reusable_ci_includes_all_existing_quality_checks():
     jobs = _workflow("ci.yml")["jobs"]
-    for name in ["lint", "typecheck", "build", "tests", "smoke", "coverage"]:
+    for name in ["lint", "typecheck", "build", "tests", "tests-extras", "smoke", "coverage"]:
         assert name in jobs
         assert jobs[name].get("continue-on-error", "false") == "false"
     assert jobs["tests"]["strategy"]["matrix"] == {
         "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
         "python-version": ["3.10", "3.11", "3.12", "3.13"],
     }
+
+
+def test_ci_triggers_select_main_and_preserve_release_invocations():
+    triggers = _workflow("ci.yml")["on"]
+    assert {"workflow_call", "workflow_dispatch"}.issubset(triggers)
+    for event in ["push", "pull_request"]:
+        assert triggers[event]["branches"] == ["main"]
+
+
+@pytest.mark.parametrize("job,profile", [("tests", "core"), ("tests-extras", "extras"), ("coverage", "extras")])
+def test_ci_dependency_profiles_are_provisioned_and_verified(job, profile):
+    steps = _workflow("ci.yml")["jobs"][job]["steps"]
+    installation = next(step["run"] for step in steps if step.get("name") == "Install dependencies")
+    arguments = split(installation)
+    assert arguments[:4] == ["poetry", "sync", "--only", "main,dev"]
+    if profile == "extras":
+        assert arguments[4:] == ["--extras", "logs tracking"]
+    else:
+        assert len(arguments) == 4
+    command = next(step["run"] for step in steps if "pytest" in step.get("run", ""))
+    test_arguments = split(command.replace("\\\n", ""))
+    assert "tests/" in test_arguments
+    assert f"--dependency-profile={profile}" in test_arguments
+    assert "--strict-markers" in test_arguments
+    assert "-m" not in test_arguments
+    cache = next(step["with"]["key"] for step in steps if step.get("name") == "Cache virtualenv")
+    if job != "coverage":
+        assert f"tests-{profile}-" in cache
+
+
+def test_coverage_requires_core_and_extras_jobs():
+    jobs = _workflow("ci.yml")["jobs"]
+    assert set(jobs["coverage"]["needs"]) == {"tests", "tests-extras"}
+
+
+@pytest.mark.parametrize("profile", ["core", "extras"])
+def test_just_dependency_profiles_match_ci(profile):
+    lines = (WORKFLOWS.parents[1] / "justfile").read_text().splitlines()
+    installation = lines[lines.index(f"install-{profile}:") + 1].strip()
+    ci_job = "tests" if profile == "core" else "tests-extras"
+    steps = _workflow("ci.yml")["jobs"][ci_job]["steps"]
+    assert installation == next(step["run"] for step in steps if step.get("name") == "Install dependencies")
+    command = lines[lines.index(f"test-{profile}:") + 1].strip()
+    arguments = split(command)
+    assert "tests/" in arguments
+    assert f"--dependency-profile={profile}" in arguments
+    assert "--strict-markers" in arguments
 
 
 @pytest.mark.parametrize("source", ["ci", "just"])

@@ -29,7 +29,7 @@ import pandas as pd
 import pytest
 from pretab import Preprocessor
 
-from deeptab.configs import PreprocessingConfig
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import ConfigWarning
 from deeptab.core.observability import ObservabilityConfig
 from deeptab.core.preprocessing import (
@@ -221,24 +221,38 @@ class TestObservabilityVerbosityMapping:
         clf = MLPClassifier(observability_config=obs)
         assert clf._preprocessor.verbose == 2
 
-    def test_verbosity_zero_fit_emits_no_pretab_console_output(self, capsys):
+    @pytest.mark.integration
+    def test_verbosity_zero_fit_emits_no_pretab_console_output(self, capsys, tmp_path):
+        pytest.importorskip("structlog")
         from deeptab.models.mlp import MLPClassifier
 
         X = pd.DataFrame({"a": np.linspace(0, 1, 40), "b": ["x", "y"] * 20})
         y = np.tile([0, 1], 20)
         obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=0)
-        clf = MLPClassifier(observability_config=obs)
-        clf.fit(X, y, max_epochs=1)
+        clf = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[8]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=16, checkpoint_path=str(tmp_path)),
+            observability_config=obs,
+            random_state=17,
+        )
+        clf.fit(X, y, accelerator="cpu", logger=False, enable_progress_bar=False, enable_model_summary=False)
         assert "pretab" not in capsys.readouterr().out.lower()
 
-    def test_higher_verbosity_fit_emits_pretab_console_output(self, capsys):
+    @pytest.mark.integration
+    def test_higher_verbosity_fit_emits_pretab_console_output(self, capsys, tmp_path):
+        pytest.importorskip("structlog")
         from deeptab.models.mlp import MLPClassifier
 
         X = pd.DataFrame({"a": np.linspace(0, 1, 40), "b": ["x", "y"] * 20})
         y = np.tile([0, 1], 20)
         obs = ObservabilityConfig(structured_logging=True, log_to_console=True, verbosity=1)
-        clf = MLPClassifier(observability_config=obs)
-        clf.fit(X, y, max_epochs=1)
+        clf = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[8]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=16, checkpoint_path=str(tmp_path)),
+            observability_config=obs,
+            random_state=17,
+        )
+        clf.fit(X, y, accelerator="cpu", logger=False, enable_progress_bar=False, enable_model_summary=False)
         assert "fit complete" in capsys.readouterr().out
 
 

@@ -1,6 +1,6 @@
 # Support Matrix
 
-This page lists the officially supported versions of Python and core dependencies. "Supported" means the combination is tested in CI on every commit and pull request. Combinations not listed here may work but are not guaranteed.
+This page lists the officially supported versions of Python and core dependencies. These combinations are included in the configured CI matrix. Automatic CI covers pushes to `main` and pull requests targeting `main`; other revisions need a manual or reusable workflow invocation. Confirm results for the exact revision before claiming release validation. Combinations not listed here may work but are not guaranteed.
 
 ---
 

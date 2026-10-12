@@ -117,7 +117,7 @@ jobs:
           twine check dist/*
 
   tests:
-    name: Tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
+    name: Core tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -143,13 +143,49 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-tests-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+          key: venv-tests-core-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry sync --only main,dev
 
-      - name: Run unit tests
-        run: poetry run pytest tests/ -v
+      - name: Check dependency consistency
+        run: poetry run python -m pip check
+
+      - name: Run core tests
+        run: poetry run pytest tests/ --dependency-profile=core --strict-markers -v
+
+  tests-extras:
+    name: Logs and tracking tests (Python 3.12, ubuntu)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Poetry
+        run: pipx install poetry
+
+      - name: Configure Poetry
+        run: poetry config virtualenvs.in-project true
+
+      - name: Cache virtualenv
+        uses: actions/cache@v4
+        with:
+          path: .venv
+          key: venv-tests-extras-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+
+      - name: Install dependencies
+        run: poetry sync --only main,dev --extras "logs tracking"
+
+      - name: Check dependency consistency
+        run: poetry run python -m pip check
+
+      - name: Run extras tests
+        run: poetry run pytest tests/ --dependency-profile=extras --strict-markers -v
 
   smoke:
     name: Smoke tests (Python 3.12, ubuntu)
@@ -185,7 +221,7 @@ jobs:
   coverage:
     name: Coverage (90% line minimum)
     runs-on: ubuntu-latest
-    needs: tests
+    needs: [tests, tests-extras]
 
     steps:
       - uses: actions/checkout@v4
@@ -208,11 +244,13 @@ jobs:
           key: venv-coverage-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
-        run: poetry install
+        run: poetry sync --only main,dev --extras "logs tracking"
 
       - name: Run tests with coverage
         run: |
           poetry run pytest tests/ \
+            --dependency-profile=extras \
+            --strict-markers \
             --cov=deeptab \
             --cov-fail-under=90 \
             --cov-report=term-missing \

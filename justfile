@@ -7,6 +7,24 @@ install:
 	poetry install
 	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
+# synchronize core test dependencies, removing optional extras and other groups
+install-core:
+    poetry sync --only main,dev
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
+# synchronize test dependencies with structured logging and experiment tracking
+install-extras:
+    poetry sync --only main,dev --extras "logs tracking"
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
+# check the installed dependency graph
+deps-check:
+    poetry run python -m pip check
+
+# show exact installed package versions
+deps-list:
+    poetry run python -m pip freeze --all
+
 # update dependencies and pre-commit hook revisions
 update:
 	poetry update
@@ -38,6 +56,19 @@ types:
 # run tests with at least 90% line coverage
 test:
     poetry run pytest --cov=deeptab --cov-fail-under=90 tests/
+
+# run selected tests with ordinary pytest arguments, without a coverage gate
+[positional-arguments]
+test-run *args:
+    poetry run pytest --strict-markers "$@"
+
+# verify the existing core-only installation and run the full source suite
+test-core:
+    poetry run pytest tests/ --dependency-profile=core --strict-markers -ra
+
+# verify the existing logs/tracking installation and run the full source suite
+test-extras:
+    poetry run pytest tests/ --dependency-profile=extras --strict-markers -ra
 
 # build HTML docs locally (warnings treated as errors)
 docs:

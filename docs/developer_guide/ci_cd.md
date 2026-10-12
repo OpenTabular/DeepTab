@@ -20,19 +20,38 @@ Runs on every push to `main` and every pull request targeting `main`. In-progres
 
 The CI, docs, and build-check workflows also expose `workflow_call` so release workflows can require their checks on the exact tagged commit. Concurrency groups distinguish a release invocation from ordinary CI and docs runs, so those runs do not cancel one another.
 
-| Job         | Runner / Python | What it does                               | Depends on |
-| ----------- | --------------- | ------------------------------------------ | ---------- |
-| `lint`      | ubuntu / 3.10   | `ruff check .` and `ruff format --check .` | -          |
-| `typecheck` | ubuntu / 3.10   | `pyright`                                  | -          |
-| `build`     | ubuntu / 3.10   | `poetry build` and `twine check dist/*`    | -          |
-| `tests`     | full matrix     | `pytest tests/ -v`                         | -          |
-| `smoke`     | ubuntu / 3.12   | `pytest tests/ -m smoke --tb=short`        | `lint`     |
-| `coverage`  | ubuntu / 3.12   | line coverage >=90%; upload to Codecov     | `tests`    |
+| Job            | Runner / Python | What it does                                          | Depends on              |
+| -------------- | --------------- | ----------------------------------------------------- | ----------------------- |
+| `lint`         | ubuntu / 3.10   | `ruff check .` and `ruff format --check .`            | -                       |
+| `typecheck`    | ubuntu / 3.10   | `pyright`                                             | -                       |
+| `build`        | ubuntu / 3.10   | `poetry build` and `twine check dist/*`               | -                       |
+| `tests`        | full matrix     | Full core-only suite with verified dependency profile | -                       |
+| `tests-extras` | ubuntu / 3.12   | Full suite with verified logs/tracking extras         | -                       |
+| `smoke`        | ubuntu / 3.12   | `pytest tests/ -m smoke --tb=short`                   | `lint`                  |
+| `coverage`     | ubuntu / 3.12   | Extras suite; line coverage >=90%; upload to Codecov  | `tests`, `tests-extras` |
 
 The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix covers every supported Python and OS combination listed in the [Support Matrix](support_matrix.md).
 
+The matrix uses `poetry sync --only main,dev` and
+`pytest tests/ --dependency-profile=core --strict-markers`. The extras job uses
+the same groups with `--extras "logs tracking"` and `--dependency-profile=extras`.
+Both check the installed graph with `pip check`, verify actual optional-package
+availability, and collect all categories without marker filtering. Their cache
+keys distinguish core from extras; synchronization removes stale packages from
+restored environments. The two structured-logging fit tests skip in core-only
+and must execute with extras. Coverage installs/verifies the extras profile too.
+
+Local equivalents are `just install-core` / `just test-core` and
+`just install-extras` / `just test-extras`, followed by `just test` for coverage.
+See [Testing](testing.md) for environment-switching cautions and selectors.
+Pushes to integration branches do not trigger automatic CI. Open a pull request
+targeting `main` or dispatch CI manually, and retain the run URL and tested SHA.
+Reusable release calls remain available; configured lanes alone are not passing
+evidence for a release revision. The extras lane currently covers Ubuntu/Python
+3.12, not every optional-backend/platform combination.
+
 ```{note}
-The two Python versions are intentional. Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.10) so they catch code that relies on newer syntax or stdlib than we promise to support. The fast single-version gates (`smoke`, `coverage`) use a recent version (3.12), since they check behavior rather than compatibility. Full compatibility is verified by the `tests` matrix.
+The two Python versions are intentional. Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.10) so they catch code that relies on newer syntax or stdlib than we promise to support. The single-version gates (`smoke`, `tests-extras`, `coverage`) use a recent version (3.12). The `tests` matrix verifies the core profile across the declared combinations; extras compatibility remains scoped to its own job.
 ```
 
 ---

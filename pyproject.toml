@@ -93,7 +93,13 @@ norecursedirs = [
 ]
 markers = [
   "smoke: fast sanity-check tests that should pass in under 60 s (selected in the CI smoke job)",
-  "integration: cross-module workflows collected from tests/integration",
+  "integration: cross-module workflows, including explicitly marked tests outside tests/integration",
+  "contract: shared estimator and persistence contracts",
+  "learnability: seeded learning and parameter-update checks",
+  "lifecycle: fit, refit, continuation, pretraining, and loaded-estimator transitions",
+  "metric_oracle: training metric inputs and epoch results checked against independent calculations",
+  "boundary: input and configuration boundary behavior",
+  "environment: externally provisioned installation and dependency contracts",
 ]
 filterwarnings = [
   # Lightning trainer noise (dataloader workers, log interval, checkpoint dir, tensorboard)
