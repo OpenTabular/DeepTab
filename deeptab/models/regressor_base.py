@@ -227,6 +227,13 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
 
         Notes
         -----
+        ``rebuild=False`` retains neural weights, fitted preprocessing, loss,
+        and metrics while preparing fresh data and loaders. Each call starts
+        a new trainer, optimizer, and scheduler rather than resuming their
+        previous state. Explicit epoch, learning-rate, weight-decay, batch,
+        and loader overrides are honored. Replacing metrics requires
+        ``rebuild=True``.
+
         Targets must be finite numeric values for a single output. Validation
         inputs must be supplied together with a matching feature schema.
         Input-validation errors preserve the previous fitted estimator. Failures

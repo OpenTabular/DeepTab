@@ -16,10 +16,11 @@ import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
 from deeptab.configs import TrainerConfig
-from deeptab.core.exceptions import unsupported_param_error
+from deeptab.core.exceptions import DataError, invalid_data_error, unsupported_param_error
 from deeptab.core.preprocessing import build_preprocessor
-from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
+from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.training import pretrain_embeddings
+from deeptab.training.optimizers import normalize_optimizer_kwargs
 
 if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig
@@ -276,6 +277,149 @@ class _FitMixin:
     # Training loop
     # ------------------------------------------------------------------
 
+    def _prepare_continuation(
+        self,
+        X,
+        y,
+        *,
+        regression,
+        X_val,
+        y_val,
+        embeddings,
+        embeddings_val,
+        val_size,
+        random_state,
+        batch_size,
+        shuffle,
+        stratify,
+        dataloader_kwargs,
+    ):
+        """Prepare new compatible data using the existing fitted representation."""
+        if not self._built or self._task_model is None or self._data_module is None:
+            raise invalid_data_error("Continuation requires an already built model.", "fit with rebuild=True first.")
+        try:
+            X = validate_input_features(self, X)
+            if X_val is not None:
+                X_val = validate_input_features(self, X_val)
+        except DataError as error:
+            raise invalid_data_error(
+                f"Incompatible continuation features: {error}", "use rebuild=True to change the feature schema."
+            ) from error
+        previous = self._data_module
+        embedding_info = previous.embedding_feature_info or {}
+        expected_embeddings = [info["dimension"] for info in embedding_info.values()]
+        if X_val is None and embeddings_val is not None:
+            raise invalid_data_error(
+                "embeddings_val requires explicit validation data.", "supply X_val and y_val or omit embeddings_val."
+            )
+        for name, supplied, rows in [
+            ("embeddings", embeddings, len(X)),
+            ("embeddings_val", embeddings_val, len(X_val) if X_val is not None else None),
+        ]:
+            if rows is None:
+                continue
+            groups = supplied if isinstance(supplied, list) else [supplied] if supplied is not None else []
+            if len(groups) != len(expected_embeddings):
+                raise invalid_data_error(
+                    f"{name} must retain all {len(expected_embeddings)} fitted embedding group(s).",
+                    "supply compatible embeddings or use rebuild=True to change the representation.",
+                )
+            for group, width in zip(groups, expected_embeddings, strict=True):
+                values = np.asarray(group)
+                if values.shape != (rows, width) or not np.issubdtype(values.dtype, np.number):
+                    raise invalid_data_error(
+                        f"{name} requires numeric embedding groups with shape ({rows}, {width}).",
+                        "supply row-aligned embeddings with the fitted widths, or use rebuild=True.",
+                    )
+                if not np.isfinite(values).all():
+                    raise invalid_data_error(f"{name} must be finite.", "supply finite embedding values.")
+        sampler = getattr(previous, "sampler", None)
+        if sampler is not None and not isinstance(sampler, bool | str):
+            raise unsupported_param_error("sample_weight", "continuation without rebuild=True")
+        loader_options = dict(getattr(previous, "dataloader_kwargs", {}))
+        loader_options.update(dataloader_kwargs or {})
+        from deeptab.core.default_factories import DefaultDataModuleFactory
+
+        factory = getattr(self, "_data_module_factory", None) or DefaultDataModuleFactory()
+        prepared = factory.create(
+            preprocessor=self._preprocessor,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            regression=regression,
+            X_val=X_val,
+            y_val=y_val,
+            val_size=val_size,
+            random_state=random_state,
+            stratify=stratify,
+            sampler=sampler,
+            vector_targets=getattr(self, "family_name", None) == "dirichlet"
+            or getattr(previous, "vector_targets", False),
+            **loader_options,
+        )
+        prepared.input_columns_ = self.input_columns_
+        prepared.preprocess_data(
+            X,
+            y,
+            X_val=X_val,
+            y_val=y_val,
+            embeddings_train=embeddings,
+            embeddings_val=embeddings_val,
+            val_size=val_size,
+            random_state=random_state,
+            fit_preprocessing=False,
+        )
+        prepared.setup("fit")
+        for loader in (prepared.train_dataloader(), prepared.val_dataloader()):
+            dataset = loader.dataset
+            for tensors, metadata in [
+                (dataset.num_features_list, previous.num_feature_info),
+                (dataset.cat_features_list, previous.cat_feature_info),
+                (dataset.embeddings_list, previous.embedding_feature_info),
+            ]:
+                widths = [info["dimension"] for info in (metadata or {}).values()]
+                actual = [tensor.shape[1] for tensor in (tensors or [])]
+                if actual != widths:
+                    raise invalid_data_error(
+                        f"Transformed continuation widths {actual} do not match the built model's widths {widths}.",
+                        "use rebuild=True to change the fitted representation.",
+                    )
+        return prepared
+
+    def _configure_continuation(self, *, lr, lr_patience, lr_factor, weight_decay):
+        """Apply settings for a new optimizer without replacing model weights."""
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        values = {
+            "lr": tc.lr if lr is None else lr,
+            "lr_patience": tc.lr_patience if lr_patience is None else lr_patience,
+            "lr_factor": tc.lr_factor if lr_factor is None else lr_factor,
+            "weight_decay": tc.weight_decay if weight_decay is None else weight_decay,
+            "optimizer_type": tc.optimizer_type,
+            "optimizer_params": normalize_optimizer_kwargs(tc.optimizer_kwargs),
+            "scheduler_type": tc.scheduler_type,
+            "scheduler_kwargs": tc.scheduler_kwargs,
+            "monitor": tc.scheduler_monitor if tc.scheduler_monitor is not None else tc.monitor,
+            "mode": tc.mode,
+            "scheduler_interval": tc.scheduler_interval,
+            "scheduler_frequency": tc.scheduler_frequency,
+            "no_weight_decay_for_bias_and_norm": tc.no_weight_decay_for_bias_and_norm,
+        }
+        hyperparameters = getattr(self._task_model, "hparams", None)
+        for name, value in values.items():
+            setattr(self._task_model, name, value)
+            if hyperparameters is not None:
+                hyperparameters["optimizer_args" if name == "optimizer_params" else name] = value
+
+    def _validate_continuation_options(self, *, train_metrics, val_metrics, loss_fct=None, sampler=None):
+        """Reject training-object replacements that require a rebuilt task."""
+        for name, value in {
+            "train_metrics": train_metrics,
+            "val_metrics": val_metrics,
+            "loss_fct": loss_fct,
+            "sampler": sampler,
+        }.items():
+            if value is not None:
+                raise unsupported_param_error(name, "continuation without rebuild=True")
+
     def fit(
         self,
         X,
@@ -407,6 +551,10 @@ class _FitMixin:
 
         Notes
         -----
+        Continuation keeps the fitted representation and neural task, but
+        replaces data and loaders and creates fresh optimizer and scheduler
+        state. Loss and metric replacements require rebuilding the task.
+
         Input-validation errors preserve the previous fitted estimator. Targets
         must be finite and validation inputs must be supplied together with
         matching feature and target widths. Failures after rebuilding or training
@@ -455,6 +603,33 @@ class _FitMixin:
         y = np.asarray(y)
         if y_val is not None:
             y_val = np.asarray(y_val)
+
+        if random_state is None:
+            random_state = self.random_state
+        effective_rebuild = rebuild if rebuild is not None else not self._is_pretrained
+        prepared = None
+        if not effective_rebuild:
+            self._validate_continuation_options(
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+                loss_fct=loss_fct,
+                sampler=sampler,
+            )
+            prepared = self._prepare_continuation(
+                X,
+                y,
+                regression=regression,
+                X_val=X_val,
+                y_val=y_val,
+                embeddings=embeddings,
+                embeddings_val=embeddings_val,
+                val_size=val_size,
+                random_state=random_state,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                stratify=stratify,
+                dataloader_kwargs=dataloader_kwargs,
+            )
 
         # From here on, fit() mutates estimator state (schema attributes,
         # _data_module, _task_model, etc.) before training can even start.
@@ -563,11 +738,8 @@ class _FitMixin:
                 sampler=sampler,
             )
         else:
-            if not self._built:
-                raise ValueError(
-                    "The model must be built before calling the fit method. "
-                    "Either call .build_model() or set rebuild=True"
-                )
+            self._data_module = prepared
+            self._configure_continuation(lr=lr, lr_patience=lr_patience, lr_factor=lr_factor, weight_decay=weight_decay)
 
         # n_params computed in _build_model and emitted via model.created;
         # recalculate here for _log_run_metadata_to_mlflow and fit.completed.

@@ -382,6 +382,15 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
 
         Notes
         -----
+        ``rebuild=False`` retains neural weights, fitted preprocessing, class
+        labels, loss, and metrics while preparing fresh data and loaders. Each
+        call starts a new trainer, optimizer, and scheduler; it does not resume
+        their previous state. Explicit epoch, learning-rate, weight-decay,
+        batch, and loader overrides are honored. Changing task objects or
+        explicit row-specific
+        sampling weights requires ``rebuild=True``. Balanced sampling retains
+        its policy and recomputes weights from the new labels.
+
         Input and loss/sampling validation occurs before replacing fitted
         state. Rejection preserves the previous classes, weights, preprocessing,
         and predictions. Failures after rebuilding or training starts invalidate
@@ -412,15 +421,24 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             received = "one class" if num_classes == 1 else "no classes"
             raise ValueError(f"Classification requires at least 2 classes; received {received}.")
 
-        loss_fct, sampler = _resolve_loss_and_sampler(
-            loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes
-        )
+        if effective_rebuild:
+            loss_fct, sampler = _resolve_loss_and_sampler(
+                loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes
+            )
+        else:
+            if not np.array_equal(classes, getattr(self, "classes_", None)):
+                raise invalid_data_error(
+                    "Continuation requires the original classifier labels.",
+                    "use rebuild=True to change the class labels or classification head.",
+                )
+            loss_fct, sampler = None, None
 
         y = _encode_labels(y, classes)
         if y_val is not None:
             y_val = _encode_labels(y_val, classes, name="y_val")
 
-        self.classes_ = classes
+        if effective_rebuild:
+            self.classes_ = classes
 
         return super().fit(
             X=X,

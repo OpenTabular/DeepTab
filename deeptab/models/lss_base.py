@@ -10,7 +10,7 @@ import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
 from deeptab.configs import TrainerConfig
-from deeptab.core.exceptions import not_fitted_error, unsupported_param_error
+from deeptab.core.exceptions import invalid_data_error, not_fitted_error, unsupported_param_error
 from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.serialization import (
     _warn_extension,
@@ -345,6 +345,14 @@ class SklearnBaseLSS(SklearnBase):
 
         Notes
         -----
+        ``rebuild=False`` retains weights, fitted preprocessing, distribution,
+        class labels, and metrics while preparing fresh data and loaders.
+        Each call starts a new trainer, optimizer, and scheduler rather than
+        resuming their previous state. Explicit epoch, learning-rate,
+        weight-decay, batch, and loader overrides are honored. Changing
+        distribution options or
+        replacing metrics requires ``rebuild=True``.
+
         Targets must be finite and valid for the selected distribution. Target
         dimensions are retained, including Dirichlet component columns. Input
         and distribution-configuration validation errors preserve the previous
@@ -392,6 +400,37 @@ class SklearnBaseLSS(SklearnBase):
         if y_val is not None:
             y_val = np.asarray(y_val)
 
+        prepared = None
+        if not rebuild:
+            self._validate_continuation_options(train_metrics=train_metrics, val_metrics=val_metrics)
+            self._configure_distribution(y, family, distributional_kwargs, allow_change=False)
+            if family == "categorical":
+                from deeptab.models.classifier_base import _encode_labels
+
+                if self.classes_ is None or not np.array_equal(np.unique(y), self.classes_):
+                    raise invalid_data_error(
+                        "Continuation requires the original categorical labels.",
+                        "use rebuild=True to change the class labels or distribution head.",
+                    )
+                y = _encode_labels(y, self.classes_)
+                if y_val is not None:
+                    y_val = _encode_labels(y_val, self.classes_, name="y_val")
+            prepared = self._prepare_continuation(
+                X,
+                y,
+                regression=family != "categorical",
+                X_val=X_val,
+                y_val=y_val,
+                embeddings=None,
+                embeddings_val=None,
+                val_size=val_size,
+                random_state=self.random_state if random_state is None else random_state,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                stratify=False,
+                dataloader_kwargs=dataloader_kwargs,
+            )
+
         # An explicit fit() argument always wins over the random_state fixed at
         # construction time; only fall back to the latter when the caller left
         # the fit() argument unset.
@@ -425,11 +464,8 @@ class SklearnBaseLSS(SklearnBase):
             )
 
         else:
-            if not self._built:
-                raise ValueError(
-                    "The model must be built before calling the fit method. \
-                                 Either call .build_model() or set rebuild=True"
-                )
+            self._data_module = prepared
+            self._configure_continuation(lr=lr, lr_patience=lr_patience, lr_factor=lr_factor, weight_decay=weight_decay)
 
         early_stop_callback = EarlyStopping(
             monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode

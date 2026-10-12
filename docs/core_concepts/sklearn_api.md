@@ -372,6 +372,14 @@ rather than resuming a Lightning checkpoint. See
 [model operations](model_operations.md)
 for an example and the limits of recovering settings from older bundles.
 
+To reuse neural weights and fitted preprocessing with compatible new training
+data, call `fit(..., rebuild=False)`. Data, splits, and loaders are refreshed;
+optimizer and scheduler state are not resumed. Class labels, transformed
+feature widths, and the output head must remain compatible. Task-object
+replacements require rebuilding. See
+{ref}`weight continuation <weight-continuation>` for an executable example,
+supported overrides, sampling restrictions, and pretraining behavior.
+
 The saved estimator bundle is designed as a fitted inference artifact. It includes:
 
 | Artifact field             | Why it matters                                                                                                                     |

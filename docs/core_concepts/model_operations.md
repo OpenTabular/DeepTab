@@ -127,6 +127,89 @@ not an optimizer-checkpoint resume.
 loaded = MLPClassifier.load("my_model.deeptab", device="cuda")
 ```
 
+(weight-continuation)=
+
+### Weight continuation
+
+Use `fit(..., rebuild=False)` to train an already built estimator on compatible
+new data without replacing its neural weights or fitted preprocessing. This
+also applies to an estimator returned by `load()`. New training and validation
+inputs are transformed with the existing preprocessor, and new loaders use the
+requested batch size and loader options. Automatic validation splitting uses
+the new data, validation fraction, and seed.
+
+```python
+from tempfile import TemporaryDirectory
+
+import numpy as np
+
+from deeptab.configs import MLPConfig, PreprocessingConfig
+from deeptab.models import MLPRegressor
+
+X = np.random.default_rng(17).normal(size=(48, 3))
+y = X[:, 0]
+model = MLPRegressor(
+    model_config=MLPConfig(layer_sizes=[8]),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+    random_state=17,
+)
+with TemporaryDirectory() as checkpoint_path:
+    options = dict(
+        max_epochs=1,
+        accelerator="cpu",
+        logger=False,
+        checkpoint_path=checkpoint_path,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+    model.fit(X[:32], y[:32], X_val=X[32:], y_val=y[32:], batch_size=16, **options)
+    preprocessor, task = model._preprocessor, model._task_model
+
+    model.fit(
+        X[:32], y[:32] + 1000,
+        X_val=X[32:], y_val=y[32:] + 1000,
+        rebuild=False, batch_size=7, lr=0.005, shuffle=False,
+        dataloader_kwargs={"drop_last": False},
+        **options,
+    )
+    assert model._preprocessor is preprocessor and model._task_model is task
+    assert model._data_module.train_dataloader().batch_size == 7
+    np.testing.assert_array_equal(model._data_module.y_train, y[:32] + 1000)
+```
+
+The final assertions inspect internal state only to demonstrate the contract.
+Ordinary training does not require accessing these attributes.
+
+Feature count, named-column order, transformed feature widths, external
+embedding groups/widths, target dimensions, and classification labels must
+remain compatible. Supply validation embeddings when using explicit validation
+data. LSS continuation retains the distribution and its options; pass the same
+`family`, or `family=None` to reuse it. Changing the label set, output head,
+distribution options, loss, metrics, or sampling mode requires `rebuild=True`.
+This includes explicitly supplying an empty metric dictionary. Balanced
+sampling recalculates weights from the new labels, but explicit per-row weights
+from an earlier fit cannot be carried over implicitly.
+
+```{important}
+Continuation creates a new trainer, optimizer, and scheduler. Epoch numbering
+restarts, and momentum, adaptive optimizer accumulators, and scheduler progress
+are not restored. Explicit epoch, learning-rate, weight-decay, plateau-scheduler,
+batch, and loader overrides are honored. Unspecified settings resolve from the
+active configuration and defaults, not previous per-call overrides. Constructor
+configuration objects are not rewritten by these overrides.
+```
+
+The first default `fit()` after `pretrain()` continues the pretrained weights;
+later default fits rebuild normally. Explicit `rebuild=False` requests
+continuation regardless of that flag. Compatibility and loader preflight
+failures preserve the previous fitted estimator. Failures after training setup
+starts invalidate it, as described in
+{ref}`failed fits and recovery <failed-fits-and-recovery>`.
+
+Retrieval models refresh their training candidate data during continuation.
+That is not a guarantee that every retrieval model already preserves its
+candidate data for inference after loading an artifact.
+
 ### What is inside the artifact
 
 The bundle saved to disk is a PyTorch-serialised dictionary containing:

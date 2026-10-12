@@ -158,6 +158,8 @@ class TabularDataModule(pl.LightningDataModule):
         embeddings_val=None,
         val_size=None,
         random_state: int | None = 101,
+        *,
+        fit_preprocessing: bool = True,
     ):
         """Split data, fit preprocessing, and record feature metadata.
 
@@ -187,6 +189,9 @@ class TabularDataModule(pl.LightningDataModule):
         random_state : int or None, default=101
             Seed for the automatic split and matching sampling-weight split.
             This argument does not change the module's loader seed.
+        fit_preprocessing : bool, default=True
+            Fit preprocessing on the training partition. Set to false to retain
+            an already fitted representation while preparing new data.
 
         Notes
         -----
@@ -247,7 +252,8 @@ class TabularDataModule(pl.LightningDataModule):
                 self.embeddings_train = None
                 self.embeddings_val = None
 
-        self.preprocessor = fit_preprocessor(self.preprocessor, self.X_train, self.y_train, self.embeddings_train)
+        if fit_preprocessing:
+            self.preprocessor = fit_preprocessor(self.preprocessor, self.X_train, self.y_train, self.embeddings_train)
 
         # Align explicit per-row sampling weights with the (possibly auto-split) train set.
         self._train_sample_weights = self._resolve_train_sample_weights(
