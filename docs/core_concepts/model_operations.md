@@ -69,6 +69,52 @@ and absent trainer fields use current defaults. Review the restored configs
 before refitting an older artifact.
 ```
 
+(failed-fits-and-recovery)=
+
+### Failed fits and recovery
+
+Input-validation failures preserve an existing fitted model. This includes
+missing or non-finite targets, mismatched row counts, unpaired or incompatible
+validation data, and classifier validation labels absent from the training set.
+Classifier loss/sampling and LSS distribution-configuration errors also reject
+the call before replacing fitted state.
+
+```python
+import numpy as np
+from deeptab.configs import MLPConfig, TrainerConfig
+from deeptab.models import MLPClassifier
+
+X = np.random.default_rng(17).normal(size=(48, 3)).astype(np.float32)
+y = (X[:, 0] > 0).astype(int)
+model = MLPClassifier(
+    model_config=MLPConfig(layer_sizes=[8]),
+    trainer_config=TrainerConfig(max_epochs=2, batch_size=16),
+    random_state=17,
+)
+options = dict(accelerator="cpu", logger=False, enable_progress_bar=False,
+               enable_model_summary=False)
+model.fit(X[:32], y[:32], X_val=X[32:], y_val=y[32:], **options)
+before = model.predict(X[32:])
+try:
+    model.fit(X[:32], y[:32] + 10, X_val=X[32:], y_val=y[32:] + 12, **options)
+except ValueError:
+    pass
+np.testing.assert_array_equal(model.classes_, [0, 1])
+np.testing.assert_array_equal(model.predict(X[32:]), before)
+
+model.fit(X[:32], y[:32] + 10, X_val=X[32:], y_val=y[32:] + 10, **options)
+np.testing.assert_array_equal(model.classes_, [10, 11])
+```
+
+```{important}
+Failures after rebuilding begins, including preprocessing, model/trainer
+construction, or training failures, do not roll back partially replaced state.
+The estimator is marked not fitted, so `predict()` and classifier
+`predict_proba()` raise `NotFittedError`. Correct the cause and complete a new
+`fit()` before predicting. A normal successful refit rebuilds the model; it is
+not an optimizer-checkpoint resume.
+```
+
 ```{tip}
 `load()` reconstructs whatever model type was saved, regardless of which estimator class you call it on. Calling `MLPRegressor.load("classifier.deeptab")` still returns an `MLPClassifier`. Calling `load()` from the matching class keeps the intent clear, but the returned object always has the saved type.
 ```

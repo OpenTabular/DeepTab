@@ -43,6 +43,7 @@ from deeptab.core.exceptions import (
     EmptyDataError,
     IncompatibleParamsError,
     InsufficientSamplesError,
+    InvalidDataError,
     InvalidDeviceError,
     InvalidParamError,
     ModelError,
@@ -57,6 +58,7 @@ from deeptab.core.exceptions import (
     empty_data_error,
     incompatible_params_error,
     insufficient_samples_error,
+    invalid_data_error,
     invalid_device_error,
     invalid_param_error,
     multi_output_regression_error,
@@ -78,6 +80,10 @@ from deeptab.core.exceptions import (
 class TestExceptionHierarchy:
     def test_data_error_is_deeptab_error(self):
         assert issubclass(DataError, DeepTabError)
+
+    def test_invalid_data_error_is_data_error_and_value_error(self):
+        assert issubclass(InvalidDataError, DataError)
+        assert issubclass(InvalidDataError, ValueError)
 
     def test_column_dtype_error_is_data_error(self):
         assert issubclass(ColumnDtypeError, DataError)
@@ -171,6 +177,11 @@ class TestWarningHierarchy:
 
 
 class TestDataFactories:
+    def test_invalid_data_error(self):
+        error = invalid_data_error("Input is invalid.", "supply valid input.")
+        assert isinstance(error, InvalidDataError)
+        assert str(error) == "Input is invalid.\nFix: supply valid input."
+
     def test_column_dtype_error_type_and_message(self):
         exc = column_dtype_error([("col_a", "datetime64[ns]"), ("col_b", "timedelta64")])
         assert isinstance(exc, ColumnDtypeError)
@@ -218,6 +229,7 @@ class TestDataFactories:
     def test_target_nan_error(self):
         exc = target_nan_error()
         assert isinstance(exc, DataError)
+        assert isinstance(exc, ValueError)
         assert "NaN" in str(exc)
         assert "Fix:" in str(exc)
 
@@ -230,6 +242,7 @@ class TestDataFactories:
     def test_xy_length_mismatch_error(self):
         exc = xy_length_mismatch_error(n_X=100, n_y=95)
         assert isinstance(exc, DataError)
+        assert isinstance(exc, ValueError)
         assert "100" in str(exc)
         assert "95" in str(exc)
 
@@ -1377,6 +1390,7 @@ class TestPublicAPIExports:
         """Granular exception types live in deeptab.core.exceptions, not the top-level namespace."""
         for name in (
             "DataError",
+            "InvalidDataError",
             "ColumnDtypeError",
             "ColumnCountError",
             "EmptyDataError",
@@ -1399,6 +1413,7 @@ class TestPublicAPIExports:
         for name in (
             "DeepTabError",
             "DataError",
+            "InvalidDataError",
             "ColumnDtypeError",
             "NotFittedError",
             "InvalidParamError",
@@ -1416,6 +1431,12 @@ class TestPublicAPIExports:
 
         assert core.UnsupportedParamError is UnsupportedParamError
         assert "UnsupportedParamError" in core.__all__
+
+    def test_invalid_data_error_core_export(self):
+        import deeptab.core as core
+
+        assert core.InvalidDataError is InvalidDataError
+        assert "InvalidDataError" in core.__all__
 
     def test_filterable_data_warning(self):
         """Users can filter DataWarning independently from other warnings."""

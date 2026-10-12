@@ -34,10 +34,10 @@ including Pipeline consistency, fixed-seed refits, prediction order/subset
 invariance, and read-only memmaps. Passing these checks does not establish the
 same behavior for every architecture or accelerator.
 
-Arbitrary array-like wrappers, invalid or non-finite targets, and some error or
-warning conventions still have tracked gaps. Target-validation gaps are defects,
-not intentional support exclusions. Sparse input and standard fitted-estimator
-pickle are unsupported; use dense inputs and the documented `save()`/`load()`
+Arbitrary array-like wrappers and some error or warning conventions still have
+tracked gaps. Missing targets, continuous classifier targets, and non-finite
+numeric targets are rejected before fitted state changes. Sparse input and
+standard fitted-estimator pickle are unsupported; use dense inputs and the documented `save()`/`load()`
 workflow. Classifier sampling weights do not implement sklearn's weighted-loss
 contract.
 
@@ -99,6 +99,24 @@ X = np.random.randn(1000, 10)
 ```
 
 For mixed numerical/categorical data, DataFrames are strongly preferred.
+
+Targets are required and must be finite. Classifiers require discrete labels;
+point regressors accept one numeric target column. Distributional models retain
+their task-specific target dimensions, including Dirichlet component columns.
+When supplying an explicit validation set, provide both `X_val` and `y_val`.
+Feature widths, ordered DataFrame columns, and target widths must match training
+data; classifier validation labels must occur in the training classes.
+
+Preflight input rejection leaves a previously fitted estimator unchanged,
+including classes, preprocessing, weights, and predictions. A failure during
+rebuilding or training instead invalidates prediction and raises `NotFittedError`
+on subsequent prediction calls. Fit again with valid data to recover. See
+{ref}`failed fits and recovery <failed-fits-and-recovery>`.
+`InvalidDataError` is a `DataError` and a `ValueError`, so either handler can
+catch errors for missing or non-finite numeric targets, mismatched row counts,
+unpaired validation data, and invalid sampling weights. Other granular errors
+retain their existing inheritance. Import granular
+error types from `deeptab.core.exceptions`.
 
 ```{warning}
 SciPy sparse matrices and sparse arrays are not supported. Convert to a dense
@@ -190,7 +208,11 @@ Useful fit arguments:
 Classifiers accept `class_weight` for class-level loss weighting,
 `balanced_sampler=True` for balanced row draws, and `sample_weight` for explicit
 per-row sampling probabilities. `sample_weight` drives a `WeightedRandomSampler`;
-it does not multiply individual loss terms. Passing a list or pandas Series of
+it does not multiply individual loss terms. Sampling
+weights must be one-dimensional, finite, non-negative, match the training row
+count, and include at least one positive value. Invalid weights are rejected
+before fitted state changes.
+Passing a list or pandas Series of
 weights, or validating their shape, does not establish sklearn-style weighted
 fitting or equivalence with removing/repeating rows.
 

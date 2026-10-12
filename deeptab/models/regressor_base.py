@@ -225,6 +225,14 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
         self : object
             The fitted regressor.
 
+        Notes
+        -----
+        Targets must be finite numeric values for a single output. Validation
+        inputs must be supplied together with a matching feature schema.
+        Input-validation errors preserve the previous fitted estimator. Failures
+        after rebuilding or training starts invalidate prediction until a
+        successful fit.
+
         Raises
         ------
         deeptab.core.exceptions.UnsupportedParamError

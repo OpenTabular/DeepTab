@@ -8,6 +8,7 @@ Exception hierarchy
 -------------------
 DeepTabError
 ├── DataError
+│   ├── InvalidDataError (also inherits ValueError)
 │   ├── ColumnDtypeError
 │   ├── ColumnCountError
 │   ├── ColumnNameError
@@ -54,6 +55,10 @@ class DeepTabError(Exception):
 
 class DataError(DeepTabError):
     """Problem with the input DataFrame (shape, dtypes, missing columns, or values)."""
+
+
+class InvalidDataError(DataError, ValueError):
+    """Training inputs or targets violate the task's validation requirements."""
 
 
 class ColumnDtypeError(DataError):
@@ -231,9 +236,17 @@ def insufficient_samples_error(
     )
 
 
-def target_nan_error() -> DataError:
-    """Return a :class:`DataError` when ``y`` contains NaN values."""
-    return DataError("y contains NaN values.\nFix: remove or impute missing target values before calling fit().")
+def invalid_data_error(details: str, fix: str) -> InvalidDataError:
+    """Return a compatible data-validation error with a concrete remedy."""
+    return InvalidDataError(f"{details}\nFix: {fix}")
+
+
+def target_nan_error(name: str = "y") -> InvalidDataError:
+    """Return a data-validation error when a target contains NaN values."""
+    return invalid_data_error(
+        f"Input {name} contains NaN values.",
+        "remove or impute missing target values before calling fit().",
+    )
 
 
 def target_range_error(family: str, constraint: str) -> DataError:
@@ -245,10 +258,11 @@ def target_range_error(family: str, constraint: str) -> DataError:
     )
 
 
-def xy_length_mismatch_error(n_X: int, n_y: int) -> DataError:
+def xy_length_mismatch_error(n_X: int, n_y: int) -> InvalidDataError:
     """Return a :class:`DataError` when X and y have different row counts."""
-    return DataError(
+    return InvalidDataError(
         f"X has {n_X} row(s) but y has {n_y} element(s). They must match.\n"
+        "Found input variables with inconsistent numbers of samples.\n"
         "Fix: ensure X and y are derived from the same dataset without dropping rows."
     )
 

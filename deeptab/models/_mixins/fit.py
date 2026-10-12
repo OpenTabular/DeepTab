@@ -405,6 +405,13 @@ class _FitMixin:
         -------
         self
 
+        Notes
+        -----
+        Input-validation errors preserve the previous fitted estimator. Targets
+        must be finite and validation inputs must be supplied together with
+        matching feature and target widths. Failures after rebuilding or training
+        starts invalidate prediction until a successful fit.
+
         Raises
         ------
         deeptab.core.exceptions.UnsupportedParamError
@@ -444,7 +451,10 @@ class _FitMixin:
         # Validate inputs before any preprocessing or model construction
         from deeptab.models.base import _validate_fit_inputs
 
-        _validate_fit_inputs(X, y, regression=regression)
+        _validate_fit_inputs(X, y, regression=regression, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
+        if y_val is not None:
+            y_val = np.asarray(y_val)
 
         # From here on, fit() mutates estimator state (schema attributes,
         # _data_module, _task_model, etc.) before training can even start.

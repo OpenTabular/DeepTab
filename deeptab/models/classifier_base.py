@@ -8,9 +8,9 @@ import torch
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score, log_loss
 
-from deeptab.core.exceptions import NotFittedError, not_fitted_error
+from deeptab.core.exceptions import NotFittedError, invalid_data_error, not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
-from deeptab.models.base import SklearnBase
+from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training.losses import build_classification_loss, compute_class_weights
 
 
@@ -29,9 +29,25 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     resolved_loss = build_classification_loss(loss_fct, num_classes=num_classes, class_weights=class_weights)
 
     if sample_weight is not None:
-        if not np.any(np.asarray(sample_weight, dtype=np.float64)):
-            raise ValueError("Sample weights must contain at least one non-zero number.")
-        sampler = sample_weight
+        try:
+            weights = np.asarray(sample_weight, dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise invalid_data_error(
+                "sample_weight must contain numeric values.", "supply finite sampling weights."
+            ) from error
+        if weights.ndim != 1 or len(weights) != len(y):
+            raise invalid_data_error(
+                "sample_weight must be one-dimensional with one weight per training row.",
+                "supply sampling weights matching X and y.",
+            )
+        if not np.isfinite(weights).all() or (weights < 0).any():
+            raise invalid_data_error("sample_weight must be finite and non-negative.", "supply valid sampling weights.")
+        if not np.any(weights):
+            raise invalid_data_error(
+                "Sample weights must contain at least one non-zero number.",
+                "supply at least one positive sampling weight.",
+            )
+        sampler = weights
     elif balanced_sampler:
         sampler = "balanced"
     else:
@@ -364,6 +380,14 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         self : object
             The fitted classifier.
 
+        Notes
+        -----
+        Input and loss/sampling validation occurs before replacing fitted
+        state. Rejection preserves the previous classes, weights, preprocessing,
+        and predictions. Failures after rebuilding or training starts invalidate
+        prediction until a successful fit. Targets must be finite discrete labels;
+        validation labels must occur in the training classes.
+
         Raises
         ------
         ValueError
@@ -380,20 +404,23 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
                 "Continuing a model preserves its existing loss and sampling setup."
             )
 
+        _validate_fit_inputs(X, y, regression=False, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
         classes = np.unique(y)
         num_classes = len(classes)
         if num_classes < 2:
             received = "one class" if num_classes == 1 else "no classes"
             raise ValueError(f"Classification requires at least 2 classes; received {received}.")
-        self.classes_ = classes
 
         loss_fct, sampler = _resolve_loss_and_sampler(
-            loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
+            loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes
         )
 
-        y = _encode_labels(y, self.classes_)
+        y = _encode_labels(y, classes)
         if y_val is not None:
-            y_val = _encode_labels(y_val, self.classes_, name="y_val")
+            y_val = _encode_labels(y_val, classes, name="y_val")
+
+        self.classes_ = classes
 
         return super().fit(
             X=X,

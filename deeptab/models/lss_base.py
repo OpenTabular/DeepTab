@@ -343,6 +343,15 @@ class SklearnBaseLSS(SklearnBase):
         self : object
             The fitted regressor.
 
+        Notes
+        -----
+        Targets must be finite and valid for the selected distribution. Target
+        dimensions are retained, including Dirichlet component columns. Input
+        and distribution-configuration validation errors preserve the previous
+        fitted estimator. Failures after rebuilding or training starts invalidate
+        prediction until a successful fit. Supply both validation inputs with
+        matching feature and target widths.
+
         Raises
         ------
         deeptab.core.exceptions.UnsupportedParamError
@@ -377,7 +386,11 @@ class SklearnBaseLSS(SklearnBase):
             checkpoint_path = tc.checkpoint_path
 
         # Validate inputs before any preprocessing or model construction
-        _validate_fit_inputs(X, y, regression=True, family=family)
+        family = family or getattr(self, "family_name", "normal")
+        _validate_fit_inputs(X, y, regression=True, family=family, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
+        if y_val is not None:
+            y_val = np.asarray(y_val)
 
         # An explicit fit() argument always wins over the random_state fixed at
         # construction time; only fall back to the latter when the caller left

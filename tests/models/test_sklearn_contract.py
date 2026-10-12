@@ -74,7 +74,7 @@ _XFAIL_CHECKS: dict[str, str] = {
         "match sklearn's removed/repeated-row equivalence contract."
     ),
     "check_sample_weights_not_an_array": (
-        "Classifier label discovery calls np.unique on sklearn's array-like target wrapper before coercion."
+        "Feature conversion passes sklearn's array-like wrapper directly to the DataFrame constructor, which rejects it."
     ),
     "check_estimators_nan_inf": (
         "fit accepts NaN features for imputation; sklearn expects rejection. "
@@ -90,31 +90,20 @@ _XFAIL_CHECKS: dict[str, str] = {
 
 _TASK_XFAIL_CHECKS = {
     "check_classifier_data_not_an_array": (
-        "Classifier label discovery calls np.unique before coercing array-like targets."
+        "Feature conversion passes sklearn's array-like wrapper directly to the DataFrame constructor, which rejects it."
     ),
     "check_regressor_data_not_an_array": (
-        "Fit validation calls len before coercing sklearn's array-like input wrapper."
+        "Feature conversion passes sklearn's array-like wrapper directly to the DataFrame constructor, which rejects it."
     ),
     "check_classifiers_train": (
-        "Mismatched X/y lengths raise DataError, but the message lacks sklearn's "
-        "expected 'inconsistent numbers of samples' wording."
+        "With the contract fixture's three-epoch training budget, classification accuracy does not exceed "
+        "sklearn's 0.83 threshold. Row-count validation now passes."
     ),
     "check_regressors_train": (
-        "Mismatched X/y lengths raise DataError, but the message lacks sklearn's "
-        "expected 'inconsistent numbers of samples' wording."
-    ),
-    "check_classifiers_regression_target": (
-        "Continuous classification targets fail at stratified splitting rather than "
-        "raising sklearn's expected 'Unknown label type' error."
-    ),
-    "check_supervised_y_no_nan": (
-        "Infinite regression targets are accepted; non-finite target validation must precede estimator mutation."
+        "With the contract fixture's three-epoch training budget, regression score does not exceed "
+        "sklearn's 0.5 threshold. Row-count validation now passes."
     ),
     "check_supervised_y_2d": ("Column-vector targets are accepted without sklearn's required DataConversionWarning."),
-    "check_requires_y_none": (
-        "Missing targets trigger a classifier single-class ValueError or regressor len(None) TypeError, "
-        "rather than an actionable requires-y ValueError."
-    ),
 }
 
 
@@ -136,12 +125,12 @@ def test_sklearn_compatible_estimator(estimator, check, request, monkeypatch):
     name = _check_name(check)
     if name in _XFAIL_CHECKS:
         request.node.add_marker(pytest.mark.xfail(reason=_XFAIL_CHECKS[name], strict=True))
-    if name in _TASK_XFAIL_CHECKS and (name != "check_supervised_y_no_nan" or isinstance(estimator, MLPRegressor)):
+    if name in _TASK_XFAIL_CHECKS:
         request.node.add_marker(pytest.mark.xfail(reason=_TASK_XFAIL_CHECKS[name], strict=True))
     check(estimator)
 
 
-@pytest.mark.parametrize("check_name", ["check_dtype_object", "check_classifiers_regression_target"])
+@pytest.mark.parametrize("check_name", ["check_dtype_object", "check_supervised_y_2d"])
 def test_expected_failure_marker_does_not_short_circuit(check_name, monkeypatch):
     """Both registries execute failing bodies and require strict unexpected passes."""
     markers = []

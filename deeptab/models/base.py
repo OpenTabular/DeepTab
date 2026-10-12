@@ -9,11 +9,16 @@ import lightning as pl
 import numpy as np
 from sklearn.base import BaseEstimator
 from sklearn.base import clone as sklearn_clone
+from sklearn.utils.multiclass import check_classification_targets
 
 from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
 from deeptab.core.exceptions import (
     DataError,
+    column_count_error,
+    column_name_error,
+    invalid_data_error,
+    multi_output_regression_error,
     target_nan_error,
     target_range_error,
     warn_config,
@@ -65,52 +70,99 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
             )
 
 
-def _validate_fit_inputs(
-    X,
-    y,
-    regression: bool,
-    family: str | None = None,
-) -> None:
-    """Validate X and y before any preprocessing or model building.
-
-    Raises
-    ------
-    EmptyDataError
-        If X is empty (caught later by ensure_dataframe).
-    DataError
-        If len(X) != len(y), y contains NaN, or y violates the distribution
-        family's range constraint.
-    """
-    n_X = len(X)
-    n_y = len(y)
-    if n_X != n_y:
-        raise xy_length_mismatch_error(n_X, n_y)
-
-    if hasattr(X, "ndim") and X.ndim == 1:
-        raise ValueError(
-            "Expected a 2D array for X, got a 1D array instead. "
-            "Reshape your data using X.reshape(-1, 1) for a single feature."
+def _validate_target_array(y, *, name: str, regression: bool, family: str | None):
+    """Validate targets without flattening their task-specific dimensions."""
+    if y is None:
+        raise invalid_data_error(
+            f"This estimator requires {name} to be passed, but the target {name} is None.",
+            f"supply {name} for this fit call.",
         )
-
-    y_arr = np.asarray(y)
-    if y_arr.ndim <= 2 and np.issubdtype(y_arr.dtype, np.floating) and np.isnan(y_arr).any():
-        raise target_nan_error()
-
-    # Distribution family range constraints
-    if family is not None:
+    targets = np.asarray(y)
+    if targets.ndim not in (1, 2):
+        raise invalid_data_error(f"{name} must be a one- or two-dimensional target array.", "supply aligned targets.")
+    classification = not regression or family == "categorical"
+    if (classification or family is None) and targets.ndim == 2 and targets.shape[1] != 1:
+        if regression and not classification:
+            raise multi_output_regression_error(targets.shape)
+        raise invalid_data_error(f"{name} must contain a single classification target column.", "supply class labels.")
+    if classification:
+        numeric = targets if np.issubdtype(targets.dtype, np.number) else None
+    else:
+        try:
+            numeric = np.asarray(targets, dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise invalid_data_error(
+                f"Unknown label type: {name} requires numeric regression targets.", "supply finite numeric targets."
+            ) from error
+    if numeric is not None:
+        if np.isnan(numeric).any():
+            raise target_nan_error(name)
+        if not np.isfinite(numeric).all():
+            raise invalid_data_error(f"Input {name} contains infinity values.", "supply finite target values.")
+    if classification:
+        try:
+            check_classification_targets(targets)
+        except ValueError as error:
+            raise invalid_data_error(str(error), "supply discrete classification labels.") from error
+    if family is not None and numeric is not None:
         family_lower = family.lower()
-        if family_lower in {"poisson", "negativebinom"} and (y_arr < 0).any():
+        if family_lower in {"poisson", "negativebinom"} and (numeric < 0).any():
             raise target_range_error(family, "non-negative")
-        if family_lower in {"gamma", "inversegamma", "lognormal"} and (y_arr <= 0).any():
+        if family_lower in {"gamma", "inversegamma", "lognormal"} and (numeric <= 0).any():
             raise target_range_error(family, "strictly positive")
+    return targets
 
-    # Warn about high-NaN columns
+
+def _validate_fit_inputs(X, y, regression: bool, family: str | None = None, X_val=None, y_val=None) -> None:
+    """Validate training and paired validation inputs before estimator mutation.
+
+    Targets must be finite and valid for the task. Explicit validation features
+    must match training width and, for named DataFrames, ordered columns.
+    """
+    from deeptab.core.sklearn_compat import ensure_dataframe
+
+    targets = _validate_target_array(y, name="y", regression=regression, family=family)
+    features = ensure_dataframe(X)
+    if len(features) != len(targets):
+        raise xy_length_mismatch_error(len(features), len(targets))
+    if (X_val is None) != (y_val is None):
+        raise invalid_data_error(
+            "X_val and y_val must be supplied together.", "supply both validation inputs or neither."
+        )
+    if X_val is not None:
+        validation_targets = _validate_target_array(y_val, name="y_val", regression=regression, family=family)
+        validation_features = ensure_dataframe(X_val, context="validation")
+        if len(validation_features) != len(validation_targets):
+            raise xy_length_mismatch_error(len(validation_features), len(validation_targets))
+        target_width = targets.shape[1] if targets.ndim == 2 else 1
+        validation_width = validation_targets.shape[1] if validation_targets.ndim == 2 else 1
+        if target_width != validation_width:
+            raise invalid_data_error(
+                f"y_val has {validation_width} target column(s); y has {target_width}.",
+                "supply validation targets with the same target width as training targets.",
+            )
+        if validation_features.shape[1] != features.shape[1]:
+            raise column_count_error(features.shape[1], validation_features.shape[1])
+        if hasattr(X, "columns") and hasattr(X_val, "columns") and list(X.columns) != list(X_val.columns):
+            raise column_name_error(
+                missing=[str(name) for name in X.columns if name not in X_val.columns],
+                extra=[str(name) for name in X_val.columns if name not in X.columns],
+            )
+        if not regression or family == "categorical":
+            classes = np.unique(targets)
+            unseen = validation_targets[~np.isin(validation_targets, classes)]
+            if unseen.size:
+                raise invalid_data_error(
+                    f"y_val contains label(s) {np.unique(unseen).tolist()} that were not seen during fit; "
+                    f"known classes are {classes.tolist()}.",
+                    "use validation labels from the training classes.",
+                )
     if hasattr(X, "isna"):
         nan_rate = X.isna().mean()
         high_nan = nan_rate[nan_rate > 0.5].index.tolist()
         if high_nan:
             warn_data(
-                f"Columns with >50% missing values: {[str(c) for c in high_nan]}. "
+                f"Columns with >50% missing values: {[str(column) for column in high_nan]}. "
                 "Consider dropping or imputing them before calling fit().",
                 stacklevel=5,
             )
