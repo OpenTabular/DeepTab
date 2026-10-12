@@ -11,32 +11,15 @@ Strategy
   that compliance improvements are noticed and xfails are removed.
 * Estimators are constructed with ``max_epochs=3`` to keep CI fast.
 
-Phases where gaps are expected to be fixed
--------------------------------------------
-Phase 2 (interface segregation):
-    check_no_attributes_set_in_init
-    check_do_not_raise_errors_in_init_or_set_params
-    check_set_params
-
-By design (not planned to fix):
-    check_estimator_sparse_array / check_estimator_sparse_matrix
-        DeepTab does not support sparse input.
-    check_sample_weight_* / check_sample_weight_equivalence_*
-        sample_weight is not in fit() — use the sampler= argument instead.
-    check_fit_idempotent
-        Neural networks are stochastic; predictions differ between calls even
-        with the same random_state.
-    check_methods_sample_order_invariance / check_methods_subset_invariance
-        Batch statistics (e.g. BatchNorm) make predictions order- and
-        subset-sensitive.
-    check_readonly_memmap_input
-        Read-only memory-mapped arrays may fail during DataFrame conversion.
-    check_estimators_nan_inf
-        NaN/Inf is handled by the preprocessor's imputer, not at the
-        sklearn validate_data level.
+Every annotated check executes. Reasons describe either an unsupported contract
+or a remaining validation gap, not a promise that the behavior is acceptable.
+Passing checks protect fixed-seed refits, prediction order and subset invariance,
+read-only memmaps, and Pipeline consistency for these estimators.
 """
 
 from __future__ import annotations
+
+from types import SimpleNamespace
 
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
@@ -65,94 +48,37 @@ def _check_name(check) -> str:
 # ---------------------------------------------------------------------------
 
 _XFAIL_CHECKS: dict[str, str] = {
-    # ------------------------------------------------------------------
-    # Phase 2 target: align error messages with sklearn's validate_data format
-    # ------------------------------------------------------------------
     "check_estimators_empty_data_messages": (
-        "EmptyDataError message ('Input DataFrame passed to fit() is empty …') "
-        "does not match the pattern sklearn expects from validate_data "
-        "('0 feature(s) (shape=(…, 0)) while a minimum of … is required'). "
-        "Fix requires adopting sklearn's validate_data call or updating the "
-        "message format. Tracked for Phase 2."
+        "EmptyDataError rejects empty data but its message does not match sklearn's zero-feature pattern."
     ),
     "check_n_features_in_after_fitting": (
-        "ColumnCountError message does not match the regex sklearn looks for "
-        "after n_features_in_ mismatch. Fix requires aligning the message "
-        "format with sklearn's expected pattern. Tracked for Phase 2."
+        "ColumnCountError rejects feature-count mismatches but its message does not match sklearn's expected pattern."
     ),
-    # ------------------------------------------------------------------
-    # Phase 2 target: interface segregation
-    # ------------------------------------------------------------------
-    # ------------------------------------------------------------------
-    # Persistence: pickle is not the supported serialisation mechanism
-    # ------------------------------------------------------------------
     "check_estimators_pickle": (
         "SklearnBase.__getstate__ clears the task model, trainer, and datamodule "
         "to avoid serialising Lightning runtime state. Use estimator.save() / estimator.load() for "
-        "persistence. Standard pickle is intentionally not supported."
+        "persistence. Standard fitted-estimator pickle is intentionally not supported."
     ),
-    # ------------------------------------------------------------------
-    # Pipeline output-shape mismatch
-    # ------------------------------------------------------------------
-    "check_pipeline_consistency": (
-        "Pipeline wraps predict() output in a way that exposes a shape "
-        "mismatch between the standalone estimator and the pipeline. "
-        "Tracked for investigation in Phase 2."
-    ),
-    # ------------------------------------------------------------------
-    # Device-specific: MPS does not support integer tensors in linear layers
-    # ------------------------------------------------------------------
     "check_dtype_object": (
-        "On MPS (Apple Silicon), object-dtype features are encoded as integer "
-        "ordinals which MPS cannot feed through Linear layers. "
-        "Passes on CPU. Device-specific limitation."
+        "On CPU, classifier dict-valued features raise 'unhashable type' instead of the expected numeric-input "
+        "message; regressor object targets fail without the expected 'Unknown label type' wording."
     ),
-    # ------------------------------------------------------------------
-    # By design: sparse input not supported
-    # ------------------------------------------------------------------
     "check_estimator_sparse_array": (
-        "DeepTab does not support sparse array input. Convert to dense before calling fit()."
+        "Sparse array input is unsupported, but rejection does not consistently identify sparse input."
     ),
     "check_estimator_sparse_matrix": (
-        "DeepTab does not support sparse matrix input. Convert to dense before calling fit()."
+        "Sparse matrix input is unsupported, but rejection does not consistently identify sparse input."
     ),
-    "check_sample_weight_equivalence_on_sparse_data": ("Sparse input not supported."),
-    # ------------------------------------------------------------------
-    # By design: sample_weight not in fit()
-    # ------------------------------------------------------------------
     "check_sample_weight_equivalence_on_dense_data": (
-        "fit() does not accept a sample_weight argument. "
-        "Use sampler='balanced' or pass an explicit weight array via sampler=."
+        "Classifier sample_weight controls stochastic row sampling, not weighted loss; predictions do not "
+        "match sklearn's removed/repeated-row equivalence contract."
     ),
-    "check_sample_weights_list": "sample_weight not in fit() signature.",
-    "check_sample_weights_not_an_array": "sample_weight not in fit() signature.",
-    "check_sample_weights_not_overwritten": "sample_weight not in fit() signature.",
-    "check_sample_weights_pandas_series": "sample_weight not in fit() signature.",
-    "check_sample_weights_shape": "sample_weight not in fit() signature.",
-    # ------------------------------------------------------------------
-    # By design: DL stochasticity
-    # ------------------------------------------------------------------
-    "check_fit_idempotent": (
-        "Neural network fit() is stochastic. Predictions differ between "
-        "successive calls even with a fixed random_state."
-    ),
-    "check_methods_sample_order_invariance": (
-        "Batch statistics (e.g. BatchNorm) make predictions sensitive to sample order within a mini-batch."
-    ),
-    "check_methods_subset_invariance": (
-        "Predictions on a subset may differ from the corresponding rows of the "
-        "full-batch prediction due to batch-level normalisation."
-    ),
-    # ------------------------------------------------------------------
-    # Infrastructure / edge-case mismatches
-    # ------------------------------------------------------------------
-    "check_readonly_memmap_input": (
-        "Read-only memory-mapped arrays fail during pd.DataFrame conversion. Copy the array before calling fit()."
+    "check_sample_weights_not_an_array": (
+        "Classifier label discovery calls np.unique on sklearn's array-like target wrapper before coercion."
     ),
     "check_estimators_nan_inf": (
-        "NaN / Inf values in X are handled by the preprocessor's imputer, not "
-        "by a sklearn-level validate_data call. The error type / message differs "
-        "from what sklearn expects."
+        "fit accepts NaN features for imputation; sklearn expects rejection. "
+        "The check stops at NaN acceptance and does not establish infinity safety."
     ),
 }
 
@@ -182,10 +108,13 @@ _TASK_XFAIL_CHECKS = {
         "raising sklearn's expected 'Unknown label type' error."
     ),
     "check_supervised_y_no_nan": (
-        "Regressor target validation does not implement sklearn's full finite-value checks and expected NaN/Inf error wording."
+        "Infinite regression targets are accepted; non-finite target validation must precede estimator mutation."
     ),
     "check_supervised_y_2d": ("Column-vector targets are accepted without sklearn's required DataConversionWarning."),
-    "check_requires_y_none": ("A missing target raises TypeError before sklearn's expected requires-y ValueError."),
+    "check_requires_y_none": (
+        "Missing targets trigger a classifier single-class ValueError or regressor len(None) TypeError, "
+        "rather than an actionable requires-y ValueError."
+    ),
 }
 
 
@@ -195,16 +124,41 @@ _TASK_XFAIL_CHECKS = {
         MLPRegressor(trainer_config=_FAST_TRAINER),
     ]
 )
-def test_sklearn_compatible_estimator(estimator, check, request):
+def test_sklearn_compatible_estimator(estimator, check, request, monkeypatch):
     """Run every sklearn estimator contract check.
 
-    Checks in the expected-failure registries document remaining compliance
-    gaps. Newly enabled task-specific checks run with strict markers so an
-    unexpected pass requires updating the registry. Other checks must pass.
+    These checks use CPU so registry reasons do not depend on automatic device
+    selection. Accelerator behavior requires separate device-specific evidence.
+    Every marked body executes; an unexpected pass requires updating the registry.
     """
+    monkeypatch.setattr("torch.cuda.is_available", lambda: False)
+    monkeypatch.setattr("torch.backends.mps.is_available", lambda: False)
     name = _check_name(check)
     if name in _XFAIL_CHECKS:
-        pytest.xfail(_XFAIL_CHECKS[name])
+        request.node.add_marker(pytest.mark.xfail(reason=_XFAIL_CHECKS[name], strict=True))
     if name in _TASK_XFAIL_CHECKS and (name != "check_supervised_y_no_nan" or isinstance(estimator, MLPRegressor)):
         request.node.add_marker(pytest.mark.xfail(reason=_TASK_XFAIL_CHECKS[name], strict=True))
     check(estimator)
+
+
+@pytest.mark.parametrize("check_name", ["check_dtype_object", "check_classifiers_regression_target"])
+def test_expected_failure_marker_does_not_short_circuit(check_name, monkeypatch):
+    """Both registries execute failing bodies and require strict unexpected passes."""
+    markers = []
+    executed = []
+    estimator = MLPClassifier()
+    request = SimpleNamespace(node=SimpleNamespace(add_marker=markers.append))
+
+    def check(candidate):
+        executed.append(candidate)
+        raise AssertionError("check body executed")
+
+    check.__name__ = check_name
+    with pytest.raises(AssertionError, match="check body executed"):
+        test_sklearn_compatible_estimator(estimator, check, request, monkeypatch)
+
+    assert executed == [estimator]
+    assert len(markers) == 1
+    assert markers[0].name == "xfail"
+    assert markers[0].kwargs["strict"] is True
+    assert markers[0].kwargs.get("run", True) is True

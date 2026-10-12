@@ -379,6 +379,14 @@ clf_sw.fit(X_train, y_train, sample_weight=recency, **FIT_KWARGS)
 The weight array is split alongside the train/val partition using the same random
 state, so it always aligns with the training rows actually used.
 
+```{important}
+Classifier `sample_weight` changes row-drawing probabilities through
+`WeightedRandomSampler`; it does not multiply per-example loss terms. Sampling
+is not sklearn-style weighted loss and does not guarantee the same fitted
+predictions as removing or repeating rows. Point-estimate regressors and LSS
+models reject the `sample_weight` keyword before changing estimator state.
+```
+
 ## Strategy 4: Combined Focal Loss + Balanced Sampler
 
 Both levers are orthogonal. The sampler controls which examples appear in a

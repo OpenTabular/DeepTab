@@ -22,6 +22,7 @@ DeepTabError
 │   └── DeviceUnavailableError (also inherits RuntimeError)
 └── ConfigError
     ├── InvalidParamError
+    ├── UnsupportedParamError (also inherits ValueError)
     └── IncompatibleParamsError
 
 Warning hierarchy
@@ -122,6 +123,10 @@ class ConfigError(DeepTabError):
 
 class InvalidParamError(ConfigError):
     """A single config field is out of range or not a valid choice."""
+
+
+class UnsupportedParamError(ConfigError, ValueError):
+    """A parameter is not supported by the requested operation."""
 
 
 class IncompatibleParamsError(ConfigError):
@@ -311,6 +316,11 @@ def invalid_param_error(
     if valid_values is not None:
         msg += f"\nValid values: {valid_values}"
     return InvalidParamError(msg)
+
+
+def unsupported_param_error(param: str, operation: str) -> UnsupportedParamError:
+    """Return an unsupported-parameter error with an instruction to omit it."""
+    return UnsupportedParamError(f"{param} is not supported for {operation}.\nFix: omit {param} from this call.")
 
 
 def incompatible_params_error(

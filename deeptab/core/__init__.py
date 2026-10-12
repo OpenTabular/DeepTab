@@ -20,6 +20,7 @@ from .exceptions import (
     ModelError,
     NotFittedError,
     PerformanceWarning,
+    UnsupportedParamError,
 )
 from .hardware import print_hardware_info
 from .inference import InferenceModel
@@ -67,6 +68,7 @@ __all__ = [
     "ModelInfo",
     "NotFittedError",
     "PerformanceWarning",
+    "UnsupportedParamError",
     "build_artifact_metadata",
     "build_preprocessor",
     "check_numpy",

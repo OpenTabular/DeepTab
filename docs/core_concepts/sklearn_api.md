@@ -28,9 +28,18 @@ with hard or soft voting. DeepTab still provides its own `score()` methods,
 following the "higher is better" convention.
 ```
 
-Task recognition does not imply that every sklearn estimator compliance check
-passes. Some array-like input, target-validation, error-message, and warning
-conventions remain unsupported and are tracked in the estimator contract tests.
+Task recognition does not imply full sklearn compliance. The estimator contract
+suite executes sklearn's checks against `MLPClassifier` and `MLPRegressor` on CPU,
+including Pipeline consistency, fixed-seed refits, prediction order/subset
+invariance, and read-only memmaps. Passing these checks does not establish the
+same behavior for every architecture or accelerator.
+
+Arbitrary array-like wrappers, invalid or non-finite targets, and some error or
+warning conventions still have tracked gaps. Target-validation gaps are defects,
+not intentional support exclusions. Sparse input and standard fitted-estimator
+pickle are unsupported; use dense inputs and the documented `save()`/`load()`
+workflow. Classifier sampling weights do not implement sklearn's weighted-loss
+contract.
 
 ```{important}
 Because every constructor argument is stored untouched and all heavy lifting happens in `fit`, DeepTab estimators are safe to clone and reuse inside `Pipeline` and cross-validation. Avoid mutating private (underscore-prefixed) attributes if you rely on cloning, since those are deliberately hidden from `get_params`.
@@ -90,6 +99,13 @@ X = np.random.randn(1000, 10)
 ```
 
 For mixed numerical/categorical data, DataFrames are strongly preferred.
+
+```{warning}
+SciPy sparse matrices and sparse arrays are not supported. Convert to a dense
+array before fitting only when it fits in memory. Current rejection errors do
+not consistently identify sparse input; a failed sklearn sparse check records
+that validation gap, not support for sparse training.
+```
 
 ## Constructor Pattern
 
@@ -168,6 +184,33 @@ Useful fit arguments:
 | `train_metrics`, `val_metrics`               | Optional metrics logged during training; accepts `torchmetrics.Metric` or `DeepTabMetric` instances. |
 | `dataloader_kwargs`                          | PyTorch loader options; `drop_last` affects training only.                                           |
 | `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                                                      |
+
+### Sampling Is Not Weighted Loss
+
+Classifiers accept `class_weight` for class-level loss weighting,
+`balanced_sampler=True` for balanced row draws, and `sample_weight` for explicit
+per-row sampling probabilities. `sample_weight` drives a `WeightedRandomSampler`;
+it does not multiply individual loss terms. Passing a list or pandas Series of
+weights, or validating their shape, does not establish sklearn-style weighted
+fitting or equivalence with removing/repeating rows.
+
+Point-estimate regressors and LSS models do not accept `sample_weight`, including
+an explicit `None`. They raise `UnsupportedParamError` before input validation,
+model construction, or estimator-state changes. This is a `DeepTabError` that
+also inherits `ValueError`, so either exception hierarchy can catch it:
+
+```python
+from deeptab.core import UnsupportedParamError
+from deeptab.models import MLPRegressor
+
+regressor = MLPRegressor()
+try:
+    regressor.fit(X_train, y_train, sample_weight=weights)
+except UnsupportedParamError as error:
+    print(error)
+# sample_weight is not supported for weighted-loss fitting.
+# Fix: omit sample_weight from this call.
+```
 
 For LSS models, `family` is required:
 

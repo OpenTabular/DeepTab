@@ -48,6 +48,7 @@ from deeptab.core.exceptions import (
     ModelError,
     NotFittedError,
     PerformanceWarning,
+    UnsupportedParamError,
     architecture_requirement_error,
     column_count_error,
     column_dtype_error,
@@ -62,6 +63,7 @@ from deeptab.core.exceptions import (
     not_fitted_error,
     target_nan_error,
     target_range_error,
+    unsupported_param_error,
     warn_config,
     warn_data,
     warn_performance,
@@ -118,6 +120,11 @@ class TestExceptionHierarchy:
     def test_invalid_param_error_is_config_error(self):
         assert issubclass(InvalidParamError, ConfigError)
 
+    def test_unsupported_param_error_is_config_error_and_value_error(self):
+        assert issubclass(UnsupportedParamError, ConfigError)
+        assert issubclass(UnsupportedParamError, DeepTabError)
+        assert issubclass(UnsupportedParamError, ValueError)
+
     def test_incompatible_params_error_is_config_error(self):
         assert issubclass(IncompatibleParamsError, ConfigError)
 
@@ -138,6 +145,7 @@ class TestExceptionHierarchy:
             DeviceUnavailableError,
             ConfigError,
             InvalidParamError,
+            UnsupportedParamError,
             IncompatibleParamsError,
         ):
             assert issubclass(cls, Exception)
@@ -289,6 +297,13 @@ class TestConfigFactories:
         )
         assert "zscore" in str(exc)
         assert "minmax" in str(exc)
+
+    def test_unsupported_param_error_type_and_message(self):
+        exc = unsupported_param_error("sample_weight", "weighted-loss fitting")
+        assert isinstance(exc, UnsupportedParamError)
+        assert str(exc) == (
+            "sample_weight is not supported for weighted-loss fitting.\nFix: omit sample_weight from this call."
+        )
 
     def test_incompatible_params_error(self):
         exc = incompatible_params_error("FTTransformerConfig", "d_model (64) must be divisible by n_heads (5).")
@@ -1366,6 +1381,7 @@ class TestPublicAPIExports:
             "ColumnCountError",
             "EmptyDataError",
             "InvalidParamError",
+            "UnsupportedParamError",
             "ArchitectureRequirementError",
         ):
             assert not hasattr(deeptab, name), (
@@ -1386,6 +1402,7 @@ class TestPublicAPIExports:
             "ColumnDtypeError",
             "NotFittedError",
             "InvalidParamError",
+            "UnsupportedParamError",
             "DeviceError",
             "InvalidDeviceError",
             "DeviceUnavailableError",
@@ -1393,6 +1410,12 @@ class TestPublicAPIExports:
             "DataWarning",
         ):
             assert hasattr(core, name), f"deeptab.core.{name} not exported"
+
+    def test_unsupported_param_error_core_export(self):
+        import deeptab.core as core
+
+        assert core.UnsupportedParamError is UnsupportedParamError
+        assert "UnsupportedParamError" in core.__all__
 
     def test_filterable_data_warning(self):
         """Users can filter DataWarning independently from other warnings."""

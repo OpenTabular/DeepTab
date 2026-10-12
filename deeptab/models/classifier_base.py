@@ -167,7 +167,9 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         sample_weight : array-like, optional
             Explicit per-row sampling weights (length matches ``X``). Takes
             precedence over ``balanced_sampler`` and drives the
-            ``WeightedRandomSampler``.
+            ``WeightedRandomSampler``. This is resampling, not per-row loss
+            weighting, and does not satisfy sklearn's removed/repeated-row
+            equivalence contract.
 
         Returns
         -------
@@ -351,7 +353,9 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         sample_weight : array-like, optional
             Explicit per-row sampling weights (length matches ``X``). Takes
             precedence over ``balanced_sampler``; rows are drawn into batches in
-            proportion to their weight.
+            proportion to their weight. This is resampling, not per-row loss
+            weighting, and does not satisfy sklearn's removed/repeated-row
+            equivalence contract.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 

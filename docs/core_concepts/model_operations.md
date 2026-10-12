@@ -115,6 +115,15 @@ The metadata is tiny next to the weights. Schema, config, task info, and version
 
 `.deeptab` is not a new on-disk format. It is a PyTorch-serialised dictionary with a clear name, and the value it adds over saving raw weights is everything wrapped around those weights.
 
+```{important}
+The `.pkl` column below describes generic Python estimators, not supported
+persistence for a fitted DeepTab estimator. DeepTab's standard pickle state drops
+the task model, trainer, and datamodule, so a fitted estimator unpickles without
+the runtime state needed for prediction. Use `save()` and `load()` for model
+artifacts. A passing read-only memmap input check does not imply fitted-pickle
+support.
+```
+
 | Capability                                         | `.pt` (state dict) | `.pkl` (pickled estimator) | `.h5` | `.deeptab` |
 | -------------------------------------------------- | :----------------: | :------------------------: | :---: | :--------: |
 | Model weights                                      |         ✓          |             ✓              |   ✓   |     ✓      |

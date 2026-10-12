@@ -16,6 +16,7 @@ import torch
 from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
 from deeptab.configs import TrainerConfig
+from deeptab.core.exceptions import unsupported_param_error
 from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
 from deeptab.training import pretrain_embeddings
@@ -403,7 +404,16 @@ class _FitMixin:
         Returns
         -------
         self
+
+        Raises
+        ------
+        deeptab.core.exceptions.UnsupportedParamError
+            If the unsupported ``sample_weight`` keyword is supplied. Rejection
+            occurs before input validation or changes to estimator state.
         """
+        if "sample_weight" in trainer_kwargs:
+            raise unsupported_param_error("sample_weight", "weighted-loss fitting")
+
         # Resolve precedence: an explicit fit() argument always wins; a TrainerConfig
         # value is used only for arguments the caller left unset. TrainerConfig's own
         # field defaults are the single source of truth for "no config at all" too, so

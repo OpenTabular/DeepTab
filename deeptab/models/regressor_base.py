@@ -224,6 +224,12 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
         -------
         self : object
             The fitted regressor.
+
+        Raises
+        ------
+        deeptab.core.exceptions.UnsupportedParamError
+            If the unsupported ``sample_weight`` keyword is supplied. Rejection
+            occurs before input validation or changes to estimator state.
         """
 
         return super().fit(
