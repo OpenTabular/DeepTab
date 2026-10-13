@@ -95,3 +95,68 @@ class TestFitMetricsSupportTorchMetrics:
         model = MLPRegressor(model_config=MLPConfig(layer_sizes=[16]), trainer_config=_FAST_TRAINER)
         model.fit(X_reg, y_reg, val_metrics={"mae": TorchMeanAbsoluteError()}, accelerator="cpu")
         assert np.isfinite(model._trainer.callback_metrics["val_mae"].item())
+
+
+class _ClassificationProbabilityProbe(_ArgOrderProbeMetric):
+    input_space = "probabilities"
+
+
+@pytest.mark.parametrize("classes", [2, 3])
+def test_classifier_fit_metric_columns_match_predict_proba_and_encoded_labels(classes, tmp_path):
+    import torch
+
+    from deeptab.configs import PreprocessingConfig
+    from deeptab.models import MLPClassifier
+    from deeptab.training import TaskModel
+
+    class_labels = np.array([10, 30, 70])[:classes]
+    encoded_targets = np.arange(N) % classes
+    targets = class_labels[encoded_targets]
+    train_probe = _ClassificationProbabilityProbe()
+    val_probe = _ClassificationProbabilityProbe()
+    model = MLPClassifier(
+        model_config=MLPConfig(layer_sizes=[8]),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=str(tmp_path)),
+        random_state=17,
+    )
+    model.build_model(
+        X_reg.iloc[:48],
+        targets[:48],
+        X_val=X_reg.iloc[48:],
+        y_val=targets[48:],
+        train_metrics={"probe": train_probe},
+        val_metrics={"probe": val_probe},
+    )
+    task = model._task_model
+    assert isinstance(task, TaskModel)
+    linear_layers = [module for module in task.estimator.modules() if isinstance(module, torch.nn.Linear)]
+    bias = linear_layers[-1].bias
+    assert bias is not None
+    with torch.no_grad():
+        for parameter in task.parameters():
+            parameter.zero_()
+        if classes == 2:
+            bias.fill_(0.25)
+        else:
+            bias.copy_(torch.tensor([0.25, 0.75, -0.25]))
+    model.fit(
+        X_reg.iloc[:48],
+        targets[:48],
+        X_val=X_reg.iloc[48:],
+        y_val=targets[48:],
+        rebuild=False,
+        lr=0,
+        shuffle=False,
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+    np.testing.assert_array_equal(model.classes_, class_labels)
+    received_targets, received = train_probe.calls[0]
+    np.testing.assert_array_equal(received_targets.ravel(), encoded_targets[:8])
+    expected = model.predict_proba(X_reg.iloc[:8])
+    np.testing.assert_allclose(received, expected, rtol=0, atol=0)
+    np.testing.assert_allclose(val_probe.calls[0][1], model.predict_proba(X_reg.iloc[48:56]), rtol=0, atol=0)
+    np.testing.assert_array_equal(model.predict(X_reg.iloc[:8]), class_labels[received.argmax(axis=1)])

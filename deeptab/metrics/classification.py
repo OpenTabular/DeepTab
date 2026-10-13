@@ -2,8 +2,13 @@
 
 All standard metrics delegate to :mod:`sklearn.metrics` internally.
 The wrapper classes add the :class:`DeepTabMetric` interface (``name``,
-``higher_is_better``, ``needs_raw``) and normalise DeepTab-specific
+``higher_is_better``, ``needs_raw``, ``input_space``) and normalise DeepTab-specific
 prediction formats (2-D probability arrays vs 1-D label arrays).
+
+During training these metrics request probability inputs. Binary single-logit
+outputs receive sigmoid and become ``[P(class 0), P(class 1)]``; other classifier
+heads receive softmax. Ensembles average logits on member axis 1 first. Direct
+metric calls still require already prepared probabilities or supported labels.
 
 :class:`ExpectedCalibrationError` is the only class without a sklearn
 equivalent and is therefore implemented from scratch.
@@ -87,6 +92,7 @@ class Accuracy(DeepTabMetric):
 
     name = "accuracy"
     higher_is_better = True
+    input_space = "probabilities"
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
@@ -107,6 +113,7 @@ class F1Score(DeepTabMetric):
 
     name = "f1"
     higher_is_better = True
+    input_space = "probabilities"
 
     def __init__(self, average: str = "binary") -> None:
         if average not in ("binary", "macro", "weighted"):
@@ -134,6 +141,7 @@ class AUROC(DeepTabMetric):
 
     name = "auroc"
     higher_is_better = True
+    input_space = "probabilities"
 
     def __init__(self, average: str = "macro") -> None:
         self.average = average
@@ -158,14 +166,20 @@ class AUROC(DeepTabMetric):
 class AUPRC(DeepTabMetric):
     """Area Under the Precision-Recall Curve delegates to
     :func:`sklearn.metrics.average_precision_score`.
+
+    Accepts binary probability scores or two ordered probability columns.
+    Multiclass probability matrices are not supported by this wrapper.
     """
 
     name = "auprc"
     higher_is_better = True
+    input_space = "probabilities"
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred)
+        if y_pred.ndim == 2 and y_pred.shape[1] != 2:
+            raise ValueError("AUPRC requires binary probability scores or exactly two probability columns.")
         scores = y_pred[:, 1] if y_pred.ndim == 2 else y_pred.ravel()
         try:
             return float(_auprc(y_true, scores))
@@ -178,6 +192,7 @@ class LogLoss(DeepTabMetric):
 
     name = "log_loss"
     higher_is_better = False
+    input_space = "probabilities"
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         return float(_log_loss(np.asarray(y_true).ravel(), np.asarray(y_pred)))
@@ -186,15 +201,19 @@ class LogLoss(DeepTabMetric):
 class BrierScore(DeepTabMetric):
     """Brier Score delegates to :func:`sklearn.metrics.brier_score_loss`.
 
-    Accepts 1-D probability scores or a 2-D array (second column is used).
+    Accepts binary 1-D probability scores or two ordered probability columns
+    (the second column is used). Multiclass matrices are not supported.
     """
 
     name = "brier"
     higher_is_better = False
+    input_space = "probabilities"
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
+        if y_pred.ndim == 2 and y_pred.shape[1] != 2:
+            raise ValueError("BrierScore requires binary probability scores or exactly two probability columns.")
         probs = y_pred[:, 1] if y_pred.ndim == 2 else y_pred.ravel()
         return float(_brier(y_true, probs))
 
@@ -221,6 +240,7 @@ class ExpectedCalibrationError(DeepTabMetric):
 
     name = "ece"
     higher_is_better = False
+    input_space = "probabilities"
 
     def __init__(self, n_bins: int = 10) -> None:
         self.n_bins = n_bins

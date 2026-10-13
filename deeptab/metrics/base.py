@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from typing import Literal
 
 import numpy as np
 
@@ -10,10 +11,9 @@ import numpy as np
 class DeepTabMetric(ABC):
     """Abstract base class for all DeepTab evaluation metrics.
 
-    Every metric in ``deeptab.metrics`` subclasses this ABC and exposes three
-    class-level attributes that the training loop and registry read
-    automatically — you never need to set them yourself when *using* a metric,
-    only when *writing* a custom one.
+    Every metric in ``deeptab.metrics`` subclasses this ABC. The training loop
+    and registry read its metadata automatically; users declare metadata only
+    when writing their own metrics.
 
     Attributes
     ----------
@@ -57,6 +57,19 @@ class DeepTabMetric(ABC):
           applies the transforms itself; passing already-transformed values
           would double-transform and produce wrong results.
 
+    input_space : {"logits", "probabilities", "labels"} or None
+        Declares classification inputs during training. Built-in classifiers
+        request ``"probabilities"``: sigmoid outputs become two ordered columns,
+        and multi-column logits receive softmax. Declared ensembles are averaged
+        over member axis 1 before activation. ``"labels"`` requests encoded
+        class indices, and ``"logits"`` keeps original outputs. ``None`` retains
+        the existing custom-callable contract without guessing semantics from
+        the metric name. ``needs_raw=True`` takes precedence. Distributional
+        metrics continue to use family parameter transforms instead.
+
+        Direct calls to a metric do not convert logits; callers must supply
+        the documented labels or probabilities themselves.
+
     Examples
     --------
     Using a built-in metric directly:
@@ -97,6 +110,7 @@ class DeepTabMetric(ABC):
     name: str
     higher_is_better: bool = False
     needs_raw: bool = False
+    input_space: Literal["logits", "probabilities", "labels"] | None = None
 
     @abstractmethod
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:

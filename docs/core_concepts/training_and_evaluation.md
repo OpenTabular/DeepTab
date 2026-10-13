@@ -584,6 +584,8 @@ metrics = classifier.evaluate(
 | Regressor  | R2                |
 | LSS        | negative mean NLL |
 
+(classification-metric-inputs)=
+
 ### Custom metrics during training
 
 `train_metrics`/`val_metrics` accept two kinds of metric objects, each with its own
@@ -593,6 +595,88 @@ calling convention:
   `metric(preds, target)`.
 - **`DeepTabMetric` instances** (the same classes used by `evaluate()`) receive
   detached, host-side NumPy arrays and are called as `metric(y_true, y_pred)`.
+
+Plain callables use the same NumPy, targets-first convention as `DeepTabMetric`.
+Metric dictionary keys determine log names, not input semantics.
+
+Built-in `Accuracy`, `F1Score`, `AUROC`, `AUPRC`, `LogLoss`, `BrierScore`, and
+`ExpectedCalibrationError` declare `input_space="probabilities"`. A binary
+single-logit head receives sigmoid and produces ordered columns
+`[P(class 0), P(class 1)]`; a two-/multi-class head receives softmax. Columns
+follow `model.classes_`, while training targets use encoded class indices.
+For declared ensembles, axis 1 is the member axis and logits are averaged
+**before** activation, matching `predict_proba()`. Averaging member probabilities
+is a different operation and is not the contract here.
+
+Scalar TorchMetrics such as `BinaryAccuracy`, `BinaryAUROC`,
+`MulticlassAccuracy`, and `MulticlassAUROC` are recognized through their
+classification base types. Binary metrics receive a flat positive-class
+probability vector; multiclass metrics receive ordered columns. Their targets
+are flat integer indices. Other custom TorchMetrics retain their previous
+tensor inputs unless explicitly declared. Non-scalar metric outputs are not
+supported by Lightning's scalar logging interface.
+
+`AUPRC` and `BrierScore` support binary scores or exactly two probability columns,
+not multiclass probability matrices. Use a suitable multiclass metric instead.
+Calling built-in metrics directly does not automatically convert logits.
+
+```python
+from tempfile import TemporaryDirectory
+
+import numpy as np
+
+from deeptab.configs import MLPConfig, PreprocessingConfig
+from deeptab.metrics import Accuracy, BrierScore
+from deeptab.models import MLPClassifier
+
+X = np.random.default_rng(17).normal(size=(48, 3))
+y = np.arange(48) % 2
+model = MLPClassifier(
+    model_config=MLPConfig(layer_sizes=[8]),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+    random_state=17,
+)
+with TemporaryDirectory() as checkpoint_path:
+    model.fit(
+        X[:32], y[:32], X_val=X[32:], y_val=y[32:],
+        val_metrics={"accuracy": Accuracy(), "brier": BrierScore()},
+        max_epochs=1, batch_size=16, accelerator="cpu", logger=False,
+        checkpoint_path=checkpoint_path, enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+    probabilities = model.predict_proba(X[32:])
+    expected_brier = np.mean((probabilities[:, 1] - y[32:]) ** 2)
+    assert np.isclose(BrierScore()(y[32:], probabilities), expected_brier)
+```
+
+Custom callables with no declaration keep original classifier outputs,
+including ensemble dimensions. To opt in, expose `input_space="probabilities"`
+or `input_space="labels"` on the callable. Labels are encoded indices, not
+original string or numeric class values. `input_space="logits"` preserves raw
+outputs. For example:
+
+```python
+from deeptab.metrics import DeepTabMetric
+
+class PositivePredictionRate(DeepTabMetric):
+    name = "positive_rate"
+    input_space = "labels"
+
+    def __call__(self, y_true, y_pred):
+        return float(np.mean(y_pred == 1))
+```
+
+`needs_raw=True` overrides adaptation, retaining original outputs and axes.
+Ordinary regression callables are unchanged. LSS metrics receive family
+parameters unless raw inputs are requested; ensemble member logits are reduced
+before that parameter transform without collapsing the parameter columns.
+
+```{warning}
+Correct input adaptation does not make nonlinear batch metrics global epoch
+metrics. The current loop logs batch results; AUROC and F1 must not be assumed
+to equal a computation over the entire epoch. Compare final predictions on
+the complete evaluation split for reporting.
+```
 
 ```python
 from torchmetrics.classification import MulticlassAccuracy

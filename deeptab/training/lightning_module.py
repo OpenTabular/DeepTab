@@ -5,6 +5,16 @@ import torch
 import torch.nn as nn
 from lightning.pytorch.trainer.states import TrainerFn
 from torchmetrics import Metric as TorchMetric
+from torchmetrics.classification import (
+    BinaryCalibrationError,
+    BinaryConfusionMatrix,
+    BinaryPrecisionRecallCurve,
+    BinaryStatScores,
+    MulticlassCalibrationError,
+    MulticlassConfusionMatrix,
+    MulticlassPrecisionRecallCurve,
+    MulticlassStatScores,
+)
 from tqdm import tqdm
 
 from deeptab.core.utils import check_numpy
@@ -78,6 +88,12 @@ class TaskModel(pl.LightningModule):
     train_metrics : dict[str, Callable] or None, default=None
         Extra metrics to log during training steps.  Keys become the log
         names (prefixed with ``"train_"``).
+        Built-in classification metrics receive probabilities; recognized
+        binary TorchMetrics receive positive-class vectors and encoded targets.
+        NumPy callables use ``(targets, predictions)``; TorchMetrics use
+        ``(predictions, targets)`` on-device. Custom callables retain their
+        existing inputs unless they declare ``input_space``. Declared ensembles
+        average logits on member axis 1 before classification activation.
     val_metrics : dict[str, Callable] or None, default=None
         Extra metrics to log during validation steps (prefixed with
         ``"val_"``).
@@ -363,6 +379,53 @@ class TaskModel(pl.LightningModule):
             # Non-ensemble case
             return self.loss_fct(predictions, y_true)  # type: ignore
 
+    def _metric_inputs(self, predictions, labels, metric):
+        """Adapt declared classification inputs without changing other task axes."""
+        if getattr(metric, "needs_raw", False):
+            return predictions, labels
+        if self.lss:
+            if self.family is None:
+                return predictions, labels
+            parameters = predictions.mean(dim=1) if getattr(self.estimator, "returns_ensemble", False) else predictions
+            return self.family(parameters), labels
+        binary_metric = isinstance(
+            metric, (BinaryStatScores, BinaryPrecisionRecallCurve, BinaryCalibrationError, BinaryConfusionMatrix)
+        )
+        multiclass_metric = isinstance(
+            metric,
+            (
+                MulticlassStatScores,
+                MulticlassPrecisionRecallCurve,
+                MulticlassCalibrationError,
+                MulticlassConfusionMatrix,
+            ),
+        )
+        input_space = getattr(metric, "input_space", None)
+        if input_space is None and (binary_metric or multiclass_metric):
+            input_space = "probabilities"
+        if input_space is None or input_space == "logits":
+            return predictions, labels
+        if input_space not in {"probabilities", "labels"}:
+            raise ValueError("Metric input_space must be 'logits', 'probabilities', 'labels', or None.")
+        logits = predictions.mean(dim=1) if getattr(self.estimator, "returns_ensemble", False) else predictions
+        if logits.ndim == 1:
+            logits = logits.unsqueeze(1)
+        if logits.ndim != 2:
+            raise ValueError("Classification metrics require per-row logits after ensemble reduction.")
+        if logits.shape[1] == 1:
+            positive = torch.sigmoid(logits)
+            probabilities = torch.cat([1 - positive, positive], dim=1)
+        else:
+            probabilities = torch.softmax(logits, dim=1)
+        metric_predictions = probabilities.argmax(dim=1) if input_space == "labels" else probabilities
+        if isinstance(metric, TorchMetric):
+            if binary_metric and input_space == "probabilities":
+                if probabilities.shape[1] != 2:
+                    raise ValueError("Binary TorchMetrics require exactly two probability columns.")
+                metric_predictions = probabilities[:, 1]
+            return metric_predictions, labels.reshape(-1).long()
+        return metric_predictions, labels
+
     def training_step(self, batch, batch_idx):  # type: ignore
         """Training step for a single batch, incorporating penalty if the model has a penalty_forward method.
 
@@ -414,21 +477,14 @@ class TaskModel(pl.LightningModule):
 
         # Log custom training metrics
         if self.train_metrics:
-            # Apply distribution transforms so metrics receive meaningful parameters,
-            # not raw logits.  Metrics with needs_raw=True still receive raw preds.
-            if self.lss and self.family is not None:
-                preds_transformed = self.family(preds)
-            else:
-                preds_transformed = preds
             for metric_name, metric_fn in self.train_metrics.items():
-                needs_raw = getattr(metric_fn, "needs_raw", False)
-                metric_preds = preds if needs_raw else preds_transformed
+                metric_preds, metric_labels = self._metric_inputs(preds, labels, metric_fn)
                 if isinstance(metric_fn, TorchMetric):
                     # torchmetrics metrics keep state on-device and use the
                     # (preds, target) argument order; they detach internally.
-                    metric_value = metric_fn(metric_preds, labels)
+                    metric_value = metric_fn(metric_preds, metric_labels)
                 else:
-                    metric_value = metric_fn(check_numpy(labels), check_numpy(metric_preds))
+                    metric_value = metric_fn(check_numpy(metric_labels), check_numpy(metric_preds))
                 self.log(
                     f"train_{metric_name}",
                     metric_value,
@@ -476,21 +532,14 @@ class TaskModel(pl.LightningModule):
 
         # Log custom validation metrics
         if self.val_metrics:
-            # Apply distribution transforms so metrics receive meaningful parameters,
-            # not raw logits.  Metrics with needs_raw=True still receive raw preds.
-            if self.lss and self.family is not None:
-                preds_transformed = self.family(preds)
-            else:
-                preds_transformed = preds
             for metric_name, metric_fn in self.val_metrics.items():
-                needs_raw = getattr(metric_fn, "needs_raw", False)
-                metric_preds = preds if needs_raw else preds_transformed
+                metric_preds, metric_labels = self._metric_inputs(preds, labels, metric_fn)
                 if isinstance(metric_fn, TorchMetric):
                     # torchmetrics metrics keep state on-device and use the
                     # (preds, target) argument order; they detach internally.
-                    metric_value = metric_fn(metric_preds, labels)
+                    metric_value = metric_fn(metric_preds, metric_labels)
                 else:
-                    metric_value = metric_fn(check_numpy(labels), check_numpy(metric_preds))
+                    metric_value = metric_fn(check_numpy(metric_labels), check_numpy(metric_preds))
                 self.log(
                     f"val_{metric_name}",
                     metric_value,

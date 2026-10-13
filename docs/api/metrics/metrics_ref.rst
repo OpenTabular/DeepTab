@@ -47,6 +47,11 @@ Regression Metrics
 Classification Metrics
 -----------------------
 
+During classifier training these built-ins request ordered probability columns.
+Direct metric calls require already prepared probabilities or supported labels.
+See :ref:`classification-metric-inputs` for binary and ensemble conversion,
+TorchMetrics conventions, custom-callable declarations and aggregation limits.
+
 .. autoclass:: Accuracy
    :members:
    :undoc-members:
