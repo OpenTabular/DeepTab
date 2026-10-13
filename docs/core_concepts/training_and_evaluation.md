@@ -671,12 +671,93 @@ Ordinary regression callables are unchanged. LSS metrics receive family
 parameters unless raw inputs are requested; ensemble member logits are reduced
 before that parameter transform without collapsing the parameter columns.
 
-```{warning}
-Correct input adaptation does not make nonlinear batch metrics global epoch
-metrics. The current loop logs batch results; AUROC and F1 must not be assumed
-to equal a computation over the entire epoch. Compare final predictions on
-the complete evaluation split for reporting.
+(epoch-metric-lifecycle)=
+
+### Epoch metric lifecycle
+
+`train_<name>` and `val_<name>` are computed from a complete training epoch or
+validation pass, not an average of nonlinear batch scores. Native TorchMetrics
+are updated per batch and computed once at the end. NumPy callables receive
+detached, concatenated predictions and targets once at that boundary, using the
+same targets-first calling convention and declared input conversion.
+
+Each stage resets before accumulation and after finalization. Sanity validation,
+standalone/repeated validation, train/validation, and consecutive epochs do not
+share accumulated observations. A repeated native object supplied under several
+keys or in both stages is cloned for independent accumulators without changing
+the caller's dictionaries. Metric callables should compute a scalar from their
+arguments; mutable state hidden inside a custom callable remains its author's
+responsibility.
+
+Checkpoint and early-stopping callbacks observe the completed validation metric.
+Use its ordinary `val_<name>` key for monitoring. Batch diagnostics must use
+separate names; configured custom metrics are no longer invoked once per batch.
+Loss logging retains separate step/epoch values and weights batch loss scalars
+by the actual row count. This does not redefine the reduction of a custom or
+class-weighted loss.
+
+For example, two batches can each have AUROC 1.0 even though their combined
+AUROC is 0.75. This standalone CPU example exercises actual Lightning hooks:
+
+```python
+import lightning as pl
+import torch
+from torch import nn
+from torch.utils.data import DataLoader, TensorDataset, default_collate
+
+from deeptab.configs import MLPConfig
+from deeptab.metrics import AUROC
+from deeptab.training import TaskModel
+
+class ScoreEcho(nn.Module):
+    def __init__(self, config, feature_information, num_classes, lss):
+        super().__init__()
+        self.anchor = nn.Parameter(torch.zeros(()))
+
+    def forward(self, numerical, categorical, embeddings):
+        return numerical[0] + self.anchor * 0
+
+def collate_scores(rows):
+    scores, targets = default_collate(rows)
+    return ([scores], [], []), targets
+
+dataset = TensorDataset(
+    torch.tensor([[0.1], [0.2], [0.3], [0.4]]),
+    torch.tensor([[0.0], [1.0], [0.0], [1.0]]),
+)
+task = TaskModel(
+    model_class=ScoreEcho, config=MLPConfig(layer_sizes=[8]),
+    feature_information=({}, {}, {}), num_classes=2,
+    val_metrics={"auc": AUROC()},
+)
+trainer = pl.Trainer(
+    accelerator="cpu", logger=False, enable_checkpointing=False,
+    enable_progress_bar=False, enable_model_summary=False,
+)
+result = trainer.validate(
+    task, dataloaders=DataLoader(dataset, batch_size=2, collate_fn=collate_scores),
+    verbose=False,
+)
+assert result[0]["val_auc"] == 0.75
 ```
+
+Callable buffers retain at most 64 MiB per stage by default, including targets
+and predictions for every callable metric. Copies are counted separately for
+each metric; concatenation and distributed gathering need additional temporary
+memory. Overflow raises `MemoryError` and releases that stage's buffers rather
+than silently approximating the metric. Advanced direct `TaskModel` users can
+set `metric_buffer_limit_bytes`; this is not an estimator `fit()` passthrough.
+Native TorchMetrics avoid this host-buffer path, but exact AUROC and other
+native metrics may retain observations in their own state.
+
+For distributed execution, native metrics use their configured compute-time
+synchronization; disabling `sync_on_compute` leaves rank-local results.
+Callable inputs are gathered across ranks before computation,
+and the retained-byte budget applies to the global input total. All ranks must
+participate with the same metric configuration. Validation on padded distributed
+samplers includes any repeated rows supplied by that sampler; this layer does
+not deduplicate them. Gloo CPU tests cover two real ranks, including partial
+final batches. CUDA/MPS and other backends still need their own platform evidence.
 
 ```python
 from torchmetrics.classification import MulticlassAccuracy

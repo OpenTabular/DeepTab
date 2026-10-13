@@ -69,11 +69,13 @@ def _task(metric, stage="val", classes=2, ensemble=False, **kwargs):
 def _run_step(task, stage, logits, targets, monkeypatch):
     recorded = {}
     monkeypatch.setattr(task, "log", lambda name, value, **kwargs: recorded.update({name: value}))
+    task._reset_epoch_metrics(stage)
     batch = (([logits], [], []), targets)
     if stage == "train":
         task.training_step(batch, 0)
     else:
         task.validation_step(batch, 0)
+    task._finish_epoch_metrics(stage)
     return float(recorded[f"{stage}_oracle"])
 
 

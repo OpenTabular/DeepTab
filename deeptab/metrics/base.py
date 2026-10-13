@@ -70,6 +70,13 @@ class DeepTabMetric(ABC):
         Direct calls to a metric do not convert logits; callers must supply
         the documented labels or probabilities themselves.
 
+      Notes
+      -----
+      During training, NumPy callables are evaluated once on detached,
+      concatenated inputs for a complete epoch or validation pass. Their buffers
+      are bounded by TaskModel's per-stage limit. Train/validation and sanity
+      passes are isolated; native TorchMetrics use update/compute/reset instead.
+
     Examples
     --------
     Using a built-in metric directly:

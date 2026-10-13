@@ -15,6 +15,7 @@ from torchmetrics.classification import (
     MulticlassPrecisionRecallCurve,
     MulticlassStatScores,
 )
+from torchmetrics.utilities.distributed import gather_all_tensors
 from tqdm import tqdm
 
 from deeptab.core.utils import check_numpy
@@ -86,8 +87,8 @@ class TaskModel(pl.LightningModule):
         legacy ``"optimizer_"`` prefix. Normalised automatically via
         :func:`~deeptab.training.optimizers.normalize_optimizer_kwargs`.
     train_metrics : dict[str, Callable] or None, default=None
-        Extra metrics to log during training steps.  Keys become the log
-        names (prefixed with ``"train_"``).
+        Metrics computed over a complete training epoch. Keys become log
+        names prefixed with ``"train_"``; these are not per-batch diagnostics.
         Built-in classification metrics receive probabilities; recognized
         binary TorchMetrics receive positive-class vectors and encoded targets.
         NumPy callables use ``(targets, predictions)``; TorchMetrics use
@@ -95,8 +96,16 @@ class TaskModel(pl.LightningModule):
         existing inputs unless they declare ``input_space``. Declared ensembles
         average logits on member axis 1 before classification activation.
     val_metrics : dict[str, Callable] or None, default=None
-        Extra metrics to log during validation steps (prefixed with
-        ``"val_"``).
+        Metrics computed over a complete validation pass, prefixed with
+        ``"val_"``. Sanity checks and repeated passes have separate state.
+    metric_buffer_limit_bytes : int, default=67108864
+        Maximum retained callable prediction/target bytes per stage, summed
+        across metric names and distributed ranks. Inputs are detached CPU
+        copies; concatenation and gathering require additional temporary
+        memory. Exceeding the limit raises ``MemoryError`` instead of producing
+        an approximate batch average. Native TorchMetrics manage their own
+        accumulator memory and synchronization. This is a TaskModel option,
+        not a Lightning Trainer or estimator fit argument.
     lr : float or None, default=None
         Learning rate.  Falls back to ``config.lr`` when ``None``.
     lr_patience : int or None, default=None
@@ -199,6 +208,7 @@ class TaskModel(pl.LightningModule):
         optimizer_args: dict | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
+        metric_buffer_limit_bytes: int = 64 * 1024 * 1024,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
@@ -225,8 +235,24 @@ class TaskModel(pl.LightningModule):
         self.train_targets = None
 
         # Store custom metrics
-        self.train_metrics = train_metrics or {}
-        self.val_metrics = val_metrics or {}
+        self.train_metrics = dict(train_metrics or {})
+        self.val_metrics = dict(val_metrics or {})
+        seen_metrics = set()
+        for metrics in (self.train_metrics, self.val_metrics):
+            for name, metric in metrics.items():
+                if isinstance(metric, TorchMetric):
+                    if id(metric) in seen_metrics:
+                        metrics[name] = metric.clone()
+                    seen_metrics.add(id(metric))
+        if (
+            not isinstance(metric_buffer_limit_bytes, int)
+            or isinstance(metric_buffer_limit_bytes, bool)
+            or metric_buffer_limit_bytes <= 0
+        ):
+            raise ValueError("metric_buffer_limit_bytes must be positive.")
+        self.metric_buffer_limit_bytes = metric_buffer_limit_bytes
+        self._metric_buffers: dict[str, dict[str, list[tuple[torch.Tensor, torch.Tensor]]]] = {"train": {}, "val": {}}
+        self._metric_buffer_bytes = {"train": 0, "val": 0}
         # torchmetrics ``Metric`` objects hold internal state tensors. Register them
         # as submodules so Lightning moves that state to the training device;
         # otherwise the state stays on CPU and raises a device-mismatch error on
@@ -426,6 +452,81 @@ class TaskModel(pl.LightningModule):
             return metric_predictions, labels.reshape(-1).long()
         return metric_predictions, labels
 
+    def _reset_epoch_metrics(self, stage):
+        self._metric_buffers[stage].clear()
+        self._metric_buffer_bytes[stage] = 0
+        metrics = self.train_metrics if stage == "train" else self.val_metrics
+        for metric in metrics.values():
+            if isinstance(metric, TorchMetric):
+                metric.reset()
+
+    def _update_epoch_metrics(self, stage, predictions, labels):
+        metrics = self.train_metrics if stage == "train" else self.val_metrics
+        for name, metric in metrics.items():
+            metric_predictions, metric_labels = self._metric_inputs(predictions, labels, metric)
+            if isinstance(metric, TorchMetric):
+                metric.update(metric_predictions.detach(), metric_labels.detach())
+            else:
+                size = metric_predictions.numel() * metric_predictions.element_size()
+                size += metric_labels.numel() * metric_labels.element_size()
+                if self._metric_buffer_bytes[stage] + size > self.metric_buffer_limit_bytes:
+                    self._reset_epoch_metrics(stage)
+                    raise MemoryError(
+                        f"{stage} callable metric inputs exceed metric_buffer_limit_bytes "
+                        f"({self.metric_buffer_limit_bytes}). Use an incremental TorchMetric or a larger TaskModel limit."
+                    )
+                self._metric_buffers[stage].setdefault(name, []).append(
+                    (metric_predictions.detach().cpu().clone(), metric_labels.detach().cpu().clone())
+                )
+                self._metric_buffer_bytes[stage] += size
+
+    def _finish_epoch_metrics(self, stage):
+        metrics = self.train_metrics if stage == "train" else self.val_metrics
+        distributed = torch.distributed.is_available() and torch.distributed.is_initialized()
+        if distributed and any(not isinstance(metric, TorchMetric) for metric in metrics.values()):
+            total_bytes = torch.tensor(self._metric_buffer_bytes[stage], device=self.device, dtype=torch.long)
+            torch.distributed.all_reduce(total_bytes)
+            if total_bytes.item() > self.metric_buffer_limit_bytes:
+                self._reset_epoch_metrics(stage)
+                raise MemoryError("Global callable metric inputs exceed metric_buffer_limit_bytes across ranks.")
+        try:
+            for name, metric in metrics.items():
+                if isinstance(metric, TorchMetric):
+                    if metric.update_called:
+                        value = metric.compute()
+                    else:
+                        continue
+                else:
+                    chunks = self._metric_buffers[stage].get(name)
+                    if not chunks:
+                        continue
+                    predictions = torch.cat([chunk[0] for chunk in chunks], dim=0)
+                    targets = torch.cat([chunk[1] for chunk in chunks], dim=0)
+                    if distributed:
+                        predictions = torch.cat(gather_all_tensors(predictions.to(self.device)), dim=0).cpu()
+                        targets = torch.cat(gather_all_tensors(targets.to(self.device)), dim=0).cpu()
+                    value = metric(check_numpy(targets), check_numpy(predictions))
+                self.log(
+                    f"{stage}_{name}",
+                    value,
+                    on_step=False,
+                    on_epoch=True,
+                    prog_bar=True,
+                    logger=True,
+                    sync_dist=False,
+                )
+        finally:
+            self._reset_epoch_metrics(stage)
+
+    def on_train_epoch_start(self):
+        self._reset_epoch_metrics("train")
+
+    def on_train_epoch_end(self):
+        self._finish_epoch_metrics("train")
+
+    def on_validation_epoch_start(self):
+        self._reset_epoch_metrics("val")
+
     def training_step(self, batch, batch_idx):  # type: ignore
         """Training step for a single batch, incorporating penalty if the model has a penalty_forward method.
 
@@ -473,26 +574,20 @@ class TaskModel(pl.LightningModule):
             loss = self.compute_loss(preds, labels)
 
         # Log the training loss
-        self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
+        self.log(
+            "train_loss",
+            loss,
+            on_step=True,
+            on_epoch=True,
+            prog_bar=True,
+            logger=True,
+            batch_size=len(labels),
+            sync_dist=True,
+        )
 
         # Log custom training metrics
         if self.train_metrics:
-            for metric_name, metric_fn in self.train_metrics.items():
-                metric_preds, metric_labels = self._metric_inputs(preds, labels, metric_fn)
-                if isinstance(metric_fn, TorchMetric):
-                    # torchmetrics metrics keep state on-device and use the
-                    # (preds, target) argument order; they detach internally.
-                    metric_value = metric_fn(metric_preds, metric_labels)
-                else:
-                    metric_value = metric_fn(check_numpy(metric_labels), check_numpy(metric_preds))
-                self.log(
-                    f"train_{metric_name}",
-                    metric_value,
-                    on_step=True,
-                    on_epoch=True,
-                    prog_bar=True,
-                    logger=True,
-                )
+            self._update_epoch_metrics("train", preds, labels)
 
         return loss
 
@@ -528,26 +623,13 @@ class TaskModel(pl.LightningModule):
             on_epoch=True,
             prog_bar=True,
             logger=True,
+            batch_size=len(labels),
+            sync_dist=True,
         )
 
         # Log custom validation metrics
         if self.val_metrics:
-            for metric_name, metric_fn in self.val_metrics.items():
-                metric_preds, metric_labels = self._metric_inputs(preds, labels, metric_fn)
-                if isinstance(metric_fn, TorchMetric):
-                    # torchmetrics metrics keep state on-device and use the
-                    # (preds, target) argument order; they detach internally.
-                    metric_value = metric_fn(metric_preds, metric_labels)
-                else:
-                    metric_value = metric_fn(check_numpy(metric_labels), check_numpy(metric_preds))
-                self.log(
-                    f"val_{metric_name}",
-                    metric_value,
-                    on_step=False,
-                    on_epoch=True,
-                    prog_bar=True,
-                    logger=True,
-                )
+            self._update_epoch_metrics("val", preds, labels)
 
         return val_loss
 
@@ -615,7 +697,8 @@ class TaskModel(pl.LightningModule):
     def on_validation_epoch_end(self):
         """Callback executed at the end of each validation epoch.
 
-        During fitting, stores the current validation loss at its zero-based
+        Computes completed-pass metrics and releases stage state. During
+        fitting, stores the current validation loss at its zero-based
         training epoch index and applies early pruning. Sanity checks and
         standalone validation leave the history and pruning state unchanged.
 
@@ -644,6 +727,7 @@ class TaskModel(pl.LightningModule):
         loss exceeds the `early_pruning_threshold`, the training is stopped early by setting
         `self.trainer.should_stop` to True.
         """
+        self._finish_epoch_metrics("val")
         if self.trainer.sanity_checking or self.trainer.state.fn != TrainerFn.FITTING:
             return
 

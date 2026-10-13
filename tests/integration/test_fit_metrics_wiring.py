@@ -1,6 +1,6 @@
 """Regression tests for GH-443: fit(train_metrics=/val_metrics=) argument order and dtype.
 
-``TaskModel.training_step``/``validation_step`` must call each metric as
+Epoch computation must call each NumPy metric as
 ``metric_fn(y_true, y_pred)`` (matching ``DeepTabMetric.__call__``'s documented
 contract), with both arguments converted to detached, host-side numpy arrays
 before the call.
@@ -155,8 +155,8 @@ def test_classifier_fit_metric_columns_match_predict_proba_and_encoded_labels(cl
     )
     np.testing.assert_array_equal(model.classes_, class_labels)
     received_targets, received = train_probe.calls[0]
-    np.testing.assert_array_equal(received_targets.ravel(), encoded_targets[:8])
-    expected = model.predict_proba(X_reg.iloc[:8])
+    np.testing.assert_array_equal(received_targets.ravel(), encoded_targets[:48])
+    expected = model.predict_proba(X_reg.iloc[:48])
     np.testing.assert_allclose(received, expected, rtol=0, atol=0)
-    np.testing.assert_allclose(val_probe.calls[0][1], model.predict_proba(X_reg.iloc[48:56]), rtol=0, atol=0)
-    np.testing.assert_array_equal(model.predict(X_reg.iloc[:8]), class_labels[received.argmax(axis=1)])
+    np.testing.assert_allclose(val_probe.calls[0][1], model.predict_proba(X_reg.iloc[48:]), rtol=0, atol=0)
+    np.testing.assert_array_equal(model.predict(X_reg.iloc[:48]), class_labels[received.argmax(axis=1)])

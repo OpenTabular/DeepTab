@@ -51,6 +51,8 @@ During classifier training these built-ins request ordered probability columns.
 Direct metric calls require already prepared probabilities or supported labels.
 See :ref:`classification-metric-inputs` for binary and ensemble conversion,
 TorchMetrics conventions, custom-callable declarations and aggregation limits.
+See :ref:`epoch-metric-lifecycle` for global epoch computation, stage reset,
+callable memory limits and verified distributed scope.
 
 .. autoclass:: Accuracy
    :members:
