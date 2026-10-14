@@ -64,6 +64,59 @@ both profiles or comparing them. `just install` restores the ordinary developer
 setup, including the configured default groups, before a docs build.
 ```
 
+(dependency-security)=
+
+## Dependency Security
+
+Run `just audit` in the environment being evaluated. It calls `pip-audit`
+without advisory ignores and returns nonzero when findings remain. The audit
+tool must be provisioned separately; it is not a core runtime dependency.
+Keep audit-tool installation from silently replacing the target runtime pins.
+Retain a machine-readable unfiltered result as well as the command's exit code:
+
+```bash
+just audit
+poetry run pip-audit --format json --output "$TMPDIR/deeptab-audit.json"
+just deps-check
+```
+
+Audit core runtime, requested logging/tracking extras, development tools and
+documentation dependencies separately. Traverse installed `Requires-Dist`
+metadata with environment markers and requested extras, then audit each exact
+resolved closure. Lightning requests `fsspec[http]`, so aiohttp and multidict
+are core-reachable, not merely development dependencies. A package may belong
+to several scopes; do not sum overlapping scope totals.
+
+Keep the original advisory records, including duplicates, and derive a separate
+ID/alias-grouped triage inventory. Record package versions, paths from declared
+roots, missing metadata, query times, source/lock hashes and actual exit codes.
+An incomplete graph or unavailable audit service is not a clean audit.
+`pip check`, import/fit/reload checks and advisory queries answer different
+questions; a successful dependency resolver alone does not establish compatibility.
+
+The release audit has no unconditional accepted-risk list. An exception needs
+explicit maintainer approval, matching advisory IDs/aliases and affected package
+versions, exposure, rationale, mitigations, an owner and a review date. A new
+version or advisory outside that record must fail closed. Do not implement a
+blanket ignore to obtain a green result. If compatible remediation is unavailable,
+keep release sign-off open pending a delay, reviewed support/dependency change
+or bounded approved risk decision.
+
+```{warning}
+Only load model files and checkpoints from trusted sources. This reduces
+exposure but does not repair vulnerabilities in PyTorch's loader.
+`weights_only=True` is not proof that arbitrary input is safe, and passing
+behavioral tests is not security certification. Test loader updates with benign
+generated artifacts; do not construct or execute malicious checkpoints.
+```
+
+Test out-of-range fixes in separate environments before changing constraints.
+Exercise native import orders, actual operations and optional integrations,
+not only `pip check`. An environment layered over the old site-packages can
+borrow removed APIs and produce a false compatibility pass; inspect module
+origins and repeat relevant failures in a clean environment. See the
+{ref}`support policy <dependency-policy>`.
+
 ## Reproducible baselines
 
 Record the local and remote commit, worktree changes, interpreter executable,
