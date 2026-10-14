@@ -84,7 +84,7 @@ def test_bundle_structure_regressor(regression_data):
     assert required_keys.issubset(bundle.keys()), f"Missing keys: {required_keys - bundle.keys()}"
 
     meta = bundle["artifact_metadata"]
-    assert meta["format_version"] == 2
+    assert meta["format_version"] == 3
     assert meta["architecture"]["name"] == "MLP"
     assert meta["task"]["task"] == "regression"
     assert meta["task"]["lss"] is False

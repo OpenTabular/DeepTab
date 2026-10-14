@@ -22,6 +22,7 @@ from deeptab.core.serialization import (
     resolve_inference_accelerator,
     restore_base_state,
     restore_loaded_metadata,
+    restore_retrieval_state,
 )
 
 
@@ -59,6 +60,9 @@ class _SerializationMixin:
         classes (when available), and package versions for debugging
         reloads across environments. Constructor model, preprocessing, and
         trainer configs and the constructor seed are retained for refitting.
+        Candidate-aware models also retain transformed training features and
+        targets as detached CPU tensors. Their artifacts contain training-derived
+        data and grow with the candidate bank; protect them accordingly.
 
         Parameters
         ----------
@@ -79,6 +83,7 @@ class _SerializationMixin:
         ValueError
             If the model has not been fitted yet, or *path* is ``None``
             and no run directory is active.
+            Also raised if a required candidate bank is missing or incompatible.
 
         Examples
         --------
@@ -138,6 +143,14 @@ class _SerializationMixin:
         DeviceUnavailableError
             If *device* names hardware unavailable on this machine (e.g.
             ``"cuda"`` without a GPU).
+        ValueError
+            If required retrieval state is missing, malformed, or incompatible.
+            Refit from the original data to replace older incomplete artifacts.
+
+        Warnings
+        --------
+        Load only trusted artifacts. Reconstruction uses pickle-based objects;
+        schema validation does not make an untrusted file safe to load.
 
         Examples
         --------
@@ -199,6 +212,7 @@ class _SerializationMixin:
             **(bundle.get("architecture_state") or {}),
         )
         obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        restore_retrieval_state(obj._task_model, bundle)
         obj._task_model.eval()
         obj._estimator = obj._task_model.estimator
 

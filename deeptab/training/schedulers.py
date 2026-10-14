@@ -28,12 +28,6 @@ _SCHEDULER_REGISTRY: dict[str, type] = {}
 # not remove them via :func:`unregister_scheduler`.
 _BUILTIN_SCHEDULERS: frozenset[str] = frozenset()
 
-# Schedulers that need a 'monitor' key in the Lightning dict
-_PLATEAU_SCHEDULERS: frozenset[str] = frozenset({"reducelronplateau"})
-
-# Schedulers where 'mode' is a valid constructor kwarg
-_SCHEDULERS_WITH_MODE: frozenset[str] = frozenset({"reducelronplateau"})
-
 
 def _register_torch_defaults() -> None:
     global _BUILTIN_SCHEDULERS
@@ -386,6 +380,8 @@ def build_scheduler(
     :func:`build_scheduler` detects this automatically and adds
     ``"monitor"`` to the returned dict.  All other schedulers step
     unconditionally based on ``interval`` / ``frequency``.
+    Detection uses the registered class, so plateau aliases and subclasses
+    receive the same monitoring configuration as the built-in name.
 
     The precedence chain for ``ReduceLROnPlateau`` kwargs is:
 
@@ -406,17 +402,17 @@ def build_scheduler(
     if scheduler_type is None or scheduler_type.lower() == "none":
         return None
 
-    key = scheduler_type.lower()
     cls = get_scheduler(scheduler_type)
+    is_plateau = issubclass(cls, _lr_sched.ReduceLROnPlateau)
 
     kwargs: dict[str, Any] = {}
 
     # Inject mode for schedulers that accept it
-    if key in _SCHEDULERS_WITH_MODE:
+    if is_plateau:
         kwargs["mode"] = mode
 
     # Synthesise factor/patience for ReduceLROnPlateau from legacy fields
-    if key == "reducelronplateau":
+    if is_plateau:
         kwargs.setdefault("factor", lr_factor)
         kwargs.setdefault("patience", lr_patience)
 
@@ -433,7 +429,7 @@ def build_scheduler(
     }
 
     # Plateau schedulers need Lightning to pass the monitored value in
-    if key in _PLATEAU_SCHEDULERS:
+    if is_plateau:
         config["monitor"] = monitor
 
     return config

@@ -127,10 +127,12 @@ class TaskModel(pl.LightningModule):
     monitor : str, default="val_loss"
         Metric monitored by the scheduler (and passed to Lightning so that
         ``ReduceLROnPlateau`` receives the correct value).  Should match
-        ``TrainerConfig.monitor``.
+        the effective fit monitor unless ``TrainerConfig.scheduler_monitor``
+        explicitly selects a different declared metric.
     mode : str, default="min"
         ``"min"`` or ``"max"``.  Forwarded to ``ReduceLROnPlateau`` so
-        the scheduler and early stopping always track the same direction.
+        the scheduler inherits the general direction unless ``scheduler_kwargs``
+        explicitly supplies its own ``mode``.
     scheduler_interval : str, default="epoch"
         Lightning scheduling granularity: ``"epoch"`` or ``"step"``.
     scheduler_frequency : int, default=1
@@ -231,8 +233,8 @@ class TaskModel(pl.LightningModule):
         self.early_pruning_threshold = early_pruning_threshold
         self.pruning_epoch = pruning_epoch
         self.val_losses = []
-        self.train_features = None
-        self.train_targets = None
+        self.train_features: tuple[list[torch.Tensor], list[torch.Tensor], list[torch.Tensor] | None] | None = None
+        self.train_targets: torch.Tensor | None = None
 
         # Store custom metrics
         self.train_metrics = dict(train_metrics or {})
@@ -325,6 +327,25 @@ class TaskModel(pl.LightningModule):
                 else None,
             )
             self.train_targets = dataset.labels.to(self.device)
+
+    def _apply(self, fn, recurse=True):
+        result = super()._apply(fn, recurse=recurse)
+        if self.train_features is not None:
+            numerical, categorical, embeddings = self.train_features
+            self.train_features = (
+                [fn(feature) for feature in numerical],
+                [fn(feature) for feature in categorical],
+                [fn(feature) for feature in embeddings] if embeddings is not None else None,
+            )
+        if self.train_targets is not None:
+            self.train_targets = fn(self.train_targets)
+        return result
+
+    def _require_candidate_bank(self):
+        if self.train_features is None or self.train_targets is None:
+            raise RuntimeError(
+                "Retrieval candidate bank is missing. Refit with the original training data or load a complete artifact before inference."
+            )
 
     def forward(self, num_features, cat_features, embeddings):
         """Forward pass through the model.
@@ -608,7 +629,8 @@ class TaskModel(pl.LightningModule):
         """
 
         data, labels = batch
-        if hasattr(self.estimator, "validate_with_candidates") and self.train_features is not None:
+        if hasattr(self.estimator, "validate_with_candidates"):
+            self._require_candidate_bank()
             preds = self.estimator.validate_with_candidates(  # type: ignore[reportCallIssue]
                 *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
@@ -649,7 +671,8 @@ class TaskModel(pl.LightningModule):
             Test loss.
         """
         data, labels = batch
-        if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
+        if hasattr(self.estimator, "predict_with_candidates"):
+            self._require_candidate_bank()
             preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
                 *data, candidate_x=self.train_features, candidate_y=self.train_targets
             )
@@ -683,7 +706,8 @@ class TaskModel(pl.LightningModule):
         Tensor
             Predictions.
         """
-        if hasattr(self.estimator, "predict_with_candidates") and self.train_features is not None:
+        if hasattr(self.estimator, "predict_with_candidates"):
+            self._require_candidate_bank()
             preds = self.estimator.predict_with_candidates(  # type: ignore[reportCallIssue]
                 *batch,
                 candidate_x=self.train_features,

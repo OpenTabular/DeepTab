@@ -62,7 +62,7 @@ def test_setup_keeps_complete_dataset_order_without_training_sampler(monkeypatch
 
 @pytest.mark.parametrize("step", ["validation_step", "test_step", "predict_step"])
 @pytest.mark.parametrize("restore_weights", [False, True])
-def test_candidate_evaluation_without_prior_fit_has_initialized_guards(monkeypatch, step, restore_weights):
+def test_candidate_evaluation_without_bank_rejects_forward_fallback(monkeypatch, step, restore_weights):
     class StandaloneCandidateEstimator(_CandidateEstimator):
         def forward(self, *data):
             return self.scale.expand(len(data[0][0]), 1)
@@ -83,9 +83,13 @@ def test_candidate_evaluation_without_prior_fit_has_initialized_guards(monkeypat
     assert task.train_features is None
     assert task.train_targets is None
     monkeypatch.setattr(task, "log", Mock())
+    ordinary_forward = Mock(side_effect=AssertionError("Candidate inference must not use ordinary forward."))
+    monkeypatch.setattr(task.estimator, "forward", ordinary_forward)
     data = ([torch.ones(2, 2)], [], [])
     batch = data if step == "predict_step" else (data, torch.zeros(2, 1))
-    assert torch.isfinite(getattr(task, step)(batch, 0)).all()
+    with pytest.raises(RuntimeError, match="Retrieval candidate bank is missing"):
+        getattr(task, step)(batch, 0)
+    ordinary_forward.assert_not_called()
     assert task.estimator.received is None
 
 

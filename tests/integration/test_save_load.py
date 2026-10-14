@@ -34,6 +34,37 @@ RANDOM_STATE = 7
 FIT_KWARGS: dict[str, Any] = {"max_epochs": 2, "batch_size": 64}
 
 
+def test_modernnca_candidate_bank_survives_reload(tmp_path):
+    from deeptab.models.experimental import ModernNCAClassifier
+
+    features = np.random.default_rng(17).normal(size=(32, 3)).astype(np.float32)
+    targets = (np.arange(32) % 2) * 20 + 10
+    model = ModernNCAClassifier(
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=str(tmp_path)),
+        random_state=17,
+    )
+    model.fit(
+        features[:24],
+        targets[:24],
+        X_val=features[24:],
+        y_val=targets[24:],
+        accelerator="cpu",
+        logger=False,
+        enable_progress_bar=False,
+        enable_model_summary=False,
+    )
+    expected = model.predict_proba(features[24:])
+    path = str(tmp_path / "retrieval.deeptab")
+    model.save(path)
+    loaded = ModernNCAClassifier.load(path)
+    np.testing.assert_allclose(loaded.predict_proba(features[24:]), expected, rtol=0, atol=0)
+    np.testing.assert_array_equal(loaded.classes_, [10, 30])
+    assert isinstance(model._task_model, TaskModel) and isinstance(loaded._task_model, TaskModel)
+    assert loaded._task_model.train_targets is not None
+    torch.testing.assert_close(loaded._task_model.train_targets, model._task_model.train_targets, rtol=0, atol=0)
+
+
 @pytest.fixture(scope="module")
 def regression_data():
     rng = np.random.default_rng(RANDOM_STATE)
@@ -307,7 +338,7 @@ def test_classifier_save_load_predictions(classification_data):
     finally:
         os.unlink(tmp_path)
 
-    assert bundle["artifact_metadata"]["format_version"] == 2
+    assert bundle["artifact_metadata"]["format_version"] == 3
     assert bundle["artifact_metadata"]["architecture"]["name"] == "MLP"
     assert bundle["artifact_metadata"]["feature_schema"]["column_order"] == list(X_train.columns)
     assert bundle["artifact_metadata"]["task"]["task"] == "classification"

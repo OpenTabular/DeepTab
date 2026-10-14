@@ -8,6 +8,7 @@ import torch
 from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score, log_loss
 
+from deeptab.configs import TrainerConfig
 from deeptab.core.exceptions import NotFittedError, invalid_data_error, not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase, _validate_fit_inputs
@@ -308,12 +309,16 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             before early stopping. Falls back to the active `TrainerConfig`'s
             value, or 15 when no `TrainerConfig` is set.
         monitor : str or None, default=None
-            The metric to monitor for early stopping. Falls back to the active
+            The metric for early stopping and best checkpoint selection. Falls back to the active
             `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+            Plateau schedulers inherit it unless `scheduler_monitor` is explicit.
+            Unknown or unavailable names raise `ValueError` before replacing fitted state.
         mode : str or None, default=None
             Whether the monitored metric should be minimized (`min`) or
             maximized (`max`). Falls back to the active `TrainerConfig`'s value,
             or "min" when no `TrainerConfig` is set.
+            An explicit `scheduler_kwargs["mode"]` wins for the plateau scheduler only.
+            Per-call overrides are resolved again on continuation without mutating config.
         lr : float or None, default=None
             Learning rate for the optimizer. Falls back to the active
             `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
@@ -437,6 +442,16 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         if y_val is not None:
             y_val = _encode_labels(y_val, classes, name="y_val")
 
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not effective_rebuild,
+            validation_enabled=X_val is not None
+            or (val_size if val_size is not None else (self.trainer_config or TrainerConfig()).val_size) > 0,
+            trainer_kwargs=trainer_kwargs,
+        )
         if effective_rebuild:
             self.classes_ = classes
 

@@ -18,6 +18,7 @@ from deeptab.core.serialization import (
     resolve_inference_accelerator,
     restore_base_state,
     restore_loaded_metadata,
+    restore_retrieval_state,
 )
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
@@ -84,6 +85,8 @@ class SklearnBaseLSS(SklearnBase):
         dataloader_kwargs=None,
         family=None,
         distributional_kwargs=None,
+        monitor: str | None = None,
+        mode: str | None = None,
     ):
         """Builds the model using the provided training data.
 
@@ -203,6 +206,7 @@ class SklearnBaseLSS(SklearnBase):
         # (assigned below). Resolve back to the class so repeated builds
         # (e.g. HPO trials or a refit) construct a fresh model correctly.
         _model_class = self._estimator if isinstance(self._estimator, type) else type(self._estimator)
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
         self._task_model = TaskModel(
             model_class=_model_class,  # type: ignore
             num_classes=self.family.param_count,
@@ -228,6 +232,15 @@ class SklearnBaseLSS(SklearnBase):
                 if self.trainer_config is not None
                 else self._optimizer_kwargs
             ),
+            scheduler_type=tc.scheduler_type,
+            scheduler_kwargs=tc.scheduler_kwargs,
+            monitor=tc.scheduler_monitor
+            if tc.scheduler_monitor is not None
+            else (monitor if monitor is not None else tc.monitor),
+            mode=mode if mode is not None else tc.mode,
+            scheduler_interval=tc.scheduler_interval,
+            scheduler_frequency=tc.scheduler_frequency,
+            no_weight_decay_for_bias_and_norm=tc.no_weight_decay_for_bias_and_norm,
         )
 
         self._built = True
@@ -303,12 +316,16 @@ class SklearnBaseLSS(SklearnBase):
             before early stopping. Falls back to the active `TrainerConfig`'s
             value, or 15 when no `TrainerConfig` is set.
         monitor : str or None, default=None
-            The metric to monitor for early stopping. Falls back to the active
+            The metric for early stopping and best checkpoint selection. Falls back to the active
             `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+            Plateau schedulers inherit it unless `scheduler_monitor` is explicit.
+            Unknown or unavailable names raise `ValueError` before replacing fitted state.
         mode : str or None, default=None
             Whether the monitored metric should be minimized (`min`) or
             maximized (`max`). Falls back to the active `TrainerConfig`'s value,
             or "min" when no `TrainerConfig` is set.
+            An explicit `scheduler_kwargs["mode"]` wins for the plateau scheduler only.
+            Per-call overrides are resolved again on continuation without mutating config.
         lr : float or None, default=None
             Learning rate for the optimizer. Falls back to the active
             `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
@@ -388,6 +405,15 @@ class SklearnBaseLSS(SklearnBase):
             monitor = tc.monitor
         if mode is None:
             mode = tc.mode
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not rebuild,
+            validation_enabled=X_val is not None or val_size > 0,
+            trainer_kwargs=trainer_kwargs,
+        )
         # An explicit checkpoint_path (fit() argument) must always be honored as-is.
         _checkpoint_path_explicit = checkpoint_path is not None
         if checkpoint_path is None:
@@ -461,14 +487,28 @@ class SklearnBaseLSS(SklearnBase):
                 val_metrics=val_metrics,
                 weight_decay=weight_decay,
                 dataloader_kwargs=dataloader_kwargs,
+                monitor=monitor,
+                mode=mode,
             )
 
         else:
             self._data_module = prepared
-            self._configure_continuation(lr=lr, lr_patience=lr_patience, lr_factor=lr_factor, weight_decay=weight_decay)
+            self._configure_continuation(
+                lr=lr,
+                lr_patience=lr_patience,
+                lr_factor=lr_factor,
+                weight_decay=weight_decay,
+                monitor=monitor,
+                mode=mode,
+            )
 
         early_stop_callback = EarlyStopping(
-            monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
+            monitor=monitor,
+            min_delta=0.00,
+            patience=patience,
+            verbose=False,
+            mode=mode,
+            check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
         # An explicit checkpoint_path is used as-is. Otherwise, isolate each run
@@ -481,6 +521,7 @@ class SklearnBaseLSS(SklearnBase):
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
+            save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
             dirpath=checkpoint_path
             if _checkpoint_path_explicit
@@ -753,6 +794,9 @@ class SklearnBaseLSS(SklearnBase):
         The bundle is built by :func:`~deeptab.core.serialization.build_save_bundle`,
         which is the single source of truth for artifact structure across all
         model variants.
+        Retrieval models also retain transformed training features and targets
+        as detached CPU tensors. Treat their artifacts as training-derived data;
+        size grows with the candidate bank.
 
         Parameters
         ----------
@@ -762,7 +806,8 @@ class SklearnBaseLSS(SklearnBase):
         Raises
         ------
         ValueError
-            If the model has not been fitted yet.
+            If the model has not been fitted yet or a required candidate bank
+            is missing or incompatible.
 
         Examples
         --------
@@ -807,6 +852,14 @@ class SklearnBaseLSS(SklearnBase):
         DeviceUnavailableError
             If *device* names hardware unavailable on this machine (e.g.
             ``"cuda"`` without a GPU).
+        ValueError
+            If required retrieval state is missing, malformed, or incompatible.
+            Refit from the original data to replace older incomplete artifacts.
+
+        Warnings
+        --------
+        Load only trusted artifacts. Reconstruction uses pickle-based objects;
+        schema validation does not make an untrusted file safe to load.
 
         Examples
         --------
@@ -864,6 +917,7 @@ class SklearnBaseLSS(SklearnBase):
             **(bundle.get("architecture_state") or {}),
         )
         obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        restore_retrieval_state(obj._task_model, bundle)
         obj._task_model.eval()
         obj._estimator = obj._task_model.estimator
 

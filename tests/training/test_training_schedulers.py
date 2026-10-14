@@ -282,3 +282,74 @@ class TestBuildDefaultTaskLoss:
         from deeptab.training.losses import build_default_task_loss
 
         assert build_default_task_loss(num_classes=2, lss=True) is None
+
+
+@pytest.mark.integration
+@pytest.mark.parametrize("continuation", [False, True])
+def test_fit_monitor_overrides_reach_callbacks_and_plateau(continuation, tmp_path):
+    import numpy as np
+    from lightning import Trainer
+    from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
+    from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+    from deeptab.models import MLPRegressor
+
+    features = np.random.default_rng(17).normal(size=(32, 3))
+    targets = features[:, 0]
+    config = TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=str(tmp_path))
+    model = MLPRegressor(
+        model_config=MLPConfig(layer_sizes=[8]),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        trainer_config=config,
+        random_state=17,
+    )
+    options = {
+        "X_val": features[24:],
+        "y_val": targets[24:],
+        "accelerator": "cpu",
+        "logger": False,
+        "enable_progress_bar": False,
+        "enable_model_summary": False,
+    }
+    if continuation:
+        model.fit(features[:24], targets[:24], **options)
+    model.fit(
+        features[:24],
+        targets[:24],
+        rebuild=not continuation,
+        monitor="train_loss",
+        mode="max",
+        **options,
+    )
+    trainer = model._trainer
+    assert isinstance(trainer, Trainer)
+    callbacks = [
+        callback for callback in vars(trainer)["callbacks"] if isinstance(callback, (EarlyStopping, ModelCheckpoint))
+    ]
+    assert len(callbacks) == 2
+    assert all(callback.monitor == "train_loss" and callback.mode == "max" for callback in callbacks)
+    scheduler_config = trainer.lr_scheduler_configs[0]
+    assert scheduler_config.monitor == "train_loss"
+    assert isinstance(scheduler_config.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau)
+    assert scheduler_config.scheduler.mode == "max"
+    assert config.monitor == "val_loss" and config.mode == "min"
+
+
+def test_registered_plateau_alias_receives_monitor_and_direction():
+    register_scheduler("MonitoringPlateau", torch.optim.lr_scheduler.ReduceLROnPlateau)
+    try:
+        config = build_scheduler(
+            _simple_optimizer(),
+            scheduler_type="MonitoringPlateau",
+            monitor="val_custom",
+            mode="max",
+            lr_factor=0.4,
+            lr_patience=3,
+        )
+        assert config is not None
+        assert config["monitor"] == "val_custom"
+        assert config["scheduler"].mode == "max"
+        assert config["scheduler"].factor == 0.4
+        assert config["scheduler"].patience == 3
+    finally:
+        unregister_scheduler("MonitoringPlateau")

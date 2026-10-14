@@ -14,7 +14,8 @@ import torch
 from deeptab.core.exceptions import device_unavailable_error, invalid_device_error
 
 RECOMMENDED_EXTENSION = ".deeptab"
-ARTIFACT_FORMAT_VERSION = 2
+ARTIFACT_FORMAT_VERSION = 3
+RETRIEVAL_STATE_VERSION = 1
 
 
 def _warn_extension(path: str) -> None:
@@ -150,7 +151,7 @@ def build_artifact_metadata(
     return {
         "format_version": ARTIFACT_FORMAT_VERSION,
         "architecture": build_architecture_metadata(model_class=model_class, config=config, estimator=estimator),
-        "feature_schema": feature_schema,
+        "feature_schema": _simplify(feature_schema),
         "preprocessing": build_preprocessing_metadata(
             preprocessor, preprocessor_kwargs, feature_info=feature_schema.get("feature_info")
         ),
@@ -316,6 +317,158 @@ _PREPROCESSOR_ARG_NAMES: list[str] = [
 ]
 
 
+def build_retrieval_state(task_model: Any, feature_schema: dict[str, Any]) -> dict[str, Any] | None:
+    """Snapshot candidate inputs and targets without device or trainer references."""
+    if not hasattr(task_model.estimator, "predict_with_candidates"):
+        return None
+    if task_model.train_features is None or task_model.train_targets is None:
+        raise ValueError("Retrieval candidate bank is missing. Refit with the original training data before saving.")
+    return {
+        "version": RETRIEVAL_STATE_VERSION,
+        "features": tuple(
+            [feature.detach().cpu().clone() for feature in group] if group is not None else None
+            for group in task_model.train_features
+        ),
+        "targets": task_model.train_targets.detach().cpu().clone(),
+        "row_count": len(task_model.train_targets),
+        "feature_schema": feature_schema,
+        "feature_dtypes": tuple(
+            [str(feature.dtype) for feature in group] if group is not None else None
+            for group in task_model.train_features
+        ),
+        "target_dtype": str(task_model.train_targets.dtype),
+    }
+
+
+def _validate_retrieval_state(state: Any, bundle: dict[str, Any]) -> dict[str, Any]:
+    if (
+        not isinstance(state, dict)
+        or type(state.get("version")) is not int
+        or state["version"] != RETRIEVAL_STATE_VERSION
+    ):
+        raise ValueError(
+            "Retrieval candidate bank is missing or unsupported. Refit with the original training data and save a new artifact."
+        )
+    schema = bundle.get("feature_schema")
+    if not isinstance(schema, dict) or state.get("feature_schema") != schema:
+        raise ValueError("Retrieval candidate bank schema does not match the artifact schema.")
+    task_info = bundle.get("task_info")
+    if not isinstance(task_info, dict) or state.get("task_info") != _simplify(task_info):
+        raise ValueError("Retrieval candidate bank task mapping does not match the artifact.")
+    for name in ("regression", "lss", "family", "num_classes", "classes_"):
+        if task_info.get(name) != _simplify(bundle.get(name)):
+            raise ValueError("Retrieval candidate bank class mapping or task configuration is incompatible.")
+    information = schema.get("feature_info")
+    if not isinstance(information, dict) or information != _simplify(bundle.get("feature_info")):
+        raise ValueError("Retrieval candidate bank feature information is incompatible with the model.")
+    rows = state.get("row_count")
+    targets = state.get("targets")
+    if type(rows) is not int or rows < 1:
+        raise ValueError("Retrieval candidate bank row_count must be a positive integer.")
+    if (
+        not isinstance(targets, torch.Tensor)
+        or targets.layout != torch.strided
+        or targets.ndim not in {1, 2}
+        or targets.shape[0] != rows
+    ):
+        raise ValueError("Retrieval candidate bank targets must align with its rows.")
+    if (
+        targets.device.type not in {"cpu", "cuda", "mps"}
+        or targets.dtype == torch.bool
+        or targets.is_complex()
+        or str(targets.dtype) != state.get("target_dtype")
+        or not torch.isfinite(targets).all()
+    ):
+        raise ValueError("Retrieval candidate bank target dtype or values are invalid.")
+    if not bundle.get("regression", True):
+        classes = bundle.get("classes_")
+        if (
+            classes is None
+            or targets.numel() != rows
+            or not torch.equal(targets, targets.round())
+            or (targets < 0).any()
+            or (targets >= len(classes)).any()
+        ):
+            raise ValueError("Retrieval candidate bank targets do not match the encoded classifier labels.")
+        expected_dtype = torch.int64 if len(classes) > 2 else torch.float32
+        expected_shape = (rows,) if len(classes) > 2 else (rows, 1)
+    else:
+        expected_dtype = torch.float32
+        expected_shape = (
+            rows,
+            bundle["num_classes"] if bundle.get("lss") and bundle.get("family") == "dirichlet" else 1,
+        )
+    if targets.dtype != expected_dtype or tuple(targets.shape) != expected_shape:
+        raise ValueError("Retrieval candidate bank target dtype or width does not match the task.")
+    features = state.get("features")
+    dtypes = state.get("feature_dtypes")
+    if (
+        not isinstance(features, (tuple, list))
+        or len(features) != 3
+        or not isinstance(dtypes, (tuple, list))
+        or len(dtypes) != 3
+    ):
+        raise ValueError("Retrieval candidate bank must contain three ordered feature groups and their dtypes.")
+    for group, declared_dtypes, name in zip(features, dtypes, ("num", "cat", "emb"), strict=True):
+        expected = information.get(name)
+        if not isinstance(expected, dict):
+            raise ValueError("Retrieval candidate bank feature schema is invalid.")
+        if group is None:
+            if expected or name != "emb" or declared_dtypes is not None:
+                raise ValueError("Retrieval candidate bank is missing a required feature group.")
+            continue
+        if (
+            not isinstance(group, (tuple, list))
+            or len(group) != len(expected)
+            or not isinstance(declared_dtypes, (tuple, list))
+            or len(declared_dtypes) != len(group)
+        ):
+            raise ValueError("Retrieval candidate bank feature group counts do not match the schema.")
+        for feature, dtype, description in zip(group, declared_dtypes, expected.values(), strict=True):
+            if (
+                not isinstance(description, dict)
+                or type(description.get("dimension")) is not int
+                or description["dimension"] < 1
+            ):
+                raise ValueError("Retrieval candidate bank feature dimensions in the schema are invalid.")
+            if (
+                not isinstance(feature, torch.Tensor)
+                or feature.layout != torch.strided
+                or feature.ndim != 2
+                or feature.shape[0] != rows
+                or feature.shape[1] != description.get("dimension")
+            ):
+                raise ValueError(
+                    "Retrieval candidate bank feature dimensions or row alignment do not match the schema."
+                )
+            expected_dtype = (
+                torch.float32
+                if name != "cat"
+                or any(value in description.get("preprocessing", "") for value in ("onehot", "pretrained"))
+                else torch.int64
+            )
+            if (
+                feature.device.type not in {"cpu", "cuda", "mps"}
+                or feature.dtype != expected_dtype
+                or str(feature.dtype) != dtype
+                or not torch.isfinite(feature).all()
+            ):
+                raise ValueError("Retrieval candidate bank feature dtype or values are invalid.")
+    return state
+
+
+def restore_retrieval_state(task_model: Any, bundle: dict[str, Any]) -> None:
+    """Restore the required candidate bank before exposing a loaded estimator."""
+    if not hasattr(task_model.estimator, "predict_with_candidates"):
+        return
+    state = _validate_retrieval_state(bundle.get("retrieval_state"), bundle)
+    task_model.train_features = tuple(
+        [feature.detach().to(task_model.device).clone() for feature in group] if group is not None else None
+        for group in state["features"]
+    )
+    task_model.train_targets = state["targets"].detach().to(task_model.device).clone()
+
+
 def build_save_bundle(
     estimator: Any,
     *,
@@ -374,6 +527,11 @@ def build_save_bundle(
       architecture that randomizes part of its own shape at construction
       time (e.g. NDTF's per-tree depth), or ``None`` for architectures that
       don't define :meth:`get_architecture_state`.
+        * ``retrieval_state``: a separately versioned CPU snapshot of required
+            transformed candidate feature groups and targets, with row count, schema,
+            dtype declarations, task configuration and class mapping; ``None`` for
+            models that do not use candidates. Runtime search indexes are rebuilt
+            from candidate inputs rather than serialized.
 
     Examples
     --------
@@ -421,7 +579,8 @@ def build_save_bundle(
     get_architecture_state = getattr(estimator._estimator, "get_architecture_state", None)
     architecture_state = get_architecture_state() if callable(get_architecture_state) else None
 
-    return {
+    retrieval_state = build_retrieval_state(estimator._task_model, feature_schema)
+    bundle = {
         "_class": type(estimator),
         "config": estimator.config,
         "config_kwargs": estimator._config_kwargs,
@@ -451,6 +610,7 @@ def build_save_bundle(
         "weight_decay": estimator._task_model.weight_decay,
         "loss_fct": estimator._task_model.loss_fct,
         "task_model_state_dict": estimator._task_model.state_dict(),
+        "retrieval_state": retrieval_state,
         "artifact_metadata": artifact_metadata,
         "architecture_metadata": artifact_metadata["architecture"],
         "feature_schema": feature_schema,
@@ -463,6 +623,10 @@ def build_save_bundle(
         "versions": artifact_metadata["versions"],
         "architecture_state": architecture_state,
     }
+    if retrieval_state is not None:
+        retrieval_state["task_info"] = _simplify(artifact_metadata["task"])
+        _validate_retrieval_state(retrieval_state, bundle)
+    return bundle
 
 
 def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:

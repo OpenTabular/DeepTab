@@ -663,13 +663,18 @@ class TrainerConfig(BaseEstimator):
         Extra keyword arguments forwarded to the scheduler constructor.
         ``factor`` and ``patience`` are synthesised from ``lr_factor`` and
         ``lr_patience`` for ``ReduceLROnPlateau`` when absent here.
+        An explicit ``mode`` overrides the effective general direction for
+        the plateau scheduler only.
     scheduler_monitor : str or None, default=None
-        Metric name for the scheduler to monitor.  Falls back to the value of
-        ``monitor`` when ``None``.
+        Metric name for a plateau scheduler to monitor. When ``None``, use
+        the effective general monitor, including an explicit ``fit(monitor=...)``
+        override. An explicit value affects only the scheduler.
     scheduler_interval : str, default="epoch"
         Lightning scheduling granularity: ``"epoch"`` or ``"step"``.
     scheduler_frequency : int, default=1
         How often the scheduler steps at the given interval.
+        For validation plateau monitors, this must be a multiple of the
+        trainer's positive integer ``check_val_every_n_epoch``.
     no_weight_decay_for_bias_and_norm : bool, default=False
         When ``True``, bias vectors and normalisation-layer scale/shift
         parameters receive zero weight decay.  Recommended for transformer-

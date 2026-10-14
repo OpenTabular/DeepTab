@@ -43,6 +43,29 @@ for the authoritative, version-accurate list.
 
 ## Before you upgrade
 
+### Retrieval artifacts without candidate data
+
+TabR and experimental ModernNCA artifacts now retain the transformed training
+candidate bank required for inference, using artifact format 3 and a versioned
+retrieval payload. Older retrieval artifacts that omitted the bank cannot be
+repaired from their weights alone. Loading such an otherwise deserializable
+artifact raises `ValueError` with a refitting instruction instead of silently
+using an unrelated ordinary forward pass.
+
+Refit from the original training data with the current preprocessing config,
+validate the resulting model and save a new artifact. This is a new training
+run, not an inference-equivalent migration from an incomplete old file. Ordinary
+models do not require candidate data and keep their existing compatible loading
+path. PreTab deserialization failures described above can occur before the
+candidate-bank check.
+
+Retrieval files contain training-derived features and labels and may be much
+larger than weight-only files. Use trusted artifacts and training-data-level
+access/retention controls. See {ref}`retrieval-artifacts` for the payload,
+continuation, device limits, privacy and executable round-trip example.
+
+### Version pinning
+
 Pin the major version you test against so a future release never surprises a running
 pipeline:
 

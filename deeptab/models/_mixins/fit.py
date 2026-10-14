@@ -21,6 +21,7 @@ from deeptab.core.preprocessing import build_preprocessor
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.training import pretrain_embeddings
 from deeptab.training.optimizers import normalize_optimizer_kwargs
+from deeptab.training.schedulers import get_scheduler
 
 if TYPE_CHECKING:
     from deeptab.configs import PreprocessingConfig
@@ -108,6 +109,8 @@ class _FitMixin:
         dataloader_kwargs=None,
         loss_fct: Callable | None = None,
         sampler=None,
+        monitor: str | None = None,
+        mode: str | None = None,
     ):
         """Builds the model using the provided training data."""
         if dataloader_kwargs is None:
@@ -225,8 +228,10 @@ class _FitMixin:
             optimizer_args=_optimizer_kwargs if _optimizer_kwargs is not None else self._optimizer_kwargs,
             scheduler_type=_scheduler_type,
             scheduler_kwargs=_scheduler_kwargs,
-            monitor=_scheduler_monitor if _scheduler_monitor is not None else _tc.monitor,
-            mode=_tc.mode,
+            monitor=_scheduler_monitor
+            if _scheduler_monitor is not None
+            else (monitor if monitor is not None else _tc.monitor),
+            mode=mode if mode is not None else _tc.mode,
             scheduler_interval=_scheduler_interval,
             scheduler_frequency=_scheduler_frequency,
             no_weight_decay_for_bias_and_norm=_no_wd_bn,
@@ -385,7 +390,57 @@ class _FitMixin:
                     )
         return prepared
 
-    def _configure_continuation(self, *, lr, lr_patience, lr_factor, weight_decay):
+    def _validate_monitoring(
+        self, *, monitor, mode, train_metrics, val_metrics, continuation, validation_enabled, trainer_kwargs
+    ):
+        """Validate declared monitoring names, directions, and scheduler cadence."""
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        monitor = tc.monitor if monitor is None else monitor
+        mode = tc.mode if mode is None else mode
+        if mode not in {"min", "max"}:
+            raise ValueError(f"mode must be 'min' or 'max'; received {mode!r}.")
+        if continuation:
+            train_metrics = getattr(self._task_model, "train_metrics", {})
+            val_metrics = getattr(self._task_model, "val_metrics", {})
+        available = set()
+        if trainer_kwargs.get("limit_train_batches", 1) != 0:
+            available.update({"train_loss", "train_loss_epoch", "train_loss_step"})
+            available.update(f"train_{name}" for name in (train_metrics or {}))
+        if validation_enabled and trainer_kwargs.get("limit_val_batches", 1) != 0:
+            available.add("val_loss")
+            available.update(f"val_{name}" for name in (val_metrics or {}))
+        if monitor not in available:
+            raise ValueError(f"monitor {monitor!r} is not available; logged metrics are {sorted(available)}.")
+        if tc.scheduler_type is None or tc.scheduler_type.lower() == "none":
+            return
+        if not issubclass(get_scheduler(tc.scheduler_type), torch.optim.lr_scheduler.ReduceLROnPlateau):
+            return
+        scheduler_monitor = tc.scheduler_monitor if tc.scheduler_monitor is not None else monitor
+        scheduler_mode = (tc.scheduler_kwargs or {}).get("mode", mode)
+        if scheduler_monitor not in available:
+            raise ValueError(
+                f"scheduler_monitor {scheduler_monitor!r} is not available; logged metrics are {sorted(available)}."
+            )
+        if scheduler_mode not in {"min", "max"}:
+            raise ValueError(f"scheduler mode must be 'min' or 'max'; received {scheduler_mode!r}.")
+        if tc.scheduler_interval == "step" and scheduler_monitor not in {"train_loss", "train_loss_step"}:
+            raise ValueError(
+                "A step plateau scheduler requires train_loss or train_loss_step; validation and other epoch metrics are unavailable at training steps."
+            )
+        if scheduler_monitor.startswith("val_"):
+            validation_frequency = trainer_kwargs.get("check_val_every_n_epoch", 1)
+            if (
+                not isinstance(validation_frequency, int)
+                or isinstance(validation_frequency, bool)
+                or validation_frequency < 1
+            ):
+                raise ValueError("A validation plateau monitor requires a positive integer check_val_every_n_epoch.")
+            if tc.scheduler_frequency % validation_frequency != 0:
+                raise ValueError(
+                    "A validation plateau monitor requires scheduler_frequency to be a multiple of check_val_every_n_epoch."
+                )
+
+    def _configure_continuation(self, *, lr, lr_patience, lr_factor, weight_decay, monitor=None, mode=None):
         """Apply settings for a new optimizer without replacing model weights."""
         tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
         values = {
@@ -397,8 +452,10 @@ class _FitMixin:
             "optimizer_params": normalize_optimizer_kwargs(tc.optimizer_kwargs),
             "scheduler_type": tc.scheduler_type,
             "scheduler_kwargs": tc.scheduler_kwargs,
-            "monitor": tc.scheduler_monitor if tc.scheduler_monitor is not None else tc.monitor,
-            "mode": tc.mode,
+            "monitor": tc.scheduler_monitor
+            if tc.scheduler_monitor is not None
+            else (monitor if monitor is not None else tc.monitor),
+            "mode": mode if mode is not None else tc.mode,
             "scheduler_interval": tc.scheduler_interval,
             "scheduler_frequency": tc.scheduler_frequency,
             "no_weight_decay_for_bias_and_norm": tc.no_weight_decay_for_bias_and_norm,
@@ -502,13 +559,17 @@ class _FitMixin:
             Falls back to the active ``TrainerConfig``'s value, or 15 when no
             ``TrainerConfig`` is set.
         monitor : str or None, default=None
-            Metric to monitor for early stopping. Falls back to the active
+            Metric for early stopping and best checkpoint selection. Falls back to the active
             ``TrainerConfig``'s value, or ``"val_loss"`` when no
-            ``TrainerConfig`` is set.
+            ``TrainerConfig`` is set. Plateau schedulers inherit this value unless
+            ``scheduler_monitor`` is explicitly configured. Unknown or unavailable
+            names raise ``ValueError`` before replacing fitted state.
         mode : str or None, default=None
             Whether the monitored metric should be minimised (``"min"``) or
             maximised (``"max"``). Falls back to the active ``TrainerConfig``'s
             value, or ``"min"`` when no ``TrainerConfig`` is set.
+            Plateau schedulers inherit it unless ``scheduler_kwargs["mode"]``
+            is explicit. Overrides apply to this call only, including continuation.
         lr : float or None, optional
             Learning rate override.
         lr_patience : int or None, optional
@@ -590,6 +651,16 @@ class _FitMixin:
             monitor = tc.monitor
         if mode is None:
             mode = tc.mode
+        effective_rebuild = rebuild if rebuild is not None else not self._is_pretrained
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not effective_rebuild,
+            validation_enabled=X_val is not None or val_size > 0,
+            trainer_kwargs=trainer_kwargs,
+        )
         # An explicit checkpoint_path (fit() argument) must always be honored,
         # even when observability would otherwise pick a run directory.
         _checkpoint_path_explicit = checkpoint_path is not None
@@ -606,7 +677,6 @@ class _FitMixin:
 
         if random_state is None:
             random_state = self.random_state
-        effective_rebuild = rebuild if rebuild is not None else not self._is_pretrained
         prepared = None
         if not effective_rebuild:
             self._validate_continuation_options(
@@ -736,17 +806,31 @@ class _FitMixin:
                 val_metrics=val_metrics,
                 loss_fct=loss_fct,
                 sampler=sampler,
+                monitor=monitor,
+                mode=mode,
             )
         else:
             self._data_module = prepared
-            self._configure_continuation(lr=lr, lr_patience=lr_patience, lr_factor=lr_factor, weight_decay=weight_decay)
+            self._configure_continuation(
+                lr=lr,
+                lr_patience=lr_patience,
+                lr_factor=lr_factor,
+                weight_decay=weight_decay,
+                monitor=monitor,
+                mode=mode,
+            )
 
         # n_params computed in _build_model and emitted via model.created;
         # recalculate here for _log_run_metadata_to_mlflow and fit.completed.
         _n_params = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore[union-attr]
 
         early_stop_callback = EarlyStopping(
-            monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
+            monitor=monitor,
+            min_delta=0.00,
+            patience=patience,
+            verbose=False,
+            mode=mode,
+            check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
         # An explicit checkpoint_path always wins and is used as-is. Otherwise,
@@ -767,6 +851,7 @@ class _FitMixin:
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
+            save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
             dirpath=_checkpoint_dir,
             filename="best_model",

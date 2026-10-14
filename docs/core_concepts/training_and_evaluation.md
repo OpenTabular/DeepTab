@@ -182,7 +182,9 @@ still leaves the training loader empty. Reduce `batch_size` or disable
 
 ### Early stopping and checkpointing
 
-Early stopping monitors `TrainerConfig.monitor` (default `"val_loss"`). The best checkpoint is
+Early stopping and checkpoint selection use the effective `monitor` and `mode`:
+explicit `fit()` arguments override `TrainerConfig`, whose defaults are
+`"val_loss"` and `"min"`. The best checkpoint is
 loaded back after training automatically. Pass `checkpoint_path` directly to `fit()` to save
 exactly there (`checkpoint_path/best_model.ckpt`); otherwise (including when `checkpoint_path`
 only comes from `TrainerConfig`) each run writes to its own timestamped sub-directory
@@ -255,11 +257,95 @@ TrainerConfig(
 )
 ```
 
+(monitoring-precedence)=
+
+### Monitoring precedence
+
+| Consumer                           | Monitored metric                                                                    | Direction                                                                               |
+| ---------------------------------- | ----------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Early stopping and best checkpoint | `fit(monitor=...)`, then `TrainerConfig.monitor`                                    | `fit(mode=...)`, then `TrainerConfig.mode`                                              |
+| Plateau scheduler                  | Explicit `TrainerConfig.scheduler_monitor`, otherwise the effective general monitor | Explicit `TrainerConfig.scheduler_kwargs["mode"]`, otherwise the effective general mode |
+
+The general defaults are `"val_loss"` and `"min"`, including when no
+`TrainerConfig` is supplied. Scheduler-specific overrides affect only the
+scheduler. `StepLR` and other non-plateau schedulers do not consume a monitored
+metric or direction. Registered `ReduceLROnPlateau` aliases and subclasses follow
+the plateau rules.
+
+These rules apply independently on every call, including `rebuild=False` and
+continuation of a loaded estimator. A previous call's overrides are not retained
+implicitly. Fitting does not mutate the constructor's config or scheduler kwargs.
+
+Declare a custom monitor through `train_metrics` or `val_metrics` on the first
+fit or a rebuild. For example, `val_metrics={"auroc": AUROC()}` makes
+`"val_auroc"` available. Continuation retains the existing metric objects;
+replacing them requires a rebuild. See {ref}`epoch-metric-lifecycle` for input
+aggregation and callback timing.
+
 ```{important}
-Prior to v2.0 the scheduler always watched `val_loss` in `min` mode
-regardless of `monitor` / `mode`. This caused the LR scheduler and early
-stopping to track different metrics when using a maximise-mode metric such as
-`val_auroc`. Both are now correctly aligned.
+Unknown or unavailable monitors and directions other than `"min"`/`"max"`
+raise `ValueError` before replacing the fitted task, data module, or trainer.
+There is no fallback from an explicitly selected metric to `"val_loss"`.
+Validation monitors require validation to be enabled. A step-level plateau
+scheduler can monitor `"train_loss"` or `"train_loss_step"`, but not an epoch
+metric. A validation plateau scheduler requires a positive integer
+`check_val_every_n_epoch` and a `scheduler_frequency` that is a multiple of it.
+For validation every two epochs, use `scheduler_frequency=2`. Monitors are
+checked against task losses and declared metrics, not arbitrary names logged
+by user callbacks.
+```
+
+**Runnable scheduler-only override:**
+
+```python
+from tempfile import TemporaryDirectory
+
+import numpy as np
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+
+from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+from deeptab.metrics import MeanSquaredError
+from deeptab.models import MLPRegressor
+
+features = np.random.default_rng(17).normal(size=(32, 3))
+targets = features[:, 0]
+
+with TemporaryDirectory() as checkpoint_dir:
+    config = TrainerConfig(
+        max_epochs=1, batch_size=8, checkpoint_path=checkpoint_dir,
+        scheduler_monitor="val_mse", scheduler_kwargs={"mode": "min"},
+    )
+    model = MLPRegressor(
+        model_config=MLPConfig(layer_sizes=[8]),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        trainer_config=config, random_state=17,
+    )
+    options = dict(
+        X_val=features[24:], y_val=targets[24:], accelerator="cpu",
+        logger=False, enable_progress_bar=False, enable_model_summary=False,
+    )
+    model.fit(
+        features[:24], targets[:24], val_metrics={"mse": MeanSquaredError()},
+        monitor="train_loss", mode="max", **options,
+    )
+    callbacks = [
+        callback for callback in vars(model._trainer)["callbacks"]
+        if isinstance(callback, (EarlyStopping, ModelCheckpoint))
+    ]
+    assert all(callback.monitor == "train_loss" and callback.mode == "max" for callback in callbacks)
+    scheduler = model._trainer.lr_scheduler_configs[0]
+    assert scheduler.monitor == "val_mse" and scheduler.scheduler.mode == "min"
+    assert config.monitor == "val_loss" and config.mode == "min"
+    assert config.scheduler_kwargs == {"mode": "min"}
+
+    model.fit(features[:24], targets[:24], rebuild=False, **options)
+    callbacks = [
+        callback for callback in vars(model._trainer)["callbacks"]
+        if isinstance(callback, (EarlyStopping, ModelCheckpoint))
+    ]
+    assert all(callback.monitor == "val_loss" and callback.mode == "min" for callback in callbacks)
+    scheduler = model._trainer.lr_scheduler_configs[0]
+    assert scheduler.monitor == "val_mse" and scheduler.scheduler.mode == "min"
 ```
 
 **Inspect and extend the registries:**

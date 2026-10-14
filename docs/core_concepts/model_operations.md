@@ -23,6 +23,97 @@ loaded = MLPClassifier.load("my_model.deeptab")
 predictions = loaded.predict(X_test)
 ```
 
+(retrieval-artifacts)=
+
+### Retrieval artifacts
+
+TabR and experimental ModernNCA predictions depend on the fitted training
+candidate bank, not just network weights. Artifact format 3 includes a separately
+versioned `retrieval_state` payload for these models. It contains detached CPU
+tensors for transformed numerical, categorical and optional embedding groups,
+encoded targets, row count, dtype declarations, feature schema, task metadata and
+the classifier mapping. Ordinary models do not need this payload.
+
+Loading validates row/target alignment, effective feature widths, dtype, finite
+values, schema and task/class mappings before returning the estimator. Candidate
+tensors then follow the task's device moves. Runtime FAISS indexes, trainers and
+data loaders are not stored; TabR builds a new index from its restored candidate
+inputs when needed. A continuation fit replaces the bank with the compatible
+data supplied to that call, and a subsequent save captures that refreshed bank.
+
+```{warning}
+Retrieval artifacts retain training-derived features and labels. Preprocessing
+is not anonymization, and class mappings and preprocessing categories can retain
+original values. Apply the same access, retention and deletion controls as for
+training data. Bank storage grows with row count and total transformed feature
+width, in addition to weights and preprocessing. CPU snapshots and reload copies
+also need memory; this is not a streaming or compressed-bank format.
+```
+
+```{warning}
+Load only files you created or obtained from a trusted source. DeepTab restores
+pickle-based Python objects with `weights_only=False`; loading an untrusted
+artifact can execute code. Schema and bank validation happens after
+deserialization and is not a security boundary.
+```
+
+Older retrieval artifacts without the required bank raise an actionable
+`ValueError` when their preprocessing payload can be deserialized. They cannot
+recover their training rows from weights alone: refit from the original data
+under the current preprocessing configuration, validate the new predictions and
+save a new artifact. Missing live banks raise `RuntimeError` during prediction,
+validation or testing; inference never substitutes the ordinary forward path.
+Older ordinary-model artifacts without a bank remain loadable when their other
+dependencies and saved state are compatible. See {ref}`historical-artifacts` for
+preprocessing-version limitations.
+
+Use CPU for portable retrieval reloads. Native TabR remains unsupported on
+macOS arm64 because of its FAISS runtime limitation. CUDA TabR additionally needs
+a compatible GPU-enabled FAISS installation; `faiss-cpu` is not that installation.
+Other devices/backends need their own verification. LSS wrappers currently do
+not accept external embeddings in `fit()`; point/classifier wrappers do.
+Preserving ModernNCA regressor output across reload does not certify its
+continuous-target prediction semantics, which remain an experimental limitation.
+
+**Runnable retrieval round trip:**
+
+```python
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import numpy as np
+
+from deeptab.configs import PreprocessingConfig, TrainerConfig
+from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
+from deeptab.models.experimental import ModernNCAClassifier
+
+features = np.random.default_rng(17).normal(size=(32, 3)).astype(np.float32)
+labels = (np.arange(32) % 2) * 20 + 10
+with TemporaryDirectory() as directory:
+    model = ModernNCAClassifier(
+        model_config=ModernNCAConfig(dim=8, n_blocks=0, head_dropout=0),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=8, checkpoint_path=directory),
+        random_state=17,
+    )
+    options = dict(
+        X_val=features[24:], y_val=labels[24:], accelerator="cpu",
+        logger=False, enable_progress_bar=False, enable_model_summary=False,
+    )
+    model.fit(features[:24], labels[:24], **options)
+    expected = model.predict_proba(features[24:])
+    path = str(Path(directory) / "retrieval.deeptab")
+    model.save(path)
+    loaded = ModernNCAClassifier.load(path, device="cpu")
+    np.testing.assert_allclose(loaded.predict_proba(features[24:]), expected, rtol=1e-6, atol=1e-7)
+    np.testing.assert_array_equal(loaded.classes_, [10, 30])
+    loaded.fit(features[:24] + 1, labels[:24], rebuild=False, **options)
+    refreshed = loaded.predict_proba(features[24:])
+    loaded.save(path)
+    reloaded = ModernNCAClassifier.load(path, device="cpu")
+    np.testing.assert_allclose(reloaded.predict_proba(features[24:]), refreshed, rtol=1e-6, atol=1e-7)
+```
+
 ### Scoring and refitting a loaded estimator
 
 Loaded estimators support `score()` as well as prediction. A regressor returns
@@ -217,6 +308,7 @@ The bundle saved to disk is a PyTorch-serialised dictionary containing:
 | Key                                                      | Contents                                                                                                                                                                            |
 | -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `task_model_state_dict`                                  | Neural network weights (Lightning module state dict)                                                                                                                                |
+| `retrieval_state`                                        | Versioned transformed candidate inputs, encoded targets, row/schema/dtype/task mappings for retrieval inference; `None` for ordinary models                                         |
 | `loss_fct`                                               | The fitted loss module (e.g. class-weighted or focal losses), so a reload trains or reports on the same loss, not a default inferred from `num_classes`                             |
 | `preprocessor`                                           | Fitted `pretab.Preprocessor` object                                                                                                                                                 |
 | `feature_info`                                           | Numerical, categorical, and embedding feature metadata                                                                                                                              |
@@ -237,7 +329,7 @@ A trained model is more than its weights. To turn raw input into a prediction yo
 DeepTab keeps all of it together so that one file is enough to reproduce the exact model you trained. The saved package versions make that promise auditable, so when a colleague loads your artifact a year later they can see the environment it was built in.
 
 ```{note}
-The metadata is tiny next to the weights. Schema, config, task info, and version stamps add a few kilobytes and grow with the number of features, not the number of training rows. A model trained on ten rows and one trained on ten million carry the same metadata footprint.
+The metadata is tiny next to the weights. Schema, config, task info, and version stamps add a few kilobytes and grow with the number of features, not the number of training rows. A model trained on ten rows and one trained on ten million carry the same metadata footprint. Retrieval candidate tensors are data, not this metadata; their storage grows with training rows and transformed widths.
 ```
 
 ### How `.deeptab` compares to raw formats
@@ -263,7 +355,7 @@ support.
 | Environment version stamps                         |         ✗          |             ✗              |   ✗   |     ✓      |
 | Self-contained: predict with no extra glue code    |         ✗          |             ✗              |   ✗   |     ✓      |
 
-With a bare `.pt` file you have to recreate the architecture by hand and re-attach a preprocessor before the weights mean anything. A pickled estimator can capture more, but it stores a live Python object graph that breaks the moment a class is renamed or a dependency shifts, and unpickling it runs arbitrary code. `.deeptab` sidesteps both problems by storing structured metadata alongside the weights and reconstructing the model through DeepTab's own loader.
+With a bare `.pt` file you have to recreate the architecture by hand and re-attach a preprocessor before the weights mean anything. A pickled estimator can capture more, but it stores a live Python object graph that can break when classes or dependencies change, and unpickling it can execute code. `.deeptab` adds structured metadata and reconstructs through DeepTab's loader, but it still requires trusted input and compatible Python dependencies.
 
 ```{warning}
 Directly pickling a DeepTab estimator is not a supported way to preserve a fitted model.
@@ -279,6 +371,8 @@ The self-contained reload is a feature of the DeepTab package, not of the file o
 ```{warning}
 Because the artifact is pickle-backed under the hood, only load `.deeptab` files from sources you trust, the same caution that applies to any `torch.load` or pickle file.
 ```
+
+(historical-artifacts)=
 
 ### Checkpoint format compatibility
 
