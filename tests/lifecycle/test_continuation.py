@@ -81,6 +81,65 @@ def _updated_targets(targets):
     return targets + 1000
 
 
+@pytest.mark.parametrize("architecture", ["ResNet", "TabM", "FTTransformer"])
+@pytest.mark.parametrize("task", ["classification", "regression", "lss"])
+@pytest.mark.parametrize("rebuild", [False, True])
+def test_loaded_stable_model_refreshes_data_and_overrides(
+    architecture, task, rebuild, stable_model_factory, easy_problem, tmp_path
+):
+    train, validation, train_classes, validation_classes, train_values, validation_values = easy_problem
+    targets, held_out = (
+        (train_classes, validation_classes) if task == "classification" else (train_values, validation_values)
+    )
+    options = {
+        "accelerator": "cpu",
+        "logger": False,
+        "enable_progress_bar": False,
+        "enable_model_summary": False,
+        **({"family": "normal"} if task == "lss" else {}),
+    }
+    model = stable_model_factory(architecture, task, epochs=1)
+    model.fit(train, targets, X_val=validation, y_val=held_out, **options)
+    path = str(tmp_path / "loaded.deeptab")
+    model.save(path)
+    loaded = type(model).load(path, device="cpu")
+    previous_task, previous_preprocessor = loaded._task_model, loaded._preprocessor
+    assert isinstance(previous_task, TaskModel)
+    weights = {name: value.detach().clone() for name, value in previous_task.named_parameters()}
+    updated_train, updated_validation = train.copy(), validation.copy()
+    updated_train["signal"] += 2
+    updated_validation["signal"] += 2
+    updated_targets = np.roll(targets, 1) if task == "classification" else targets + 2
+    updated_held_out = np.roll(held_out, 1) if task == "classification" else held_out + 2
+    capture = _ContinuationCapture()
+    assert (
+        loaded.fit(
+            updated_train,
+            updated_targets,
+            X_val=updated_validation,
+            y_val=updated_held_out,
+            rebuild=rebuild,
+            max_epochs=2,
+            batch_size=7,
+            lr=0.005,
+            callbacks=[capture],
+            **options,
+        )
+        is loaded
+    )
+    encoded = np.searchsorted(loaded.classes_, updated_targets) if task == "classification" else updated_targets
+    np.testing.assert_array_equal(capture.targets, encoded)
+    assert capture.batch[1].shape[0] == 7 and capture.max_epochs == 2
+    assert capture.learning_rate == 0.005 and capture.optimizer_state_size == 0
+    if not rebuild:
+        assert loaded._task_model is previous_task and loaded._preprocessor is previous_preprocessor
+        for name, previous in weights.items():
+            torch.testing.assert_close(capture.weights[name], previous, rtol=0, atol=0)
+    else:
+        assert loaded._task_model is not previous_task and loaded._preprocessor is not previous_preprocessor
+    assert np.isfinite(loaded.predict(updated_validation)).all()
+
+
 def test_repeated_continuation_refreshes_all_task_families_and_optimizer(fitted_case, monkeypatch):
     model, features, targets, options = fitted_case
     preprocessor = model._preprocessor

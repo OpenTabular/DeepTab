@@ -14,6 +14,7 @@ import pandas as pd
 import pytest
 import torch
 from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from sklearn.metrics import r2_score
 from sklearn.model_selection import train_test_split
 
 from deeptab import set_seed
@@ -358,7 +359,7 @@ def test_regressor_score_returns_r2(regression_data):
 
     score = model.score(X_test, y_test)
     assert isinstance(score, float), "score() should return a float"
-    assert score <= 1.0, "R² score should be at most 1.0"
+    np.testing.assert_allclose(score, r2_score(y_test, model.predict(X_test)), rtol=1e-6, atol=1e-7)
 
 
 @pytest.mark.parametrize("cls", CLASSIFIERS)
@@ -375,14 +376,14 @@ def test_classifier_score_returns_float_in_unit_interval(cls, classification_dat
 
 @pytest.mark.parametrize("cls", REGRESSORS)
 def test_regressor_score_returns_r2_all(cls, regression_data):
-    """score() returns an R² float ≤ 1.0 for every regressor."""
+    """Compare each regressor's score with sklearn's R2 on identical predictions."""
     X_train, X_test, y_train, y_test = regression_data
     model = cls()
     model.fit(X_train, y_train, **FIT_KWARGS)
 
     score = model.score(X_test, y_test)
     assert isinstance(score, float), f"{cls.__name__}.score() should return a float"
-    assert score <= 1.0, f"{cls.__name__}.score()={score} exceeds 1.0"
+    np.testing.assert_allclose(score, r2_score(y_test, model.predict(X_test)), rtol=1e-6, atol=1e-7)
 
 
 def test_checkpoint_monitor_and_mode_match_early_stopping(regression_data):

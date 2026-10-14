@@ -10,6 +10,7 @@ from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.exceptions import DataError, DeepTabError, NotFittedError
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
+from deeptab.models.classifier_base import SklearnBaseClassifier
 from deeptab.training import TaskModel
 
 pytestmark = pytest.mark.integration
@@ -36,15 +37,22 @@ def _fit_options():
     return {"accelerator": "cpu", "logger": False, "enable_progress_bar": False, "enable_model_summary": False}
 
 
-@pytest.fixture(params=[MLPClassifier, MLPRegressor, MLPLSS])
-def fitted_case(request, tmp_path):
+@pytest.fixture(
+    params=[
+        pytest.param((architecture, task), id=f"{architecture}-{task}")
+        for architecture in ("MLP", "ResNet", "TabM", "FTTransformer")
+        for task in ("classification", "regression", "lss")
+    ]
+)
+def fitted_case(request, stable_model_factory):
     features, labels, validation_features, validation_labels = _data()
-    if request.param is not MLPClassifier:
+    architecture, task = request.param
+    if task != "classification":
         labels = features[:, 0].copy()
         validation_labels = validation_features[:, 0].copy()
-    model = _model(request.param, tmp_path)
+    model = stable_model_factory(architecture, task, epochs=2)
     options = _fit_options()
-    if request.param is MLPLSS:
+    if task == "lss":
         options["family"] = "normal"
     model.fit(features, labels, X_val=validation_features, y_val=validation_labels, **options)
     return model, features, labels, validation_features, validation_labels, options
@@ -191,14 +199,14 @@ def test_late_failure_invalidates_prediction_and_refit_recovers(fitted_case, mon
     assert model.is_fitted_ is False
     with pytest.raises(NotFittedError):
         model.predict(validation_features)
-    if isinstance(model, MLPClassifier):
+    if isinstance(model, SklearnBaseClassifier):
         with pytest.raises(NotFittedError):
             model.predict_proba(validation_features)
 
     model.fit(features, labels + 10, X_val=validation_features, y_val=validation_labels + 10, **options)
     assert model.is_fitted_ is True
     assert np.isfinite(model.predict(validation_features)).all()
-    if isinstance(model, MLPClassifier):
+    if isinstance(model, SklearnBaseClassifier):
         np.testing.assert_array_equal(model.classes_, [10, 11])
 
 

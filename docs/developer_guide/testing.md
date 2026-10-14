@@ -113,10 +113,9 @@ Cross-module workflows live in `tests/integration/`. Estimator mixin tests live
 in `tests/models/mixins/`, and neural block tests in `tests/nn/blocks/`.
 
 Additional shared behavior is organized by category. Add a directory with its
-first substantive test, not an empty placeholder. Currently `environments/`
-contains installation and core-fitting checks, and `contracts/` contains shared
-sample-weight rejection checks. The remaining category directories are introduced
-as their tests are implemented.
+first substantive test, not an empty placeholder. The categories below now
+contain installation checks, shared model/persistence contracts, learning checks,
+lifecycle transitions, metric oracles and input/configuration boundaries.
 
 | Category Directory | Marker          | Responsibility                                                     |
 | ------------------ | --------------- | ------------------------------------------------------------------ |
@@ -127,7 +126,7 @@ as their tests are implemented.
 | `boundaries/`      | `boundary`      | Input and configuration boundaries                                 |
 | `environments/`    | `environment`   | Pre-provisioned dependencies, installation, and device contracts   |
 
-For example, use `just test-run -m lifecycle` once lifecycle tests exist.
+For example, use `just test-run -m lifecycle` for lifecycle transitions.
 Environment tests never install or download packages during pytest. Their
 dependency checks require `--dependency-profile=core` or `extras`; ordinary
 unprofiled runs skip only those three installation assertions. CI supplies
@@ -150,6 +149,89 @@ workflow tests to preserve class-level setup.
 Keep test filenames unique across directories. The suite uses pytest's default
 import mode and does not make each test directory a Python package; duplicate
 basenames can cause import mismatches.
+
+(behavioral-evidence)=
+
+## Behavioral Evidence
+
+Shape and finite-value checks verify API behavior, not learning. Likewise,
+`R2 <= 1` accepts a score of `-100`, and a probability row summing to one does
+not show that the labels were learned. Score API checks compare against sklearn's
+R2 oracle. Learning checks instead require improvement over a training-only
+dummy baseline and actual parameter updates.
+
+The shared tiny-model factory in [tests/conftest.py](https://github.com/OpenTabular/DeepTab/blob/main/tests/conftest.py)
+uses supported configuration fields, explicit CPU training, seed `17`, zero
+dropout and temporary checkpoints. Stable learning and persistence matrices
+select all architectures marked stable in the registry, across classification,
+regression and normal-family LSS. A newly declared stable model automatically
+enters those matrices; an unknown or incompatible configuration must fail,
+not silently disappear from collection.
+
+The learning fixture has 96 rows, a three-level noisy numerical signal, a
+nuisance feature and a categorical version of the signal. The split is an
+explicit 63 training/33 validation rows. This deliberately easy problem probes
+whether the complete training path can learn, not generalization superiority
+on real-world datasets. Baselines use training targets only.
+
+| Task           | Fixed Acceptance Criterion                                                                                        |
+| -------------- | ----------------------------------------------------------------------------------------------------------------- |
+| Classification | Accuracy at least 0.85 and at least 0.4 above the most-frequent dummy                                             |
+| Regression     | R2 at least 0.75 and at least 0.6 above the mean dummy                                                            |
+| Normal LSS     | NLL at least 0.2 below both the constant training-fitted Gaussian and initial full-validation NLL; positive scale |
+
+The budget is 40 epochs, batch size 16 and learning rate 0.01 without a scheduler.
+Parameter snapshots at training start must change, including parameters outside
+the output head. Negative controls reject dummy-level accuracy/R2, `R2=-100`
+and unchanged LSS loss. Record scores, baselines, initial loss and update counts
+in JUnit properties. Do not reduce margins to disguise a failure; investigate
+the architecture, optimizer, preprocessing or output semantics first.
+
+Stable contracts also check fit return values, labels/class mappings, probability
+ranges and sums, task-specific output axes, finite values, normal scale,
+one-row/partial batches and generated-artifact reloads in fresh interpreters.
+The child process receives query data and the saved artifact, not the original
+model or datamodule. Float32 reload/row comparisons use `rtol=1e-5, atol=1e-6`.
+No binary artifact fixture or network dataset is required.
+
+```{note}
+SAINT's row attention uses the current batch as context. Its contract checks
+permutations within unchanged batch groups and reloads with identical query
+batching; it does not claim that changing batch membership or predicting a
+single row reproduces a full-batch result. Other stable contracts check
+reversed rows and one-row consistency explicitly.
+```
+
+Representative boundary tests cover one feature, categorical-only data, unseen
+categories, missing values, Inf rejection and invalid targets. TabTransformer
+requires categorical input and explicitly rejects a numerical-only feature.
+Invalid targets preserve fitted state during preflight; a late preprocessing
+failure invalidates the estimator and subsequent prediction must raise a
+not-fitted error. These are different safe outcomes, not interchangeable passes.
+Embedding tests combine raw/embedded MLP and transformer pooling/normalization
+with standardization/PLE and reloads. LSS external-embedding fit support is not
+implied by those point-regressor tests.
+
+```bash
+just test-run -m learnability -q
+just test-run tests/contracts/test_stable_behavior.py -q
+just test-run -m "boundary or lifecycle" -q
+just test-run tests/learnability/test_stable_learning.py \
+    tests/contracts/test_stable_behavior.py -k TabR -q
+```
+
+The last command requires a supported native FAISS platform. Darwin arm64 skips
+are specific platform limits, not native passing evidence. Run the same cases
+on Linux or Windows and retain the exact runtime and source identity. CPU/meta
+movement tests do not validate accelerators.
+
+Keep these bounded known-answer, lifecycle, boundary and learning regressions
+in ordinary PR coverage. Use category or representative architecture selectors
+for quick local feedback; a subset does not replace the full suite, extras/profile
+checks and unchanged coverage gate before release. Current CI still runs the
+full source suite. Larger multi-seed experiments, exhaustive family/configuration
+combinations and cross-dataset statistical claims belong in separately budgeted
+nightly or post-release studies. No nightly workflow is implied by these selectors.
 
 ## Writing new tests
 
