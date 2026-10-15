@@ -39,7 +39,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),
+    preprocessing_config=PreprocessingConfig(numerical_method="ple"),
     trainer_config=TrainerConfig(lr=1e-3),
 )
 ```
@@ -403,14 +403,14 @@ Metrics work differently: there is no `register_metric` function. `METRIC_REGIST
 
 ## Controlling the validation split
 
-When you do not pass an explicit validation set, DeepTab holds one out from the training data. The split is governed by `TrainerConfig` fields, so the split policy lives in the same place as the rest of the training settings.
+When you do not pass an explicit validation set, DeepTab holds one out from the training data. `TrainerConfig.val_size` and `stratify` control this random split; `shuffle` controls training-loader order instead.
 
 ```python
 from deeptab.configs import TrainerConfig
 
 trainer_config = TrainerConfig(
     val_size=0.15,    # fraction held out when no explicit validation set is passed
-    shuffle=True,     # shuffle before splitting
+    shuffle=True,    # shuffle training batches, not the validation split
     stratify=True,    # keep class proportions in the split (classification only)
 )
 ```
@@ -418,7 +418,7 @@ trainer_config = TrainerConfig(
 | Field      | Default | Meaning                                                                                                    |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------- |
 | `val_size` | `0.2`   | Validation fraction used when no `X_val` is given.                                                         |
-| `shuffle`  | `True`  | Shuffle before splitting; `False` keeps the split order-based.                                             |
+| `shuffle`  | `True`  | Shuffle training-loader rows. Does not control the validation split.                                       |
 | `stratify` | `True`  | Stratify the split on `y` so train and validation keep the same class proportions. Ignored for regression. |
 
 The seed for the split comes from the estimator's `random_state` (or the `random_state` you pass to `fit()`), so the same seed always reproduces the same partition.
@@ -428,7 +428,7 @@ The seed for the split comes from the estimator's `random_state` (or the `random
 ```
 
 ```{note}
-When you provide your own `X_val` and `y_val`, no internal split happens at all, so `val_size`, `shuffle`, and `stratify` do not apply.
+When you provide your own `X_val` and `y_val`, no internal split happens, so `val_size` and `stratify` do not apply. `shuffle` still controls training-loader order. For chronological validation, split the data yourself and pass `X_val` and `y_val`; `shuffle=False` alone does not create a chronological split.
 ```
 
 ## Observability Config
@@ -450,7 +450,7 @@ model = MambularClassifier(
 ```
 
 ```{note}
-`ObservabilityConfig` lives in `deeptab.core.observability`, not `deeptab.configs`, because it records training rather than defining the model recipe. Unlike the three configs above it is excluded from `get_params()` and `sklearn.clone`, so it never takes part in hyperparameter search. The [Observability guide](observability) has the full field reference, the run-directory layout, and the verbosity levels.
+`ObservabilityConfig` lives in `deeptab.core.observability`, not `deeptab.configs`, because it records training rather than defining the model recipe. It is included in `get_params()` and copied independently by `sklearn.clone`. Each clone creates its own run directory when fitted. The [Observability guide](observability) has the full field reference, the run-directory layout, and the verbosity levels.
 ```
 
 ## Using Configs Together
@@ -469,7 +469,7 @@ model = MambularClassifier(
 model.fit(X_train, y_train)
 ```
 
-If `trainer_config` is provided, `fit()` takes its `max_epochs`, `batch_size`, `val_size`, `shuffle`, `stratify`, `patience`, `monitor`, `mode`, and `checkpoint_path`, overriding the matching `fit()` arguments.
+`TrainerConfig` supplies defaults for settings such as `max_epochs`, `batch_size`, `val_size`, `shuffle`, `stratify`, `patience`, `monitor`, `mode`, and `checkpoint_path`. Explicit matching `fit()` arguments override those defaults for that call. See [Training and Evaluation](training_and_evaluation) for supported per-fit overrides; optimizer selection and scheduler configuration belong in `TrainerConfig`.
 
 ## Hyperparameter Search
 

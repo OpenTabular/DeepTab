@@ -11,8 +11,8 @@ output of the distribution's ``forward()`` method -- i.e. parameters *after*
 transforms such as ``softplus`` have been applied to guarantee positivity.
 For a Normal distribution model this looks like ``[[mean_0, std_0], ...]``.
 
-:class:`NegativeLogLikelihood` is the only class here with ``needs_raw = True``.
-It calls ``distribution.compute_loss()`` directly, which applies the
+:class:`NegativeLogLikelihood` and :class:`LogScore` use ``needs_raw = True``.
+Both call ``distribution.compute_loss()``, which applies the
 parameter transforms *internally*.  Passing already-transformed values would
 double-transform them and give wrong results.
 

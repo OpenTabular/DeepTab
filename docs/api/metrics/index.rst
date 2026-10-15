@@ -8,8 +8,8 @@ Metrics
 Evaluation metrics for all three DeepTab task types: regression, classification,
 and distributional (LSS) regression.
 
-Every metric is a :class:`DeepTabMetric` subclass with three attributes the
-framework reads automatically:
+Every metric is a :class:`DeepTabMetric` subclass with metadata describing its
+name, score direction, and required prediction representation:
 
 .. list-table::
    :header-rows: 1
@@ -20,17 +20,23 @@ framework reads automatically:
      - Purpose
    * - ``name``
      - ``str``
-     - Key in ``model.evaluate()`` results and training-log suffix
-       (e.g. ``val_rmse``, ``val_crps``).
+     - Default key in ``model.evaluate()`` results. Explicit metric dictionary
+       keys set result names and training-log suffixes (e.g. ``val_rmse``).
    * - ``higher_is_better``
      - ``bool``
      - ``True`` for scores (accuracy, AUROC, R²); ``False`` for losses/errors
-       (MSE, NLL, deviances). Used by HPO to set the optimisation direction.
+       (MSE, NLL, deviances). Describes score interpretation; built-in HPO
+       always minimises ``val_loss`` independently of this attribute.
    * - ``needs_raw``
      - ``bool``
      - ``False`` (default): metric receives already-transformed distribution
        parameters. ``True``: metric receives raw model logits and applies
-       transforms itself. Only :class:`NegativeLogLikelihood` uses ``True``.
+       transforms itself. Both :class:`NegativeLogLikelihood` and
+       :class:`LogScore` use ``True``.
+   * - ``input_space``
+     - ``str`` or ``None``
+     - Requests ``"logits"``, ``"probabilities"``, or ``"labels"`` for
+       classification. Built-in classification metrics request probabilities.
 
 Quick Start
 -----------
@@ -46,17 +52,20 @@ Quick Start
     # Pass to model.fit() for live training logging
     from deeptab.models import MambularLSS
     model = MambularLSS()
+    metrics = {
+        "crps": CRPS(family="normal"),
+        "rmse": RootMeanSquaredError(),
+    }
     model.fit(
         X_train, y_train,
-        val_metrics={
-            "crps": CRPS(family="normal"),   # logged as "val_crps"
-            "rmse": RootMeanSquaredError(),   # logged as "val_rmse"
-        },
+        family="normal",
+        val_metrics=metrics,
     )
 
     # Post-hoc evaluation
-    scores = model.evaluate(X_test, y_test)
-    # Returns e.g. {"crps": 0.32, "rmse": 1.45}
+    scores = model.evaluate(X_test, y_test, metrics=metrics)
+    print(sorted(scores))
+    # ['crps', 'rmse']
 
     # Auto-select default metrics via the registry
     from deeptab.metrics import get_default_metrics
@@ -110,11 +119,12 @@ Regression Metrics
      - Quantile regression; tau in (0, 1)
 
 The **Default** column marks the metrics returned by ``get_default_metrics("regression")``
-and reported by ``model.evaluate()`` when no ``metrics`` argument is given; the
-first row (RMSE) is the primary metric used for HPO and model selection.
+and reported by ``model.evaluate()`` when no ``metrics`` argument is given.
+The list order does not choose the HPO objective or checkpoint monitor.
 
 All regression metrics accept 2-D LSS parameter arrays and extract the first
-column (predicted mean) automatically.
+column as a point prediction. That column is not the mean for every distribution;
+derive the family-specific mean explicitly when that is the quantity to score.
 
 Classification Metrics
 ~~~~~~~~~~~~~~~~~~~~~~
@@ -133,14 +143,14 @@ Classification Metrics
      - ``accuracy``
      - ``True``
      - ✓
-     - labels
-     - sklearn-backed; argmax of probability array
+     - proba
+     - sklearn-backed; converts probabilities to labels internally
    * - :class:`F1Score`
      - ``f1``
      - ``True``
      -
-     - labels
-     - ``average`` param: binary / macro / weighted
+     - proba
+     - Converts to labels internally; ``average``: binary / macro / weighted
    * - :class:`AUROC`
      - ``auroc``
      - ``True``
@@ -174,10 +184,14 @@ Classification Metrics
        instead of probabilities
 
 The **Default** column marks the metrics returned by ``get_default_metrics("classification")``.
-The **Input** column shows which prediction ``model.evaluate()`` feeds each
-metric: ``proba`` metrics (``auroc``, ``auprc``, ``log_loss``, ``brier``, ``ece``)
-receive the 2-D ``predict_proba`` output, while ``labels`` metrics receive the
-1-D ``predict`` output. The dispatch is automatic, keyed on the metric ``name``.
+The **Input** column describes each built-in metric's requested representation.
+Built-in classification metrics declare ``input_space="probabilities"``;
+``Accuracy`` and ``F1Score`` convert probabilities to labels internally.
+Routing follows metric metadata, not the result dictionary key, so renaming
+``{"ranking": AUROC()}`` does not change its inputs. Custom metrics can declare
+``input_space="labels"`` or ``"logits"`` instead. See the
+:doc:`training guide <../../core_concepts/training_and_evaluation>` for adapters
+and epoch aggregation.
 
 Distributional / LSS Metrics
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -292,7 +306,11 @@ Registry
 --------
 
 The registry maps ``(task, family)`` keys to ordered lists of default metrics.
-The first entry in each list is the primary metric used by HPO and model selection.
+These lists select the default ``evaluate()`` metrics, not an optimisation
+objective. Built-in ``optimize_hparams()`` always minimises Lightning's
+``val_loss``. Early stopping and checkpoint selection follow the configured
+``monitor`` and ``mode``; declare any custom monitored training metrics in
+``train_metrics`` or ``val_metrics``.
 
 .. code-block:: python
 
@@ -318,9 +336,10 @@ Choosing a Distribution-Specific Metric
 **For continuous point-estimate regression**: use RMSE (default) or MAE for
 outlier-robustness.
 
-**For distributional (LSS) models**: use CRPS as the primary metric. CRPS is
-a *proper scoring rule*: it rewards both accuracy and calibration, so it cannot
-be gamed by reporting an over-wide predictive distribution.
+**For distributional (LSS) models**: use CRPS for supported distribution layouts
+and dependencies, or a family-specific metric or raw-output NLL. True CRPS is
+a *proper scoring rule* that rewards accuracy and calibration, but the MAE
+fallback described above does not assess uncertainty.
 
 **For count data** (poisson, zip, negativebinom): use the appropriate deviance.
 Deviances are equivalent to twice the log-likelihood ratio against the saturated

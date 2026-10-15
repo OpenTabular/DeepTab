@@ -2,31 +2,31 @@
 
 `InferenceModel` is a deployment-only wrapper for a fitted DeepTab artifact. It provides a strict, minimal surface for production use: load → validate → predict.
 
-Training, hyper-parameter optimisation, and inspection methods are intentionally absent, so deployment code cannot accidentally trigger a fit or mutate model state.
+Training and hyperparameter optimisation methods are intentionally absent, so deployment code cannot accidentally trigger a fit. Read-only inspection remains available through `describe()`, `runtime_info()`, and `parameter_table()`.
 
 ---
 
 ## Why use `InferenceModel`?
 
-Every fitted estimator already exposes the right prediction method: a classifier has `predict` and `predict_proba`, a regressor has `predict`, and an LSS model has `predict_params`. `InferenceModel` does not add any new prediction maths on top of these. What it adds is a uniform, task-aware, read-only contract for serving. The estimator gives you the _capability_; `InferenceModel` gives you the _production contract_ around it.
+Every fitted estimator already exposes the right prediction method: a classifier has `predict` and `predict_proba`, a regressor has `predict`, and an LSS model returns distribution parameters through `predict(raw=False)`. `InferenceModel` does not add new prediction maths. It adds a uniform, task-aware, read-only contract for serving, including the LSS-specific `predict_params()` method.
 
 Both paths load the same artifact and call the same underlying network. The difference is the surface you code against and the guardrails available at the boundary.
 
-| Concern                   | `estimator.load()` + `predict()`                                                      | `InferenceModel`                                                                                 |
-| ------------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| **Interface surface**     | Full estimator API: `fit`, `optimize_hparams`, `build_model`, etc.                    | Only `predict`, `predict_proba`, `predict_params`, `validate_input`, `describe`, `runtime_info`  |
-| **Schema validation**     | `validate_input_features` checks count and name equality, but column order must match | `validate_input` checks missing columns, extra columns, and silently re-orders to training order |
-| **Missing-column error**  | Raises a generic sklearn-style message                                                | Raises with the exact list of missing column names                                               |
-| **Extra-column handling** | Raises                                                                                | Configurable: raises by default, or drops with a warning when `allow_extra_columns=True`         |
-| **Column reordering**     | Not performed                                                                         | Always reorders to match training order before calling the estimator                             |
-| **Task-aware API**        | One `predict()` for all tasks                                                         | `predict_proba()` and `predict_params()` raise `TypeError` when called on the wrong task type    |
-| **Production intent**     | Signals "research / local experimentation"                                            | Signals "deployment": the code reviewer and the type checker both see a narrower type            |
+| Concern                   | `estimator.load()` + `predict()`                                                      | `InferenceModel`                                                                                           |
+| ------------------------- | ------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| **Interface surface**     | Full estimator API: `fit`, `optimize_hparams`, `build_model`, etc.                    | Predictions, schema validation, and read-only inspection via `describe`, `runtime_info`, `parameter_table` |
+| **Schema validation**     | `validate_input_features` checks count and name equality, but column order must match | `validate_input` checks missing columns, extra columns, and silently re-orders to training order           |
+| **Missing-column error**  | Raises a generic sklearn-style message                                                | Raises with the exact list of missing column names                                                         |
+| **Extra-column handling** | Raises                                                                                | Configurable: raises by default, or drops with a warning when `allow_extra_columns=True`                   |
+| **Column reordering**     | Not performed                                                                         | Always reorders to match training order before calling the estimator                                       |
+| **Task-aware API**        | One `predict()` for all tasks                                                         | `predict_proba()` and `predict_params()` raise `TypeError` when called on the wrong task type              |
+| **Production intent**     | Signals "research / local experimentation"                                            | Signals "deployment": the code reviewer and the type checker both see a narrower type                      |
 
-Beyond that interface comparison, the wrapper gives a serving layer three things a bare estimator cannot:
+The wrapper provides these deployment conveniences:
 
 - **One type for every architecture.** A service holds an `InferenceModel` whether it wrapped a `MambularClassifier` or an `FTTransformerRegressor`, so routing and storage code never branch on the concrete estimator class.
 - **Training methods are physically absent.** `fit` and `optimize_hparams` do not exist on the wrapper, so served code cannot retrain or overwrite a production model by accident.
-- **One-line load of the whole bundle.** `from_path` restores weights, preprocessing, and schema from a `.deeptab` file in a single call, where the estimator path expects you to reconstruct the object first.
+- **One-line load of the whole bundle.** Like `EstimatorClass.load(path)`, `from_path` restores weights, preprocessing, and schema in a single call. It returns the restricted inference wrapper rather than a training-capable estimator.
 
 ```python
 from deeptab import InferenceModel
@@ -50,7 +50,7 @@ Use `InferenceModel` when writing a service, pipeline step, or batch job where t
 ```
 
 ```{note}
-The wrapper trades breadth for safety on purpose. A deliberately small surface (`predict`, `predict_proba`, `predict_params`, `validate_input`, `describe`, `runtime_info`) is easier to audit, wrap in an API, and reason about than the full training-capable estimator.
+The wrapper trades breadth for safety on purpose. A deliberately small surface (`predict`, `predict_proba`, `predict_params`, `validate_input`, `describe`, `runtime_info`, `parameter_table`) is easier to audit, wrap in an API, and reason about than the full training-capable estimator.
 ```
 
 ---

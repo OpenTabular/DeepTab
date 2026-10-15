@@ -256,12 +256,18 @@ TrainerConfig(scheduler_type=None)
 **Align early stopping and scheduler to the same metric:**
 
 ```python
-# Both early stopping AND ReduceLROnPlateau now track val_auroc in max mode
-TrainerConfig(
-    monitor="val_auroc",
-    mode="max",
+from deeptab.configs import TrainerConfig
+from deeptab.metrics import AUROC
+from deeptab.models import MLPClassifier
+
+model = MLPClassifier(
+    trainer_config=TrainerConfig(monitor="val_auroc", mode="max"),
 )
+model.fit(X_train, y_train, val_metrics={"auroc": AUROC()})
 ```
+
+Declaring `val_metrics` makes `val_auroc` available to early stopping, the best
+checkpoint, and the default plateau scheduler.
 
 (monitoring-precedence)=
 
@@ -385,12 +391,16 @@ accepts keyword arguments. A value passed to `fit()` overrides the matching
 experiments without rebuilding the estimator.
 
 ```{note}
-Anything you can configure through `TrainerConfig` can also be passed directly
-to `fit()`. The `fit()` argument always wins when both are provided.
+Only supported per-fit arguments override matching `TrainerConfig` fields.
+Set optimizer selection and scheduler configuration, such as `optimizer_type`,
+`optimizer_kwargs`, `scheduler_type`, and `scheduler_kwargs`, in `TrainerConfig`,
+not directly in `fit()`. Additional Lightning trainer options can be passed
+through `fit()` as described below.
 ```
 
 ```python
 from deeptab.configs import TrainerConfig
+from deeptab.metrics import AUROC
 from deeptab.models import MLPClassifier
 
 model = MLPClassifier(trainer_config=TrainerConfig(max_epochs=100, lr=1e-3))
@@ -402,6 +412,7 @@ model.fit(
     max_epochs=50,          # overrides TrainerConfig(max_epochs=100)
     batch_size=256,
     patience=10,
+    val_metrics={"auroc": AUROC()},
     monitor="val_auroc",
     mode="max",
     lr=3e-4,

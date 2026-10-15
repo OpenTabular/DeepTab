@@ -50,23 +50,47 @@ It wraps the base architecture and handles:
 
 .. code-block:: python
 
+    import lightning.pytorch as pl
+    from pretab import Preprocessor
+
     from deeptab.training import TaskModel
     from deeptab.architectures import Mambular
     from deeptab.configs import MambularConfig
-    import pytorch_lightning as pl
+    from deeptab.data import TabularDataModule
 
-    # Manual Lightning workflow
-    config = MambularConfig(d_model=128, n_layers=6)
-    backbone = Mambular(config)
+    preprocessor = Preprocessor(
+        numerical_method="standardization",
+        categorical_method="int",
+        output_structure="blocks",
+        output_format="dense",
+    )
+    datamodule = TabularDataModule(
+        preprocessor=preprocessor,
+        batch_size=128,
+        shuffle=True,
+        regression=False,
+        X_val=X_val,
+        y_val=y_val,
+    )
+    datamodule.preprocess_data(X_train, y_train)
 
     model = TaskModel(
-        model=backbone,
-        task="classification",
-        num_classes=3,
+        model_class=Mambular,
+        config=MambularConfig(d_model=128, n_layers=6),
+        feature_information=(
+            datamodule.num_feature_info,
+            datamodule.cat_feature_info,
+            datamodule.embedding_feature_info,
+        ),
+        num_classes=datamodule.num_classes,
     )
 
     trainer = pl.Trainer(max_epochs=50)
     trainer.fit(model, datamodule=datamodule)
+
+Use contiguous integer class labels starting at zero. ``TaskModel`` constructs
+the backbone from its class, configuration, and fitted feature metadata; it does
+not accept an already constructed backbone through a ``model`` argument.
 
 Contrastive Pretraining
 ------------------------

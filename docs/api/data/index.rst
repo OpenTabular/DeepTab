@@ -42,8 +42,7 @@ After fitting a model, inspect how features were preprocessed:
     model = MambularClassifier()
     model.fit(X_train, y_train)
 
-    # Access feature schema
-    schema = model.feature_schema
+    schema = model._data_module.schema
 
     # Inspect numerical features
     for name, info in schema.numerical_features.items():
@@ -51,11 +50,17 @@ After fitting a model, inspect how features were preprocessed:
 
     # Inspect categorical features
     for name, info in schema.categorical_features.items():
-        print(f"{name}: {len(info.categories)} categories, dim={info.dimension}")
+        print(f"{name}: {info.categories} categories, dim={info.dimension}")
 
     # Get totals
     print(f"Total numerical dim: {schema.total_numerical_dim}")
     print(f"Total categorical dim: {schema.total_categorical_dim}")
+
+.. note::
+
+   ``_data_module`` is a private estimator attribute used here for low-level
+   inspection. PreTab's categorical metadata stores the category count in
+   ``categories``, not a list of category labels.
 
 **When to use:** Debugging feature preprocessing, understanding model input dimensions, verifying feature detection.
 
@@ -97,10 +102,17 @@ an explicit method value overrides it.
 
 .. code-block:: python
 
+    from pretab import Preprocessor
     from deeptab.data import TabularDataModule
 
+    preprocessor = Preprocessor(
+        numerical_method="standardization",
+        categorical_method="int",
+        output_structure="blocks",
+        output_format="dense",
+    )
     datamodule = TabularDataModule(
-        preprocessor=model.preprocessor,
+        preprocessor=preprocessor,
         batch_size=512,
         shuffle=True,
         regression=False,
@@ -114,6 +126,10 @@ an explicit method value overrides it.
     # Access dataloaders
     train_loader = datamodule.train_dataloader()
     val_loader = datamodule.val_dataloader()
+
+``output_structure="blocks"`` and ``output_format="dense"`` supply the
+feature-wise arrays expected by the data module. ``preprocess_data()`` fits
+the preprocessor on the training partition before ``setup()`` creates datasets.
 
 **When to use:** Custom training loops, hyperparameter tuning with fixed preprocessing, integration with PyTorch Lightning.
 

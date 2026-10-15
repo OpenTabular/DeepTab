@@ -130,7 +130,7 @@ TRAINER = TrainerConfig(
     patience=2,
     optimizer_type="Adam",
 )
-PREPROC = PreprocessingConfig(numerical_preprocessing="quantile")
+PREPROC = PreprocessingConfig(numerical_method="quantile")
 
 FIT_KWARGS = dict(X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 ```

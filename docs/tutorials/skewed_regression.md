@@ -25,7 +25,7 @@ The notebook linked above is generated from this same tutorial content. The mark
 ## What You Will Learn
 
 - How to train an `FTTransformerRegressor` and read its default `evaluate()` metrics.
-- Why piecewise-linear encoding (`numerical_preprocessing="ple"`) helps transformer regressors.
+- Why piecewise-linear encoding (`numerical_method="ple"`) helps transformer regressors.
 - How to transform a skewed target without leaking statistics, and inverse-transform before reporting.
 - When a robust loss (`nn.HuberLoss`) beats the default MSE, and how to pass it through `fit()`.
 - How to run Bayesian hyperparameter search with `optimize_hparams()`.
@@ -133,9 +133,9 @@ across CPU, CUDA, and MPS. Call it before each `fit()` and pass the same
 
 ```python
 PREPROC = PreprocessingConfig(
-    numerical_preprocessing="ple",   # piecewise-linear encoding of numericals
-    n_bins=64,
-    categorical_preprocessing="int", # integer codes feed the model's embeddings
+    numerical_method="ple",   # piecewise-linear encoding of numericals
+    output_dim=64,
+    categorical_method="int", # integer codes feed the model's embeddings
 )
 TRAINER = TrainerConfig(
     max_epochs=5,
@@ -149,7 +149,7 @@ FIT_KWARGS = dict(X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 ```
 
 ```{tip}
-`numerical_preprocessing="ple"` bins each numerical feature and encodes it as a
+`numerical_method="ple"` bins each numerical feature and encodes it as a
 piecewise-linear vector. This gives attention-based models like FT-Transformer a
 much richer numerical representation than raw standardisation, and it is one of
 the cheapest accuracy wins available for tabular deep learning. Other strong

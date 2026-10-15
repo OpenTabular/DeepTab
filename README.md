@@ -39,6 +39,8 @@ v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, a
 - **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
 - **Release checks:** publication requires passing CI, documentation, installed-wheel training and reload checks, and at least 90% line coverage.
 
+See the [Numerical Width Study](https://deeptab.readthedocs.io/en/latest/model_zoo/efficiency.html#numerical-width-study) for a small CPU comparison of preprocessing widths, including the protocol, runner, and raw results.
+
 > **Upgrading?** See the [Migration Guide](https://deeptab.readthedocs.io/en/latest/getting_started/migration.html) for configuration changes and historical artifact limitations. Tested 2.0 PLE artifacts require their original dependency environment; upgrading does not convert them.
 
 ## 🏃 Quickstart
@@ -151,7 +153,7 @@ pip install mamba-ssm
 
 > **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
 
-> **Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
+> **Optional logging and tracking:** These backends are optional and loaded lazily. The default installation still includes PyTorch and TabR's `faiss-cpu` and `delu` dependencies. Install only the logging or tracking extras you use.
 
 > **Requirements:** Python 3.11-3.13, PyTorch >=2.4.0,<2.10, PreTab 1.x, Lightning >=2.3.3,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
 

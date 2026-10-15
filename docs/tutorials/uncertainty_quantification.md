@@ -109,8 +109,8 @@ LSS model differ only in what they predict.
 
 ```python
 PREPROC = PreprocessingConfig(
-    numerical_preprocessing="ple",   # piecewise-linear encoding of numericals
-    n_bins=64,
+    numerical_method="ple",   # piecewise-linear encoding of numericals
+    output_dim=64,
 )
 TRAINER = TrainerConfig(
     max_epochs=5,
@@ -407,8 +407,9 @@ print("Reload parameters match")
 
 For a service or batch job, load the artifact through `InferenceModel`. It exposes
 a narrow, prediction-only surface and validates the incoming schema. For an LSS
-model, `predict()` returns the distribution mean while `predict_params()` returns
-the full parameter array you need for intervals.
+model, both `predict()` and `predict_params(raw=False)` return the full transformed
+parameter array. For the normal family used here, the columns are the mean and
+standard deviation; use the first column when you need a point prediction.
 
 ```python
 from deeptab import InferenceModel

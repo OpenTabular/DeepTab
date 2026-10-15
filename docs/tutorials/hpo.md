@@ -153,9 +153,9 @@ comparable:
 
 ```python
 PREPROC = PreprocessingConfig(
-    numerical_preprocessing="ple",   # piecewise-linear encoding of numericals
-    n_bins=64,
-    categorical_preprocessing="int",
+    numerical_method="ple",
+    output_dim=64,
+    categorical_method="int",
 )
 TRAINER = TrainerConfig(max_epochs=5, batch_size=256, patience=2)
 ```
@@ -173,6 +173,8 @@ for name, dim in zip(names, space):
     print(f"{name:22s} {dim}")
 ```
 
+Abbreviated output:
+
 ```
 embedding_activation   Categorical(categories=('ReLU', 'SELU', 'Identity', 'Tanh', 'LeakyReLU'), ...)
 d_model                Categorical(categories=(32, 64, 128, 256, 512, 1024), ...)
@@ -181,13 +183,17 @@ activation             Categorical(categories=('ReLU', 'SELU', 'Identity', 'Tanh
 dropout                Real(low=0.0, high=0.5, ...)
 ```
 
-The search space is derived from the **model** config, so only fields that belong
-to `MLPConfig` and have a known range appear. The five dimensions above mean
-each trial chooses an embedding activation, a hidden width (`d_model`), a layer
-norm epsilon, a block activation, and a dropout rate. Training settings such as
-the learning rate live on `TrainerConfig`, not the model config, so they are not
-part of this search by default. Reading this list first tells you precisely what
-the optimizer can and cannot change.
+The search space is derived from the **model** config, including inherited
+fields with known ranges. It lists declared search dimensions, not a guarantee
+that every field affects the current architecture settings. The default MLP
+uses `layer_sizes=[256, 128, 32]` and `use_embeddings=False`, so `d_model`,
+`embedding_activation`, and `layer_norm_eps` do not affect that configuration.
+Activation and dropout do affect it. Set `layer_sizes` to change hidden widths;
+`d_model` controls embedding width only when embeddings are enabled.
+
+Training settings such as the learning rate live on `TrainerConfig`, not the
+model config, so they are not part of this search by default. Inspect both the
+dimensions and the architecture settings before spending compute.
 
 ---
 
@@ -433,13 +439,14 @@ activations. Activation names (such as `"ReLU"` or `"SELU"`) are mapped to their
 
 `custom_search_space` is a dict mapping a field name to a [skopt dimension](https://scikit-optimize.github.io/stable/modules/space.html)
 (`Real`, `Integer`, or `Categorical`). It overrides the default range for that
-field. Use it to restrict `d_model` to the sizes you can afford, or to widen a
-dropout range:
+field. The example below enables MLP embeddings so restricting `d_model`
+actually limits embedding width; hidden widths still come from `layer_sizes`.
+It also narrows the dropout range:
 
 ```python
 set_seed(RANDOM_STATE)
 custom = MLPRegressor(
-    model_config=MLPConfig(),
+    model_config=MLPConfig(use_embeddings=True),
     preprocessing_config=PREPROC,
     trainer_config=TRAINER,
     random_state=RANDOM_STATE,
@@ -451,7 +458,7 @@ best_custom = custom.optimize_hparams(
     time=12,
     max_epochs=5,
     custom_search_space={
-        "d_model": Categorical([64, 128, 256]),  # smaller, cheaper widths only
+        "d_model": Categorical([64, 128, 256]),
         "dropout": Real(0.1, 0.4),               # narrower dropout band
     },
 )
