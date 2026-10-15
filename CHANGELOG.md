@@ -7,6 +7,14 @@ This project adheres to [Semantic Versioning](https://semver.org/) and uses
 
 Going forward, this file is updated automatically by `cz bump` on each release.
 
+## v2.1.0 (Unreleased)
+
+### Changed
+
+- Require Python 3.11-3.13. Python 3.10 is no longer supported; recreate older environments before upgrading. Remaining on an older DeepTab release does not guarantee security updates.
+- Require SciPy >=1.16,<2 after reproducing a native loader failure with the previous minimum on Apple Silicon. Documentation builds retain Python 3.12 or newer within the supported range.
+- Require TensorBoard >=2.18,<3 for the TensorBoard and tracking extras. Earlier minima fail hyperparameter logging with the required NumPy 2 runtime.
+
 ---
 
 ## v2.0.0 (2026-06-24)

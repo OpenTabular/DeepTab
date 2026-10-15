@@ -11,6 +11,23 @@ branch receives no bug fixes or security updates. If you are not ready to upgrad
 pin `deeptab<2.0` and plan the move when you can.
 ```
 
+## Python support in 2.1
+
+DeepTab 2.1 supports Python 3.11, 3.12 and 3.13. Python 3.10 has reached upstream
+end of life and is no longer supported. Package metadata rejects Python 3.10;
+Python 3.14 and newer are not admitted by this release either.
+
+Recreate your environment with a supported interpreter before upgrading DeepTab.
+Prefer Python 3.12 or 3.13 for a new environment; documentation builds require
+one of those versions. Do not bypass the interpreter check or reuse a virtual
+environment created by Python 3.10.
+
+If you must retain Python 3.10 temporarily, keep the older DeepTab release and
+its tested dependency environment isolated. An older release is not a security
+guarantee or a promise of continued fixes. Changing Python does not convert
+historical model artifacts or resolve the dependency and native-platform
+limitations in the [Support Matrix](../developer_guide/support_matrix).
+
 ## PreTab 1.0 migration
 
 DeepTab's preprocessing runs on [PreTab](https://pretab.readthedocs.io/en/latest/index.html),

@@ -8,15 +8,15 @@ authors = [
   { name = "Christoph Weisser" },
 ]
 readme = "README.md"
-requires-python = ">=3.10,<3.14"
+requires-python = ">=3.11,<3.14"
 dynamic = ["dependencies"]
 
 [project.optional-dependencies]
 logs = ["structlog>=24.0,<27.0"]
 mlflow = ["mlflow>=2.10,<4.0"]
-tensorboard = ["tensorboard>=2.14,<3.0"]
-tracking = ["mlflow>=2.10,<4.0", "tensorboard>=2.14,<3.0"]
-all = ["structlog>=24.0,<27.0", "mlflow>=2.10,<4.0", "tensorboard>=2.14,<3.0"]
+tensorboard = ["tensorboard>=2.18,<3.0"]
+tracking = ["mlflow>=2.10,<4.0", "tensorboard>=2.18,<3.0"]
+all = ["structlog>=24.0,<27.0", "mlflow>=2.10,<4.0", "tensorboard>=2.18,<3.0"]
 
 [project.urls]
 homepage = "https://github.com/OpenTabular/deeptab"
@@ -33,17 +33,17 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.dependencies]
 numpy = "^2.0.0"
-pandas = "^2.0.3"
+pandas = "^2.2.2"
 lightning = "^2.3.3"
 scikit-learn = ">=1.6,<2.0"
-torch = ">=2.2.2,<2.10.0"
+torch = ">=2.4.0,<2.10.0"
 torchmetrics = "^1.5.2"
 setuptools = ">=78.1.1,<80"
 properscoring = "^0.1"
 scikit-optimize = "^0.10.2"
 einops = "^0.8.0"
 accelerate = "^1.2.1"
-scipy = "^1.15.0"
+scipy = "^1.16.0"
 pretab = ">=1.0,<2.0"
 delu = ">=0.0.26,<0.1.0"
 faiss-cpu = ">=1.13.0,<2.0.0"
@@ -60,22 +60,22 @@ pyright = "^1.1.409"
 ipykernel = "^7.2.0"
 
 [tool.poetry.group.docs.dependencies]
-setuptools = "*"
-sphinx = { version = "9.1.0", python = ">=3.12" }
-sphinx-autodoc-typehints = { version = ">=3.0", python = ">=3.12" }
-numpydoc = ">=1.8"
-nbsphinx = { version = ">=0.9.4", python = ">=3.12" }
-ipython = "*"
-myst-parser = { version = ">=4.0", python = ">=3.12" }
+setuptools = { version = "*", python = ">=3.12,<3.14" }
+sphinx = { version = "9.1.0", python = ">=3.12,<3.14" }
+sphinx-autodoc-typehints = { version = ">=3.0", python = ">=3.12,<3.14" }
+numpydoc = { version = ">=1.8", python = ">=3.12,<3.14" }
+nbsphinx = { version = ">=0.9.4", python = ">=3.12,<3.14" }
+ipython = { version = "*", python = ">=3.12,<3.14" }
+myst-parser = { version = ">=4.0", python = ">=3.12,<3.14" }
 
-sphinx-togglebutton = "0.3.2"
-sphinxawesome-theme = { version = ">=6.0", python = ">=3.12" }
-readthedocs-sphinx-ext = "2.2.5"
-lxml-html-clean = ">=0.4.4"
-pydata-sphinx-theme = "0.15.2"
-sphinx-design = "*"
-sphinxcontrib-mermaid = "*"
-sphinxext-opengraph = "*"
+sphinx-togglebutton = { version = "0.3.2", python = ">=3.12,<3.14" }
+sphinxawesome-theme = { version = ">=6.0", python = ">=3.12,<3.14" }
+readthedocs-sphinx-ext = { version = "2.2.5", python = ">=3.12,<3.14" }
+lxml-html-clean = { version = ">=0.4.4", python = ">=3.12,<3.14" }
+pydata-sphinx-theme = { version = "0.15.2", python = ">=3.12,<3.14" }
+sphinx-design = { version = "*", python = ">=3.12,<3.14" }
+sphinxcontrib-mermaid = { version = "*", python = ">=3.12,<3.14" }
+sphinxext-opengraph = { version = "*", python = ">=3.12,<3.14" }
 
 
 # test configuration
@@ -127,7 +127,7 @@ exclude = [
   "examples",
 ]
 
-pythonVersion = "3.10"
+pythonVersion = "3.11"
 typeCheckingMode = "basic"
 venvPath = "."
 venv = ".venv"
@@ -143,7 +143,7 @@ reportUnsupportedDunderAll = false
 # Configure code linting
 [tool.ruff]
 line-length = 120
-target-version = "py310"
+target-version = "py311"
 exclude = ["*.ipynb"]
 
 [tool.ruff.lint]

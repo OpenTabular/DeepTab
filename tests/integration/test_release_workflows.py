@@ -53,6 +53,8 @@ def test_publishing_requires_successful_release_checks(name, publisher):
     assert workflow["permissions"] == {"contents": "read"}
     expected_condition = "${{ !contains(github.ref_name, 'rc') }}" if publisher == "publish" else None
     assert job.get("if") == expected_condition
+    assert jobs["ci"]["needs"] == "package"
+    assert jobs["ci"]["with"] == {"distribution-artifact": "dist"}
     for gate, target in [("ci", "ci.yml"), ("docs", "docs.yml"), ("package", "build-check.yml")]:
         assert jobs[gate]["uses"] == f"./.github/workflows/{target}"
         assert jobs[gate].get("if") == expected_condition
@@ -105,8 +107,27 @@ def test_reusable_ci_includes_all_existing_quality_checks():
         assert jobs[name].get("continue-on-error", "false") == "false"
     assert jobs["tests"]["strategy"]["matrix"] == {
         "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
-        "python-version": ["3.10", "3.11", "3.12", "3.13"],
+        "python-version": ["3.11", "3.12", "3.13"],
     }
+
+
+@pytest.mark.parametrize(
+    "name,job",
+    [
+        ("ci.yml", "lint"),
+        ("ci.yml", "typecheck"),
+        ("ci.yml", "build"),
+        ("build-check.yml", "build-check"),
+        ("publish-testpypi.yml", "smoke-test-testpypi"),
+    ],
+)
+def test_release_checks_use_minimum_supported_python(name, job):
+    steps = _workflow(name)["jobs"][job]["steps"]
+    setup = next(step for step in steps if step.get("uses") == "actions/setup-python@v5")
+    assert setup["with"]["python-version"] == "3.11"
+    for step in steps:
+        if step.get("uses") == "actions/cache@v4":
+            assert "-3.11-" in step["with"]["key"]
 
 
 def test_ci_triggers_select_main_and_preserve_release_invocations():
@@ -137,9 +158,36 @@ def test_ci_dependency_profiles_are_provisioned_and_verified(job, profile):
         assert f"tests-{profile}-" in cache
 
 
-def test_coverage_requires_core_and_extras_jobs():
+def test_coverage_requires_locked_profiles_and_dependency_endpoints():
     jobs = _workflow("ci.yml")["jobs"]
-    assert set(jobs["coverage"]["needs"]) == {"tests", "tests-extras"}
+    assert set(jobs["coverage"]["needs"]) == {"tests", "tests-extras", "dependency-endpoints"}
+
+
+def test_dependency_endpoints_preserve_matrix_artifact_and_failure_gates():
+    jobs = _workflow("ci.yml")["jobs"]
+    job = jobs["dependency-endpoints"]
+    assert job["needs"] == "build"
+    assert job.get("continue-on-error", False) is False
+    assert job["strategy"]["fail-fast"] is False
+    assert job["strategy"]["matrix"] == {
+        "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
+        "profile": ["core", "extras"],
+        "lane": [{"endpoint": "minimum", "python": "3.11"}, {"endpoint": "newest", "python": "3.13"}],
+    }
+    steps = job["steps"]
+    download = next(step for step in steps if step.get("uses") == "actions/download-artifact@v4")
+    build_upload = next(step for step in jobs["build"]["steps"] if step.get("uses") == "actions/upload-artifact@v4")
+    assert build_upload["with"]["name"] == "candidate-dist"
+    assert download["with"]["name"] == "${{ inputs.distribution-artifact || 'candidate-dist' }}"
+    assert _workflow("ci.yml")["on"]["workflow_call"]["inputs"]["distribution-artifact"]["type"] == "string"
+    command = next(step["run"] for step in steps if step.get("name") == "Verify independent dependency endpoint")
+    assert "dependency_endpoints.py" in command and "--wheel candidate-dist" in command
+    assert "--provision-only" not in command
+    assert "poetry" not in command
+    upload = steps[-1]
+    assert upload["if"] == "always()"
+    assert upload["with"]["if-no-files-found"] == "error"
+    assert "${{ github.sha }}" in upload["with"]["name"]
 
 
 @pytest.mark.parametrize("profile", ["core", "extras"])

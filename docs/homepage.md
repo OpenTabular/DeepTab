@@ -26,7 +26,7 @@ probabilities = model.predict_proba(X_test)
 pip install deeptab
 ```
 
-DeepTab requires Python 3.10+ and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
+DeepTab requires Python 3.11-3.13 and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
 
 ## What's New in v2.0
 

@@ -2,6 +2,12 @@ name: CI
 
 on:
   workflow_call:
+    inputs:
+      distribution-artifact:
+        description: Existing same-run package artifact to validate instead of the CI build
+        required: false
+        type: string
+        default: ""
   workflow_dispatch:
   push:
     branches:
@@ -28,7 +34,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Poetry
         run: pipx install poetry
@@ -40,7 +46,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-lint-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+          key: venv-lint-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --with dev
@@ -61,7 +67,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Poetry
         run: pipx install poetry
@@ -73,7 +79,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-typecheck-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+          key: venv-typecheck-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --with dev
@@ -91,7 +97,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install Poetry
         run: pipx install poetry
@@ -103,7 +109,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-build-${{ runner.os }}-3.10-${{ hashFiles('poetry.lock') }}
+          key: venv-build-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --only main
@@ -116,6 +122,70 @@ jobs:
           python -m pip install --upgrade twine
           twine check dist/*
 
+      - name: Retain candidate distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: candidate-dist
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+  dependency-endpoints:
+    name: Dependencies (${{ matrix.lane.endpoint }}, ${{ matrix.profile }}, ${{ matrix.os }})
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        profile: [core, extras]
+        lane:
+          - endpoint: minimum
+            python: "3.11"
+          - endpoint: newest
+            python: "3.13"
+    env:
+      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
+      UV_PYTHON_DOWNLOADS: never
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.lane.python }}
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.5"
+          enable-cache: false
+
+      - name: Install runner tooling
+        run: python -m pip install "packaging>=24,<27"
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.distribution-artifact || 'candidate-dist' }}
+          path: candidate-dist
+
+      - name: Verify independent dependency endpoint
+        run: >-
+          python .github/scripts/dependency_endpoints.py
+          --wheel candidate-dist
+          --python "${{ matrix.lane.python }}"
+          --endpoint "${{ matrix.lane.endpoint }}"
+          --profile "${{ matrix.profile }}"
+          --output endpoint-evidence
+
+      - name: Retain endpoint evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-${{ runner.os }}-${{ runner.arch }}-${{ matrix.lane.python }}-${{ matrix.lane.endpoint }}-${{ matrix.profile }}-${{ github.sha }}
+          path: endpoint-evidence/
+          if-no-files-found: error
+          retention-days: 30
+
   tests:
     name: Core tests (Python ${{ matrix.python-version }}, ${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -123,7 +193,7 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
       - uses: actions/checkout@v4
@@ -221,7 +291,7 @@ jobs:
   coverage:
     name: Coverage (90% line minimum)
     runs-on: ubuntu-latest
-    needs: [tests, tests-extras]
+    needs: [tests, tests-extras, dependency-endpoints]
 
     steps:
       - uses: actions/checkout@v4

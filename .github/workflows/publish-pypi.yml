@@ -17,7 +17,10 @@ permissions:
 jobs:
   ci:
     if: ${{ !contains(github.ref_name, 'rc') }}
+    needs: package
     uses: ./.github/workflows/ci.yml
+    with:
+      distribution-artifact: dist
 
   docs:
     if: ${{ !contains(github.ref_name, 'rc') }}

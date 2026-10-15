@@ -20,17 +20,18 @@ Runs on every push to `main` and every pull request targeting `main`. In-progres
 
 The CI, docs, and build-check workflows also expose `workflow_call` so release workflows can require their checks on the exact tagged commit. Concurrency groups distinguish a release invocation from ordinary CI and docs runs, so those runs do not cancel one another.
 
-| Job            | Runner / Python | What it does                                          | Depends on              |
-| -------------- | --------------- | ----------------------------------------------------- | ----------------------- |
-| `lint`         | ubuntu / 3.10   | `ruff check .` and `ruff format --check .`            | -                       |
-| `typecheck`    | ubuntu / 3.10   | `pyright`                                             | -                       |
-| `build`        | ubuntu / 3.10   | `poetry build` and `twine check dist/*`               | -                       |
-| `tests`        | full matrix     | Full core-only suite with verified dependency profile | -                       |
-| `tests-extras` | ubuntu / 3.12   | Full suite with verified logs/tracking extras         | -                       |
-| `smoke`        | ubuntu / 3.12   | `pytest tests/ -m smoke --tb=short`                   | `lint`                  |
-| `coverage`     | ubuntu / 3.12   | Extras suite; line coverage >=90%; upload to Codecov  | `tests`, `tests-extras` |
+| Job                    | Runner / Python            | What it does                                                                 | Depends on                                      |
+| ---------------------- | -------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
+| `lint`                 | ubuntu / 3.11              | `ruff check .` and `ruff format --check .`                                   | -                                               |
+| `typecheck`            | ubuntu / 3.11              | `pyright`                                                                    | -                                               |
+| `build`                | ubuntu / 3.11              | `poetry build` and `twine check dist/*`                                      | -                                               |
+| `tests`                | full matrix                | Full core-only suite with verified dependency profile                        | -                                               |
+| `tests-extras`         | ubuntu / 3.12              | Full suite with verified logs/tracking extras                                | -                                               |
+| `dependency-endpoints` | three OSes / 3.11 and 3.13 | Independent minimum/newest core/extras CPU suites and installed-wheel checks | `build`                                         |
+| `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                          | `lint`                                          |
+| `coverage`             | ubuntu / 3.12              | Extras suite; line coverage >=90%; upload to Codecov                         | `tests`, `tests-extras`, `dependency-endpoints` |
 
-The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix covers every supported Python and OS combination listed in the [Support Matrix](support_matrix.md).
+The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix has nine lanes: Python 3.11/3.12/3.13 on three operating systems, as listed in the [Support Matrix](support_matrix.md).
 
 The matrix uses `poetry sync --only main,dev` and
 `pytest tests/ --dependency-profile=core --strict-markers`. The extras job uses
@@ -47,11 +48,21 @@ See [Testing](testing.md) for environment-switching cautions and selectors.
 Pushes to integration branches do not trigger automatic CI. Open a pull request
 targeting `main` or dispatch CI manually, and retain the run URL and tested SHA.
 Reusable release calls remain available; configured lanes alone are not passing
-evidence for a release revision. The extras lane currently covers Ubuntu/Python
-3.12, not every optional-backend/platform combination.
+evidence for a release revision. The locked extras lane covers Ubuntu/Python 3.12;
+independent extras endpoints add Python 3.11/3.13 on each configured platform.
+
+The build job retains `candidate-dist`. Ordinary CI's 12 endpoint lanes download
+that artifact. Release callers wait for the package gate and pass its `dist`
+artifact instead, so endpoints validate the wheel that publication will consume.
+All lanes independently resolve wheel-metadata requirements without `poetry.lock`
+and verify exact wheel identity before training/reload checks and the full CPU
+source suite. Endpoint failures block coverage and fail reusable release CI.
+Each lane uploads its reports even after failure, named by OS, architecture,
+Python, endpoint, profile and revision. These CPU jobs do not certify CUDA/MPS.
+See the {ref}`endpoint procedure <dependency-endpoints>` and support limitations.
 
 ```{note}
-The two Python versions are intentional. Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.10) so they catch code that relies on newer syntax or stdlib than we promise to support. The single-version gates (`smoke`, `tests-extras`, `coverage`) use a recent version (3.12). The `tests` matrix verifies the core profile across the declared combinations; extras compatibility remains scoped to its own job.
+Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.11) so they catch code that relies on newer syntax or stdlib than we promise to support. The installed-wheel package gate and post-publication RC smoke also use 3.11. The single-version gates (`smoke`, `tests-extras`, `coverage`) retain 3.12, and documentation retains its newer interpreter and tool versions. The `tests` matrix verifies the core profile across the declared combinations; extras compatibility remains scoped to its own jobs.
 ```
 
 ---
@@ -90,7 +101,7 @@ For a version tag, the package version must match the tag before building. The w
 
 Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Before either publisher runs, three required jobs validate the tagged commit:
 
-- `ci` calls the full CI workflow, including lint, formatting, type checking, the Python/OS test matrix, smoke tests, and coverage collection.
+- `ci` waits for `package` and calls full CI with that validated distribution artifact, including locked and endpoint matrices, lint, type checking, smoke tests and coverage.
 - `docs` calls the Sphinx workflow, which builds with warnings treated as errors.
 - `package` calls build-check, which validates the tag version, wheel, source distribution, and installed-wheel training and reload behavior.
 

@@ -1,7 +1,13 @@
 """Verify training and artifact reload using an installed distribution."""
 
+import argparse
+import hashlib
+import json
+from email.parser import BytesParser
+from importlib.metadata import distribution
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from zipfile import ZipFile
 
 import numpy as np
 
@@ -11,10 +17,32 @@ from deeptab.models import MLPClassifier, MLPRegressor
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--wheel", type=Path)
+    args = parser.parse_args()
     checkout = Path(__file__).resolve().parents[2]
     package_path = Path(deeptab.__file__).resolve()
     if package_path.is_relative_to(checkout):
         raise RuntimeError(f"Expected an installed wheel, but imported the checkout at {package_path}")
+    installed = distribution("deeptab")
+    if (
+        installed.version != deeptab.__version__
+        or Path(installed.locate_file("deeptab/__init__.py")).resolve() != package_path
+    ):
+        raise RuntimeError("Imported DeepTab does not match the installed distribution metadata")
+    if args.wheel:
+        wheel = args.wheel.resolve()
+        with ZipFile(wheel) as archive:
+            (metadata_path,) = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
+            metadata = BytesParser().parsebytes(archive.read(metadata_path))
+        origin = json.loads(installed.read_text("direct_url.json") or "{}")
+        hashes = origin.get("archive_info", {}).get("hashes", {})
+        if (
+            installed.version != metadata["Version"]
+            or origin.get("url") != wheel.as_uri()
+            or hashes.get("sha256") != hashlib.sha256(wheel.read_bytes()).hexdigest()
+        ):
+            raise RuntimeError("Installed DeepTab does not match the requested wheel version, origin and SHA256")
     print(f"Testing installed DeepTab {deeptab.__version__}: {package_path}")
     generator = np.random.default_rng(17)
     features = generator.normal(size=(48, 3)).astype(np.float32)

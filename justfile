@@ -70,6 +70,10 @@ test-core:
 test-extras:
     poetry run pytest tests/ --dependency-profile=extras --strict-markers -ra
 
+# resolve and verify a wheel in a separate dependency endpoint environment
+test-endpoint wheel python endpoint profile output:
+    poetry run python .github/scripts/dependency_endpoints.py --wheel "{{ wheel }}" --python "{{ python }}" --endpoint "{{ endpoint }}" --profile "{{ profile }}" --output "{{ output }}"
+
 # build HTML docs locally (warnings treated as errors)
 docs:
     rm -rf docs/_build

@@ -1,7 +1,7 @@
 # Installation
 
 ```{important}
-**Requirements:** Python 3.10-3.13 | PyTorch >=2.2.2,<2.10 (auto-installed)
+**Requirements:** Python 3.11-3.13 | PyTorch >=2.4.0,<2.10 (auto-installed)
 ```
 
 ## Quick Install
@@ -21,18 +21,18 @@ print(deeptab.__version__)  # e.g., "2.0.0"
 
 ## Supported Platforms
 
-DeepTab is tested in CI on Linux, Windows, and macOS (Apple Silicon) across Python
-3.10–3.13. See the [Support Matrix](../developer_guide/support_matrix) for the full
-version policy.
+CI configures Linux, Windows, and macOS (Apple Silicon) across Python 3.11-3.13.
+Locked tests and independent dependency endpoints cover different combinations;
+neither a configured job nor a successful resolver proves that a candidate passed.
+See the [Support Matrix](../developer_guide/support_matrix) for validation limits.
 
 ```{warning}
 **Intel Mac (macOS x86_64) is not supported.** Upstream PyTorch no longer publishes
 x86_64 macOS wheels for `torch >= 2.3` or Python 3.13. This restriction does not
 apply to Apple Silicon: Python 3.13 wheels exist, including `torch==2.9.1`.
 
-**Workaround:** use Python 3.12 or earlier on Intel Mac, which can still install
-`torch==2.2.2` (the last PyPI build with x86_64 macOS wheels), or switch to Apple
-Silicon, Linux, or Windows.
+Use Apple Silicon, Linux, or Windows. The older Intel build `torch==2.2.2`
+does not satisfy the current dependency range and is not a supported workaround.
 ```
 
 ```{warning}
@@ -56,6 +56,27 @@ pip install 'deeptab[all]'          # structlog + TensorBoard + MLflow
 ```{note}
 These backends are loaded lazily. Without the matching extra, DeepTab trains normally and raises only when you enable that specific feature. See the [Observability](../core_concepts/observability) guide for usage.
 ```
+
+## Dependency Compatibility
+
+DeepTab requires NumPy 2, pandas >=2.2.2, SciPy >=1.16 and Torch >=2.4.0. Earlier pandas and
+Torch minima can resolve successfully while failing binary imports or NumPy/Torch
+conversion. Do not force those older versions with `--no-deps`.
+
+TensorBoard extras require version 2.18 or newer within the declared `<3` bound.
+Earlier versions can import but fail hyperparameter event writing with NumPy 2.
+
+```{important}
+DeepTab 2.1 no longer supports Python 3.10. Recreate your environment with Python
+3.11, 3.12 or 3.13 before upgrading; an older DeepTab release is not a security
+guarantee. See the [Migration Guide](migration) for upgrade guidance. Python 3.14
+and newer remain outside the declared range.
+```
+
+For fresh core and logging/tracking comparisons, follow the
+{ref}`dependency endpoint procedure <dependency-endpoints>`. Keep runtime pins,
+interpreter/platform details and wheel origins with the results. `pip check`
+detects metadata inconsistencies, not every native binary incompatibility.
 
 ## Hardware Support
 
@@ -154,7 +175,7 @@ pip install -e .
 ```
 
 ```{note}
-DeepTab uses Poetry for development. Install with `poetry install` to get dev tools (pytest, ruff, pyright). See the [Contributing guide](../developer_guide/contributing) for details.
+DeepTab uses Poetry for development. Install with `poetry install` to get dev tools (pytest, ruff, pyright). Documentation dependencies require Python 3.12 or 3.13; core development also supports 3.11. See the [Contributing guide](../developer_guide/contributing) for details.
 ```
 
 ## Optional: Mamba CUDA Kernels

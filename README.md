@@ -33,6 +33,7 @@
 
 v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
 
+- **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
 - **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
 - **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
 - **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
@@ -152,7 +153,7 @@ pip install mamba-ssm
 
 > **Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
 
-> **Requirements:** Python 3.10-3.13, PyTorch >=2.2.2,<2.10, PreTab 1.x, Lightning >=2.3.3,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
+> **Requirements:** Python 3.11-3.13, PyTorch >=2.4.0,<2.10, PreTab 1.x, Lightning >=2.3.3,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
 
 > **macOS:** Python 3.13 PyTorch wheels are available for Apple Silicon. Intel Macs are outside the CI matrix. TabR is not validated on Apple Silicon because the PyPI FAISS build can segfault; use Linux or Windows for TabR.
 

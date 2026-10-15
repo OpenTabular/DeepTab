@@ -55,6 +55,8 @@ installation fails rather than silently skipping the dependency checks.
 Both profiles run the full source suite. Optional-positive tests skip only
 when their dependency is absent; missing-extra error tests still execute.
 The two structured-logging fit tests execute in the extras lane.
+The TensorBoard profile contract writes real hyperparameter events; importing
+its writer alone does not establish NumPy compatibility.
 
 ```{warning}
 These setup commands synchronize the active project environment. They remove
@@ -63,6 +65,64 @@ also removes logging/tracking extras. Use separate environments when retaining
 both profiles or comparing them. `just install` restores the ordinary developer
 setup, including the configured default groups, before a docs build.
 ```
+
+(dependency-endpoints)=
+
+## Dependency Endpoints
+
+Endpoint provisioning runs outside pytest in fresh virtual environments. Install
+`uv` (the CI resolver is 0.12.5) and make the requested Python versions available,
+then build one candidate wheel and run each profile independently:
+
+```bash
+uv python install 3.11 3.13
+poetry build --format wheel
+just test-endpoint dist 3.11 minimum core "$TMPDIR/deeptab-min-core"
+just test-endpoint dist 3.11 minimum extras "$TMPDIR/deeptab-min-extras"
+just test-endpoint dist 3.13 newest core "$TMPDIR/deeptab-new-core"
+just test-endpoint dist 3.13 newest extras "$TMPDIR/deeptab-new-extras"
+```
+
+Use an empty output path for each invocation and a directory containing exactly
+one wheel, or pass its filename. Use an explicit interpreter path when selecting
+a particular installation. On Windows, replace `$TMPDIR` with a writable temporary
+directory. The runner does not synchronize or modify the active Poetry environment.
+The temporary endpoint environment path is retained in its manifest for inspection.
+
+The runner reads `Requires-Dist` from wheel metadata, evaluates platform/Python
+markers and requested extras, and adds all selected runtime roots to the resolver
+input. `minimum` uses joint `lowest-direct` resolution; transitive dependencies
+remain newest compatible. This is not a globally oldest transitive closure.
+`newest` uses a fresh highest stable resolution within the published bounds.
+Declared direct runtime roots must have stable installed versions. A stable
+dependency can require a prerelease-versioned transitive package, such as
+MLflow's OpenTelemetry semantic conventions; those necessary transitive versions
+are permitted and recorded rather than banning a valid stable parent package.
+Neither endpoint reads runtime pins from the development lock. Linux uses the
+PyTorch CPU index; no accelerator result is implied.
+
+The hashed runtime lock and pip report retain exact download URLs and SHA256
+hashes. Test tooling is constrained to installed runtime versions, with before/after
+inventories proving that it did not replace them. After `pip check` and native
+imports, the existing wheel behavior check runs in isolated mode outside the
+checkout; it verifies distribution/import identity and the requested wheel hash
+before four classifier/regressor fit/save/reload workflows. The full source suite
+then runs with the selected dependency profile, CPU selection, JUnit output and
+the unchanged 90% line gate.
+
+Each evidence directory retains the resolver version, target interpreter,
+OS/architecture, CPU scope, revision and worktree patch, source hashes, artifact
+hash, command logs, inventories and reports. Failed commands produce a failed
+manifest and propagate a nonzero exit; they are not converted into passing or
+skipped lanes. `--provision-only` is a diagnostic option, not a full validation.
+Retain the same-SHA hosted artifact/run URL before declaring a release endpoint
+validated. Device checks and the {ref}`support limitations <dependency-policy>`
+remain separate requirements.
+
+Ordinary CI endpoints share the `candidate-dist` build artifact. Release callers
+instead pass the package gate's existing `dist` artifact to reusable CI. Those
+endpoints and the publisher therefore consume the same wheel, without rebuilding
+the distribution after its validation.
 
 (dependency-security)=
 

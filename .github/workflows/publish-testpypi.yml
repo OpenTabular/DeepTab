@@ -17,7 +17,10 @@ permissions:
 
 jobs:
   ci:
+    needs: package
     uses: ./.github/workflows/ci.yml
+    with:
+      distribution-artifact: dist
 
   docs:
     uses: ./.github/workflows/docs.yml
@@ -62,7 +65,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.11"
 
       - name: Install from TestPyPI (with retry)
         run: |
