@@ -156,7 +156,7 @@ Valid fields:
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform.                                 |
 | `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
-| `output_dim`                                    | Output width for bin/knot/expansion-based numerical representations; ignored by representations that do not use it (e.g. plain scaling).                                                       |
+| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                           |
 | `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
 | `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                  |
 | `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                          |
@@ -172,6 +172,40 @@ Embedding width is not a `PreprocessingConfig` field in the current API. It is c
 ```{note}
 Earlier DeepTab releases used a different set of field names, for example `numerical_preprocessing` instead of `numerical_method`, or `scaling_strategy` instead of `scaling`. These legacy names still work: passing one on its own resolves to the matching field above and emits a `ConfigWarning` naming the replacement, while passing both a legacy name and its canonical replacement with conflicting values raises `IncompatibleParamsError`. A few legacy names have no direct replacement (`spline_implementation` is one) and raise an actionable error immediately rather than being silently accepted.
 ```
+
+### Requested and fitted widths
+
+The default requested `output_dim` is 7. Representation rules and fitted data
+determine the actual width of each feature; neither a request nor a saved
+configuration is a substitute for inspecting fitted preprocessing. With
+PreTab 1.0, B-splines cap a request of 64 at 50 basis columns:
+
+```python
+import numpy as np
+import pandas as pd
+
+from deeptab.configs import MLPConfig, PreprocessingConfig
+from deeptab.models import MLPRegressor
+
+features = pd.DataFrame({"value": np.linspace(-1, 1, 96)})
+targets = features["value"].to_numpy() ** 2
+model = MLPRegressor(
+    model_config=MLPConfig(layer_sizes=[8]),
+    preprocessing_config=PreprocessingConfig(
+        numerical_method="bspline", categorical_method="int", output_dim=64,
+        target_aware=False, placement_strategy="uniform",
+    ),
+    random_state=42,
+)
+model.build_model(features, targets)
+assert model._preprocessor.output_dims_["value"] == 50
+```
+
+`build_model()` fits preprocessing and constructs the network without training
+its weights. The private preprocessor access above is only for inspecting the
+fitted widths. The {ref}`controlled width study <numerical-width-study>`
+compares requests of 7, 15, 30 and 64 without changing the default or claiming
+one width is best for every dataset.
 
 ### Presets
 

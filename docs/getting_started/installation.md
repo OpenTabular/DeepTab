@@ -43,7 +43,10 @@ Use Linux or Windows for TabR; alternative FAISS builds are outside the CI matri
 
 ## Optional Dependencies
 
-The default install keeps the core small. Observability backends (structured logging and experiment trackers) ship as extras, so install only what you need:
+Structured logging and experiment tracking ship as optional extras. Core
+model-specific dependencies, including TabR's FAISS and delu, remain part of
+the default installation; installing an observability extra does not change
+that dependency policy.
 
 ```bash
 pip install 'deeptab[logs]'         # structlog (structured logging)
@@ -84,6 +87,13 @@ DeepTab automatically detects and uses your accelerator, with no configuration
 needed. It supports NVIDIA GPUs through CUDA and Apple Silicon through the MPS
 backend, and falls back to the CPU when neither is present.
 
+```{note}
+Backend detection reports availability, not validation of every architecture or
+operation on that device. The local dependency and width studies use CPU only;
+actual CUDA/MPS contracts and native retrieval platform checks remain separate
+release requirements. See the [Support Matrix](../developer_guide/support_matrix).
+```
+
 **Inspect what DeepTab can see:**
 
 ```python
@@ -95,7 +105,7 @@ print_hardware_info()
 ```text
 DeepTab hardware report
 -----------------------
-Platform: Darwin (arm64), Python 3.11.8, PyTorch 2.2.0
+Platform: Darwin (arm64), Python 3.13.15, PyTorch 2.9.1
 CPU: 14 logical cores
 CUDA: not available
 MPS (Apple Silicon): available

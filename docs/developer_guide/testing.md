@@ -225,6 +225,18 @@ Tests are grouped by their owning package: `architectures`, `configs`, `core`,
 Cross-module workflows live in `tests/integration/`. Estimator mixin tests live
 in `tests/models/mixins/`, and neural block tests in `tests/nn/blocks/`.
 
+```text
+tests/
+    conftest.py
+    architectures/  configs/  core/  data/  distributions/  hpo/
+    models/mixins/  nn/blocks/  training/
+    metrics/
+        oracles/
+    integration/
+    contracts/  learnability/  lifecycle/  boundaries/  environments/
+    fixtures/
+```
+
 Additional shared behavior is organized by category. Add a directory with its
 first substantive test, not an empty placeholder. The categories below now
 contain installation checks, shared model/persistence contracts, learning checks,
@@ -238,6 +250,17 @@ lifecycle transitions, metric oracles and input/configuration boundaries.
 | `metrics/oracles/` | `metric_oracle` | Training metrics checked against independent answers               |
 | `boundaries/`      | `boundary`      | Input and configuration boundaries                                 |
 | `environments/`    | `environment`   | Pre-provisioned dependencies, installation, and device contracts   |
+
+The root `conftest.py` provides function-scoped fixtures for shared behavior:
+
+- `easy_problem` creates the seeded 96-row numerical/categorical problem with a fixed 63/33 split and classification/regression targets. It does not fit a model.
+- `stable_model_factory` constructs small registry-selected estimators with explicit CPU training, seed `17`, zero dropout and checkpoints under pytest's `tmp_path`. Tests choose when to fit them; the default training budget is 40 epochs. Native TabR cases skip on unsupported Apple Silicon macOS rather than substituting a different architecture.
+
+Use pytest's `tmp_path` for generated checkpoints and model bundles. Keep
+specialized fixture setup near the tests that own it; reuse the shared problem
+and factory when testing the same contract across architectures. Package-owned
+tests can still train models, so `-m "not integration"` is not a training-free
+or necessarily fast selection.
 
 For example, use `just test-run -m lifecycle` for lifecycle transitions.
 Environment tests never install or download packages during pytest. Their

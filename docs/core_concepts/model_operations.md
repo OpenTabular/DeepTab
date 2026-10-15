@@ -298,8 +298,10 @@ starts invalidate it, as described in
 {ref}`failed fits and recovery <failed-fits-and-recovery>`.
 
 Retrieval models refresh their training candidate data during continuation.
-That is not a guarantee that every retrieval model already preserves its
-candidate data for inference after loading an artifact.
+Saving the continued TabR or ModernNCA estimator stores that refreshed bank,
+so a compatible reload uses the new candidates rather than the earlier data.
+This does not repair older incomplete retrieval artifacts or incompatible
+PreTab pickles. See {ref}`retrieval-artifacts` and {ref}`historical-artifacts`.
 
 ### What is inside the artifact
 

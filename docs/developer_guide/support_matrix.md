@@ -105,6 +105,14 @@ logging. Version 2.17 reproduced the failure; 2.18 passed real event writing
 with NumPy 2 and minimum Torch. This compatibility repair does not change the
 separate setuptools security/compatibility review.
 
+On 2026-10-15, the revised candidate passed all four local CPU endpoint suites
+on Apple Silicon: Python 3.11.16 minimum-direct and Python 3.13.15 newest-compatible,
+each with core and logs/tracking profiles. Each lane passed four installed-wheel
+fit/save/reload workflows and exceeded 91.6% line coverage, with matching
+source and wheel hashes. The candidate still carries package version `2.0.0`;
+these results do not certify a final-version 2.1 artifact, hosted platforms,
+native TabR, accelerators or security sign-off.
+
 Python 3.10 is no longer supported in DeepTab 2.1. Follow the
 [Migration Guide](../getting_started/migration) before upgrading an older
 environment. Documentation tooling retains its Python 3.12-3.13 requirement.

@@ -121,7 +121,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),                      # architecture
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),   # features
+   preprocessing_config=PreprocessingConfig(numerical_method="ple"),          # features
     trainer_config=TrainerConfig(lr=1e-3),                                     # training
 )
 ```

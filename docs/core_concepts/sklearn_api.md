@@ -262,6 +262,15 @@ For the same family, omitted `distributional_kwargs` reuse the selected options.
 Changing the family or options requires `rebuild=True`. `rebuild=False` continues
 training the existing network; it does not reinitialize its weights.
 
+Continuation also reuses fitted preprocessing while rebuilding data and loaders
+from the supplied compatible inputs. It creates a new trainer, optimizer and
+scheduler rather than resuming their checkpoint state. See
+{ref}`weight continuation <weight-continuation>` for overrides and failure
+semantics. To select a validation metric for callbacks and a plateau scheduler,
+pass `monitor` and `mode` to `fit`; explicitly configured callback or scheduler
+settings retain their documented precedence in the
+{ref}`training guide <monitoring-precedence>`.
+
 ## Predict
 
 ```python
@@ -309,6 +318,13 @@ classifier.evaluate(
     },
 )
 ```
+
+Accuracy and F1 consume class labels; AUROC and log loss consume probabilities.
+For ensembles, member probabilities are averaged before probability-based
+evaluation. Training and validation epoch metrics use the epoch's accumulated
+inputs or metric state, not an unweighted mean of per-batch scores. Metric state
+resets between sanity validation and training epochs. A valid probability shape
+or finite score alone is not evidence that a model learned the task.
 
 ## Score
 
@@ -387,6 +403,7 @@ The saved estimator bundle is designed as a fitted inference artifact. It includ
 | Architecture metadata      | Stores the model class, module, registry status, config class, and resolved config values.                                         |
 | Trained weights            | Restores the fitted `TaskModel` state.                                                                                             |
 | Fitted preprocessing state | Reuses the exact fitted preprocessing object instead of refitting on future data.                                                  |
+| Retrieval candidate data   | TabR and ModernNCA retain transformed training candidates and encoded targets required for inference.                              |
 | Feature schema             | Stores column order, numerical/categorical/embedding feature groups, dimensions, and feature preprocessing metadata.               |
 | Task metadata              | Stores the task type, regression/LSS flags, distribution family for LSS, number of output classes, and `classes_` for classifiers. |
 | Runtime/debug metadata     | Stores Python, platform, DeepTab, PyTorch, Lightning, pandas, NumPy, scikit-learn, pretab, and related dependency versions.        |
@@ -411,6 +428,12 @@ When older artifacts omit family options, loading falls back to constructor
 defaults. Missing custom options cannot be recovered from weights alone. See
 [model operations](model_operations.md)
 for the supported artifact versions.
+
+Retrieval artifacts require training-data-level access controls. Older files
+without their required candidate bank need original-data refitting, and the
+new payload does not repair incompatible historical PreTab pickles. Standard
+Python pickle is not a replacement for the supported estimator save/load API.
+See {ref}`retrieval-artifacts` and {ref}`historical-artifacts` for the limits.
 
 ## Model Inspection
 

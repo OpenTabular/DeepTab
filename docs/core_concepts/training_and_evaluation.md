@@ -84,7 +84,13 @@ The pool is not assembled from the training sampler, so replacement sampling and
 Validation, test, and prediction use the stored training pool without adding evaluation labels. Custom candidate-aware DataModules must provide a labeled `TabularDataset`; direct architecture calls must provide a candidate pool disjoint from the query batch. See each model's notes for its retrieval and sampling requirements.
 
 ```{warning}
-This describes evaluation on a live fitted retrieval model with its candidate pool available. The current artifact-loading path does not restore those training candidate tensors automatically. Model weights alone do not establish a retrieval candidate bank for prediction after loading.
+Estimator artifacts saved by TabR and ModernNCA include their transformed
+training candidate bank and restore it before inference. Weights alone are not
+enough: older artifacts without that bank require refitting from the original
+training data. Candidate tensors contain training-derived features and labels;
+apply the same access controls as for that data. See
+{ref}`retrieval artifacts <retrieval-artifacts>` for compatible dependencies,
+device limits and the executable round-trip example.
 ```
 
 ### Inspecting fitted feature metadata
