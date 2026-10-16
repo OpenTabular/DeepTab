@@ -191,6 +191,10 @@ class _SerializationMixin:
         obj._data_module.embedding_feature_info = bundle["feature_info"]["emb"]
         obj._data_module.input_columns_ = bundle.get("input_columns")
 
+        num_classes = bundle["num_classes"]
+        if not bundle["regression"] and num_classes == 1:
+            num_classes = 2
+
         obj._task_model = obj._task_model_factory.create(
             model_class=bundle["model_class"],
             config=bundle["config"],
@@ -199,7 +203,7 @@ class _SerializationMixin:
                 bundle["feature_info"]["cat"],
                 bundle["feature_info"]["emb"],
             ),
-            num_classes=bundle["num_classes"],
+            num_classes=num_classes,
             lss=bundle["lss"],
             family=bundle["family"],
             loss_fct=bundle.get("loss_fct"),

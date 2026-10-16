@@ -310,6 +310,7 @@ class TaskModel(pl.LightningModule):
             feature_information=feature_information,
             num_classes=output_dim,
             lss=lss,
+            is_binary_classification=not lss and num_classes == 2,
             **kwargs,
         )
 

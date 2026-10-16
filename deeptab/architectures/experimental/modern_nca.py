@@ -42,13 +42,15 @@ class ModernNCA(BaseModel):
         A tuple containing feature information for numerical, categorical, and
         embedding features.
     num_classes : int, optional (default=1)
-        The output dimension. ``1`` for scalar regression, the number of
-        classes for classification, or the distribution parameter count for
-        distributional (LSS) models.
+        The output dimension. ``1`` for scalar regression or binary
+        classification, the number of classes for multiclass classification,
+        or the distribution parameter count for distributional (LSS) models.
     config : ModernNCAConfig, optional (default=ModernNCAConfig())
         Configuration object defining model hyperparameters.
     **kwargs : dict
         Additional arguments for the base model, including the ``lss`` flag.
+        Set ``is_binary_classification=True`` for binary classification so
+        weighted label probabilities are converted to logits.
 
     Attributes
     ----------
@@ -234,8 +236,7 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
-        else:
-            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+        elif getattr(self.hparams, "is_binary_classification", False):
             logits = torch.logit(logits, eps=eps)
 
         return logits
@@ -302,8 +303,7 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
-        else:
-            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+        elif getattr(self.hparams, "is_binary_classification", False):
             logits = torch.logit(logits, eps=eps)
 
         return logits
@@ -370,8 +370,7 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
-        else:
-            # Binary vote lands in [0, 1]; invert the sigmoid so it is a real logit.
+        elif getattr(self.hparams, "is_binary_classification", False):
             logits = torch.logit(logits, eps=eps)
 
         return logits
