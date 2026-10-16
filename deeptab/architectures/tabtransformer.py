@@ -124,7 +124,7 @@ class TabTransformer(BaseModel):
 
         Parameters
         ----------
-        ata : tuple
+        data : tuple
             Input tuple of tensors of num_features, cat_features, embeddings.
 
         Returns

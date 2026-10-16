@@ -29,7 +29,7 @@ This makes ModernNCA useful when the target function is locally smooth in a repr
 
 ## Architectural Details
 
-For a query row \(x*i\) and candidate rows \(\{x_j, y_j\}\), ModernNCA learns an encoder \(\phi*\theta\):
+For a query row $x_i$ and candidate rows $\{x_j, y_j\}$, ModernNCA learns an encoder $\phi_\theta$:
 
 ```text
 raw features
@@ -45,15 +45,15 @@ embedding z = phi(x)
 
 Distances are converted to candidate weights:
 
-\[
-d*{ij} = \frac{\|\phi*\theta(x*i) - \phi*\theta(x_j)\|\_2}{T}
-\]
+$$
+d_{ij} = \frac{\|\phi_\theta(x_i) - \phi_\theta(x_j)\|_2}{T}
+$$
 
-\[
-w*{ij} = \mathrm{softmax}\_j(-d*{ij})
-\]
+$$
+w_{ij} = \mathrm{softmax}_j(-d_{ij})
+$$
 
-For regression, the output is the weighted average of candidate targets. For classification, candidate labels are one-hot encoded and the weighted class probabilities are log-transformed before loss computation.
+For scalar regression, the output is the weighted average of candidate targets, without a probability transform. Binary classification averages the encoded 0/1 labels and converts the resulting probability to a logit. Multiclass classification averages one-hot labels and takes the log of the class probabilities. Distributional models instead average candidate representations and decode that context into raw distribution parameters.
 
 During training, the trainer first removes all current batch row identities from the external training pool. ModernNCA samples from that filtered pool, prepends the current batch, and masks each query's identity before computing the softmax. The mask covers repeated copies of the same row from replacement sampling, not only diagonal positions. Distinct rows with identical features can still act as neighbors.
 
@@ -145,7 +145,7 @@ param_grid = {
 - Candidate construction matters. Validation and test rows should retrieve from training candidates, not from labels that would leak evaluation information.
 - `sample_rate` changes the stochastic training objective. Report it in benchmarks.
 - `temperature` controls the effective number of neighbors. Lower values make predictions closer to nearest-neighbor behavior.
-- Pairwise distance computation is the dominant cost: roughly \(O(B \cdot N_c \cdot dim)\) for batch size \(B\) and candidate count \(N_c\).
+- Pairwise distance computation is the dominant cost: roughly $O(B \cdot N_c \cdot dim)$ for batch size $B$ and candidate count $N_c$.
 - Compared with TabR, ModernNCA uses a simpler soft NCA-style label aggregation rather than TabR's learned context/value transformation.
 
 ## When to Use

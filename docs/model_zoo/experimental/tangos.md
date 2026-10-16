@@ -43,20 +43,20 @@ Linear output head
 
 During training, Tangos computes a representation Jacobian:
 
-\[
-J\_{h,x} = \frac{\partial h(x)}{\partial x}
-\]
+$$
+J_{h,x} = \frac{\partial h(x)}{\partial x}
+$$
 
-where \(h(x)\) is the representation before the final output head. The model builds latent-unit attribution vectors from this Jacobian and adds:
+where $h(x)$ is the representation before the final output head. The model builds latent-unit attribution vectors from this Jacobian and adds:
 
 - a specialization term, based on the L1 norm of neuron attributions, and
 - an orthogonality term, based on cosine similarity between attribution vectors of different hidden units.
 
 The training loss is:
 
-\[
-\mathcal{L}_{total} = \mathcal{L}_{task} + \lambda*1 \mathcal{L}*{spec} + \lambda*2 \mathcal{L}*{orth}
-\]
+$$
+\mathcal{L}_{\mathrm{total}} = \mathcal{L}_{\mathrm{task}} + \lambda_1 \mathcal{L}_{\mathrm{spec}} + \lambda_2 \mathcal{L}_{\mathrm{orth}}
+$$
 
 ## Main Building Blocks
 
@@ -77,18 +77,18 @@ With `use_glu=True`, each linear projection is doubled before GLU halves it, so 
 
 ## Configuration
 
-| Parameter          | Default                   | Practical Effect                               |
-| ------------------ | ------------------------- | ---------------------------------------------- |
-| `layer_sizes`      | `[256, 128, 32]`          | Width/depth of the MLP body                    |
-| `dropout`          | `0.2`                     | Standard dropout regularization                |
-| `activation`       | `nn.ReLU()`               | Hidden activation                              |
-| `use_glu`          | `False`                   | Enables gated linear units                     |
-| `skip_connections` | `False`                   | Adds residual connections when shapes match    |
-| `batch_norm`       | inherited default `False` | Optional batch normalization                   |
-| `layer_norm`       | inherited default `False` | Optional layer normalization                   |
-| `lamda1`           | `0.5`                     | Weight for specialization penalty              |
-| `lamda2`           | `0.1`                     | Weight for orthogonality penalty               |
-| `subsample`        | `0.5`                     | Fraction used for regularization pair sampling |
+| Parameter          | Default                   | Practical Effect                                    |
+| ------------------ | ------------------------- | --------------------------------------------------- |
+| `layer_sizes`      | `[256, 128, 32]`          | Width/depth of the MLP body                         |
+| `dropout`          | `0.2`                     | Standard dropout regularization                     |
+| `activation`       | `nn.ReLU()`               | Hidden activation                                   |
+| `use_glu`          | `False`                   | Enables gated linear units                          |
+| `skip_connections` | `False`                   | Adds residual connections when shapes match         |
+| `batch_norm`       | inherited default `False` | Optional batch normalization                        |
+| `layer_norm`       | inherited default `False` | Optional layer normalization                        |
+| `lamda1`           | `0.5`                     | Weight for specialization penalty                   |
+| `lamda2`           | `0.1`                     | Weight for orthogonality penalty                    |
+| `subsample`        | `0.5`                     | Batch-scaled hidden-neuron pair sampling multiplier |
 
 ```python
 from deeptab.configs import PreprocessingConfig, TangosConfig, TrainerConfig
@@ -139,7 +139,7 @@ param_grid = {
 - `lamda1` and `lamda2` are not learning rates. They are regularization weights.
 - The Jacobian-based penalty can be substantially more expensive than a plain MLP forward/backward pass.
 - The implementation concatenates preprocessed raw feature tensors directly; it does not currently use `EmbeddingLayer` in the active forward path.
-- `subsample` controls regularization estimation cost and variance. Report it in experiments.
+- In the sampled branch, `subsample` draws `int(subsample * batch_size)` hidden-neuron pairs for the orthogonality penalty, not a subset of input features. Zero selects all pairs. Report both `subsample` and batch size in experiments.
 
 ## When to Use
 

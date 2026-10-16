@@ -51,15 +51,15 @@ updated prompt records O
 TromptDecoder -> prediction for this cycle
 ```
 
-The process is repeated for `n_cycles`. Let \(O^{(c)} \in \mathbb{R}^{P \times d}\) be the prompt records after cycle \(c\), \(C\) the number of columns/tokens, and \(d\) the model width.
+The process is repeated for `n_cycles`. Let $O^{(c)} \in \mathbb{R}^{P \times d}$ be the prompt records after cycle $c$, $C$ the number of columns/tokens, and $d$ the model width.
 
 The importance module learns prompt and column embeddings and computes a prompt-column attention-like matrix:
 
-\[
+$$
 M^{(c)} = \mathrm{softmax}(g(O^{(c-1)}, E_p) E_c^\top)
-\]
+$$
 
-where \(M^{(c)} \in \mathbb{R}^{P \times C}\). The cell uses this matrix to aggregate expanded feature embeddings into the next prompt records.
+where $M^{(c)} \in \mathbb{R}^{P \times C}$. The cell uses this matrix to aggregate expanded feature embeddings into the next prompt records.
 
 Unlike FTTransformer, the current DeepTab Trompt implementation does not use a standard multi-head self-attention stack with `n_heads`. Its main controls are `d_model`, `n_cycles`, `n_cells`, and `P`.
 

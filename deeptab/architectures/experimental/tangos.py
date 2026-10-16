@@ -33,7 +33,8 @@ class Tangos(BaseModel):
     lamda2 : float
         Regularization weight for the orthogonality loss.
     subsample : float
-        Proportion of neuron pairs to use for orthogonality loss calculation.
+        Sampling multiplier for the orthogonality penalty. The sampled branch
+        draws ``int(subsample * batch_size)`` hidden-neuron pairs.
     embedding_layer : EmbeddingLayer or None
         Optional embedding layer for categorical features.
     layers : nn.ModuleList

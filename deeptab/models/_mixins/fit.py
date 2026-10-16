@@ -519,9 +519,9 @@ class _FitMixin:
             The target values.
         regression : bool
             Whether this is a regression task.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             Proportion of the dataset for the validation split when ``X_val``
-            is ``None``.
+            is ``None``. Uses the active ``TrainerConfig`` value when omitted.
         X_val : DataFrame or array-like, optional
             Explicit validation features.
         y_val : array-like, optional
@@ -572,10 +572,12 @@ class _FitMixin:
             is explicit. Overrides apply to this call only, including continuation.
         lr : float or None, optional
             Learning rate override.
-        lr_patience : int or None, optional
-            LR scheduler patience override.
-        lr_factor : float or None, optional
-            LR scheduler reduction factor override.
+        lr_patience : int or None, default=None
+            LR scheduler patience override. ``None`` uses the active
+            ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            LR scheduler reduction factor override. ``None`` uses the active
+            ``TrainerConfig`` value.
         weight_decay : float or None, optional
             Weight-decay (L2 penalty) override.
         checkpoint_path : str or None, default=None
@@ -585,8 +587,8 @@ class _FitMixin:
             value, or ``"model_checkpoints"`` when no ``TrainerConfig`` is
             set; in that case each fit writes to its own uniquely named
             sub-directory so parallel/repeated fits never collide.
-        dataloader_kwargs : dict, default={}
-            Extra kwargs forwarded to the PyTorch DataLoader.
+        dataloader_kwargs : dict or None, default=None
+            Extra kwargs forwarded to the PyTorch DataLoader. ``None`` adds none.
         train_metrics : dict or None, optional
             Metrics to log during training. Accepts ``torchmetrics.Metric`` instances
             (kept on-device, called as ``metric(preds, target)``) or ``DeepTabMetric``

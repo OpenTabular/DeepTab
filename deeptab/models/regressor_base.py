@@ -71,10 +71,12 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
         lr : float or None, default=None
             Learning rate for the optimizer. Falls back to the active
             `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        lr_factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
         weight_decay : float or None, default=None
             Weight decay (L2 penalty) coefficient. Falls back to the active
             `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
@@ -82,8 +84,8 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
 
 
 
@@ -190,10 +192,12 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
         lr : float or None, default=None
             Learning rate for the optimizer. Falls back to the active
             `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        lr_factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
         weight_decay : float or None, default=None
             Weight decay (L2 penalty) coefficient. Falls back to the active
             `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
@@ -205,8 +209,8 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
             `TrainerConfig` is set; in that case each fit writes to its own
             uniquely named sub-directory so parallel/repeated fits never
             collide.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None

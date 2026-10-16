@@ -178,12 +178,14 @@ $$L_{\text{total}} = L_{\text{task}} + \lambda_1 L_{\text{spec}} + \lambda_2 L_{
 
 where `lamda1` and `lamda2` weight the two regularizers. The goal is better generalisation on small tabular datasets, at the cost of a more expensive backward pass.
 
-| Field         | Default          | Meaning                                                  |
-| ------------- | ---------------- | -------------------------------------------------------- |
-| `layer_sizes` | `[256, 128, 32]` | Hidden layer widths of the MLP body.                     |
-| `lamda1`      | `0.5`            | Weight of the specialisation penalty ($\lambda_1$).      |
-| `lamda2`      | `0.1`            | Weight of the orthogonalisation penalty ($\lambda_2$).   |
-| `subsample`   | `0.5`            | Fraction of features sampled when computing the penalty. |
+| Field         | Default          | Meaning                                                |
+| ------------- | ---------------- | ------------------------------------------------------ |
+| `layer_sizes` | `[256, 128, 32]` | Hidden layer widths of the MLP body.                   |
+| `lamda1`      | `0.5`            | Weight of the specialisation penalty ($\lambda_1$).    |
+| `lamda2`      | `0.1`            | Weight of the orthogonalisation penalty ($\lambda_2$). |
+| `subsample`   | `0.5`            | Batch-scaled hidden-neuron pair sampling multiplier.   |
+
+In the sampled orthogonality penalty, the number of hidden-neuron pairs is `int(subsample * batch_size)`. This does not subsample input features. Setting `subsample=0` uses all pairs.
 
 ```python
 tangos = TangosClassifier(
