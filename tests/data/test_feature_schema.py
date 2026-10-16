@@ -1,5 +1,7 @@
 """Tests for feature schema."""
 
+import pytest
+
 from deeptab.data import FeatureInfo, FeatureSchema
 
 
@@ -59,14 +61,15 @@ class TestFeatureSchemaContract:
         assert schema.total_categorical_dim == 13  # 10 + 3
         assert schema.total_embedding_dim == 16
 
-    def test_feature_schema_from_preprocessor_info(self):
+    @pytest.mark.parametrize("categories", [3, ["A", "B", "C"]])
+    def test_feature_schema_from_preprocessor_info(self, categories):
         """Test FeatureSchema.from_preprocessor_info factory method."""
         num_info = {
             "f1": {"preprocessing": "ple", "dimension": 20, "categories": None},
             "f2": {"preprocessing": "standard", "dimension": 1, "categories": None},
         }
         cat_info = {
-            "c1": {"preprocessing": "int", "dimension": 1, "categories": ["A", "B", "C"]},
+            "c1": {"preprocessing": "int", "dimension": 1, "categories": categories},
         }
 
         schema = FeatureSchema.from_preprocessor_info(num_info, cat_info, None)
@@ -75,6 +78,7 @@ class TestFeatureSchemaContract:
         assert schema.num_categorical_features == 1
         assert "f1" in schema.numerical_features
         assert "c1" in schema.categorical_features
+        assert schema.categorical_features["c1"].categories == categories
 
     def test_feature_schema_with_no_embeddings(self):
         """Test schema works with no embedding features."""
@@ -86,16 +90,17 @@ class TestFeatureSchemaContract:
         assert schema.num_embedding_features == 0
         assert schema.total_embedding_dim == 0
 
-    def test_feature_schema_serialization_round_trip(self):
+    @pytest.mark.parametrize("categories", [2, ["A", "B"]])
+    def test_feature_schema_serialization_round_trip(self, categories):
         """Test schema metadata can be serialized and restored."""
         schema = FeatureSchema(
             numerical_features={"f1": FeatureInfo("f1", "standard", 1, None)},
-            categorical_features={"c1": FeatureInfo("c1", "int", 1, ["A", "B"])},
+            categorical_features={"c1": FeatureInfo("c1", "int", 1, categories)},
             embedding_features={"e1": FeatureInfo("e1", "pretrained", 16, None)},
         )
 
         restored = FeatureSchema.from_dict(schema.to_dict())
 
         assert restored.numerical_features["f1"].preprocessing == "standard"
-        assert restored.categorical_features["c1"].categories == ["A", "B"]
+        assert restored.categorical_features["c1"].categories == categories
         assert restored.total_embedding_dim == 16

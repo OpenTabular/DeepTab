@@ -25,14 +25,15 @@ class FeatureInfo:
         Preprocessing strategy applied to this feature.
     dimension : int
         Output dimension after preprocessing (e.g., embedding size).
-    categories : list or None
-        List of categories for categorical features, None for numerical.
+    categories : int, list, or None
+        Category cardinality supplied by the fitted preprocessor, or an
+        explicit category list. ``None`` for numerical and embedding features.
     """
 
     name: str
     preprocessing: str
     dimension: int
-    categories: list[Any] | None = None
+    categories: int | list[Any] | None = None
 
     @property
     def is_categorical(self) -> bool:
