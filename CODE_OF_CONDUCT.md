@@ -1,7 +1,6 @@
-
 # Code of Conduct
 
-- **Purpose**:  The purpose of this Code of Conduct is to establish a welcoming and inclusive community around the `STREAM` project. We want to foster an environment where everyone feels respected, valued, and able to contribute to the project.
+- **Purpose**: The purpose of this Code of Conduct is to establish a welcoming and inclusive community around the `STREAM` project. We want to foster an environment where everyone feels respected, valued, and able to contribute to the project.
 
 - **Openness and Respect**: We strive to create an open and respectful community where everyone can freely express their opinions and ideas. We encourage constructive discussions and debates, but we will not tolerate any form of harassment, discrimination, or disrespectful behavior.
 
