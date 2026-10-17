@@ -152,6 +152,7 @@ class TestTabularDataModuleContract:
         datamodule.preprocess_data(features, targets, random_state=42)
         datamodule.setup("fit")
         assert datamodule.num_classes == 3
+        assert datamodule.y_train is not None
         assert len(np.unique(datamodule.y_train)) == 2
         assert datamodule.y_val is not None
         assert 2 in datamodule.y_val

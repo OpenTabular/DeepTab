@@ -168,6 +168,9 @@ def main() -> None:
             ],
             "resolution.log",
         )
+        if backend:
+            with lock.open("a") as stream:
+                stream.write("\n--extra-index-url https://download.pytorch.org/whl/cpu\n")
         execute(
             [
                 uv,

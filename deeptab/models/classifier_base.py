@@ -435,7 +435,8 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
                 loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes
             )
         else:
-            if not np.array_equal(classes, getattr(self, "classes_", None)):
+            original_classes = getattr(self, "classes_", None)
+            if original_classes is None or not np.array_equal(classes, original_classes):
                 raise invalid_data_error(
                     "Continuation requires the original classifier labels.",
                     "use rebuild=True to change the class labels or classification head.",

@@ -110,6 +110,66 @@ def test_endpoint_requirements_follow_wheel_markers(tmp_path, profile, system):
         module.runtime_requirements(wheel, "unknown")
 
 
+@pytest.mark.parametrize("system", ["Linux", "Darwin", "Windows"])
+@pytest.mark.parametrize("endpoint", ["minimum", "newest"])
+def test_endpoint_requirements_retain_cpu_repository(tmp_path, monkeypatch, system, endpoint):
+    path = Path(__file__).resolve().parents[2] / ".github/scripts/dependency_endpoints.py"
+    spec = importlib.util.spec_from_file_location("dependency_endpoints", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    wheel = tmp_path / "deeptab.whl"
+    with ZipFile(wheel, "w") as archive:
+        archive.writestr(
+            "deeptab-1.dist-info/METADATA",
+            "Metadata-Version: 2.1\nName: deeptab\nVersion: 1\nRequires-Dist: torch>=2.13\n\n",
+        )
+    output = tmp_path / "evidence"
+    commands = []
+    installed = {"deeptab": {"version": "1"}, "torch": {"version": "2.13.0+cpu"}}
+
+    def run(command, log, cwd=None):
+        commands.append(command)
+        contents = {
+            "interpreter.json": {"platform_system": system},
+            "runtime-before.json": installed,
+            "installed.json": installed,
+        }.get(log.name, {})
+        log.write_text(json.dumps(contents))
+        if log.name == "resolution.log":
+            lock = Path(command[command.index("--output-file") + 1])
+            lock.write_text("--index-url https://pypi.org/simple\ntorch==2.13.0+cpu --hash=sha256:" + "0" * 64 + "\n")
+
+    monkeypatch.setattr(module, "run", run)
+    monkeypatch.setattr(module.shutil, "which", lambda name: "uv")
+    monkeypatch.setattr(module.tempfile, "mkdtemp", lambda **kwargs: str(tmp_path / "env"))
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            str(path),
+            "--wheel",
+            str(wheel),
+            "--python",
+            "3.11",
+            "--endpoint",
+            endpoint,
+            "--profile",
+            "core",
+            "--output",
+            str(output),
+            "--provision-only",
+        ],
+    )
+    module.main()
+    requirements = (output / "runtime.txt").read_text()
+    assert ("--extra-index-url https://download.pytorch.org/whl/cpu" in requirements) == (system == "Linux")
+    assert "--index-url https://pypi.org/simple" in requirements
+    assert "--hash=sha256:" + "0" * 64 in requirements
+    installation = next(command for command in commands if "--require-hashes" in command)
+    assert installation[installation.index("-r") + 1] == str(output / "runtime.txt")
+    assert json.loads((output / "manifest.json").read_text())["status"] == "provisioned"
+
+
 @pytest.mark.parametrize("mismatch", ["version", "origin", "hash", "import"])
 def test_installed_wheel_rejects_identity_mismatch(tmp_path, monkeypatch, mismatch):
     path = Path(__file__).resolve().parents[2] / ".github/scripts/check_installed_wheel.py"

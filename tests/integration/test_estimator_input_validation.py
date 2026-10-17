@@ -58,6 +58,7 @@ class TestEdgeCaseInputs:
         model.fit(features, targets, stratify=False, accelerator="cpu", logger=False, enable_progress_bar=False)
         assert isinstance(model._data_module, TabularDataModule)
         assert model._data_module.num_classes == 3
+        assert model._data_module.y_train is not None
         assert len(np.unique(model._data_module.y_train)) == 2
         probabilities = model.predict_proba(features)
         assert probabilities.shape == (30, 3)

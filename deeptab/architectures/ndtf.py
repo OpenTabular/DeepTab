@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.node import NeuralDecisionTree
@@ -141,6 +142,11 @@ class NDTF(BaseModel):
             "temperatures": self.temperatures,
         }
 
+    def _feature_interactions(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the single-position padded convolution as a linear projection."""
+        weight = self.conv_layer.weight[0].flip(-1).transpose(0, 1)
+        return F.linear(x, weight, self.conv_layer.bias)
+
     def forward(self, *data) -> torch.Tensor:
         """Forward pass of the NDTF model.
 
@@ -155,8 +161,7 @@ class NDTF(BaseModel):
             Output tensor.
         """
         x = concat_features(data)
-        x = self.conv_layer(x.unsqueeze(2))
-        x = x.transpose(1, 2).squeeze(-1)
+        x = self._feature_interactions(x)
 
         preds = []
 
@@ -182,8 +187,7 @@ class NDTF(BaseModel):
             Output tensor.
         """
         x = concat_features(data)
-        x = self.conv_layer(x.unsqueeze(2))
-        x = x.transpose(1, 2).squeeze(-1)
+        x = self._feature_interactions(x)
 
         penalty = 0.0
         preds = []

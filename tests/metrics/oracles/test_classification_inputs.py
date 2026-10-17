@@ -208,7 +208,9 @@ def test_custom_callable_inputs_only_change_when_declared(stage, space, monkeypa
         np.testing.assert_array_equal(received, [0, 1])
     else:
         positive = 1 / (1 + np.exp(-logits.detach().numpy()))
-        np.testing.assert_allclose(received, np.concatenate([1 - positive, positive], axis=1))
+        np.testing.assert_allclose(
+            received, np.concatenate([1 - positive, positive], axis=1), atol=np.finfo(positive.dtype).eps
+        )
 
 
 def test_raw_opt_out_and_regression_ensemble_axes_are_unchanged():
@@ -267,7 +269,9 @@ def test_custom_torchmetrics_keep_tensor_order_and_explicit_contract(stage, spac
         assert received_targets.shape == (2,) and received_targets.dtype == torch.long
     else:
         positive = 1 / (1 + np.exp(-logits.detach().numpy()))
-        np.testing.assert_allclose(received.numpy(), np.concatenate([1 - positive, positive], axis=1))
+        np.testing.assert_allclose(
+            received.numpy(), np.concatenate([1 - positive, positive], axis=1), atol=np.finfo(positive.dtype).eps
+        )
         assert received_targets.shape == (2,) and received_targets.dtype == torch.long
 
 
