@@ -17,6 +17,11 @@ install-extras:
     poetry sync --only main,dev --extras "logs tracking"
     poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
+# synchronize native TabR and observability dependencies on Linux or Windows
+install-tabr:
+    poetry sync --only main,dev --extras "logs tracking tabr"
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
 # check the installed dependency graph
 deps-check:
     poetry run python -m pip check
@@ -69,6 +74,10 @@ test-core:
 # verify the existing logs/tracking installation and run the full source suite
 test-extras:
     poetry run pytest tests/ --dependency-profile=extras --strict-markers -ra
+
+# verify the existing native TabR installation and run the full source suite
+test-tabr:
+    poetry run pytest tests/ --dependency-profile=tabr --strict-markers -ra
 
 # resolve and verify a wheel in a separate dependency endpoint environment
 test-endpoint wheel python endpoint profile output:

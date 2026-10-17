@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from inspect import Parameter, signature
 
 import lightning as pl
 import torch
@@ -305,12 +306,16 @@ class TaskModel(pl.LightningModule):
         else:
             output_dim = num_classes
 
+        model_parameters = signature(model_class).parameters
+        if "is_binary_classification" in model_parameters or any(
+            parameter.kind is Parameter.VAR_KEYWORD for parameter in model_parameters.values()
+        ):
+            kwargs["is_binary_classification"] = not lss and num_classes == 2
         self.estimator = model_class(
             config=config,
             feature_information=feature_information,
             num_classes=output_dim,
             lss=lss,
-            is_binary_classification=not lss and num_classes == 2,
             **kwargs,
         )
 

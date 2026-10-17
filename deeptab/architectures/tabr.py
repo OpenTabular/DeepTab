@@ -1,4 +1,5 @@
 import math
+import platform
 
 import numpy as np
 import torch
@@ -75,7 +76,7 @@ class TabR(BaseModel):
         self.save_hyperparameters(ignore=["feature_information"])
 
         # lazy import
-        if TabR.delu or TabR.faiss or TabR.faiss_torch_utils is None:
+        if any(dependency is None for dependency in (TabR.delu, TabR.faiss, TabR.faiss_torch_utils)):
             self._lazy_import_dependencies()
 
         self.returns_ensemble = False
@@ -189,6 +190,11 @@ class TabR(BaseModel):
 
     def _lazy_import_dependencies(self):
         """Lazily import external dependencies and store them as class attributes."""
+        if platform.system() == "Darwin" and platform.machine() == "arm64":
+            raise RuntimeError(
+                "Native TabR retrieval is not supported on macOS arm64 because Torch and FAISS "
+                "load conflicting OpenMP runtimes. Use Linux or Windows with pip install 'deeptab[tabr]'."
+            )
         if TabR.delu is None:
             try:
                 import delu  # type: ignore[import-untyped]
@@ -198,8 +204,7 @@ class TabR(BaseModel):
 
             except ImportError:
                 raise ImportError(
-                    "Failed to import delu module for TabR. Ensure all dependencies are installed\n"
-                    "You can install delu running 'pip install delu'."
+                    "TabR requires the optional retrieval dependencies. Install them with: pip install 'deeptab[tabr]'"
                 ) from None
 
         if TabR.faiss is None:
@@ -211,10 +216,9 @@ class TabR(BaseModel):
                 TabR.faiss_torch_utils = faiss.contrib.torch_utils
                 print("Successfully lazy imported faiss dependency")
 
-            except ImportError as e:
+            except ImportError:
                 raise ImportError(
-                    "Failed to import faiss module for TabR. Ensure all dependencies are installed\n"
-                    "You can install faiss running 'pip install faiss-cpu' for CPU and 'pip install faiss-gpu' for GPU."
+                    "TabR requires the optional retrieval dependencies. Install them with: pip install 'deeptab[tabr]'"
                 ) from None
 
     def _encode(self, a):

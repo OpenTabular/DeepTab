@@ -6,6 +6,7 @@ three task variants (Classifier, Regressor, LSS), plus smoke coverage for the
 3 experimental models.  A small synthetic dataset keeps CI fast.
 """
 
+import importlib.util
 import platform
 from typing import Any
 
@@ -77,10 +78,10 @@ from deeptab.models.experimental import (
     TromptRegressor,
 )
 
-_macos_arm64 = platform.system() == "Darwin" and platform.machine() == "arm64"
 _skip_tabr = pytest.mark.skipif(
-    _macos_arm64,
-    reason="faiss-cpu from PyPI segfaults on macOS arm64; install via conda for TabR support",
+    (platform.system() == "Darwin" and platform.machine() == "arm64")
+    or any(importlib.util.find_spec(package) is None for package in ("delu", "faiss")),
+    reason="Native TabR requires deeptab[tabr] on a supported Linux or Windows environment",
 )
 
 # ---------------------------------------------------------------------------

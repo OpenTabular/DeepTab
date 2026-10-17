@@ -37,7 +37,17 @@ candidate labels + key differences -> retrieved context -> predictor -> output
 
 TabR sets `uses_candidates=True`, so it has specialized candidate-aware training, validation, and prediction methods. The standard `forward` method exists for baseline compatibility, but proper TabR behavior depends on candidate data.
 
-The implementation lazily imports `delu` and `faiss`. Install the appropriate FAISS package for your hardware before using TabR in experiments.
+The implementation lazily imports `delu` and `faiss`. On Linux or Windows,
+install `pip install 'deeptab[tabr]'` before fitting or loading TabR. These
+packages are not included in the default install or the `all` observability
+bundle. This extra installs the CPU FAISS build; GPU FAISS builds require a
+separate compatible environment and are not certified by the CPU CI lanes.
+
+```{warning}
+Native TabR is unsupported on macOS arm64 because Torch and the PyPI FAISS
+wheel load conflicting OpenMP runtimes. Construction fails before native
+imports; use a supported Linux or Windows environment instead.
+```
 
 ### Candidate identity and label leakage
 

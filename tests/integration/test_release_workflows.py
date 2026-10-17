@@ -102,7 +102,7 @@ def test_package_gate_validates_tag_and_installed_wheel_before_upload():
 
 def test_reusable_ci_includes_all_existing_quality_checks():
     jobs = _workflow("ci.yml")["jobs"]
-    for name in ["lint", "typecheck", "build", "tests", "tests-extras", "smoke", "coverage"]:
+    for name in ["lint", "typecheck", "build", "tests", "tests-extras", "tests-tabr", "smoke", "coverage"]:
         assert name in jobs
         assert jobs[name].get("continue-on-error", "false") == "false"
     assert jobs["tests"]["strategy"]["matrix"] == {
@@ -137,14 +137,16 @@ def test_ci_triggers_select_main_and_preserve_release_invocations():
         assert triggers[event]["branches"] == ["main"]
 
 
-@pytest.mark.parametrize("job,profile", [("tests", "core"), ("tests-extras", "extras"), ("coverage", "extras")])
+@pytest.mark.parametrize(
+    "job,profile", [("tests", "core"), ("tests-extras", "extras"), ("tests-tabr", "tabr"), ("coverage", "tabr")]
+)
 def test_ci_dependency_profiles_are_provisioned_and_verified(job, profile):
     steps = _workflow("ci.yml")["jobs"][job]["steps"]
     installation = next(step["run"] for step in steps if step.get("name") == "Install dependencies")
     arguments = split(installation)
     assert arguments[:4] == ["poetry", "sync", "--only", "main,dev"]
-    if profile == "extras":
-        assert arguments[4:] == ["--extras", "logs tracking"]
+    if profile != "core":
+        assert arguments[4:] == ["--extras", "logs tracking tabr" if profile == "tabr" else "logs tracking"]
     else:
         assert len(arguments) == 4
     command = next(step["run"] for step in steps if "pytest" in step.get("run", ""))
@@ -160,7 +162,8 @@ def test_ci_dependency_profiles_are_provisioned_and_verified(job, profile):
 
 def test_coverage_requires_locked_profiles_and_dependency_endpoints():
     jobs = _workflow("ci.yml")["jobs"]
-    assert set(jobs["coverage"]["needs"]) == {"tests", "tests-extras", "dependency-endpoints"}
+    assert set(jobs["coverage"]["needs"]) == {"tests", "tests-extras", "tests-tabr", "dependency-endpoints"}
+    assert jobs["tests-tabr"]["strategy"]["matrix"] == {"os": ["ubuntu-latest", "windows-latest"]}
 
 
 def test_dependency_endpoints_preserve_matrix_artifact_and_failure_gates():
@@ -171,8 +174,9 @@ def test_dependency_endpoints_preserve_matrix_artifact_and_failure_gates():
     assert job["strategy"]["fail-fast"] is False
     assert job["strategy"]["matrix"] == {
         "os": ["ubuntu-latest", "windows-latest", "macos-latest"],
-        "profile": ["core", "extras"],
+        "profile": ["core", "extras", "tabr"],
         "lane": [{"endpoint": "minimum", "python": "3.11"}, {"endpoint": "newest", "python": "3.13"}],
+        "exclude": [{"os": "macos-latest", "profile": "tabr"}],
     }
     steps = job["steps"]
     download = next(step for step in steps if step.get("uses") == "actions/download-artifact@v4")
@@ -198,11 +202,11 @@ def test_dependency_endpoint_cache_uses_step_runner_context():
     assert verification["env"]["UV_CACHE_DIR"] == "${{ runner.temp }}/uv-cache"
 
 
-@pytest.mark.parametrize("profile", ["core", "extras"])
+@pytest.mark.parametrize("profile", ["core", "extras", "tabr"])
 def test_just_dependency_profiles_match_ci(profile):
     lines = (WORKFLOWS.parents[1] / "justfile").read_text().splitlines()
     installation = lines[lines.index(f"install-{profile}:") + 1].strip()
-    ci_job = "tests" if profile == "core" else "tests-extras"
+    ci_job = "tests" if profile == "core" else f"tests-{profile}"
     steps = _workflow("ci.yml")["jobs"][ci_job]["steps"]
     assert installation == next(step["run"] for step in steps if step.get("name") == "Install dependencies")
     command = lines[lines.index(f"test-{profile}:") + 1].strip()

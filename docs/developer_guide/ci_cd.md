@@ -20,16 +20,17 @@ Runs on every push to `main` and every pull request targeting `main`. In-progres
 
 The CI, docs, and build-check workflows also expose `workflow_call` so release workflows can require their checks on the exact tagged commit. Concurrency groups distinguish a release invocation from ordinary CI and docs runs, so those runs do not cancel one another.
 
-| Job                    | Runner / Python            | What it does                                                                 | Depends on                                      |
-| ---------------------- | -------------------------- | ---------------------------------------------------------------------------- | ----------------------------------------------- |
-| `lint`                 | ubuntu / 3.11              | `ruff check .` and `ruff format --check .`                                   | -                                               |
-| `typecheck`            | ubuntu / 3.11              | `pyright`                                                                    | -                                               |
-| `build`                | ubuntu / 3.11              | `poetry build` and `twine check dist/*`                                      | -                                               |
-| `tests`                | full matrix                | Full core-only suite with verified dependency profile                        | -                                               |
-| `tests-extras`         | ubuntu / 3.12              | Full suite with verified logs/tracking extras                                | -                                               |
-| `dependency-endpoints` | three OSes / 3.11 and 3.13 | Independent minimum/newest core/extras CPU suites and installed-wheel checks | `build`                                         |
-| `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                          | `lint`                                          |
-| `coverage`             | ubuntu / 3.12              | Extras suite; line coverage >=90%; upload to Codecov                         | `tests`, `tests-extras`, `dependency-endpoints` |
+| Job                    | Runner / Python            | What it does                                                             | Depends on                                                    |
+| ---------------------- | -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
+| `lint`                 | ubuntu / 3.11              | `ruff check .` and `ruff format --check .`                               | -                                                             |
+| `typecheck`            | ubuntu / 3.11              | `pyright`                                                                | -                                                             |
+| `build`                | ubuntu / 3.11              | `poetry build` and `twine check dist/*`                                  | -                                                             |
+| `tests`                | full matrix                | Full core-only suite with verified dependency profile                    | -                                                             |
+| `tests-extras`         | ubuntu / 3.12              | Full suite with verified logs/tracking extras                            | -                                                             |
+| `tests-tabr`           | ubuntu and windows / 3.12  | Full suite with native retrieval and observability extras                | -                                                             |
+| `dependency-endpoints` | three OSes / 3.11 and 3.13 | Independent minimum/newest core, extras, and supported native CPU suites | `build`                                                       |
+| `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                      | `lint`                                                        |
+| `coverage`             | ubuntu / 3.12              | Native plus observability suite; line coverage >=90%; upload to Codecov  | `tests`, `tests-extras`, `tests-tabr`, `dependency-endpoints` |
 
 The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix has nine lanes: Python 3.11/3.12/3.13 on three operating systems, as listed in the [Support Matrix](support_matrix.md).
 
@@ -40,10 +41,15 @@ Both check the installed graph with `pip check`, verify actual optional-package
 availability, and collect all categories without marker filtering. Their cache
 keys distinguish core from extras; synchronization removes stale packages from
 restored environments. The two structured-logging fit tests skip in core-only
-and must execute with extras. Coverage installs/verifies the extras profile too.
+and must execute with extras. Native jobs install `--extras "logs tracking tabr"`
+and verify `--dependency-profile=tabr`; a missing native dependency fails that
+profile. Coverage also installs and verifies the native profile. Core and
+observability-only profiles require FAISS/delu to be absent, while exact-index
+retrieval tests continue to run without native dependencies.
 
 Local equivalents are `just install-core` / `just test-core` and
 `just install-extras` / `just test-extras`, followed by `just test` for coverage.
+On Linux or Windows, use `just install-tabr` / `just test-tabr` for native cases.
 See [Testing](testing.md) for environment-switching cautions and selectors.
 Pushes to integration branches do not trigger automatic CI. Open a pull request
 targeting `main` or dispatch CI manually, and retain the run URL and tested SHA.
@@ -51,12 +57,13 @@ Reusable release calls remain available; configured lanes alone are not passing
 evidence for a release revision. The locked extras lane covers Ubuntu/Python 3.12;
 independent extras endpoints add Python 3.11/3.13 on each configured platform.
 
-The build job retains `candidate-dist`. Ordinary CI's 12 endpoint lanes download
+The build job retains `candidate-dist`. Ordinary CI's 16 endpoint lanes download
 that artifact. Release callers wait for the package gate and pass its `dist`
 artifact instead, so endpoints validate the wheel that publication will consume.
 All lanes independently resolve wheel-metadata requirements without `poetry.lock`
 and verify exact wheel identity before training/reload checks and the full CPU
 source suite. Endpoint failures block coverage and fail reusable release CI.
+The four native endpoint lanes cover Linux and Windows, excluding macOS.
 Each lane uploads its reports even after failure, named by OS, architecture,
 Python, endpoint, profile and revision. These CPU jobs do not certify CUDA/MPS.
 See the {ref}`endpoint procedure <dependency-endpoints>` and support limitations.

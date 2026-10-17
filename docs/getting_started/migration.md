@@ -28,6 +28,26 @@ guarantee or a promise of continued fixes. Changing Python does not convert
 historical model artifacts or resolve the dependency and native-platform
 limitations in the [Support Matrix](../developer_guide/support_matrix).
 
+## Native Retrieval Dependencies in 2.1
+
+The default install and the `all` observability bundle no longer install FAISS
+or delu. On Linux or Windows, install the extra before fitting or loading TabR:
+
+```bash
+pip install 'deeptab[tabr]'
+```
+
+Combine it with `all` as `deeptab[all,tabr]` when observability is also needed.
+Native TabR is unsupported on macOS arm64 and fails before importing the
+conflicting Torch/FAISS OpenMP runtimes. Other architectures, including
+experimental ModernNCA, do not require this extra.
+
+Recreate an older environment rather than leaving obsolete retrieval packages
+alongside the patched Torch stack. The new Torch, setuptools, Lightning,
+Accelerate, and TensorBoard bounds are listed in the
+[installation guide](installation). Do not retain vulnerable versions merely
+to satisfy an older native installation.
+
 ## PreTab 1.0 migration
 
 DeepTab's preprocessing runs on [PreTab](https://pretab.readthedocs.io/en/latest/index.html),

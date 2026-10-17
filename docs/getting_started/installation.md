@@ -1,7 +1,7 @@
 # Installation
 
 ```{important}
-**Requirements:** Python 3.11-3.13 | PyTorch >=2.4.0,<2.10 (auto-installed)
+**Requirements:** Python 3.11-3.13 | PyTorch >=2.13,<2.15 (auto-installed)
 ```
 
 ## Quick Install
@@ -10,7 +10,7 @@
 pip install deeptab
 ```
 
-This installs DeepTab with all dependencies including PyTorch, Lightning, and preprocessing tools.
+This installs DeepTab with its core dependencies, including PyTorch, Lightning, and preprocessing tools. Logging, tracking, and native TabR retrieval use separate extras.
 
 **Verify installation:**
 
@@ -29,24 +29,24 @@ See the [Support Matrix](../developer_guide/support_matrix) for validation limit
 ```{warning}
 **Intel Mac (macOS x86_64) is not supported.** Upstream PyTorch no longer publishes
 x86_64 macOS wheels for `torch >= 2.3` or Python 3.13. This restriction does not
-apply to Apple Silicon: Python 3.13 wheels exist, including `torch==2.9.1`.
+apply to Apple Silicon: Python 3.13 wheels exist for the supported Torch range.
 
 Use Apple Silicon, Linux, or Windows. The older Intel build `torch==2.2.2`
 does not satisfy the current dependency range and is not a supported workaround.
 ```
 
 ```{warning}
-**TabR is not validated on Apple Silicon.** Its classifier, regressor, and LSS
-tests are skipped on macOS arm64 because the PyPI `faiss-cpu` build can segfault.
-Use Linux or Windows for TabR; alternative FAISS builds are outside the CI matrix.
+**Native TabR is unsupported on Apple Silicon.** Patched Torch and the PyPI
+`faiss-cpu` build load conflicting OpenMP runtimes. DeepTab rejects native TabR
+construction before importing them together. Use Linux or Windows with the
+`tabr` extra; alternative FAISS builds are outside the CI matrix.
 ```
 
 ## Optional Dependencies
 
-Structured logging and experiment tracking ship as optional extras. Core
-model-specific dependencies, including TabR's FAISS and delu, remain part of
-the default installation; installing an observability extra does not change
-that dependency policy.
+Structured logging, experiment tracking, and TabR retrieval ship as optional
+extras. The default installation does not install FAISS or delu. The `all`
+bundle includes observability backends only, not native retrieval.
 
 ```bash
 pip install 'deeptab[logs]'         # structlog (structured logging)
@@ -54,6 +54,8 @@ pip install 'deeptab[tensorboard]'  # TensorBoard tracker
 pip install 'deeptab[mlflow]'       # MLflow tracker
 pip install 'deeptab[tracking]'     # TensorBoard + MLflow
 pip install 'deeptab[all]'          # structlog + TensorBoard + MLflow
+pip install 'deeptab[tabr]'         # FAISS + delu, on Linux or Windows
+pip install 'deeptab[all,tabr]'     # observability and native retrieval
 ```
 
 ```{note}
@@ -62,12 +64,14 @@ These backends are loaded lazily. Without the matching extra, DeepTab trains nor
 
 ## Dependency Compatibility
 
-DeepTab requires NumPy 2, pandas >=2.2.2, SciPy >=1.16 and Torch >=2.4.0. Earlier pandas and
-Torch minima can resolve successfully while failing binary imports or NumPy/Torch
-conversion. Do not force those older versions with `--no-deps`.
+DeepTab requires NumPy 2, pandas >=2.2.2, SciPy >=1.16, Torch >=2.13,<2.15,
+Lightning >=2.6.6,<3, Accelerate >=1.15,<2, and setuptools >=83,<84. The patched
+dependency floors replace older compatibility pins with reported vulnerabilities.
+Do not force older versions with `--no-deps`.
 
-TensorBoard extras require version 2.18 or newer within the declared `<3` bound.
-Earlier versions can import but fail hyperparameter event writing with NumPy 2.
+TensorBoard extras require >=2.21,<3. Earlier versions can fail hyperparameter
+event writing with NumPy 2 or import the removed `pkg_resources` module with
+patched setuptools.
 
 ```{important}
 DeepTab 2.1 no longer supports Python 3.10. Recreate your environment with Python
@@ -105,7 +109,7 @@ print_hardware_info()
 ```text
 DeepTab hardware report
 -----------------------
-Platform: Darwin (arm64), Python 3.13.15, PyTorch 2.9.1
+Platform: Darwin (arm64), Python 3.12.9, PyTorch 2.14.1
 CPU: 14 logical cores
 CUDA: not available
 MPS (Apple Silicon): available

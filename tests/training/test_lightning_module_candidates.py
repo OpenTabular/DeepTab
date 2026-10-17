@@ -53,6 +53,17 @@ def _setup_task(
     return task, dataset
 
 
+@pytest.mark.parametrize("num_classes", [1, 2, 3])
+def test_binary_task_identity_reaches_explicit_constructor(monkeypatch, num_classes):
+    class ExplicitTaskEstimator(_CandidateEstimator):
+        def __init__(self, config, feature_information, num_classes, lss, is_binary_classification=False):
+            super().__init__()
+            self.binary_task = is_binary_classification
+
+    task, _ = _setup_task(monkeypatch, model_class=ExplicitTaskEstimator, num_classes=num_classes)
+    assert task.estimator.binary_task is (num_classes == 2)
+
+
 def test_setup_keeps_complete_dataset_order_without_training_sampler(monkeypatch):
     task, dataset = _setup_task(monkeypatch)
     assert dataset.return_indices is True

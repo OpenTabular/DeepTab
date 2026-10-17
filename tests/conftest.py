@@ -1,5 +1,7 @@
 """Collection rules for workflow categories and dependency profiles."""
 
+import importlib
+import importlib.util
 import platform
 from dataclasses import fields
 from pathlib import Path
@@ -12,9 +14,9 @@ import pytest
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--dependency-profile",
-        choices=("core", "extras"),
+        choices=("core", "extras", "tabr"),
         default=None,
-        help="Verify the externally provisioned core-only or logs/tracking installation.",
+        help="Verify the externally provisioned core, logs/tracking, or native TabR installation.",
     )
 
 
@@ -33,6 +35,18 @@ def pytest_collection_modifyitems(items: list[pytest.Item]) -> None:
         for directory, marker in categories.items():
             if directory in item.path.parents:
                 item.add_marker(getattr(pytest.mark, marker))
+
+
+@pytest.fixture
+def native_tabr(pytestconfig):
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        pytest.skip("Native FAISS TabR is unsupported on Darwin arm64; run the same cases on Linux/Windows.")
+    for package in ("delu", "faiss"):
+        if importlib.util.find_spec(package) is None:
+            if pytestconfig.getoption("--dependency-profile") == "tabr":
+                pytest.fail(f"The tabr dependency profile requires {package}")
+            pytest.skip("Native TabR requires pip install 'deeptab[tabr]'")
+        importlib.import_module(package)
 
 
 @pytest.fixture
@@ -58,7 +72,7 @@ def easy_problem():
 
 
 @pytest.fixture
-def stable_model_factory(tmp_path):
+def stable_model_factory(tmp_path, request):
     import deeptab.configs as configs
     import deeptab.models as models
     from deeptab.configs import PreprocessingConfig, TrainerConfig
@@ -96,8 +110,8 @@ def stable_model_factory(tmp_path):
     }
 
     def make_model(architecture, task, epochs=40, model_options=None, preprocessing_options=None):
-        if architecture == "TabR" and platform.system() == "Darwin" and platform.machine() == "arm64":
-            pytest.skip("Native FAISS TabR is unsupported on Darwin arm64; run the same cases on Linux/Windows.")
+        if architecture == "TabR":
+            request.getfixturevalue("native_tabr")
         config_class = getattr(configs, architecture + "Config")
         names = {field.name for field in fields(config_class)}
         options = {name: value for name, value in overrides.items() if name in names}

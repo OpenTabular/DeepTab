@@ -144,8 +144,8 @@ def exact_tabr(monkeypatch):
 @pytest.mark.parametrize("kind", KINDS)
 @pytest.mark.parametrize("continuation", [False, True])
 def test_retrieval_predictions_in_fresh_process(architecture, kind, continuation, tmp_path, request):
-    if architecture == "tabr_native" and platform.system() == "Darwin" and platform.machine() == "arm64":
-        pytest.skip("Native TabR FAISS is not supported on macOS arm64; Linux/Windows native evidence is required.")
+    if architecture == "tabr_native":
+        request.getfixturevalue("native_tabr")
     if architecture == "tabr_exact":
         request.getfixturevalue("exact_tabr")
     model, features, embeddings = _fit_case(kind, architecture, tmp_path, continuation)

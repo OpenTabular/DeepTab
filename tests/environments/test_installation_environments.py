@@ -10,6 +10,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pytest
+from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
 from deeptab.configs import MLPConfig, TrainerConfig
@@ -33,7 +34,45 @@ def test_python_support_metadata(version, supported):
         assert dependency["python"] == ">=3.12,<3.14"
 
 
-@pytest.mark.parametrize("profile", ["core", "extras"])
+@pytest.mark.parametrize(
+    "package,minimum,older",
+    [
+        ("torch", "2.13.0", "2.12.0"),
+        ("setuptools", "83.0.0", "82.0.1"),
+        ("lightning", "2.6.6", "2.6.5"),
+        ("accelerate", "1.15.0", "1.14.0"),
+    ],
+)
+def test_security_dependency_minima(package, minimum, older):
+    path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with path.open("rb") as stream:
+        config = tomllib.load(stream)
+    supported = SpecifierSet(config["tool"]["poetry"]["dependencies"][package])
+    assert minimum in supported
+    assert older not in supported
+    for extra in ("tensorboard", "tracking", "all"):
+        tensorboard = next(
+            Requirement(value)
+            for value in config["project"]["optional-dependencies"][extra]
+            if Requirement(value).name == "tensorboard"
+        )
+        assert "2.21.0" in tensorboard.specifier
+        assert "2.20.0" not in tensorboard.specifier
+
+
+def test_tabr_dependencies_are_an_explicit_extra():
+    path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with path.open("rb") as stream:
+        config = tomllib.load(stream)
+    native = {"delu", "faiss-cpu"}
+    assert native.isdisjoint(config["tool"]["poetry"]["dependencies"])
+    extras = config["project"]["optional-dependencies"]
+    assert {Requirement(value).name for value in extras["tabr"]} == native
+    for extra in ("logs", "mlflow", "tensorboard", "tracking", "all"):
+        assert native.isdisjoint(Requirement(value).name for value in extras[extra])
+
+
+@pytest.mark.parametrize("profile", ["core", "extras", "tabr"])
 @pytest.mark.parametrize("system", ["linux", "win32"])
 def test_endpoint_requirements_follow_wheel_markers(tmp_path, profile, system):
     path = Path(__file__).resolve().parents[2] / ".github/scripts/dependency_endpoints.py"
@@ -49,12 +88,16 @@ def test_endpoint_requirements_follow_wheel_markers(tmp_path, profile, system):
             "Requires-Dist: numpy>=2,<3\n"
             "Requires-Dist: structlog>=24; extra == 'logs'\n"
             "Requires-Dist: mlflow>=2.10; extra == 'tracking'\n"
+            "Requires-Dist: faiss-cpu>=1.13; extra == 'tabr'\n"
+            "Requires-Dist: delu>=0.0.26; extra == 'tabr'\n"
             "Requires-Dist: colorama; sys_platform == 'win32'\n\n",
         )
     result = module.runtime_requirements(wheel, profile, {"sys_platform": system})
     assert "numpy<3,>=2" in result
-    assert ("structlog>=24" in result) == (profile == "extras")
-    assert ("mlflow>=2.10" in result) == (profile == "extras")
+    assert ("structlog>=24" in result) == (profile in {"extras", "tabr"})
+    assert ("mlflow>=2.10" in result) == (profile in {"extras", "tabr"})
+    assert ("faiss-cpu>=1.13" in result) == (profile == "tabr")
+    assert ("delu>=0.0.26" in result) == (profile == "tabr")
     assert ("colorama" in result) == (system == "win32")
     assert all(";" not in requirement for requirement in result)
     versions = {module.canonicalize_name(module.Requirement(value).name): "2.0.0" for value in result}
@@ -109,9 +152,9 @@ def test_installed_wheel_rejects_identity_mismatch(tmp_path, monkeypatch, mismat
 def test_declared_dependency_profile(pytestconfig, tmp_path, package, extra, require):
     profile = pytestconfig.getoption("--dependency-profile")
     if profile is None:
-        pytest.skip("Select --dependency-profile=core or extras for an isolated installation check")
+        pytest.skip("Select --dependency-profile=core, extras, or tabr for an isolated installation check")
     available = importlib.util.find_spec(package) is not None
-    assert available == (profile == "extras"), f"{package} availability contradicts {profile} profile"
+    assert available == (profile in {"extras", "tabr"}), f"{package} availability contradicts {profile} profile"
     if profile == "core":
         with pytest.raises(ImportError, match=re.escape(f"pip install 'deeptab[{extra}]'")):
             require()
@@ -125,6 +168,14 @@ def test_declared_dependency_profile(pytestconfig, tmp_path, package, extra, req
             assert any(tmp_path.rglob("events.out.tfevents.*"))
         else:
             assert dependency.__name__ == package
+
+
+@pytest.mark.parametrize("package", ["faiss", "delu"])
+def test_native_dependency_profile(pytestconfig, package):
+    profile = pytestconfig.getoption("--dependency-profile")
+    if profile is None:
+        pytest.skip("Select a dependency profile for an isolated installation check")
+    assert (importlib.util.find_spec(package) is not None) == (profile == "tabr")
 
 
 @pytest.mark.integration

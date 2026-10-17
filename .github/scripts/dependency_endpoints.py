@@ -20,7 +20,7 @@ from packaging.version import Version
 
 
 def runtime_requirements(wheel: Path, profile: str, environment: dict[str, str] | None = None) -> list[str]:
-    if profile not in {"core", "extras"}:
+    if profile not in {"core", "extras", "tabr"}:
         raise ValueError(f"Unknown dependency profile: {profile}")
     with ZipFile(wheel) as archive:
         paths = [name for name in archive.namelist() if name.endswith(".dist-info/METADATA")]
@@ -28,7 +28,11 @@ def runtime_requirements(wheel: Path, profile: str, environment: dict[str, str] 
             raise ValueError("Expected exactly one wheel metadata record")
         metadata = BytesParser().parsebytes(archive.read(paths[0]))
     selected = set()
-    extras = {"", "logs", "tracking"} if profile == "extras" else {""}
+    extras = {""}
+    if profile in {"extras", "tabr"}:
+        extras.update({"logs", "tracking"})
+    if profile == "tabr":
+        extras.add("tabr")
     target = default_environment() if environment is None else environment
     for value in metadata.get_all("Requires-Dist", []):
         requirement = Requirement(value)
@@ -59,7 +63,7 @@ def main() -> None:
     parser.add_argument("--wheel", type=Path, required=True)
     parser.add_argument("--python", required=True)
     parser.add_argument("--endpoint", choices=["minimum", "newest"], required=True)
-    parser.add_argument("--profile", choices=["core", "extras"], required=True)
+    parser.add_argument("--profile", choices=["core", "extras", "tabr"], required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--provision-only", action="store_true")
     args = parser.parse_args()
@@ -132,7 +136,8 @@ def main() -> None:
         manifest["interpreter"] = target
         manifest["environment"] = str(environment)
         requirements = runtime_requirements(wheel, args.profile, target)
-        artifact = f"deeptab{'[logs,tracking]' if args.profile == 'extras' else ''} @ {wheel.as_uri()}"
+        extras = {"core": "", "extras": "[logs,tracking]", "tabr": "[logs,tracking,tabr]"}[args.profile]
+        artifact = f"deeptab{extras} @ {wheel.as_uri()}"
         inputs = output / "runtime.in"
         inputs.write_text("\n".join([artifact, *requirements]) + "\n")
         lock = output / "runtime.txt"

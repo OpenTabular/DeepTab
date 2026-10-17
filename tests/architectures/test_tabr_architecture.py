@@ -1,5 +1,6 @@
 """Candidate alignment and memory-efficient retrieval tests for TabR."""
 
+import builtins
 from types import SimpleNamespace
 from typing import Any
 
@@ -8,6 +9,40 @@ import torch
 
 from deeptab.architectures.tabr import TabR
 from deeptab.configs import TabRConfig
+
+
+@pytest.mark.parametrize("missing", ["delu", "faiss"])
+def test_missing_retrieval_dependencies_explain_extra(monkeypatch, missing):
+    monkeypatch.setattr("deeptab.architectures.tabr.platform.system", lambda: "Linux")
+    monkeypatch.setattr(TabR, "delu", object() if missing == "faiss" else None)
+    monkeypatch.setattr(TabR, "faiss", None)
+    monkeypatch.setattr(TabR, "faiss_torch_utils", None)
+    original_import = builtins.__import__
+
+    def without_dependency(name, *args, **kwargs):
+        if name == missing or name.startswith(missing + "."):
+            raise ModuleNotFoundError(name)
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_dependency)
+    with pytest.raises(ImportError, match=r"pip install 'deeptab\[tabr\]'"):
+        TabR(({}, {}, {}))
+
+
+def test_unsupported_native_platform_fails_before_import(monkeypatch):
+    monkeypatch.setattr("deeptab.architectures.tabr.platform.system", lambda: "Darwin")
+    monkeypatch.setattr("deeptab.architectures.tabr.platform.machine", lambda: "arm64")
+    for dependency in ("delu", "faiss", "faiss_torch_utils"):
+        monkeypatch.setattr(TabR, dependency, None)
+    original_import = builtins.__import__
+
+    def without_native_import(name, *args, **kwargs):
+        assert name not in {"delu", "faiss", "faiss.contrib.torch_utils"}
+        return original_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", without_native_import)
+    with pytest.raises(RuntimeError, match="not supported on macOS arm64"):
+        TabR(({}, {}, {}))
 
 
 class _ExactL2Index:

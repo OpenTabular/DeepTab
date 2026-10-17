@@ -11,6 +11,7 @@ DeepTab uses [pytest](https://docs.pytest.org/) with [pytest-cov](https://pytest
 | Full suite with coverage                    | `just test`                                                                                                                  |
 | Verify core-only installation and suite     | `just test-core`                                                                                                             |
 | Verify logs/tracking installation and suite | `just test-extras`                                                                                                           |
+| Verify native retrieval and observability   | `just test-tabr` (Linux or Windows)                                                                                          |
 | One component                               | `just test-run tests/data/ -v`                                                                                               |
 | A single file                               | `just test-run tests/metrics/test_regression_metrics.py -v`                                                                  |
 | A single test                               | `just test-run tests/metrics/test_regression_metrics.py::TestRegressionMetrics::test_perfect_predictions_give_zero_error -v` |
@@ -24,7 +25,7 @@ DeepTab uses [pytest](https://docs.pytest.org/) with [pytest-cov](https://pytest
 `just test` expands to `poetry run pytest --cov=deeptab --cov-fail-under=90 tests/`.
 `just test-run` forwards pytest arguments, preserving quoted marker expressions,
 and rejects unknown markers. With no arguments it uses the configured `tests/`
-test path. `test-run`, `test-core`, and `test-extras` do not collect or enforce
+test path. `test-run`, `test-core`, `test-extras`, and `test-tabr` do not collect or enforce
 coverage unless coverage flags are supplied; use `just test` for the coverage
 gate. Just is the command interface; Poetry runs each command in the project
 environment. CI uses the corresponding Poetry commands directly.
@@ -48,11 +49,25 @@ just test
 ```
 
 `install-core` uses `poetry sync --only main,dev`. `install-extras` uses the same
-groups with `--extras "logs tracking"`. Both register the usual Git hooks.
+groups with `--extras "logs tracking"`. `install-tabr` adds `tabr` to those extras
+on Linux or Windows. These recipes register the usual Git hooks.
 The core profile requires `structlog`, `mlflow`, and `tensorboard` to be absent;
 the extras profile requires their real import guards to succeed. An incorrect
 installation fails rather than silently skipping the dependency checks.
-Both profiles run the full source suite. Optional-positive tests skip only
+Core and extras profiles require FAISS and delu to be absent. The native `tabr`
+profile requires both retrieval and observability dependencies to be present:
+
+```bash
+just install-tabr
+just deps-check
+just test-tabr
+```
+
+Do not use that native recipe on macOS arm64. Native construction is blocked
+there before the conflicting libraries are imported. Exact-index TabR tests
+still run on that platform without native packages.
+
+All profiles run the full source suite. Optional-positive tests skip only
 when their dependency is absent; missing-extra error tests still execute.
 The two structured-logging fit tests execute in the extras lane.
 The TensorBoard profile contract writes real hyperparameter events; importing
@@ -264,8 +279,8 @@ or necessarily fast selection.
 
 For example, use `just test-run -m lifecycle` for lifecycle transitions.
 Environment tests never install or download packages during pytest. Their
-dependency checks require `--dependency-profile=core` or `extras`; ordinary
-unprofiled runs skip only those three installation assertions. CI supplies
+dependency checks require `--dependency-profile=core`, `extras`, or `tabr`; ordinary
+unprofiled runs skip the explicit installation assertions. CI supplies
 the profile, so they must execute there.
 
 Name files and classes after observable behavior, not issue numbers or past

@@ -34,6 +34,7 @@
 v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
 
 - **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
+- **Dependency security:** patched Torch, setuptools, Lightning, and Accelerate requirements; native TabR dependencies now use the separate `tabr` extra on Linux and Windows.
 - **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
 - **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
 - **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
@@ -142,7 +143,8 @@ pip install deeptab
 ```bash
 pip install 'deeptab[tracking]'   # MLflow + TensorBoard loggers
 pip install 'deeptab[logs]'       # structured logging via structlog
-pip install 'deeptab[all]'        # every optional backend
+pip install 'deeptab[all]'        # all logging and tracking backends
+pip install 'deeptab[tabr]'       # native TabR retrieval on Linux or Windows
 ```
 
 **Faster Mamba models (optional CUDA kernels):**
@@ -153,11 +155,11 @@ pip install mamba-ssm
 
 > **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
 
-> **Optional logging and tracking:** These backends are optional and loaded lazily. The default installation still includes PyTorch and TabR's `faiss-cpu` and `delu` dependencies. Install only the logging or tracking extras you use.
+> **Optional dependencies:** Logging, tracking, and TabR retrieval dependencies are loaded lazily. The default installation does not include `faiss-cpu` or `delu`. The `all` extra bundles observability backends only; combine extras explicitly, for example `deeptab[all,tabr]`, on a supported native platform.
 
-> **Requirements:** Python 3.11-3.13, PyTorch >=2.4.0,<2.10, PreTab 1.x, Lightning >=2.3.3,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
+> **Requirements:** Python 3.11-3.13, PyTorch >=2.13,<2.15, PreTab 1.x, Lightning >=2.6.6,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
 
-> **macOS:** Python 3.13 PyTorch wheels are available for Apple Silicon. Intel Macs are outside the CI matrix. TabR is not validated on Apple Silicon because the PyPI FAISS build can segfault; use Linux or Windows for TabR.
+> **macOS:** Python 3.13 PyTorch wheels are available for Apple Silicon. Intel Macs are outside the CI matrix. Native TabR is unsupported on Apple Silicon because Torch and the PyPI FAISS build load conflicting OpenMP runtimes; use Linux or Windows for TabR.
 
 > **GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
