@@ -145,7 +145,6 @@ jobs:
           - endpoint: newest
             python: "3.13"
     env:
-      UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
       UV_PYTHON_DOWNLOADS: never
 
     steps:
@@ -169,6 +168,8 @@ jobs:
           path: candidate-dist
 
       - name: Verify independent dependency endpoint
+        env:
+          UV_CACHE_DIR: ${{ runner.temp }}/uv-cache
         run: >-
           python .github/scripts/dependency_endpoints.py
           --wheel candidate-dist

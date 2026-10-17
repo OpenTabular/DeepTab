@@ -190,6 +190,14 @@ def test_dependency_endpoints_preserve_matrix_artifact_and_failure_gates():
     assert "${{ github.sha }}" in upload["with"]["name"]
 
 
+def test_dependency_endpoint_cache_uses_step_runner_context():
+    job = _workflow("ci.yml")["jobs"]["dependency-endpoints"]
+    assert "UV_CACHE_DIR" not in job.get("env", {})
+    assert job["env"]["UV_PYTHON_DOWNLOADS"] == "never"
+    verification = next(step for step in job["steps"] if step.get("name") == "Verify independent dependency endpoint")
+    assert verification["env"]["UV_CACHE_DIR"] == "${{ runner.temp }}/uv-cache"
+
+
 @pytest.mark.parametrize("profile", ["core", "extras"])
 def test_just_dependency_profiles_match_ci(profile):
     lines = (WORKFLOWS.parents[1] / "justfile").read_text().splitlines()
