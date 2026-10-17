@@ -24,10 +24,11 @@ def _make_model(width):
 @pytest.mark.parametrize("width", [1, 6, 42])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_feature_projection_matches_convolution_outputs_and_gradients(width, batch_size):
+    """Use float64 so reduction-order rounding does not dominate the comparison."""
     torch.manual_seed(42)
-    model = _make_model(width)
+    model = _make_model(width).double()
     convolution = deepcopy(model.conv_layer)
-    inputs = torch.randn(batch_size, width, requires_grad=True)
+    inputs = torch.randn(batch_size, width, dtype=torch.float64, requires_grad=True)
     reference_inputs = inputs.detach().clone().requires_grad_()
 
     actual = model._feature_interactions(inputs)
