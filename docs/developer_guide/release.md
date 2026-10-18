@@ -15,24 +15,24 @@ The document outlines the steps to build and release `deeptab` package. It is as
   'edgeLabelBackground': '#f9fafb'
 }}}%%
 flowchart TD
-    A["git checkout main &#38;&#38; git pull<br/>git checkout -b release/vX.Y.Z"]:::git --> B[Hotfixes &#38; doc updates]:::setup
+    A["git checkout main<br/>git pull --ff-only<br/>git checkout -b release/vX.Y.Z"]:::git --> B[Hotfixes and doc updates]:::setup
     B --> QA["Quality checks<br/>lint → format → check → test"]:::ci
     QA --> QAP{All pass?}:::decision
     QAP -->|No| B
     QAP -->|Yes| D["Build docs: just docs"]:::setup
-    D --> E[Commit changes &#38; push branch]:::git
+    D --> E[Commit changes and push branch]:::git
     E --> F{Release type?}:::decision
     F -->|RC| RC1["just bump-rc-preview<br/>then just bump-rc<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
     F -->|Stable| ST1["just bump-preview<br/>then just bump<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
-    RC1 --> RC2["git push --follow-tags<br/>(pushes vX.Y.ZrcN)"]:::git
+    RC1 --> RC2["git push origin release/vX.Y.Z<br/>git push origin vX.Y.ZrcN"]:::git
     RC2 --> RC3[CI: publish-testpypi.yml]:::ci
     RC3 --> RC4[TestPyPI + GitHub pre-release]:::rc
     RC4 -->|Issues found| B
     RC4 -->|RC approved| ST1
     ST1 --> ST2["Open PR: release/vX.Y.Z → main"]:::pr
-    ST2 --> ST3{Review &#38; approve}:::decision
+    ST2 --> ST3{Review and approve}:::decision
     ST3 --> ST4[Merge PR into main]:::pr
-    ST4 --> ST5["git checkout main &#38;&#38; git pull<br/>git tag -d vX.Y.Z (local)<br/>git tag vX.Y.Z &#38;&#38; git push origin vX.Y.Z"]:::git
+    ST4 --> ST5["git checkout main<br/>git pull --ff-only<br/>git tag -d vX.Y.Z (local)<br/>git tag -a vX.Y.Z -m 'Release vX.Y.Z'<br/>git push origin vX.Y.Z"]:::git
     ST5 --> ST6[CI: publish-pypi.yml]:::ci
     ST6 --> ST7[PyPI + GitHub Release]:::stable
 
@@ -54,10 +54,15 @@ Always branch off from an up-to-date `main`. Never start a release from a stale 
 ```
 
 ```bash
-git checkout main && git pull
+git checkout main && git pull --ff-only
 git checkout -b release/vX.Y.Z
 git push -u origin release/vX.Y.Z
 ```
+
+Use Python 3.12 or 3.13 for release checks, since the documentation toolchain
+requires it. Install the development and documentation groups with
+`poetry install --with dev,docs`. Prepare and validate optional dependency
+profiles separately as described in [Testing](testing.md).
 
 ## 2. Apply hotfixes and documentation updates
 
@@ -68,11 +73,15 @@ Only **bug fixes and documentation changes** belong on the release branch. New f
 ```
 
 ```{warning}
-If you update any dependencies (e.g. to resolve security findings), upgrade the specific package (this also rewrites `poetry.lock`):
+For a dependency managed in `pyproject.toml`, adjust its constraint if necessary
+and update the affected package rather than upgrading the entire environment:
 
-    poetry update <package>   # no just recipe: targets a single package
+    poetry update "<package>"
 
-Then verify the change does not break any tests.
+Review the resulting `poetry.lock` changes and run the relevant tests.
+Read the Docs installs `docs/requirements_docs.txt` separately from Poetry;
+update affected pins there too. A patched Poetry lock does not repair a stale
+Read the Docs requirement.
 ```
 
 **Security audit:** run `just audit` and resolve any vulnerability with an available fix before bumping the version:
@@ -81,7 +90,10 @@ Then verify the change does not break any tests.
 just audit
 ```
 
-Vulnerabilities with no upstream fix available should be noted and tracked as known accepted risks.
+A missing upstream fix is not automatic risk acceptance. Follow the
+{ref}`dependency security policy <dependency-security>`: keep release sign-off
+open until a compatible fix is applied or a maintainer records explicit
+approval of the risk for the affected versions and advisories.
 
 ## 3. Quality checks
 
@@ -134,7 +146,7 @@ Prefer `just commit` over a manual `git commit` to stay consistent with the conv
 
 ## 6. Version bump
 
-The version bump is driven entirely by [Commitizen](https://commitizen-tools.github.io/commitizen/). The increment (MAJOR / MINOR / PATCH) is inferred from the conventional-commit messages since the last tag, the version in `pyproject.toml` is updated, and the matching `CHANGELOG.md` section is generated and committed with an annotated tag.
+The version bump is driven entirely by [Commitizen](https://commitizen-tools.github.io/commitizen/). The increment (MAJOR / MINOR / PATCH) is inferred from the conventional-commit messages since the last tag, the version in `pyproject.toml` is updated, and the matching `CHANGELOG.md` section is generated and committed with a tag. The current recipes create lightweight tags unless `--annotated-tag` is supplied.
 
 ```{important}
 Always run `--dry-run` first and review the proposed version and CHANGELOG entries carefully before applying the bump.
@@ -184,15 +196,19 @@ just bump-rc
 
 This updates `version` in `pyproject.toml`, appends the `vX.Y.ZrcN` section to `CHANGELOG.md`, creates the `bump:` commit, and creates the `vX.Y.ZrcN` tag locally.
 
-**Step 3, review and push** (commit and tag together):
+**Step 3, review and push the branch and exact RC tag:**
 
 ```bash
 git show HEAD
-git push --follow-tags origin release/vX.Y.Z
+git push origin release/vX.Y.Z
+git push origin vX.Y.ZrcN
 ```
 
 ```{note}
-`--follow-tags` pushes the annotated `vX.Y.ZrcN` tag along with the branch in one step, which triggers `publish-testpypi.yml`. See step 7, **Tag and publish a release candidate**, below if you prefer to push the tag separately.
+Pushing the exact RC tag triggers `publish-testpypi.yml`. Do not rely on
+`git push --follow-tags` with the default bump recipes: it pushes annotated
+tags, not the lightweight tag created by default. Explicitly pushing the
+reviewed tag works with either tag type and avoids publishing unrelated tags.
 ```
 
 ### 6b. Stable bump
@@ -212,7 +228,10 @@ This updates `pyproject.toml`, regenerates `CHANGELOG.md` (with prereleases merg
 git show HEAD
 ```
 
-Check that `pyproject.toml` shows the correct version and that `CHANGELOG.md` reads cleanly. Manually amend duplicate entries if present, then push the branch (the stable tag is pushed later, after the release PR is merged — see step 9):
+Check that `pyproject.toml` shows the correct version and that `CHANGELOG.md`
+reads cleanly. Manually amend duplicate entries if present, then push the
+branch. Push the stable tag only after the release PR is merged, as described
+in step 9:
 
 ```bash
 git push origin release/vX.Y.Z
@@ -222,9 +241,10 @@ See **[Versioning](versioning.md)** for the full SemVer rules and commit-type re
 
 ## 7. Tag and publish a release candidate
 
-`cz bump --prerelease rc` (step 6a) already created the annotated `vX.Y.ZrcN` tag locally. RC tags are pushed **directly from the release branch**, with no PR to `main` required.
+`cz bump --prerelease rc` (step 6a) already created the `vX.Y.ZrcN` tag locally. RC tags are pushed **directly from the release branch**, with no PR to `main` required.
 
-If you pushed with `git push --follow-tags` in step 6a, the tag is already live and you can skip to verifying CI. Otherwise, push the tag explicitly:
+If you explicitly pushed the RC tag in step 6a, it is already live and you can
+skip to verifying CI. Otherwise, review and push that exact tag:
 
 ```bash
 git push origin vX.Y.ZrcN
@@ -250,7 +270,7 @@ Once all RCs are approved (or skipping RC for a straightforward release), open a
 The stable `cz bump` in step 6b created a local `vX.Y.Z` tag on the release branch, but the authoritative tag must point at the merge commit on `main`. After the release PR is merged into `main`, drop the local tag and re-create it on `main`:
 
 ```bash
-git checkout main && git pull
+git checkout main && git pull --ff-only
 git tag -d vX.Y.Z                    # remove the local tag created by cz bump
 git tag -a vX.Y.Z -m "Release vX.Y.Z"
 git push origin vX.Y.Z

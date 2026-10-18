@@ -17,7 +17,7 @@ git clone https://github.com/OpenTabular/DeepTab
 cd DeepTab
 ```
 
-2. Install the prerequisites: `pip install poetry` and `just` (see the [just install guide](https://just.systems/man/en/packages.html), e.g. `brew install just`).
+2. Install Python 3.12 or 3.13 for development that includes documentation builds, Poetry 2.x (`pip install "poetry>=2,<3"`), and `just` (see the [just install guide](https://just.systems/man/en/packages.html), e.g. `brew install just`). Python 3.11 remains supported for core development and testing, but not for the docs toolchain.
 
 3. Install dependencies and register the pre-commit hooks:
 
@@ -32,13 +32,16 @@ poetry install
 poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 ```
 
-To work on the docs, also install the docs group with `poetry install --with docs`.
+To work on the docs, select the Python 3.12 or 3.13 interpreter with
+`poetry env use 3.12` or `poetry env use 3.13`, then explicitly install the
+docs group with `poetry install --with docs`.
 
 Use `just install-extras` and `just test-extras` for the logging/tracking-positive
 test lane, or `just install-core` and `just test-core` for the core-only lane.
 These synchronize only `main,dev` and remove other packages, including docs
-dependencies; use separate environments for comparisons and restore `just install`
-before building docs. `just test` retains the 90% line-coverage gate.
+dependencies; use separate environments for comparisons. Before building docs,
+use Python 3.12 or 3.13 and run `poetry install --with docs` to restore the
+docs toolchain. `just test` retains the 90% line-coverage gate.
 For a selected file or marker, use `just test-run tests/data/ -v` or
 `just test-run -m integration`; these targeted runs do not enforce coverage.
 See [Testing](testing.md) for profile checks, categories, and setup details.
@@ -51,37 +54,41 @@ See [Testing](testing.md) for profile checks, categories, and setup details.
 
 ```bash
 just test     # full suite with coverage
-just check    # lint, format, type-check, all pre-commit hooks (what CI runs)
+just check    # shared file checks, formatters, lint, and type checking
 just docs     # build HTML docs (warnings treated as errors)
 ```
 
-4. Commit using Conventional Commits via `just commit`. If `just check` reformats files, commit those separately with `style: apply ruff formatting`.
+4. Commit using Conventional Commits via `just commit`. If `just check` reformats files, review and commit those separately with `style: apply formatting`.
 5. Open a pull request to `main`, reference any related issues, and address review feedback until approved and merged.
 
 ## Pre-commit Hooks
 
 This project uses [pre-commit](https://pre-commit.com/) to enforce code quality automatically. `just install` registers all three hook types so each fires at the right time:
 
-| Stage        | Hook                                                                    |
-| ------------ | ----------------------------------------------------------------------- |
-| `commit-msg` | Validates the message against Conventional Commits.                     |
-| `pre-commit` | `ruff` format and lint, plus file hygiene (whitespace, EOF, conflicts). |
-| `pre-push`   | `pyright` type checking (slower, so deferred to push). Also runs in CI. |
+| Stage        | Hook                                                                                  |
+| ------------ | ------------------------------------------------------------------------------------- |
+| `commit-msg` | Validates the message against Conventional Commits.                                   |
+| `pre-commit` | File hygiene, Ruff format/lint for Python, and Prettier for Markdown, YAML, and JSON. |
+| `pre-push`   | The shared checks above plus project-wide Pyright type checking.                      |
 
 ```{important}
-Run `just check` before opening a PR. It executes the commit and push stage hooks against every file, giving you the same signal CI will see.
+Run `just check` before opening a PR. It runs push-stage hooks against all files,
+including the shared file checks and Pyright. Commit-message validation runs
+separately when committing; the test suite and docs build are separate gates too.
 ```
 
 Individual recipes are available when you want to run one step:
 
-| Command       | Action                                          |
-| ------------- | ----------------------------------------------- |
-| `just lint`   | Lint and auto-fix with ruff.                    |
-| `just format` | Run the ruff formatter.                         |
-| `just types`  | Run the pyright type checker.                   |
-| `just check`  | Run all hooks across all files (commit + push). |
+| Command       | Action                                 |
+| ------------- | -------------------------------------- |
+| `just lint`   | Lint and auto-fix with ruff.           |
+| `just format` | Run the ruff formatter.                |
+| `just types`  | Run the pyright type checker.          |
+| `just check`  | Run push-stage hooks across all files. |
 
-If pre-commit reports files that _would be reformatted_, run `just format` and commit the result separately with `style: apply ruff formatting`.
+If a hook reformats files, review its changes and rerun `just check` until it
+passes. `just format` formats Python; the Prettier hook handles Markdown, YAML,
+and JSON. Keep formatting-only changes separate from behavioral fixes.
 
 ## Documentation
 

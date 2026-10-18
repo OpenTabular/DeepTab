@@ -7,7 +7,7 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 | Workflow file          | Trigger                      | Purpose                                  |
 | ---------------------- | ---------------------------- | ---------------------------------------- |
 | `ci.yml`               | Push / PR to `main`          | Lint, type-check, build, test, and cover |
-| `docs.yml`             | Push / PR (docs paths), tags | Build Sphinx docs; deploy to ReadTheDocs |
+| `docs.yml`             | Push / PR (docs paths), tags | Validate the Sphinx documentation build  |
 | `build-check.yml`      | Manual (`workflow_dispatch`) | Dry-run build validation before tagging  |
 | `publish-testpypi.yml` | Push of `vX.Y.ZrcN` tag      | Publish release candidate to TestPyPI    |
 | `publish-pypi.yml`     | Push of `vX.Y.Z` stable tag  | Publish stable release to PyPI           |
@@ -32,7 +32,7 @@ The CI, docs, and build-check workflows also expose `workflow_call` so release w
 | `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                      | `lint`                                                        |
 | `coverage`             | ubuntu / 3.12              | Native plus observability suite; line coverage >=90%; upload to Codecov  | `tests`, `tests-extras`, `tests-tabr`, `dependency-endpoints` |
 
-The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel with `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix has nine lanes: Python 3.11/3.12/3.13 on three operating systems, as listed in the [Support Matrix](support_matrix.md).
+The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel. Matrix jobs use `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix has nine lanes: Python 3.11/3.12/3.13 on three operating systems, as listed in the [Support Matrix](support_matrix.md).
 
 The matrix uses `poetry sync --only main,dev` and
 `pytest tests/ --dependency-profile=core --strict-markers`. The extras job uses
@@ -88,7 +88,14 @@ The job installs `pandoc`, installs the `docs` dependency group via Poetry, then
 poetry run sphinx-build -b html docs/ docs/_build/html -W --keep-going
 ```
 
-On `main` pushes, the built HTML is deployed to ReadTheDocs automatically via the RTD webhook configured in `readthedocs.yaml`.
+This workflow validates the build; it does not upload its HTML to Read the Docs.
+Read the Docs builds and publishes separately through the repository's RTD
+integration, using `readthedocs.yaml`. That configuration installs the package
+and `docs/requirements_docs.txt`, not Poetry's docs group. Keep the requirements
+file compatible with the docs group and its patched dependency versions; a
+passing GitHub docs job does not validate RTD's separate installation or prove
+that publication succeeded. Versioned tag builds also depend on the RTD
+project's build settings.
 
 ---
 

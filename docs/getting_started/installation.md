@@ -194,16 +194,35 @@ DeepTab uses Poetry for development. Install with `poetry install` to get dev to
 
 ## Optional: Mamba CUDA Kernels
 
-For 20-30% faster Mamba models, install optimized CUDA kernels:
+The default `mamba_version="mamba-torch"` uses DeepTab's pure-PyTorch
+implementation and does not require `mamba-ssm`. To use the optional native
+backend, install its dependency in a compatible NVIDIA GPU environment:
 
 ```bash
 pip install mamba-ssm
 ```
 
-```{important}
-**Requirements:** NVIDIA GPU (compute capability ≥7.0) | CUDA 11.6+ | C++ compiler
+Installing the package alone does not select it. For Mambular, opt in through
+the model configuration:
 
-If installation fails, DeepTab automatically falls back to the default implementation. This only affects Mamba-based models.
+```python
+from deeptab.configs import MambularConfig
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier(
+    model_config=MambularConfig(mamba_version="mamba1"),
+)
+```
+
+Use `"mamba2"` for the upstream Mamba2 implementation. Consult the
+[upstream installation requirements](https://github.com/state-spaces/mamba#installation)
+for supported GPUs, PyTorch/CUDA versions, and build tools. Speedups depend on
+the workload and hardware.
+
+```{important}
+An explicitly selected native backend raises an error when its dependencies
+are missing or incompatible; it does not silently fall back. Keep
+`mamba_version="mamba-torch"` when the native backend is unavailable.
 ```
 
 ## Quick Troubleshooting

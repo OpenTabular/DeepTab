@@ -17,27 +17,27 @@ A model enters the codebase as experimental. A maintainer promotes it to stable 
 
 Every criterion below must be met before promotion. Each is objective and reviewable.
 
-| #   | Requirement        | What it means                                                                                                                                                                                    |
-| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Public API         | Constructor matches stable-estimator conventions (`n_layers`, `d_model`, `dropout`, ...) and takes a `deeptab/configs/` config with every field mirrored as a kwarg.                             |
-| 2   | Documentation      | A page under `docs/api/models/` with architecture summary, **When to use**, **Limitations**, and a generated parameter table. All public methods render docstrings without `just docs` warnings. |
-| 3   | End-to-end example | A runnable example in `examples/` or `docs/examples/` covering load → construct → fit → predict, passing against current `main`.                                                                 |
-| 4   | Save / Load        | If save/load is part of the task's stable contract, the model round-trips via the standard mechanism with a test asserting identical predictions.                                                |
-| 5   | Tests              | A behavioral test covering fit on synthetic data, predict shape/dtype, and config serialization round-trip. All pass in CI (`just test`).                                                        |
-| 6   | No critical bugs   | No open `bug` issues describing a failure in fit, predict, or save/load. Non-bug limitations are documented in the Limitations section.                                                          |
-| 7   | Registry           | Config class exported from `deeptab/configs/__init__.py`; model exported from the experimental package; `MODEL_REGISTRY` entry present with correct `status` and `import_path`.                  |
+| #   | Requirement        | What it means                                                                                                                                                                                                                                                             |
+| --- | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Public API         | Estimators use the shared split-config constructor (`model_config`, `preprocessing_config`, `trainer_config`, ...), with sklearn-compatible cloning and nested parameter access. Architecture settings belong in a `BaseModelConfig` subclass, not flat estimator kwargs. |
+| 2   | Documentation      | A page under `docs/model_zoo/` with architecture summary, **When to use**, **Limitations**, and configuration guidance, plus an API reference entry. All public methods render docstrings without `just docs` warnings.                                                   |
+| 3   | End-to-end example | A runnable tutorial or example under `docs/tutorials/` covering data loading, construction, fitting, and prediction, passing against current `main`.                                                                                                                      |
+| 4   | Save / Load        | If save/load is part of the task's stable contract, the model round-trips via the standard mechanism with a test asserting identical predictions.                                                                                                                         |
+| 5   | Tests              | A behavioral test covering fit on synthetic data, predict shape/dtype, and config serialization round-trip. All pass in CI (`just test`).                                                                                                                                 |
+| 6   | No critical bugs   | No open `bug` issues describing a failure in fit, predict, or save/load. Non-bug limitations are documented in the Limitations section.                                                                                                                                   |
+| 7   | Registry           | Config class exported from `deeptab/configs/__init__.py`; model exported from the experimental package; `MODEL_REGISTRY` entry present with correct `status` and `import_path`.                                                                                           |
 
 ## Promotion PR
 
 Open a PR titled `feat(<model-name>): promote to stable`. The PR must:
 
 1. Move the model file from `deeptab/models/experimental/` to `deeptab/models/` using `git mv`.
-2. Update relative imports in the moved file (reduce one `..` level).
+2. Move the architecture from `deeptab/architectures/experimental/` to `deeptab/architectures/` and its config from `deeptab/configs/experimental/` to `deeptab/configs/models/`. Update imports and the estimator's `_model_cls` / `_config_cls` bindings.
 3. Remove the model from `deeptab/models/experimental/__init__.py` and its `__all__`.
-4. Add the model to `deeptab/models/__init__.py` imports and `__all__`.
+4. Update exports in `deeptab/models/__init__.py`, `deeptab/architectures/__init__.py`, and `deeptab/configs/__init__.py` for the new paths.
 5. Update `MODEL_REGISTRY` in `deeptab/core/registry.py`: change `status` to `"stable"` and `import_path` to `"deeptab.models"`.
-6. Remove any `.. experimental::` admonition from the model's doc page.
-7. Remove the experimental badge from the API reference entry.
+6. Move its guide from `docs/model_zoo/experimental/` to `docs/model_zoo/stable/`, update navigation and links, and remove experimental notices.
+7. Update the API reference imports and remove its experimental badge. Run the registry-selected stable learning and persistence tests for the newly stable model; see [Testing](testing.md).
 8. Add the model to the changelog under `### Promoted to Stable`.
 
 Approval requires at least one maintainer review beyond the author. Use the promotion checklist in the PR template to track each requirement.
@@ -50,4 +50,6 @@ Demotion back to experimental is only warranted if a critical correctness bug is
 2. Add an `ExperimentalWarning` in the next patch release pointing to the issue.
 3. Fix the problem and re-promote via the standard requirements above.
 
-Demotion is not itself a breaking change, but it must be documented prominently in the release notes.
+Document demotion prominently in the release notes. A change in stability label
+does not authorize incompatible public API changes; those must still follow
+the [versioning policy](versioning.md).
