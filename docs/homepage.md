@@ -34,18 +34,9 @@ TabR, or `deeptab[all,tabr]` for both, on Linux or Windows. Native TabR is
 unsupported on Apple Silicon because Torch and FAISS load conflicting
 OpenMP runtimes. See the [Support Matrix](developer_guide/support_matrix).
 
-## What's New in v2.1 (Upcoming)
-
-v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
-
-- **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
-- **Dependency security:** patched Torch, setuptools, Lightning, and Accelerate requirements; native TabR dependencies now use the separate `tabr` extra on Linux and Windows.
-- **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
-- **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
-- **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
-- **Release checks:** publication requires passing CI, documentation, installed-wheel training and reload checks, and at least 90% line coverage.
-
-See the {ref}`numerical width study <numerical-width-study>` for a small CPU comparison of preprocessing widths, including the protocol, runner, and raw results.
+For version-specific changes, see the
+[Changelog](https://github.com/OpenTabular/DeepTab/blob/main/CHANGELOG.md) and
+[GitHub Releases](https://github.com/OpenTabular/DeepTab/releases).
 
 ```{important}
 See the [Migration Guide](getting_started/migration) for configuration changes and
