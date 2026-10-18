@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
 from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
@@ -112,6 +113,16 @@ class MLP(BaseModel):
         # Output layer
         self.layers.append(nn.Linear(self.hparams.layer_sizes[-1], num_classes))
 
+    @staticmethod
+    def _apply_linear(layer, x):
+        """Keep bias addition separate from the MPS linear kernel."""
+        if x.device.type != "mps":
+            return layer(x)
+        output = F.linear(x, layer.weight)
+        if layer.bias is not None:
+            output = output + layer.bias
+        return output
+
     def forward(self, *data) -> torch.Tensor:
         """Forward pass of the MLP model.
 
@@ -135,7 +146,7 @@ class MLP(BaseModel):
 
         for i in range(len(self.layers) - 1):
             if isinstance(self.layers[i], nn.Linear):
-                out = self.layers[i](x)
+                out = self._apply_linear(self.layers[i], x)
                 if self.hparams.skip_connections and x.shape == out.shape:
                     x = x + out
                 else:
@@ -143,5 +154,5 @@ class MLP(BaseModel):
             else:
                 x = self.layers[i](x)
 
-        x = self.layers[-1](x)
+        x = self._apply_linear(self.layers[-1], x)
         return x
