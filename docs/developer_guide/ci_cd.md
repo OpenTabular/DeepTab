@@ -113,9 +113,10 @@ For a version tag, the package version must match the tag before building. The w
 
 ## Publishing (publish-testpypi.yml / publish-pypi.yml)
 
-Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Before either publisher runs, three required jobs validate the tagged commit:
+Both publish jobs use [OIDC trusted publishing](https://docs.pypi.org/trusted-publishers/), so no `PYPI_TOKEN` secret is required. Before either publisher runs, four required jobs validate the tagged commit:
 
-- `ci` waits for `package` and calls full CI with that validated distribution artifact, including locked and endpoint matrices, lint, type checking, smoke tests and coverage.
+- `provenance` checks the strict tag format, resolves the tag to a commit, verifies that it matches the event and checkout, and fetches the required remote branch to validate ancestry. All other release checks wait for it.
+- `ci` also waits for `package` and calls full CI with that validated distribution artifact, including locked and endpoint matrices, lint, type checking, smoke tests and coverage.
 - `docs` calls the Sphinx workflow, which builds with warnings treated as errors.
 - `package` calls build-check, which validates the tag version, wheel, source distribution, and installed-wheel training and reload behavior.
 
@@ -125,12 +126,30 @@ If any required job fails, is cancelled, or is skipped, publication does not run
 
 The publisher downloads the validated `dist` artifact from the same workflow run and publishes those files without rebuilding them. Only the publish job receives write permissions and an OIDC token; validation jobs have read-only repository permissions. After publication, the workflow creates the matching GitHub release. The RC workflow retains its post-publication TestPyPI installation check.
 
-| Workflow               | Tag pattern        | Target                                             | Release type |
-| ---------------------- | ------------------ | -------------------------------------------------- | ------------ |
-| `publish-testpypi.yml` | `v*.*.*rc*`        | [TestPyPI](https://test.pypi.org/project/deeptab/) | Pre-release  |
-| `publish-pypi.yml`     | `v*.*.*` (no `rc`) | [PyPI](https://pypi.org/project/deeptab/)          | Release      |
+| Workflow               | Accepted tag | Required remote history | Target                                             |
+| ---------------------- | ------------ | ----------------------- | -------------------------------------------------- |
+| `publish-testpypi.yml` | `vX.Y.ZrcN`  | `origin/release/vX.Y.Z` | [TestPyPI](https://test.pypi.org/project/deeptab/) |
+| `publish-pypi.yml`     | `vX.Y.Z`     | `origin/main`           | [PyPI](https://pypi.org/project/deeptab/)          |
 
-The `pypi-publish` GitHub Environment must allow the matching tag pattern in its protection rules. See the [Release process](release.md) page for when and how to push these tags.
+Version components are nonnegative integers without leading zeros, and RC numbers
+start at 1. Workflow trigger globs are broader than these accepted formats; the
+provenance gate rejects malformed tags before CI or packaging. The stable
+workflow skips RC tags, which are handled by the TestPyPI workflow.
+
+The tag commit must be an ancestor of the required remote branch, not necessarily
+its current tip. Both lightweight and annotated tags are accepted. Missing
+branches and failed fetches block publication even if a cached tracking ref exists.
+
+The `pypi-publish` and `testpypi-publish` GitHub Environments must allow the
+matching tag patterns in their protection rules. See the
+[Release process](release.md) page for when and how to push these tags.
+
+```{important}
+Ancestry validation establishes reachability, not maintainer approval. Protect
+`main`, release branches, and version tags with repository rulesets, and configure
+required reviewers for publishing environments where available. These controls
+are managed separately in GitHub settings.
+```
 
 ---
 

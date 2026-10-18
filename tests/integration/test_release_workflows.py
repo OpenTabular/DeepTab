@@ -1,5 +1,9 @@
 """Release publishing must depend on validation of the distributed package."""
 
+import os
+import shutil
+import subprocess
+import sys
 from pathlib import Path
 from shlex import split
 from unittest.mock import MagicMock
@@ -41,6 +45,150 @@ def _workflow(name):
     return workflow
 
 
+def _git(directory, *arguments):
+    executable = shutil.which("git")
+    assert executable is not None
+    return subprocess.check_output(  # noqa: S603
+        [executable, "-C", str(directory), *arguments], text=True, stderr=subprocess.STDOUT
+    ).strip()
+
+
+@pytest.fixture
+def release_repository(tmp_path, monkeypatch):
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    remote = tmp_path / "origin.git"
+    checkout = tmp_path / "checkout"
+    _git(tmp_path, "init", "--bare", "--initial-branch=main", str(remote))
+    _git(tmp_path, "clone", str(remote), str(checkout))
+    _git(checkout, "config", "user.name", "Release tests")
+    _git(checkout, "config", "user.email", "release-tests@example.test")
+    _git(checkout, "commit", "--allow-empty", "-m", "Initial commit")
+    _git(checkout, "push", "origin", "main")
+    _git(checkout, "checkout", "-b", "release/v2.1.0")
+    _git(checkout, "commit", "--allow-empty", "-m", "Prepare release")
+    _git(checkout, "push", "origin", "release/v2.1.0")
+    return checkout
+
+
+def _validate_release(checkout, tag, channel, *, event_sha=None, ref=None):
+    return subprocess.run(  # noqa: S603
+        [sys.executable, str(WORKFLOWS.parent / "scripts" / "check_release_ref.py"), "--channel", channel],
+        cwd=checkout,
+        env=os.environ
+        | {
+            "GITHUB_REF": ref if ref is not None else f"refs/tags/{tag}",
+            "GITHUB_SHA": event_sha if event_sha is not None else _git(checkout, "rev-parse", "HEAD"),
+        },
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=30,
+    )
+
+
+@pytest.mark.parametrize("channel", ["stable", "rc"])
+@pytest.mark.parametrize("annotated", [False, True], ids=["lightweight", "annotated"])
+@pytest.mark.parametrize("advance_branch", [False, True], ids=["branch-tip", "older-ancestor"])
+def test_release_ref_accepts_matching_remote_history(release_repository, channel, annotated, advance_branch):
+    branch = "main" if channel == "stable" else "release/v2.1.0"
+    tag = "v2.1.0" if channel == "stable" else "v2.1.0rc1"
+    _git(release_repository, "checkout", branch)
+    if annotated:
+        _git(release_repository, "tag", "-a", tag, "-m", "Release test")
+    else:
+        _git(release_repository, "tag", tag)
+    event_sha = _git(release_repository, "rev-parse", tag)
+    if advance_branch:
+        _git(release_repository, "commit", "--allow-empty", "-m", "Advance branch")
+        _git(release_repository, "push", "origin", branch)
+    _git(release_repository, "checkout", "--detach", tag)
+    result = _validate_release(release_repository, tag, channel, event_sha=event_sha)
+    assert result.returncode == 0, result.stderr
+    assert f"is reachable from origin/{branch}." in result.stdout
+
+
+@pytest.mark.parametrize(
+    "channel,tag",
+    [
+        ("stable", "v2.1.0rc1"),
+        ("stable", "v2.1.0a1"),
+        ("stable", "v2.1.0b1"),
+        ("stable", "v2.1.0.dev1"),
+        ("stable", "v2.1.0.post1"),
+        ("stable", "v02.1.0"),
+        ("stable", "v2.1"),
+        ("stable", "v2.1.0.1"),
+        ("rc", "v2.1.0"),
+        ("rc", "v2.1.0rc0"),
+        ("rc", "v2.1.0rc01"),
+        ("rc", "v2.1.0rc"),
+        ("rc", "v2.1.0rc1extra"),
+    ],
+)
+def test_release_ref_rejects_invalid_tag_formats(release_repository, channel, tag):
+    result = _validate_release(release_repository, tag, channel)
+    assert result.returncode != 0
+    assert f"Invalid {channel} release tag" in result.stderr
+
+
+@pytest.mark.parametrize("channel", ["stable", "rc"])
+def test_release_ref_rejects_wrong_branch_history(release_repository, channel):
+    tag = "v2.1.0" if channel == "stable" else "v2.1.0rc1"
+    if channel == "rc":
+        _git(release_repository, "checkout", "-b", "release/v2.2.0")
+        _git(release_repository, "commit", "--allow-empty", "-m", "Different release")
+        _git(release_repository, "push", "origin", "release/v2.2.0")
+    _git(release_repository, "tag", tag)
+    result = _validate_release(release_repository, tag, channel)
+    assert result.returncode != 0
+    branch = "main" if channel == "stable" else "release/v2.1.0"
+    assert f"not reachable from origin/{branch}" in result.stderr
+
+
+@pytest.mark.parametrize("channel", ["stable", "rc"])
+def test_release_ref_rejects_deleted_remote_branch_despite_cached_ref(release_repository, channel):
+    branch = "main" if channel == "stable" else "release/v2.1.0"
+    tag = "v2.1.0" if channel == "stable" else "v2.1.0rc1"
+    _git(release_repository, "checkout", branch)
+    _git(release_repository, "tag", tag)
+    assert _git(release_repository, "rev-parse", f"refs/remotes/origin/{branch}")
+    _git(release_repository.parent / "origin.git", "update-ref", "-d", f"refs/heads/{branch}")
+    result = _validate_release(release_repository, tag, channel)
+    assert result.returncode != 0
+    assert "Release validation failed:" in result.stderr
+
+
+@pytest.mark.parametrize("mismatch", ["checkout", "event", "missing-tag", "tree-tag"])
+def test_release_ref_rejects_commit_identity_mismatches(release_repository, mismatch):
+    tag = "v2.1.0"
+    event_sha = _git(release_repository, "rev-parse", "main")
+    if mismatch == "tree-tag":
+        _git(release_repository, "tag", tag, "main^{tree}")
+    elif mismatch != "missing-tag":
+        _git(release_repository, "tag", tag, "main")
+    if mismatch != "checkout":
+        _git(release_repository, "checkout", "main")
+    if mismatch == "event":
+        event_sha = _git(release_repository, "rev-parse", "release/v2.1.0")
+    result = _validate_release(release_repository, tag, "stable", event_sha=event_sha)
+    assert result.returncode != 0
+    assert "Release validation failed:" in result.stderr
+
+
+def test_release_ref_rejects_branch_events(release_repository):
+    result = _validate_release(release_repository, "v2.1.0", "stable", ref="refs/heads/v2.1.0")
+    assert result.returncode != 0
+    assert "Invalid stable release tag" in result.stderr
+
+
+@pytest.mark.parametrize("event_sha", ["", "main", "--help", "a" * 39])
+def test_release_ref_requires_event_commit(release_repository, event_sha):
+    result = _validate_release(release_repository, "v2.1.0", "stable", event_sha=event_sha)
+    assert result.returncode != 0
+    assert "GITHUB_SHA" in result.stderr
+
+
 @pytest.mark.parametrize(
     "name,publisher",
     [("publish-pypi.yml", "publish"), ("publish-testpypi.yml", "publish-rc")],
@@ -49,12 +197,25 @@ def test_publishing_requires_successful_release_checks(name, publisher):
     workflow = _workflow(name)
     jobs = workflow["jobs"]
     job = jobs[publisher]
-    assert set(job["needs"]) == {"ci", "docs", "package"}
+    assert set(job["needs"]) == {"provenance", "ci", "docs", "package"}
     assert workflow["permissions"] == {"contents": "read"}
     expected_condition = "${{ !contains(github.ref_name, 'rc') }}" if publisher == "publish" else None
     assert job.get("if") == expected_condition
-    assert jobs["ci"]["needs"] == "package"
+    assert set(jobs["ci"]["needs"]) == {"provenance", "package"}
     assert jobs["ci"]["with"] == {"distribution-artifact": "dist"}
+    provenance = jobs["provenance"]
+    assert provenance.get("if") == expected_condition
+    assert provenance.get("continue-on-error", False) is False
+    assert provenance["permissions"] == {"contents": "read"}
+    checkout, setup, validation = provenance["steps"]
+    assert checkout["uses"] == "actions/checkout@v4"
+    assert checkout["with"]["fetch-depth"] == 0
+    assert setup["uses"] == "actions/setup-python@v5"
+    assert setup["with"]["python-version"] == "3.11"
+    channel = "stable" if publisher == "publish" else "rc"
+    assert validation["run"] == f"python .github/scripts/check_release_ref.py --channel {channel}"
+    for gate in ["docs", "package"]:
+        assert jobs[gate]["needs"] == "provenance"
     for gate, target in [("ci", "ci.yml"), ("docs", "docs.yml"), ("package", "build-check.yml")]:
         assert jobs[gate]["uses"] == f"./.github/workflows/{target}"
         assert jobs[gate].get("if") == expected_condition

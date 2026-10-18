@@ -16,20 +16,37 @@ permissions:
   contents: read
 
 jobs:
+  provenance:
+    name: Validate release tag and ancestry
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate RC release provenance
+        run: python .github/scripts/check_release_ref.py --channel rc
+
   ci:
-    needs: package
+    needs: [provenance, package]
     uses: ./.github/workflows/ci.yml
     with:
       distribution-artifact: dist
 
   docs:
+    needs: provenance
     uses: ./.github/workflows/docs.yml
 
   package:
+    needs: provenance
     uses: ./.github/workflows/build-check.yml
 
   publish-rc:
-    needs: [ci, docs, package]
+    needs: [provenance, ci, docs, package]
     runs-on: ubuntu-latest
     environment: testpypi-publish
     permissions:
