@@ -7,27 +7,88 @@ This project adheres to [Semantic Versioning](https://semver.org/) and uses
 
 Going forward, this file is updated automatically by `cz bump` on each release.
 
-## v2.1.0 (Unreleased)
+## v2.1.0rc1 (2026-10-18)
 
-### Changed
+### Feat
 
-- **Python support:** DeepTab 2.1 requires Python 3.11-3.13 (`>=3.11,<3.14`). Python 3.10 [reached end of life on 2026-10-01](https://peps.python.org/pep-0619/#lifespan) and is no longer supported. Users requiring Python 3.10 must remain on DeepTab 2.0.x with compatible dependencies; older releases do not guarantee security updates. Recreate older environments before upgrading.
-- Require SciPy >=1.16,<2 after reproducing a native loader failure with the previous minimum on Apple Silicon. Documentation builds retain Python 3.12 or newer within the supported range.
-- Require Torch >=2.13,<2.15, setuptools >=83,<84, Lightning >=2.6.6,<3, and Accelerate >=1.15,<2 to exclude versions with reported vulnerabilities.
-- Require TensorBoard >=2.21,<3 for the TensorBoard and tracking extras, compatible with patched setuptools and NumPy 2 hyperparameter logging.
-- Move FAISS and delu to the explicit `tabr` extra. The default install and `all` observability bundle no longer install native retrieval packages. Native TabR remains unsupported on macOS arm64 and now fails before conflicting native imports.
+- **preprocessing**: add PreTab optional-dependency errors to ImportErrors in deeptab
+- **preprocessing**: add PreTab presets and representation registry
+- **serialization**: persist preprocessor spec, fingerprint, and feature widths
+- **preprocessing**: map ObservabilityConfig.verbosity to Preprocessor verbose
+- **preprocessing**: resolve task from estimator type, override config
+- **config**: add canonical PreprocessingConfig fields with legacy alias resolution
 
-### Fixed
+### Fix
 
-- Preserve an existing fitted estimator when a refit's input validation fails; failures after rebuilding starts invalidate prediction until a successful fit.
-- Refresh supplied data, validation splits and loaders during weight continuation with `rebuild=False`, while retaining compatible weights and fitted preprocessing.
-- Route classification metrics to labels, probabilities or raw outputs as required, including ensemble evaluation.
-- Aggregate training and validation metrics over whole epochs and reset state between sanity validation and epochs.
-- Preserve strict custom architecture constructor signatures when supplying binary task metadata.
-- Forward fit-level monitoring settings to callbacks and plateau schedulers while preserving explicit configuration precedence.
-- Save and restore the candidate data needed for TabR and ModernNCA inference, including after loaded continuation. Older incomplete or incompatible artifacts still require refitting.
+- **deps**: update docs HTML cleaner to 0.4.5
+- package update
+- mlp refactor for mps device
+- linting, formatting
+- resolve dependency installation, type checks and test failures in CI
+- **hooks**: enable Prettier and clean up formatting
+- **tabr**: install FAISS and delu only when requested
+- **ci**: move runner cache configuration to step scope
+- correct categorical feature metadata typing
+- correct ModernNCA regression and binary model reloads
+- **compat**: drop Python 3.10 support and validate dependency endpoints
+- **deps**: update vulnerable dependencies and remove audit ignores
+- preserve retrieval inference state across save and load
+- compute metrics over complete epochs
+- adapt classification metric inputs during training
+- refresh data and loaders during weight continuation
+- preserve fitted state when refit validation fails
+- **models**: execute contract checks and reject unsupported weights
+- clarify preprocessing widths and historical artifact compatibility
+- preserve parameter axes in ensemble LSS outputs (#447)
+- correct model encoding (#451)
+- correct architecture options and neural block behavior (#423)
+- harden model state, data handling, and artifact loading (#424)
+- correct model state, validation, scoring, and training behavior (#426)
+- preserve estimator state and sklearn compatibility (#449)
+- **lss**: correct scoring, distribution handling, and persistence (#419)
+- correct HPO trial selection, pruning and winner refitting (#420)
+- prevent query label leakage in retrieval models (#413)
+- broken config options across architectures (#450)
+- correct seeding, fit state, callbacks, and device handling (#452)
+- apply set_params overrides to model config for sklearn compatibility (#410)
+- cast concatenated features to float for for non-embedding architectures
+- normalize None to np.nan for object columns
+- reject categorical_method="none" in PreprocessingConfig
+- convert ModernNCA binary classification vote to a real logit (#268)
+- reject duplicate columns and impute all-NaN columns in ensure_dataframe
+- persist NDTF's generated tree architecture across save/load (#444)
+- default load() to cpu instead of auto-detecting hardware (#465)
+- continue from pretrained weights by default in fit() (#446)
+- persist and restore the fitted loss function across save/load (#445)
+- honor explicit checkpoint_path, resolve best_epoch, and timestamp default checkpoint dirs (#411)
+- **distributions**: use torch probs convention in NegativeBinomial
+- **metrics**: correct inverted log-term sign in GammaDeviance
+- **nn**: apply pre-norm and dropout around RowColTransformer attention
+- **training**: align contrastive pretraining anchors with their pairs
+- **architectures**: apply the Mamba block in MambaTab.forward
+- ModelCheckpoint ignoring requested monitor/mode (#425)
+- update docstring, correct docs (#454), fix test cases
+- multinomial softmax, johnsonsu naming, and singleton squeeze bugs (#453)
+- fit() metric args being swapped and crashing on tensors (#443)
+- feature_preprocessing type mismatch with pretab (#422)
+- optimizer_kwargs and regression loss_fct being silently dropped (#415, #430)
+- fit() arguments being overridden by TrainerConfig (#442)
+- regression label shape handling (#441)
+- type correction for input_dim
+- **metrics**: ECE accepts proba instead of raw logit
+- encode labels for classification input (#409)
+- **metrics**: count confidence 1.0 in ECE binning (#421)
+- **core**: use logging for BaseModel.save_model/load_model status messages instead of print
+- **tests**: pyright type-widening in legacy fields
+- **preprocessing**: add blocks/dense output in build_preprocessor
+- **config**: default output_dim for preprocessor to 7
 
----
+### Refactor
+
+- **nn**: consolidate scattered imports and drop E402 noqa in nn/blocks
+- **core**: remove dead MLP_Block and make_random_batches
+- **core**: delete unused docstring-only stub modules
+- **preprocessing**: centralize Preprocessor construction in build_preprocessor
 
 ## v2.0.0 (2026-06-24)
 
