@@ -147,13 +147,13 @@ pip install 'deeptab[all]'        # all logging and tracking backends
 pip install 'deeptab[tabr]'       # native TabR retrieval on Linux or Windows
 ```
 
-**Faster Mamba models (optional CUDA kernels):**
+**Optional native Mamba backend:**
 
 ```bash
 pip install mamba-ssm
 ```
 
-> **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
+> **Mamba backends:** The default `mamba_version="mamba-torch"` uses DeepTab's pure-PyTorch implementation. Installing `mamba-ssm` does not change that selection. For Mambular, explicitly select `MambularConfig(mamba_version="mamba1")` or `"mamba2"` and meet the [upstream GPU and build requirements](https://github.com/state-spaces/mamba#installation). An explicitly selected native backend does not silently fall back if its dependencies are missing or incompatible; performance depends on the workload and hardware.
 
 > **Optional dependencies:** Logging, tracking, and TabR retrieval dependencies are loaded lazily. The default installation does not include `faiss-cpu` or `delu`. The `all` extra bundles observability backends only; combine extras explicitly, for example `deeptab[all,tabr]`, on a supported native platform.
 

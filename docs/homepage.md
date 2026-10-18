@@ -28,11 +28,18 @@ pip install deeptab
 
 DeepTab requires Python 3.11-3.13 and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
 
+Logging, experiment tracking, and native TabR retrieval are optional. The
+`all` extra includes observability backends only; use `deeptab[tabr]` for
+TabR, or `deeptab[all,tabr]` for both, on Linux or Windows. Native TabR is
+unsupported on Apple Silicon because Torch and FAISS load conflicting
+OpenMP runtimes. See the [Support Matrix](developer_guide/support_matrix).
+
 ## What's New in v2.1 (Upcoming)
 
 v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
 
 - **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
+- **Dependency security:** patched Torch, setuptools, Lightning, and Accelerate requirements; native TabR dependencies now use the separate `tabr` extra on Linux and Windows.
 - **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
 - **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
 - **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
@@ -96,7 +103,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),          # architecture
-  preprocessing_config=PreprocessingConfig(numerical_method="ple"),  # features
+    preprocessing_config=PreprocessingConfig(numerical_method="ple"),  # features
 )
 model.fit(X_train, y_train, max_epochs=50)
 ```
