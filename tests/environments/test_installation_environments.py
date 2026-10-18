@@ -10,6 +10,7 @@ from zipfile import ZipFile
 
 import numpy as np
 import pytest
+from packaging.markers import Marker
 from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
@@ -70,6 +71,25 @@ def test_tabr_dependencies_are_an_explicit_extra():
     assert {Requirement(value).name for value in extras["tabr"]} == native
     for extra in ("logs", "mlflow", "tensorboard", "tracking", "all"):
         assert native.isdisjoint(Requirement(value).name for value in extras[extra])
+
+
+@pytest.mark.parametrize("extras", [("tensorboard",), ("mlflow",), ("tracking",), ("all",), ("tensorboard", "mlflow")])
+def test_locked_observability_protobuf_satisfies_consumers(extras):
+    path = Path(__file__).resolve().parents[2] / "poetry.lock"
+    with path.open("rb") as stream:
+        lock = tomllib.load(stream)
+    packages = [
+        package
+        for package in lock["package"]
+        if package["name"] in {"protobuf", "tensorboard", "opentelemetry-proto"}
+        and any(Marker(package["markers"]).evaluate({"extra": extra}) for extra in extras)
+    ]
+    versions = {package["version"] for package in packages if package["name"] == "protobuf"}
+    assert len(versions) == 1, f"Conflicting locked protobuf versions for {extras}: {versions}"
+    version = versions.pop()
+    for package in packages:
+        if package["name"] != "protobuf":
+            assert version in SpecifierSet(package["dependencies"]["protobuf"])
 
 
 @pytest.mark.parametrize("profile", ["core", "extras", "tabr"])
