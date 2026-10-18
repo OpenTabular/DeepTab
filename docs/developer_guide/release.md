@@ -5,7 +5,7 @@ The document outlines the steps to build and release `deeptab` package. It is as
 ## Release workflow
 
 ```{mermaid}
-%%{init: {'theme': 'base', 'themeVariables': {
+%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}, 'themeVariables': {
   'primaryColor': '#dbeafe',
   'primaryTextColor': '#1e3a5f',
   'primaryBorderColor': '#3b82f6',
@@ -14,17 +14,17 @@ The document outlines the steps to build and release `deeptab` package. It is as
   'tertiaryColor': '#f0fdf4',
   'edgeLabelBackground': '#f9fafb'
 }}}%%
-flowchart TD
-    A["git checkout main<br/>git pull --ff-only<br/>git checkout -b release/vX.Y.Z"]:::git --> B[Hotfixes and doc updates]:::setup
-    B --> QA["Quality checks<br/>lint → format → check → test"]:::ci
+flowchart LR
+    A[Create release branch]:::git --> B[Hotfixes and doc updates]:::setup
+    B --> QA["Quality checks<br/>lint, format, hooks, tests"]:::ci
     QA --> QAP{All pass?}:::decision
     QAP -->|No| B
-    QAP -->|Yes| D["Build docs: just docs"]:::setup
+    QAP -->|Yes| D[Build docs]:::setup
     D --> E[Commit changes and push branch]:::git
     E --> F{Release type?}:::decision
-    F -->|RC| RC1["just bump-rc-preview<br/>then just bump-rc<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
-    F -->|Stable| ST1["just bump-preview<br/>then just bump<br/><i>(append --increment MAJOR<br/>if not auto-detected)</i>"]:::setup
-    RC1 --> RC2["git push origin release/vX.Y.Z<br/>git push origin vX.Y.ZrcN"]:::git
+    F -->|RC| RC1[Preview and bump RC]:::setup
+    F -->|Stable| ST1[Preview and bump stable]:::setup
+    RC1 --> RC2[Push branch and exact RC tag]:::git
     RC2 --> RC3[CI: publish-testpypi.yml]:::ci
     RC3 --> RC4[TestPyPI + GitHub pre-release]:::rc
     RC4 -->|Issues found| B
@@ -32,7 +32,7 @@ flowchart TD
     ST1 --> ST2["Open PR: release/vX.Y.Z → main"]:::pr
     ST2 --> ST3{Review and approve}:::decision
     ST3 --> ST4[Merge PR into main]:::pr
-    ST4 --> ST5["git checkout main<br/>git pull --ff-only<br/>git tag -d vX.Y.Z (local)<br/>git tag -a vX.Y.Z -m 'Release vX.Y.Z'<br/>git push origin vX.Y.Z"]:::git
+    ST4 --> ST5["Create annotated stable tag<br/>on merged main and push"]:::git
     ST5 --> ST6[CI: publish-pypi.yml]:::ci
     ST6 --> ST7[PyPI + GitHub Release]:::stable
 

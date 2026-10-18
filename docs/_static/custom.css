@@ -608,6 +608,16 @@ table.autosummary {
   overflow-x: auto;
 }
 
+#release-workflow .mermaid {
+  overflow-x: auto;
+}
+
+#release-workflow .mermaid svg {
+  width: auto;
+  height: auto;
+  max-width: none !important;
+}
+
 table.autosummary td {
   padding: 0.45rem 0.6rem;
   border-bottom: 1px solid #e5e7eb;

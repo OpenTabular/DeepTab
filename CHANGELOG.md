@@ -11,7 +11,7 @@ Going forward, this file is updated automatically by `cz bump` on each release.
 
 ### Changed
 
-- Require Python 3.11-3.13. Python 3.10 is no longer supported; recreate older environments before upgrading. Remaining on an older DeepTab release does not guarantee security updates.
+- **Python support:** DeepTab 2.1 requires Python 3.11-3.13 (`>=3.11,<3.14`). Python 3.10 [reached end of life on 2026-10-01](https://peps.python.org/pep-0619/#lifespan) and is no longer supported. Users requiring Python 3.10 must remain on DeepTab 2.0.x with compatible dependencies; older releases do not guarantee security updates. Recreate older environments before upgrading.
 - Require SciPy >=1.16,<2 after reproducing a native loader failure with the previous minimum on Apple Silicon. Documentation builds retain Python 3.12 or newer within the supported range.
 - Require Torch >=2.13,<2.15, setuptools >=83,<84, Lightning >=2.6.6,<3, and Accelerate >=1.15,<2 to exclude versions with reported vulnerabilities.
 - Require TensorBoard >=2.21,<3 for the TensorBoard and tracking extras, compatible with patched setuptools and NumPy 2 hyperparameter logging.
