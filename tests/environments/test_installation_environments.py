@@ -61,6 +61,23 @@ def test_security_dependency_minima(package, minimum, older):
         assert "2.20.0" not in tensorboard.specifier
 
 
+def test_readthedocs_html_cleaner_matches_patched_lock():
+    root = Path(__file__).resolve().parents[2]
+    requirements = [
+        Requirement(line)
+        for line in (root / "docs" / "requirements_docs.txt").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+    cleaner = next(requirement for requirement in requirements if requirement.name == "lxml-html-clean")
+    with (root / "poetry.lock").open("rb") as stream:
+        lock = tomllib.load(stream)
+    version = next(package["version"] for package in lock["package"] if package["name"] == "lxml-html-clean")
+    assert version in SpecifierSet(">=0.4.4")
+    assert version in cleaner.specifier
+    assert "0.4.0" not in cleaner.specifier
+    assert "0.4.3" not in cleaner.specifier
+
+
 def test_tabr_dependencies_are_an_explicit_extra():
     path = Path(__file__).resolve().parents[2] / "pyproject.toml"
     with path.open("rb") as stream:
