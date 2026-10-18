@@ -144,6 +144,11 @@ git push origin release/vX.Y.Z
 Prefer `just commit` over a manual `git commit` to stay consistent with the conventional commit style enforced by commitizen.
 ```
 
+After pushing the release branch, wait for the full hosted CI run, including
+**CI Success**, before applying the version bump. Confirm that the run validated
+the pushed commit. See [CI/CD](ci_cd.md) for required-check configuration; local
+checks do not replace the hosted platform and dependency matrices.
+
 ## 6. Version bump
 
 The version bump is driven entirely by [Commitizen](https://commitizen-tools.github.io/commitizen/). The increment (MAJOR / MINOR / PATCH) is inferred from the conventional-commit messages since the last tag, the version in `pyproject.toml` is updated, and the matching `CHANGELOG.md` section is generated and committed with a tag. The current recipes create lightweight tags unless `--annotated-tag` is supplied.

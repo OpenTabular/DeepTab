@@ -12,9 +12,11 @@ on:
   push:
     branches:
       - main
+      - "release/**"
   pull_request:
     branches:
       - main
+      - "release/**"
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.head_ref || github.sha }}
@@ -380,3 +382,35 @@ jobs:
         with:
           files: coverage.xml
           fail_ci_if_error: false
+
+  ci-success:
+    name: CI Success
+    runs-on: ubuntu-latest
+    permissions: {}
+    if: ${{ always() }}
+    needs:
+      - lint
+      - typecheck
+      - build
+      - dependency-endpoints
+      - tests
+      - tests-extras
+      - tests-tabr
+      - smoke
+      - coverage
+
+    steps:
+      - name: Require all CI checks to succeed
+        env:
+          NEEDS_JSON: ${{ toJSON(needs) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+
+          results = json.loads(os.environ["NEEDS_JSON"])
+          unsuccessful = {name: job.get("result") for name, job in results.items() if job.get("result") != "success"}
+          if not results or unsuccessful:
+              raise SystemExit(f"Required CI jobs did not all succeed: {unsuccessful or 'no results'}")
+          print("All required CI jobs succeeded.")
+          PY

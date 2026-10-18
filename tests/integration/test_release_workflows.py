@@ -1,5 +1,6 @@
 """Release publishing must depend on validation of the distributed package."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -291,11 +292,66 @@ def test_release_checks_use_minimum_supported_python(name, job):
             assert "-3.11-" in step["with"]["key"]
 
 
-def test_ci_triggers_select_main_and_preserve_release_invocations():
+def test_ci_triggers_select_main_and_release_branches_and_preserve_release_invocations():
     triggers = _workflow("ci.yml")["on"]
     assert {"workflow_call", "workflow_dispatch"}.issubset(triggers)
     for event in ["push", "pull_request"]:
-        assert triggers[event]["branches"] == ["main"]
+        assert triggers[event]["branches"] == ["main", "release/**"]
+        assert not any(key in triggers[event] for key in ("paths", "paths-ignore", "branches-ignore"))
+
+
+def test_ci_success_requires_every_other_ci_job():
+    jobs = _workflow("ci.yml")["jobs"]
+    gate = jobs["ci-success"]
+    assert gate["name"] == "CI Success"
+    assert set(gate["needs"]) == set(jobs) - {"ci-success"}
+    assert gate["if"] == "${{ always() }}"
+    assert gate.get("continue-on-error", False) is False
+    assert gate["permissions"] == {}
+    assert len(gate["steps"]) == 1
+    assert gate["steps"][0]["env"] == {"NEEDS_JSON": "${{ toJSON(needs) }}"}
+    for name in gate["needs"]:
+        assert jobs[name].get("continue-on-error", False) is False
+
+
+def _run_ci_success(payload):
+    command = _workflow("ci.yml")["jobs"]["ci-success"]["steps"][0]["run"].splitlines()
+    assert command[0] == "python3 - <<'PY'"
+    assert command[-1] == "PY"
+    return subprocess.run(
+        [sys.executable, "-"],
+        input="\n".join(command[1:-1]),
+        env=os.environ | {"NEEDS_JSON": payload},
+        capture_output=True,
+        text=True,
+        check=False,
+        timeout=10,
+    )
+
+
+def test_ci_success_accepts_only_successful_dependencies():
+    dependencies = _workflow("ci.yml")["jobs"]["ci-success"]["needs"]
+    result = _run_ci_success(json.dumps({name: {"result": "success"} for name in dependencies}))
+    assert result.returncode == 0, result.stderr
+    assert "All required CI jobs succeeded." in result.stdout
+
+
+@pytest.mark.parametrize("dependency", [name for name in _workflow("ci.yml")["jobs"] if name != "ci-success"])
+@pytest.mark.parametrize("conclusion", ["failure", "cancelled", "skipped"])
+def test_ci_success_rejects_any_unsuccessful_dependency(dependency, conclusion):
+    dependencies = _workflow("ci.yml")["jobs"]["ci-success"]["needs"]
+    results = {name: {"result": "success"} for name in dependencies}
+    results[dependency] = {"result": conclusion}
+    result = _run_ci_success(json.dumps(results))
+    assert result.returncode != 0
+    assert dependency in result.stderr
+    assert conclusion in result.stderr
+
+
+@pytest.mark.parametrize("payload", ["{}", '{"lint": {}}', '{"lint": {"result": "neutral"}}', "not JSON"])
+def test_ci_success_rejects_empty_or_invalid_results(payload):
+    result = _run_ci_success(payload)
+    assert result.returncode != 0
 
 
 @pytest.mark.parametrize(

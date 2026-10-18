@@ -4,33 +4,36 @@ DeepTab uses GitHub Actions for continuous integration and delivery. All workflo
 
 ## Workflow overview
 
-| Workflow file          | Trigger                      | Purpose                                  |
-| ---------------------- | ---------------------------- | ---------------------------------------- |
-| `ci.yml`               | Push / PR to `main`          | Lint, type-check, build, test, and cover |
-| `docs.yml`             | Push / PR (docs paths), tags | Validate the Sphinx documentation build  |
-| `build-check.yml`      | Manual (`workflow_dispatch`) | Dry-run build validation before tagging  |
-| `publish-testpypi.yml` | Push of `vX.Y.ZrcN` tag      | Publish release candidate to TestPyPI    |
-| `publish-pypi.yml`     | Push of `vX.Y.Z` stable tag  | Publish stable release to PyPI           |
+| Workflow file          | Trigger                             | Purpose                                  |
+| ---------------------- | ----------------------------------- | ---------------------------------------- |
+| `ci.yml`               | Push / PR to `main` or `release/**` | Lint, type-check, build, test, and cover |
+| `docs.yml`             | Push / PR (docs paths), tags        | Validate the Sphinx documentation build  |
+| `build-check.yml`      | Manual (`workflow_dispatch`)        | Dry-run build validation before tagging  |
+| `publish-testpypi.yml` | Push of `vX.Y.ZrcN` tag             | Publish release candidate to TestPyPI    |
+| `publish-pypi.yml`     | Push of `vX.Y.Z` stable tag         | Publish stable release to PyPI           |
 
 ---
 
 ## ci.yml (continuous integration)
 
-Runs on every push to `main` and every pull request targeting `main`. In-progress runs for the same branch are cancelled via `concurrency`.
+Runs on every push to `main` or `release/**` and every pull request targeting
+those branches. The pull-request filter matches the target branch, not the
+source branch. Manual dispatch remains available.
 
 The CI, docs, and build-check workflows also expose `workflow_call` so release workflows can require their checks on the exact tagged commit. Concurrency groups distinguish a release invocation from ordinary CI and docs runs, so those runs do not cancel one another.
 
-| Job                    | Runner / Python            | What it does                                                             | Depends on                                                    |
-| ---------------------- | -------------------------- | ------------------------------------------------------------------------ | ------------------------------------------------------------- |
-| `lint`                 | ubuntu / 3.11              | `ruff check .` and `ruff format --check .`                               | -                                                             |
-| `typecheck`            | ubuntu / 3.11              | `pyright`                                                                | -                                                             |
-| `build`                | ubuntu / 3.11              | `poetry build` and `twine check dist/*`                                  | -                                                             |
-| `tests`                | full matrix                | Full core-only suite with verified dependency profile                    | -                                                             |
-| `tests-extras`         | ubuntu / 3.12              | Full suite with verified logs/tracking extras                            | -                                                             |
-| `tests-tabr`           | ubuntu and windows / 3.12  | Full suite with native retrieval and observability extras                | -                                                             |
-| `dependency-endpoints` | three OSes / 3.11 and 3.13 | Independent minimum/newest core, extras, and supported native CPU suites | `build`                                                       |
-| `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                      | `lint`                                                        |
-| `coverage`             | ubuntu / 3.12              | Native plus observability suite; line coverage >=90%; upload to Codecov  | `tests`, `tests-extras`, `tests-tabr`, `dependency-endpoints` |
+| Job                    | Runner / Python            | What it does                                                                 | Depends on                                                    |
+| ---------------------- | -------------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------- |
+| `lint`                 | ubuntu / 3.11              | `ruff check .` and `ruff format --check .`                                   | -                                                             |
+| `typecheck`            | ubuntu / 3.11              | `pyright`                                                                    | -                                                             |
+| `build`                | ubuntu / 3.11              | `poetry build` and `twine check dist/*`                                      | -                                                             |
+| `tests`                | full matrix                | Full core-only suite with verified dependency profile                        | -                                                             |
+| `tests-extras`         | ubuntu / 3.12              | Full suite with verified logs/tracking extras                                | -                                                             |
+| `tests-tabr`           | ubuntu and windows / 3.12  | Full suite with native retrieval and observability extras                    | -                                                             |
+| `dependency-endpoints` | three OSes / 3.11 and 3.13 | Independent minimum/newest core, extras, and supported native CPU suites     | `build`                                                       |
+| `smoke`                | ubuntu / 3.12              | `pytest tests/ -m smoke --tb=short`                                          | `lint`                                                        |
+| `coverage`             | ubuntu / 3.12              | Native plus observability suite; line coverage >=90%; upload to Codecov      | `tests`, `tests-extras`, `tests-tabr`, `dependency-endpoints` |
+| `ci-success`           | ubuntu / Python 3          | Stable `CI Success` check; reject any prerequisite result other than success | Every other CI job                                            |
 
 The `lint`, `typecheck`, `build`, and `tests` jobs run in parallel. Matrix jobs use `fail-fast: false`, so one failing matrix cell does not cancel the rest. The `tests` matrix has nine lanes: Python 3.11/3.12/3.13 on three operating systems, as listed in the [Support Matrix](support_matrix.md).
 
@@ -52,7 +55,8 @@ Local equivalents are `just install-core` / `just test-core` and
 On Linux or Windows, use `just install-tabr` / `just test-tabr` for native cases.
 See [Testing](testing.md) for environment-switching cautions and selectors.
 Pushes to integration branches do not trigger automatic CI. Open a pull request
-targeting `main` or dispatch CI manually, and retain the run URL and tested SHA.
+targeting `main` or `release/**`, or dispatch CI manually, and retain the run URL
+and tested SHA.
 Reusable release calls remain available; configured lanes alone are not passing
 evidence for a release revision. The locked extras lane covers Ubuntu/Python 3.12;
 independent extras endpoints add Python 3.11/3.13 on each configured platform.
@@ -70,6 +74,31 @@ See the {ref}`endpoint procedure <dependency-endpoints>` and support limitations
 
 ```{note}
 Compatibility-sensitive jobs (`lint`, `typecheck`, `build`) pin to the **lowest** supported version (3.11) so they catch code that relies on newer syntax or stdlib than we promise to support. The installed-wheel package gate and post-publication RC smoke also use 3.11. The single-version gates (`smoke`, `tests-extras`, `coverage`) retain 3.12, and documentation retains its newer interpreter and tool versions. The `tests` matrix verifies the core profile across the declared combinations; extras compatibility remains scoped to its own jobs.
+```
+
+### Required merge checks
+
+The `ci-success` job appears as **CI Success** in ordinary CI runs. It has no
+repository permissions and runs after every other CI job, even when a
+prerequisite fails. A failed, cancelled, or skipped dependency makes the aggregate
+fail; empty or invalid results cannot produce a passing check. Matrix dependencies
+must succeed across all their configured lanes.
+
+To enforce this check before merging:
+
+1. Commit and push the updated workflow, then wait for a successful hosted
+   **CI Success** result on the intended revision.
+2. In **Settings > Rules > Rulesets**, edit the branch ruleset covering `main`
+   and `release/*`.
+3. Add **CI Success** from GitHub Actions to the required status-check list.
+   Enabling the rule with an empty list does not require any checks.
+4. Confirm the saved rule names the check and applies to the intended branches.
+
+```{important}
+Do not require the check before the relevant workflows emit it. Pull requests
+using an older workflow must pick up the updated workflow or the required check
+will remain pending. A successful local test run does not create a GitHub status
+check. Repository ruleset changes are separate from workflow changes in Git.
 ```
 
 ---
