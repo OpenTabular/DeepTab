@@ -2,47 +2,42 @@
 
 The document outlines the steps to build and release `deeptab` package. It is assumed that all feature branches and PRs for the release have been reviewed, approved, and merged into `main` before starting this process.
 
+```{note}
+This guide is for repository maintainers preparing and publishing releases.
+Developers and contributors should follow the
+[Contribution Guidelines](contributing.md) and open pull requests against `main`.
+A maintainer will review each PR and include approved changes in the next release
+cycle.
+```
+
 ## Release workflow
 
-```{mermaid}
-%%{init: {'theme': 'base', 'flowchart': {'useMaxWidth': false}, 'themeVariables': {
-  'primaryColor': '#dbeafe',
-  'primaryTextColor': '#1e3a5f',
-  'primaryBorderColor': '#3b82f6',
-  'lineColor': '#6b7280',
-  'secondaryColor': '#ede9fe',
-  'tertiaryColor': '#f0fdf4',
-  'edgeLabelBackground': '#f9fafb'
-}}}%%
-flowchart LR
-    A[Create release branch]:::git --> B[Hotfixes and doc updates]:::setup
-    B --> QA["Quality checks<br/>lint, format, hooks, tests"]:::ci
-    QA --> QAP{All pass?}:::decision
-    QAP -->|No| B
-    QAP -->|Yes| D[Build docs]:::setup
-    D --> E[Commit changes and push branch]:::git
-    E --> F{Release type?}:::decision
-    F -->|RC| RC1[Preview and bump RC]:::setup
-    F -->|Stable| ST1[Preview and bump stable]:::setup
-    RC1 --> RC2[Push branch and exact RC tag]:::git
-    RC2 --> RC3[CI: publish-testpypi.yml]:::ci
-    RC3 --> RC4[TestPyPI + GitHub pre-release]:::rc
-    RC4 -->|Issues found| B
-    RC4 -->|RC approved| ST1
-    ST1 --> ST2["Open PR: release/vX.Y.Z → main"]:::pr
-    ST2 --> ST3{Review and approve}:::decision
-    ST3 --> ST4[Merge PR into main]:::pr
-    ST4 --> ST5["Create annotated stable tag<br/>on merged main and push"]:::git
-    ST5 --> ST6[CI: publish-pypi.yml]:::ci
-    ST6 --> ST7[PyPI + GitHub Release]:::stable
+Follow the same sequence for every RC. Detailed commands appear below.
 
-    classDef setup    fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
-    classDef pr       fill:#ede9fe,stroke:#8b5cf6,color:#3b0764
-    classDef decision fill:#fef9c3,stroke:#ca8a04,color:#713f12
-    classDef git      fill:#f0fdf4,stroke:#22c55e,color:#14532d
-    classDef ci       fill:#fff7ed,stroke:#f97316,color:#7c2d12
-    classDef rc       fill:#fdf4ff,stroke:#d946ef,color:#701a75
-    classDef stable   fill:#ecfdf5,stroke:#10b981,color:#064e3b
+### Release candidate
+
+| Step | Action                                                              | Proceed when                                                                                 |
+| ---- | ------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| 1    | Finish local QA, commit fixes, and push `release/vX.Y.Z`.           | Hosted **CI Success** passes for the pushed commit.                                          |
+| 2    | Run `just bump-rc-preview`, review the result, then `just bump-rc`. | The version, changelog, bump commit, and local RC tag are correct.                           |
+| 3    | Push only the new bump commit to the release branch.                | Hosted **CI Success** passes again for that exact bump commit.                               |
+| 4    | Push the exact reviewed `vX.Y.ZrcN` tag.                            | The tag points to the tested bump commit; provenance, CI, docs, and package validation pass. |
+| 5    | Verify TestPyPI and the GitHub pre-release.                         | Published assets, release notes, and the TestPyPI install smoke test are correct.            |
+
+### Stable release
+
+| Step | Action                                                                              | Proceed when                                                                       |
+| ---- | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| 1    | After RC approval, preview and apply the stable bump, then push the release branch. | **CI Success** passes for the stable bump commit.                                  |
+| 2    | Review and merge the release PR into `main`.                                        | Required checks and maintainer approval are satisfied.                             |
+| 3    | Re-create the stable tag on merged `main` and push it.                              | The intended `main` revision and package version are correct.                      |
+| 4    | Verify PyPI and the GitHub Release.                                                 | Provenance, CI, docs, and package validation pass, and release assets are present. |
+
+```{important}
+The bump creates a new commit. A green run before the bump does not validate the
+version or changelog being released. Wait for **CI Success** on the bump commit
+before pushing its tag. The tagged workflow then independently validates the
+release and the artifacts it will publish.
 ```
 
 ## 1. Create the release branch
@@ -201,13 +196,30 @@ just bump-rc
 
 This updates `version` in `pyproject.toml`, appends the `vX.Y.ZrcN` section to `CHANGELOG.md`, creates the `bump:` commit, and creates the `vX.Y.ZrcN` tag locally.
 
-**Step 3, review and push the branch and exact RC tag:**
+**Step 3, review and push only the RC bump commit:**
 
 ```bash
 git show HEAD
+git rev-parse HEAD
 git push origin release/vX.Y.Z
+```
+
+Record the bump commit SHA printed above. Wait for **CI Success** on that exact
+commit before continuing. The pre-bump run does not cover this new commit.
+Do not push the tag while the post-bump run is pending or unsuccessful.
+
+**Step 4, verify and push the exact RC tag:**
+
+Confirm that the tag resolves to the same commit SHA as the successful post-bump
+run, then push it:
+
+```bash
+git rev-parse 'vX.Y.ZrcN^{commit}'
 git push origin vX.Y.ZrcN
 ```
+
+If the release commit or tag target changes, validate the new target before
+pushing the tag. Repeat this sequence for each subsequent RC.
 
 ```{note}
 Pushing the exact RC tag triggers `publish-testpypi.yml`. Do not rely on
@@ -242,14 +254,18 @@ in step 9:
 git push origin release/vX.Y.Z
 ```
 
+Wait for **CI Success** on the stable bump commit before merging the release PR.
+
 See **[Versioning](versioning.md)** for the full SemVer rules and commit-type reference.
 
 ## 7. Tag and publish a release candidate
 
 `cz bump --prerelease rc` (step 6a) already created the `vX.Y.ZrcN` tag locally. RC tags are pushed **directly from the release branch**, with no PR to `main` required.
 
-If you explicitly pushed the RC tag in step 6a, it is already live and you can
-skip to verifying CI. Otherwise, review and push that exact tag:
+If you pushed the RC tag after the post-bump **CI Success** check in step 6a,
+it is already live; verify the release workflow. Otherwise, first confirm that
+the tag points to the exact bump commit with a successful branch CI run, then
+push only that tag:
 
 ```bash
 git push origin vX.Y.ZrcN
