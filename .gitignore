@@ -193,3 +193,7 @@ docs/_build/html/*
 # dev files
 dev
 dev/*
+
+# ignore uv.lock file
+# poetry is used for this project
+uv.lock

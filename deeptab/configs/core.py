@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Any
 
 import torch.nn as nn
 from sklearn.base import BaseEstimator
@@ -15,24 +17,75 @@ from deeptab.core.exceptions import (
     warn_config,
 )
 
-# Valid choices for PreprocessingConfig fields (mirrors pretab.Preprocessor)
+# Valid choices for PreprocessingConfig fields (mirrors pretab.Preprocessor).
+# Confirmed against Preprocessor(numerical_method=...) directly (not just the
+# broader representation registry, which also lists standalone-only
+# transformers PreTab does not accept here); see dev/debug/pretab_numerical_methods.py.
 _VALID_NUMERICAL_PREPROCESSING: frozenset[str | None] = frozenset(
     {
-        "ple",
-        "quantile",
-        "splines",
-        "standardization",
-        "minmax",
-        "robust",
         "box-cox",
+        "bspline",
+        "cubicspline",
+        "custombin",
+        "fourier",
+        "ispline",
+        "minmax",
+        "mspline",
+        "naturalspline",
+        "none",
+        "ple",
+        "polynomial",
+        "pspline",
+        "quantile",
+        "rbf",
+        "relu",
+        "robust",
+        "sigmoid",
+        "standardization",
+        "tanh",
         "yeo-johnson",
         None,
     }
 )
+# Numerical methods that always require y (never fit without a target), vs.
+# methods that never consume y, per pretab.list_representations(supervised=...).
+_NUMERICAL_METHODS_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"ple"})
+_NUMERICAL_METHODS_NEVER_TARGET_AWARE: frozenset[str] = frozenset(
+    {
+        "box-cox",
+        "custombin",
+        "fourier",
+        "minmax",
+        "none",
+        "polynomial",
+        "pspline",
+        "quantile",
+        "robust",
+        "standardization",
+        "yeo-johnson",
+    }
+)
 _VALID_SCALING_STRATEGY: frozenset[str | None] = frozenset({"minmax", "standardization", "robust", None})
 _VALID_BINNING_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile", "kmeans", None})
+_VALID_CATEGORICAL_METHOD: frozenset[str | None] = frozenset({"int", "one-hot", "pretrained", "none", None})
+# placement_strategy validity is gated by target_aware, not by numerical_method:
+# target_aware=False requires "uniform"/"quantile"; target_aware=True requires
+# "cart" or "lightgbm". "lightgbm" requires the optional pretab[lightgbm]
+# dependency; build_preprocessor's fit path translates PreTab's own missing-
+# dependency error into an actionable DeepTab ImportError when it is absent.
+_VALID_PLACEMENT_STRATEGY: frozenset[str | None] = frozenset({"uniform", "quantile", "cart", "lightgbm", None})
+_PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE: frozenset[str] = frozenset({"cart", "lightgbm"})
+_PLACEMENT_STRATEGIES_NEVER_TARGET_AWARE: frozenset[str] = frozenset({"uniform", "quantile"})
 _VALID_CAT_ENCODING: frozenset[str] = frozenset({"int", "one-hot", "linear"})
 _VALID_MONITOR_MODE: frozenset[str] = frozenset({"min", "max"})
+# PreTab's own named configuration bundles (Preprocessor(preset=...)); mirrors
+# the set PreTab itself accepts.
+_VALID_PRESET: frozenset[str | None] = frozenset({"standard", "expanded", "adaptive", None})
+# DeepTab's own explicit default when output_dim (and its legacy aliases) are
+# all omitted, matching PreTab's own preset="standard" starting point. Made
+# explicit (rather than left to PreTab's internal default) so a future PreTab
+# release cannot silently change DeepTab's resolved width.
+_DEFAULT_OUTPUT_DIM = 7
 
 __all__ = [
     "BaseModelConfig",
@@ -73,6 +126,8 @@ class BaseModelConfig(BaseEstimator):
         Initial scale for PLR frequency components.
     embedding_projection : bool, default=True
         Whether to apply a linear projection after embeddings.
+    cls_position : int, default=0
+        Position of an enabled CLS token: ``0`` prepends it and ``1`` appends it.
     batch_norm : bool, default=False
         Whether to use batch normalisation in the model body.
     layer_norm : bool, default=False
@@ -97,6 +152,7 @@ class BaseModelConfig(BaseEstimator):
     n_frequencies: int = 48
     frequencies_init_scale: float = 0.01
     embedding_projection: bool = True
+    cls_position: int = 0
 
     # Architecture parameters
     batch_norm: bool = False
@@ -108,6 +164,8 @@ class BaseModelConfig(BaseEstimator):
     def __post_init__(self) -> None:  # type: ignore[override]
         if self.d_model < 1:
             raise invalid_param_error(type(self).__name__, "d_model", self.d_model, "must be >= 1")
+        if self.cls_position not in (0, 1):
+            raise invalid_param_error(type(self).__name__, "cls_position", self.cls_position, "must be 0 or 1")
         if self.cat_encoding not in _VALID_CAT_ENCODING:
             raise invalid_param_error(
                 type(self).__name__,
@@ -166,55 +224,109 @@ class BaseModelConfig(BaseEstimator):
                 raise invalid_param_error(cls_name, int_field, val, "must be >= 1")
 
 
+def _resolve_legacy_alias(
+    legacy_name: str,
+    legacy_value: Any,
+    canonical_name: str,
+    canonical_value: Any,
+) -> Any:
+    """Resolve a deprecated field/canonical field pair to a single value.
+
+    Returns *canonical_value* unchanged when the legacy field was not set.
+    When the legacy field was set, it is honored (with a deprecation
+    warning) as long as it does not conflict with an explicitly set
+    canonical value; a conflict raises ``IncompatibleParamsError``.
+    """
+    if legacy_value is None:
+        return canonical_value
+    if canonical_value is not None and canonical_value != legacy_value:
+        raise incompatible_params_error(
+            "PreprocessingConfig",
+            f"'{legacy_name}'={legacy_value!r} and '{canonical_name}'={canonical_value!r} disagree. "
+            f"Set only '{canonical_name}'.",
+        )
+    warn_config(
+        f"PreprocessingConfig.{legacy_name} is deprecated; use '{canonical_name}' instead. "
+        f"'{legacy_name}={legacy_value!r}' is equivalent to '{canonical_name}={legacy_value!r}'.",
+        stacklevel=4,
+    )
+    return legacy_value
+
+
 @dataclass
 class PreprocessingConfig(BaseEstimator):
     """Configuration for input feature preprocessing.
 
-    All fields map directly to arguments accepted by ``pretab.preprocessor.Preprocessor``.
-    Using ``None`` for any field leaves the preprocessor default in effect.
+    Only fields accepted by PreTab 1.0's ``Preprocessor`` are documented below.
+    DeepTab still accepts a small set of legacy constructor arguments from
+    earlier releases for backward compatibility; passing one emits a warning
+    (when it maps unambiguously to a field below) or raises an actionable
+    error naming the correct replacement (when it does not). These legacy
+    arguments are intentionally left undocumented here, since they carry no
+    information beyond what the resulting warning or error message already
+    states. Using ``None`` for any field below leaves the preprocessor's own
+    default in effect.
 
     Parameters
     ----------
-    numerical_preprocessing : str or None, default=None
-        Strategy for transforming numerical features (e.g. ``"ple"``, ``"quantile"``,
-        ``"standard"``).  ``None`` uses the preprocessor's built-in default.
-    categorical_preprocessing : str or None, default=None
-        Strategy for transforming categorical features (e.g. ``"int"``, ``"one-hot"``).
-        ``None`` uses the preprocessor's built-in default.
-    n_bins : int or None, default=None
-        Number of bins for numerical binning.  ``None`` uses the preprocessor default.
-    feature_preprocessing : str or None, default=None
-        General feature-level preprocessing override.
-    use_decision_tree_bins : bool or None, default=None
-        Whether to use decision-tree-derived bin edges.
-    binning_strategy : str or None, default=None
-        Strategy for choosing bin edges (e.g. ``"uniform"``, ``"quantile"``).
+    numerical_method : str or None, default=None
+        Strategy for transforming numerical features (e.g. ``"ple"``,
+        ``"bspline"``, ``"quantile"``). ``None`` uses the preprocessor's
+        built-in default.
+    categorical_method : str or None, default=None
+        Strategy for transforming categorical features (``"int"``,
+        ``"one-hot"``, or ``"pretrained"``). ``None`` uses the preprocessor's
+        built-in default.
+    output_dim : int or None, default=None
+        Output width for numerical representations (bins, knots, or expansion
+        dimensions); ignored by representations that do not use it (e.g. plain
+        scaling). ``None`` resolves to DeepTab's own explicit default of 7,
+        emitting a one-time ``FutureWarning`` the first time this happens.
+    target_aware : bool or None, default=None
+        Whether numerical placement uses the target. ``False`` requires
+        ``placement_strategy`` in ``{"uniform", "quantile"}``; ``True`` requires
+        ``placement_strategy`` in ``{"cart", "lightgbm"}``.
+    placement_strategy : str or None, default=None
+        Strategy for placing bin edges or knots. Its valid values depend on
+        ``target_aware``, not on ``numerical_method``: ``"uniform"`` or
+        ``"quantile"`` when ``target_aware=False``; ``"cart"`` or ``"lightgbm"``
+        when ``target_aware=True``. ``"lightgbm"`` requires the optional
+        ``pretab[lightgbm]`` dependency; a clear install error is raised at fit
+        time if it is missing.
+    scaling : str or None, default=None
+        Scaling method applied to numerical features (e.g. ``"standardization"``,
+        ``"minmax"``, ``"robust"``).
+    feature_preprocessing : dict[str, str] or None, default=None
+        Per-column preprocessing override, mapping a column name to a method
+        that replaces ``numerical_method``/``categorical_method`` for that
+        column only (e.g. ``{"age": "cubicspline", "city": "pretrained"}``).
+        Columns absent from the mapping fall back to the global defaults.
     task : str or None, default=None
-        Task type passed to the preprocessor for task-aware transformations
-        (e.g. ``"regression"``, ``"classification"``).
+        Task type for task-aware transformations (``"regression"`` or
+        ``"classification"``). The task resolved from the estimator's own type
+        always takes precedence over this field; setting a conflicting value
+        here emits a ``ConfigWarning`` rather than being used.
     cat_cutoff : float or None, default=None
         Threshold for treating integer columns as categorical.
     treat_all_integers_as_numerical : bool or None, default=None
         When ``True``, integer columns are never converted to categorical.
     degree : int or None, default=None
         Polynomial / spline degree for numerical feature expansion.
-    scaling_strategy : str or None, default=None
-        Scaling method applied to numerical features (e.g. ``"standard"``,
-        ``"minmax"``, ``"robust"``).
-    n_knots : int or None, default=None
-        Number of knots for spline preprocessing.
-    use_decision_tree_knots : bool or None, default=None
-        Whether to use decision-tree-derived knot positions.
-    knots_strategy : str or None, default=None
-        Strategy for knot placement.
-    spline_implementation : str or None, default=None
-        Backend used for spline transformations.
+    preset : {"standard", "expanded", "adaptive"} or None, default=None
+        Named configuration bundle forwarded to PreTab's own ``preset``. A preset
+        only fills in fields left at their defaults here; any field set explicitly
+        (``numerical_method``, ``output_dim``, etc.) always wins. ``"standard"`` is
+        the balanced baseline, ``"expanded"`` widens the numerical basis and
+        one-hot encodes categoricals, and ``"adaptive"`` sizes each feature's width
+        from the data. When a preset is set and ``output_dim`` (and its legacy
+        aliases) are all left unset, DeepTab defers width resolution to the preset
+        instead of forcing its own default of 7.
     """
 
     numerical_preprocessing: str | None = None
     categorical_preprocessing: str | None = None
     n_bins: int | None = None
-    feature_preprocessing: str | None = None
+    feature_preprocessing: dict[str, str] | None = None
     use_decision_tree_bins: bool | None = None
     binning_strategy: str | None = None
     task: str | None = None
@@ -226,6 +338,13 @@ class PreprocessingConfig(BaseEstimator):
     use_decision_tree_knots: bool | None = None
     knots_strategy: str | None = None
     spline_implementation: str | None = None
+    numerical_method: str | None = None
+    categorical_method: str | None = None
+    output_dim: int | None = None
+    target_aware: bool | None = None
+    placement_strategy: str | None = None
+    scaling: str | None = None
+    preset: str | None = None
 
     def __post_init__(self) -> None:  # type: ignore[override]
         if self.numerical_preprocessing not in _VALID_NUMERICAL_PREPROCESSING:
@@ -265,16 +384,230 @@ class PreprocessingConfig(BaseEstimator):
             )
         if self.degree is not None and self.degree < 1:
             raise invalid_param_error("PreprocessingConfig", "degree", self.degree, "must be >= 1")
+        if self.categorical_method not in _VALID_CATEGORICAL_METHOD:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "categorical_method",
+                self.categorical_method,
+                "must be one of the known categorical methods",
+                sorted(x for x in _VALID_CATEGORICAL_METHOD if x is not None),
+            )
+        if self.output_dim is not None and self.output_dim < 1:
+            raise invalid_param_error("PreprocessingConfig", "output_dim", self.output_dim, "must be >= 1")
+        if self.placement_strategy not in _VALID_PLACEMENT_STRATEGY:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "placement_strategy",
+                self.placement_strategy,
+                "must be one of the known placement strategies",
+                sorted(x for x in _VALID_PLACEMENT_STRATEGY if x is not None),
+            )
+        if self.preset not in _VALID_PRESET:
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "preset",
+                self.preset,
+                "must be one of the known presets",
+                sorted(x for x in _VALID_PRESET if x is not None),
+            )
+        if self.feature_preprocessing is not None:
+            if not isinstance(self.feature_preprocessing, dict):
+                raise invalid_param_error(
+                    "PreprocessingConfig",
+                    "feature_preprocessing",
+                    self.feature_preprocessing,
+                    "must be a dict mapping column names to a preprocessing method "
+                    '(e.g. {"age": "cubicspline"}), not a single method string',
+                )
+            valid_feature_methods = (_VALID_NUMERICAL_PREPROCESSING | _VALID_CATEGORICAL_METHOD) - {None}
+            for column, method in self.feature_preprocessing.items():
+                if not isinstance(column, str):
+                    raise invalid_param_error(
+                        "PreprocessingConfig",
+                        "feature_preprocessing",
+                        {column: method},
+                        "each key must be a column name (str)",
+                    )
+                if method not in valid_feature_methods:
+                    raise invalid_param_error(
+                        "PreprocessingConfig",
+                        "feature_preprocessing",
+                        {column: method},
+                        f"method {method!r} for column {column!r} is not a known preprocessing method",
+                        sorted(valid_feature_methods),
+                    )
+
+        # PreTab 1.0 removed this option outright; there is no equivalent to
+        # fall back to, so a non-default value is always rejected.
+        if self.spline_implementation is not None:
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                "'spline_implementation' has no equivalent in PreTab 1.0 and is not "
+                "accepted. Remove it; PreTab now selects its spline backend automatically.",
+            )
+
+        # Resolve each legacy/canonical field pair once, so `to_preprocessor_kwargs`
+        # only ever emits canonical PreTab 1.0 names.
+        self._resolved_numerical_method = _resolve_legacy_alias(
+            "numerical_preprocessing", self.numerical_preprocessing, "numerical_method", self.numerical_method
+        )
+        self._resolved_categorical_method = _resolve_legacy_alias(
+            "categorical_preprocessing", self.categorical_preprocessing, "categorical_method", self.categorical_method
+        )
+        # PreTab's "none" representation leaves categorical columns as raw,
+        # unencoded strings/objects, which the tensor pipeline cannot consume.
+        if self._resolved_categorical_method == "none":
+            raise invalid_param_error(
+                "PreprocessingConfig",
+                "categorical_method",
+                "none",
+                "produces raw, unencoded string/object values for categorical columns, "
+                "which crashes when converted to a tensor. Use 'int', 'one-hot', or "
+                "'pretrained' instead ('categorical_preprocessing' is affected the same way).",
+                sorted(x for x in _VALID_CATEGORICAL_METHOD if x not in (None, "none")),
+            )
+        self._resolved_scaling = _resolve_legacy_alias(
+            "scaling_strategy", self.scaling_strategy, "scaling", self.scaling
+        )
+        self._resolved_output_dim = self._resolve_output_dim()
+        self._resolved_target_aware = self._resolve_target_aware()
+        self._resolved_placement_strategy = self._resolve_placement_strategy()
+
+        if (
+            self._resolved_numerical_method in _NUMERICAL_METHODS_NEVER_TARGET_AWARE
+            and self._resolved_target_aware is True
+        ):
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"numerical_method={self._resolved_numerical_method!r} does not support target-aware "
+                "placement, but target_aware=True was requested. Remove target_aware or choose a "
+                "target-aware-capable method.",
+            )
+        if (
+            self._resolved_numerical_method in _NUMERICAL_METHODS_ALWAYS_TARGET_AWARE
+            and self._resolved_target_aware is False
+        ):
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"numerical_method={self._resolved_numerical_method!r} always requires the target to fit "
+                "(it cannot run unsupervised), but target_aware=False was requested. Remove target_aware "
+                "or choose a different method.",
+            )
+        if (
+            self._resolved_placement_strategy in _PLACEMENT_STRATEGIES_NEVER_TARGET_AWARE
+            and self._resolved_target_aware is True
+        ):
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"placement_strategy={self._resolved_placement_strategy!r} requires target_aware=False, "
+                "but target_aware=True was requested. Use 'cart' for target-aware placement instead.",
+            )
+        if (
+            self._resolved_placement_strategy in _PLACEMENT_STRATEGIES_ALWAYS_TARGET_AWARE
+            and self._resolved_target_aware is False
+        ):
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"placement_strategy={self._resolved_placement_strategy!r} requires target_aware=True, "
+                "but target_aware=False was requested. Use 'uniform' or 'quantile' for unsupervised "
+                "placement instead.",
+            )
+
+    def _resolve_output_dim(self) -> int | None:
+        """Resolve `n_bins`/`n_knots` into `output_dim`, defaulting to 7 when unset."""
+        legacy_values = {v for v in (self.n_bins, self.n_knots) if v is not None}
+        if not legacy_values:
+            if self.output_dim is not None:
+                return self.output_dim
+            if self.preset is not None:
+                # A preset resolves its own width (e.g. "expanded" widens to 10,
+                # "adaptive" sizes per feature); forcing DeepTab's own default
+                # here would silently override that.
+                return None
+            warnings.warn(
+                "PreprocessingConfig: 'output_dim' was not set; DeepTab now resolves "
+                f"this to {_DEFAULT_OUTPUT_DIM} for representations that use it, instead of "
+                "implicitly following PreTab's own internal default. Set 'output_dim' "
+                "explicitly to silence this warning and pin the behavior.",
+                FutureWarning,
+                stacklevel=4,
+            )
+            return _DEFAULT_OUTPUT_DIM
+        if len(legacy_values) > 1:
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"'n_bins'={self.n_bins!r} and 'n_knots'={self.n_knots!r} disagree. Set only 'output_dim'.",
+            )
+        (legacy_value,) = legacy_values
+        legacy_name = "n_bins" if self.n_bins is not None else "n_knots"
+        return _resolve_legacy_alias(legacy_name, legacy_value, "output_dim", self.output_dim)
+
+    def _resolve_target_aware(self) -> bool | None:
+        """Resolve the decision-tree flags into `target_aware`."""
+        legacy_values = {v for v in (self.use_decision_tree_bins, self.use_decision_tree_knots) if v is not None}
+        if not legacy_values:
+            return self.target_aware
+        if len(legacy_values) > 1:
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"'use_decision_tree_bins'={self.use_decision_tree_bins!r} and "
+                f"'use_decision_tree_knots'={self.use_decision_tree_knots!r} disagree; there is no "
+                "unambiguous 'target_aware' equivalent. Set only 'target_aware' instead.",
+            )
+        (legacy_value,) = legacy_values
+        legacy_name = "use_decision_tree_bins" if self.use_decision_tree_bins is not None else "use_decision_tree_knots"
+        return _resolve_legacy_alias(legacy_name, legacy_value, "target_aware", self.target_aware)
+
+    def _resolve_placement_strategy(self) -> str | None:
+        """Resolve `binning_strategy`/`knots_strategy` into `placement_strategy`."""
+        legacy_values = {v for v in (self.binning_strategy, self.knots_strategy) if v is not None}
+        if not legacy_values:
+            return self.placement_strategy
+        if len(legacy_values) > 1:
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"'binning_strategy'={self.binning_strategy!r} and 'knots_strategy'={self.knots_strategy!r} "
+                "disagree. Set only 'placement_strategy'.",
+            )
+        (legacy_value,) = legacy_values
+        legacy_name = "binning_strategy" if self.binning_strategy is not None else "knots_strategy"
+        if legacy_value not in _VALID_PLACEMENT_STRATEGY:
+            raise incompatible_params_error(
+                "PreprocessingConfig",
+                f"'{legacy_name}'={legacy_value!r} has no supported 'placement_strategy' equivalent. "
+                f"Use 'placement_strategy' with one of "
+                f"{sorted(x for x in _VALID_PLACEMENT_STRATEGY if x is not None)}.",
+            )
+        return _resolve_legacy_alias(legacy_name, legacy_value, "placement_strategy", self.placement_strategy)
 
     def to_preprocessor_kwargs(self) -> dict:
-        """Return a dict of non-None fields suitable for passing to ``Preprocessor(**...)``.
+        """Return canonical kwargs for ``pretab.Preprocessor(**...)``.
+
+        Legacy field names are resolved to their canonical PreTab 1.0
+        equivalents in ``__post_init__``; only canonical names are ever
+        returned here, since PreTab 1.0 no longer accepts the legacy ones.
 
         Returns
         -------
         dict
-            Mapping of field name → value for every field that is not ``None``.
+            Mapping of canonical PreTab field name → value for every resolved
+            field that is not ``None``.
         """
-        return {k: v for k, v in self.get_params(deep=False).items() if v is not None}
+        kwargs = {
+            "numerical_method": self._resolved_numerical_method,
+            "categorical_method": self._resolved_categorical_method,
+            "output_dim": self._resolved_output_dim,
+            "target_aware": self._resolved_target_aware,
+            "placement_strategy": self._resolved_placement_strategy,
+            "scaling": self._resolved_scaling,
+            "feature_preprocessing": self.feature_preprocessing,
+            "task": self.task,
+            "cat_cutoff": self.cat_cutoff,
+            "treat_all_integers_as_numerical": self.treat_all_integers_as_numerical,
+            "degree": self.degree,
+            "preset": self.preset,
+        }
+        return {k: v for k, v in kwargs.items() if v is not None}
 
 
 @dataclass
@@ -330,13 +663,18 @@ class TrainerConfig(BaseEstimator):
         Extra keyword arguments forwarded to the scheduler constructor.
         ``factor`` and ``patience`` are synthesised from ``lr_factor`` and
         ``lr_patience`` for ``ReduceLROnPlateau`` when absent here.
+        An explicit ``mode`` overrides the effective general direction for
+        the plateau scheduler only.
     scheduler_monitor : str or None, default=None
-        Metric name for the scheduler to monitor.  Falls back to the value of
-        ``monitor`` when ``None``.
+        Metric name for a plateau scheduler to monitor. When ``None``, use
+        the effective general monitor, including an explicit ``fit(monitor=...)``
+        override. An explicit value affects only the scheduler.
     scheduler_interval : str, default="epoch"
         Lightning scheduling granularity: ``"epoch"`` or ``"step"``.
     scheduler_frequency : int, default=1
         How often the scheduler steps at the given interval.
+        For validation plateau monitors, this must be a multiple of the
+        trainer's positive integer ``check_val_every_n_epoch``.
     no_weight_decay_for_bias_and_norm : bool, default=False
         When ``True``, bias vectors and normalisation-layer scale/shift
         parameters receive zero weight decay.  Recommended for transformer-

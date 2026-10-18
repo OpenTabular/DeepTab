@@ -7,6 +7,26 @@ This project adheres to [Semantic Versioning](https://semver.org/) and uses
 
 Going forward, this file is updated automatically by `cz bump` on each release.
 
+## v2.1.0 (Unreleased)
+
+### Changed
+
+- Require Python 3.11-3.13. Python 3.10 is no longer supported; recreate older environments before upgrading. Remaining on an older DeepTab release does not guarantee security updates.
+- Require SciPy >=1.16,<2 after reproducing a native loader failure with the previous minimum on Apple Silicon. Documentation builds retain Python 3.12 or newer within the supported range.
+- Require Torch >=2.13,<2.15, setuptools >=83,<84, Lightning >=2.6.6,<3, and Accelerate >=1.15,<2 to exclude versions with reported vulnerabilities.
+- Require TensorBoard >=2.21,<3 for the TensorBoard and tracking extras, compatible with patched setuptools and NumPy 2 hyperparameter logging.
+- Move FAISS and delu to the explicit `tabr` extra. The default install and `all` observability bundle no longer install native retrieval packages. Native TabR remains unsupported on macOS arm64 and now fails before conflicting native imports.
+
+### Fixed
+
+- Preserve an existing fitted estimator when a refit's input validation fails; failures after rebuilding starts invalidate prediction until a successful fit.
+- Refresh supplied data, validation splits and loaders during weight continuation with `rebuild=False`, while retaining compatible weights and fitted preprocessing.
+- Route classification metrics to labels, probabilities or raw outputs as required, including ensemble evaluation.
+- Aggregate training and validation metrics over whole epochs and reset state between sanity validation and epochs.
+- Preserve strict custom architecture constructor signatures when supplying binary task metadata.
+- Forward fit-level monitoring settings to callbacks and plateau schedulers while preserving explicit configuration precedence.
+- Save and restore the candidate data needed for TabR and ModernNCA inference, including after loaded continuation. Older incomplete or incompatible artifacts still require refitting.
+
 ---
 
 ## v2.0.0 (2026-06-24)

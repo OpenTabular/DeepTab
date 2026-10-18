@@ -30,11 +30,13 @@ class AutoIntConfig(BaseModelConfig):
         Whether to use bias in linear layers.
     use_cls : bool, default=False
         Whether to use a CLS token for pooling instead of averaging.
-    kv_compression : float, default=0.5
-        Compression ratio for key-value pairs.
+    kv_compression : float | None, default=None
+        Fraction of feature tokens kept for attention keys and values, in
+        ``(0, 1]``. ``None`` attends over every feature token.
     kv_compression_sharing : str, default='key-value'
-        Sharing strategy for key-value compression ('headwise', or 'key-
-        value').
+        Sharing strategy for key-value compression: ``'layerwise'``,
+        ``'headwise'``, or ``'key-value'``. Used only when
+        ``kv_compression`` is set.
     """
 
     # Override parent defaults
@@ -48,5 +50,5 @@ class AutoIntConfig(BaseModelConfig):
     fprenorm: bool = False
     bias: bool = True
     use_cls: bool = False
-    kv_compression: float = 0.5
+    kv_compression: float | None = None
     kv_compression_sharing: str = "key-value"

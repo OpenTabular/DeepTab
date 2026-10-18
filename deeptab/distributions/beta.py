@@ -55,14 +55,20 @@ class DirichletDistribution(BaseDistribution):
     Parameters
     ----------
         name (str): The name of the distribution, defaulted to "Dirichlet".
+        num_classes (int): Number of simplex components and prediction columns. Defaults to ``1``.
         concentration_transform (str or callable): Transformation to apply to
         concentration parameters to ensure they remain positive.
     """
 
-    def __init__(self, name="Dirichlet", concentration_transform="positive"):
-        param_names = ["concentration"]
+    def __init__(self, name="Dirichlet", concentration_transform="positive", *, num_classes: int = 1):
+        if num_classes < 1:
+            raise ValueError(f"num_classes must be >= 1, got {num_classes}.")
+        param_names = [f"concentration_{index}" for index in range(num_classes)]
         super().__init__(name, param_names)
         self.concentration_transform = self.get_transform(concentration_transform)
+
+    def forward(self, predictions):
+        return self.concentration_transform(predictions)
 
     def compute_loss(self, predictions, y_true):
         concentration = self.concentration_transform(predictions)

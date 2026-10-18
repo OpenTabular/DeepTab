@@ -1,17 +1,24 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, ClassVar
+from dataclasses import fields as dataclass_fields
+from dataclasses import is_dataclass
+from typing import TYPE_CHECKING, ClassVar, cast
 
 import lightning as pl
 import numpy as np
-from pretab.preprocessor import Preprocessor
 from sklearn.base import BaseEstimator
+from sklearn.base import clone as sklearn_clone
+from sklearn.utils.multiclass import check_classification_targets
 
 from deeptab.configs.core import BaseModelConfig, PreprocessingConfig, TrainerConfig
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
 from deeptab.core.exceptions import (
     DataError,
+    column_count_error,
+    column_name_error,
+    invalid_data_error,
+    multi_output_regression_error,
     target_nan_error,
     target_range_error,
     warn_config,
@@ -20,6 +27,7 @@ from deeptab.core.exceptions import (
 )
 from deeptab.core.inspection import InspectionMixin
 from deeptab.core.interfaces import IDataModule, IDataModuleFactory, ITaskModel, ITaskModelFactory
+from deeptab.core.preprocessing import build_preprocessor
 from deeptab.models._mixins import (
     _FitMixin,
     _HyperparameterMixin,
@@ -62,54 +70,99 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
             )
 
 
-def _validate_fit_inputs(
-    X,
-    y,
-    regression: bool,
-    family: str | None = None,
-) -> None:
-    """Validate X and y before any preprocessing or model building.
-
-    Raises
-    ------
-    EmptyDataError
-        If X is empty (caught later by ensure_dataframe).
-    DataError
-        If len(X) != len(y), y contains NaN, or y violates the distribution
-        family's range constraint.
-    """
-    n_X = len(X)
-    n_y = len(y)
-    if n_X != n_y:
-        raise xy_length_mismatch_error(n_X, n_y)
-
-    if hasattr(X, "ndim") and X.ndim == 1:
-        raise ValueError(
-            "Expected a 2D array for X, got a 1D array instead. "
-            "Reshape your data using X.reshape(-1, 1) for a single feature."
+def _validate_target_array(y, *, name: str, regression: bool, family: str | None):
+    """Validate targets without flattening their task-specific dimensions."""
+    if y is None:
+        raise invalid_data_error(
+            f"This estimator requires {name} to be passed, but the target {name} is None.",
+            f"supply {name} for this fit call.",
         )
-
-    y_arr = np.asarray(y)
-    if y_arr.ndim <= 2 and np.issubdtype(y_arr.dtype, np.floating) and np.isnan(y_arr).any():
-        raise target_nan_error()
-
-    # Distribution family range constraints
-    if family is not None:
+    targets = np.asarray(y)
+    if targets.ndim not in (1, 2):
+        raise invalid_data_error(f"{name} must be a one- or two-dimensional target array.", "supply aligned targets.")
+    classification = not regression or family == "categorical"
+    if (classification or family is None) and targets.ndim == 2 and targets.shape[1] != 1:
+        if regression and not classification:
+            raise multi_output_regression_error(targets.shape)
+        raise invalid_data_error(f"{name} must contain a single classification target column.", "supply class labels.")
+    if classification:
+        numeric = targets if np.issubdtype(targets.dtype, np.number) else None
+    else:
+        try:
+            numeric = np.asarray(targets, dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise invalid_data_error(
+                f"Unknown label type: {name} requires numeric regression targets.", "supply finite numeric targets."
+            ) from error
+    if numeric is not None:
+        if np.isnan(numeric).any():
+            raise target_nan_error(name)
+        if not np.isfinite(numeric).all():
+            raise invalid_data_error(f"Input {name} contains infinity values.", "supply finite target values.")
+    if classification:
+        try:
+            check_classification_targets(targets)
+        except ValueError as error:
+            raise invalid_data_error(str(error), "supply discrete classification labels.") from error
+    if family is not None and numeric is not None:
         family_lower = family.lower()
-        if family_lower in {"poisson", "negativebinom"} and (y_arr < 0).any():
+        if family_lower in {"poisson", "negativebinom"} and (numeric < 0).any():
             raise target_range_error(family, "non-negative")
-        if family_lower in {"gamma", "inversegaussian"} and (y_arr <= 0).any():
+        if family_lower in {"gamma", "inversegamma", "lognormal"} and (numeric <= 0).any():
             raise target_range_error(family, "strictly positive")
-        if family_lower == "binomial" and not np.all((y_arr == 0) | (y_arr == 1)):
-            raise target_range_error(family, "binary (0 or 1)")
+    return targets
 
-    # Warn about high-NaN columns
+
+def _validate_fit_inputs(X, y, regression: bool, family: str | None = None, X_val=None, y_val=None) -> None:
+    """Validate training and paired validation inputs before estimator mutation.
+
+    Targets must be finite and valid for the task. Explicit validation features
+    must match training width and, for named DataFrames, ordered columns.
+    """
+    from deeptab.core.sklearn_compat import ensure_dataframe
+
+    targets = _validate_target_array(y, name="y", regression=regression, family=family)
+    features = ensure_dataframe(X)
+    if len(features) != len(targets):
+        raise xy_length_mismatch_error(len(features), len(targets))
+    if (X_val is None) != (y_val is None):
+        raise invalid_data_error(
+            "X_val and y_val must be supplied together.", "supply both validation inputs or neither."
+        )
+    if X_val is not None:
+        validation_targets = _validate_target_array(y_val, name="y_val", regression=regression, family=family)
+        validation_features = ensure_dataframe(X_val, context="validation")
+        if len(validation_features) != len(validation_targets):
+            raise xy_length_mismatch_error(len(validation_features), len(validation_targets))
+        target_width = targets.shape[1] if targets.ndim == 2 else 1
+        validation_width = validation_targets.shape[1] if validation_targets.ndim == 2 else 1
+        if target_width != validation_width:
+            raise invalid_data_error(
+                f"y_val has {validation_width} target column(s); y has {target_width}.",
+                "supply validation targets with the same target width as training targets.",
+            )
+        if validation_features.shape[1] != features.shape[1]:
+            raise column_count_error(features.shape[1], validation_features.shape[1])
+        if hasattr(X, "columns") and hasattr(X_val, "columns") and list(X.columns) != list(X_val.columns):
+            raise column_name_error(
+                missing=[str(name) for name in X.columns if name not in X_val.columns],
+                extra=[str(name) for name in X_val.columns if name not in X.columns],
+            )
+        if not regression or family == "categorical":
+            classes = np.unique(targets)
+            unseen = validation_targets[~np.isin(validation_targets, classes)]
+            if unseen.size:
+                raise invalid_data_error(
+                    f"y_val contains label(s) {np.unique(unseen).tolist()} that were not seen during fit; "
+                    f"known classes are {classes.tolist()}.",
+                    "use validation labels from the training classes.",
+                )
     if hasattr(X, "isna"):
         nan_rate = X.isna().mean()
         high_nan = nan_rate[nan_rate > 0.5].index.tolist()
         if high_nan:
             warn_data(
-                f"Columns with >50% missing values: {[str(c) for c in high_nan]}. "
+                f"Columns with >50% missing values: {[str(column) for column in high_nan]}. "
                 "Consider dropping or imputing them before calling fit().",
                 stacklevel=5,
             )
@@ -140,6 +193,11 @@ class SklearnBase(
     # Set by concrete estimator subclasses (e.g. ``_model_cls = MLP``).
     _model_cls: ClassVar[type | None] = None
     _config_cls: ClassVar[type | None] = None
+    # Task resolved from the estimator's own type, passed to build_preprocessor()
+    # rather than trusted from user input. Regression is the default so LSS
+    # estimators (which subclass SklearnBase directly) resolve sensibly before
+    # fit() knows the distribution family; SklearnBaseClassifier overrides this.
+    _task: ClassVar[str] = "regression"
 
     def __init__(
         self,
@@ -196,7 +254,12 @@ class SklearnBase(
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
             else:
                 self._preprocessor_kwargs = {}
-            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+            self._preprocessor = build_preprocessor(
+                self.preprocessing_config,
+                task=type(self)._task,
+                random_state=random_state,
+                observability_config=observability_config,
+            )
 
             self._optimizer_type = getattr(self.trainer_config, "optimizer_type", "Adam")
             self._optimizer_kwargs = {}
@@ -210,7 +273,9 @@ class SklearnBase(
             self.config = config_cls()
 
             self._preprocessor_kwargs = {}
-            self._preprocessor = Preprocessor()
+            self._preprocessor = build_preprocessor(
+                None, task=type(self)._task, random_state=random_state, observability_config=observability_config
+            )
 
             self._optimizer_type = "Adam"
             self._optimizer_kwargs = {}
@@ -218,6 +283,9 @@ class SklearnBase(
         self._estimator = model_cls
         self._task_model = None
         self._built = False
+        # Set by pretrain(); makes the next fit() continue from the pretrained
+        # weights by default instead of rebuilding a fresh model (#446).
+        self._is_pretrained = False
         # Fitted attributes (_data_module, _trainer, _best_model_path) are
         # initialised here so fit() never *adds* new public attributes.
         # input_columns_ is a proper fitted attribute (trailing _) set only
@@ -231,11 +299,18 @@ class SklearnBase(
         #   estimator._data_module_factory = MyFactory()
         self._data_module_factory: IDataModuleFactory = DefaultDataModuleFactory()
         self._task_model_factory: ITaskModelFactory = DefaultTaskModelFactory()
-        # Observability — wire up backends if a config was provided.
-        # Underscore-prefix: hidden from sklearn get_params/set_params/clone.
         # Only wire up for a genuine ObservabilityConfig; like the model and
         # preprocessing configs above, an unexpected value is stored as-is and
         # validation is deferred rather than raising inside __init__.
+        self._apply_observability_config(observability_config)
+
+    def _apply_observability_config(self, observability_config: ObservabilityConfig | None) -> None:
+        """Store and wire up an observability config (shared by __init__ and set_params).
+
+        Only wires up backends for a genuine ObservabilityConfig; like the model
+        and preprocessing configs, an unexpected value is stored as-is and
+        validation is deferred rather than raising here.
+        """
         self._observability_config: ObservabilityConfig | None = observability_config
         if observability_config is not None and hasattr(observability_config, "structured_logging"):
             self.configure_observability(observability_config)
@@ -263,6 +338,7 @@ class SklearnBase(
                 "model_config": self.model_config,
                 "preprocessing_config": self.preprocessing_config,
                 "trainer_config": self.trainer_config,
+                "observability_config": getattr(self, "_observability_config", None),
                 "random_state": self.random_state,
             }
             if deep:
@@ -277,27 +353,76 @@ class SklearnBase(
                         params[f"trainer_config__{k}"] = v
             return params
 
-        # Legacy flat-kwargs style
-        params = {}
-        params.update(self._config_kwargs)
-        params.update(self._preprocessor_kwargs)
-        if deep:
-            get_params_fn = getattr(self._preprocessor, "get_params", None)
-            if get_params_fn is not None:
-                preprocessor_params = {
-                    key: value for key, value in get_params_fn().items() if key in self._preprocessor_arg_names
-                }
-                params.update(preprocessor_params)
-        return params
+        # No configs were supplied at construction time. `__init__` only ever
+        # accepts `model_config`/`preprocessing_config`/`trainer_config`/
+        # `random_state` as constructor arguments, so any additional overrides
+        # applied via set_params() (e.g. `layer_sizes`) are surfaced here too
+        # instead of being silently invisible to get_params() (GH #410).
+        # __sklearn_clone__ (below) replays these through set_params() rather
+        # than the constructor, so reporting them here does not break clone().
+        return {
+            "model_config": self.model_config,
+            "preprocessing_config": self.preprocessing_config,
+            "trainer_config": self.trainer_config,
+            "observability_config": getattr(self, "_observability_config", None),
+            "random_state": self.random_state,
+            **self._config_kwargs,
+            **self._preprocessor_kwargs,
+        }
+
+    def __sklearn_clone__(self):
+        """Clone by replaying set_params() rather than calling cls(**get_params()).
+
+        get_params() can report parameter overrides (e.g. ``layer_sizes`` applied
+        through set_params()) that ``__init__`` does not accept as keyword
+        arguments. scikit-learn's default clone builds the copy via
+        ``type(self)(**self.get_params(deep=False))``, which would raise a
+        ``TypeError`` in that case. Rebuilding from the real constructor
+        arguments and replaying everything else through set_params() keeps
+        clone() reliable for both the split-config and flat-kwargs styles
+        (GH #410).
+        """
+        observability_config = cast(
+            "ObservabilityConfig | None", sklearn_clone(getattr(self, "_observability_config", None), safe=False)
+        )
+        if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
+            return type(self)(
+                model_config=sklearn_clone(self.model_config) if self.model_config is not None else None,
+                preprocessing_config=(
+                    sklearn_clone(self.preprocessing_config) if self.preprocessing_config is not None else None
+                ),
+                trainer_config=sklearn_clone(self.trainer_config) if self.trainer_config is not None else None,
+                observability_config=observability_config,
+                random_state=self.random_state,
+            )
+
+        new_object = type(self)(
+            observability_config=observability_config,
+            random_state=self.random_state,
+        )
+        extra_params = {**self._config_kwargs, **self._preprocessor_kwargs}
+        if extra_params:
+            new_object.set_params(**extra_params)
+        return new_object
 
     def set_params(self, **parameters):
-        """Set the parameters of this estimator."""
+        """Set the parameters of this estimator.
+
+        Raises
+        ------
+        ValueError
+            If a key in ``parameters`` does not name a recognised parameter.
+        """
+        if not parameters:
+            return self
+
         if self.model_config is not None or self.preprocessing_config is not None or self.trainer_config is not None:
             # New split-config style
             direct_params = {}
             model_config_params = {}
             preprocessing_config_params = {}
             trainer_config_params = {}
+            invalid_keys = []
 
             for k, v in parameters.items():
                 if k.startswith("model_config__"):
@@ -306,8 +431,23 @@ class SklearnBase(
                     preprocessing_config_params[k[len("preprocessing_config__") :]] = v
                 elif k.startswith("trainer_config__"):
                     trainer_config_params[k[len("trainer_config__") :]] = v
-                else:
+                elif k in (
+                    "model_config",
+                    "preprocessing_config",
+                    "trainer_config",
+                    "random_state",
+                    "observability_config",
+                ):
                     direct_params[k] = v
+                else:
+                    invalid_keys.append(k)
+
+            if invalid_keys:
+                raise ValueError(
+                    f"Invalid parameter(s) {sorted(invalid_keys)} for estimator "
+                    f"{type(self).__name__}. Check the list of available parameters "
+                    "with `estimator.get_params().keys()`."
+                )
 
             for k, v in direct_params.items():
                 if k == "model_config":
@@ -319,13 +459,20 @@ class SklearnBase(
                     self.preprocessing_config = v
                     if v is not None and hasattr(v, "to_preprocessor_kwargs"):
                         self._preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+                        self._preprocessor = build_preprocessor(
+                            v,
+                            task=type(self)._task,
+                            random_state=self.random_state,
+                            observability_config=getattr(self, "_observability_config", None),
+                        )
                 elif k == "trainer_config":
                     self.trainer_config = v
                     if v is not None and hasattr(v, "optimizer_type"):
                         self._optimizer_type = v.optimizer_type
                 elif k == "random_state":
                     self.random_state = v
+                elif k == "observability_config":
+                    self._apply_observability_config(v)
 
             if model_config_params and self.model_config is not None and hasattr(self.model_config, "set_params"):
                 self.model_config.set_params(**model_config_params)
@@ -337,19 +484,50 @@ class SklearnBase(
             ):
                 self.preprocessing_config.set_params(**preprocessing_config_params)
                 self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-                self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+                self._preprocessor = build_preprocessor(
+                    self.preprocessing_config,
+                    task=type(self)._task,
+                    random_state=self.random_state,
+                    observability_config=getattr(self, "_observability_config", None),
+                )
             if trainer_config_params and self.trainer_config is not None and hasattr(self.trainer_config, "set_params"):
                 self.trainer_config.set_params(**trainer_config_params)
                 self._optimizer_type = self.trainer_config.optimizer_type
 
             return self
 
-        # Legacy flat-kwargs style
-        config_params = {k: v for k, v in parameters.items() if k not in self._preprocessor_arg_names}
+        # Legacy flat-kwargs style. Unlike the split-config style above, these
+        # keys map directly onto `self.config`'s own fields (there is no
+        # nested config object to delegate to), so they are validated against
+        # its dataclass fields and applied onto it directly. Previously they
+        # only ever touched `_config_kwargs`, a bookkeeping dict that fit()
+        # never reads, so set_params() silently had no effect on the model
+        # actually built (GH #410).
+        direct_keys = {"model_config", "preprocessing_config", "trainer_config", "random_state"}
+        valid_config_fields = {f.name for f in dataclass_fields(self.config)} if is_dataclass(self.config) else set()
+        valid_keys = valid_config_fields | set(self._preprocessor_arg_names) | direct_keys | {"observability_config"}
+        invalid_keys = set(parameters) - valid_keys
+        if invalid_keys:
+            raise ValueError(
+                f"Invalid parameter(s) {sorted(invalid_keys)} for estimator "
+                f"{type(self).__name__}. Check the list of available parameters "
+                "with `estimator.get_params().keys()`."
+            )
+
+        if "observability_config" in parameters:
+            self._apply_observability_config(parameters["observability_config"])
+
+        for k in direct_keys:
+            if k in parameters:
+                setattr(self, k, parameters[k])
+
+        config_params = {k: v for k, v in parameters.items() if k in valid_config_fields}
         preprocessor_params = {k: v for k, v in parameters.items() if k in self._preprocessor_arg_names}
 
         if config_params:
             self._config_kwargs.update(config_params)
+            for k, v in config_params.items():
+                setattr(self.config, k, v)
 
         if preprocessor_params:
             self._preprocessor_kwargs.update(preprocessor_params)
@@ -368,9 +546,16 @@ class SklearnBase(
 
     def __getstate__(self):
         state = self.__dict__.copy()
-        state["task_model"] = None  # Avoid serializing the task model
+        state["_task_model"] = None
+        state["_trainer"] = None
+        state["_data_module"] = None
         return state
 
     def __setstate__(self, state):
         self.__dict__.update(state)
-        self._task_model = None  # Reinitialize task model
+        self._task_model = None
+        self._trainer = None
+        self._data_module = None
+        self._built = False
+        self._is_pretrained = False
+        self.is_fitted_ = False

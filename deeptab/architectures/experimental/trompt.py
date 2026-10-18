@@ -61,6 +61,7 @@ class Trompt(BaseModel):
         self.cells = nn.ModuleList(TromptCell(feature_information, config) for _ in range(config.n_cycles))
         self.decoder = TromptDecoder(config.d_model, num_classes)
         self.init_rec = nn.Parameter(torch.empty(config.P, config.d_model))
+        nn.init.normal_(self.init_rec, std=0.01)
         self.n_cycles = config.n_cycles
 
     def forward(self, *data):
@@ -85,6 +86,8 @@ class Trompt(BaseModel):
             # print(self.tdown(O).shape)
             outputs.append(self.decoder(O))
 
-        out = torch.stack(outputs, dim=1).squeeze(-1)
+        out = torch.stack(outputs, dim=1)
+        if not getattr(self.hparams, "lss", False):
+            out = out.squeeze(-1)
         # preds = out.mean(dim=1)
         return out

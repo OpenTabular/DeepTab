@@ -18,12 +18,17 @@ class TabularDataset(Dataset):
     num_features_list : list of Tensors
         A list of tensors representing the numerical features.
     embeddings_list : list of Tensors, optional
-        A list of tensors representing the embeddings.
+        A list of tensors representing the embeddings. Tuple samples use an
+        empty list when omitted so PyTorch's default collation works.
     labels : Tensor, optional
         A tensor of labels. If None, the dataset is used for prediction.
     return_batch_object : bool, default=False
         If True, returns a TabularBatch object instead of a tuple. For backward
         compatibility, defaults to False.
+    return_indices : bool, default=False
+        Include the dataset row index in labeled tuple output for candidate-aware
+        training. Returns ``(features, label, index)`` when enabled, taking
+        precedence over ``return_batch_object`` for labeled data.
     """
 
     def __init__(
@@ -33,6 +38,7 @@ class TabularDataset(Dataset):
         embeddings_list=None,
         labels=None,
         return_batch_object=False,
+        return_indices=False,
     ):
         assert cat_features_list or num_features_list  # noqa: S101
 
@@ -41,6 +47,7 @@ class TabularDataset(Dataset):
         self.embeddings_list = embeddings_list  # Embeddings tensors (optional)
         self.labels = labels  # Labels (optional, None in prediction mode)
         self.return_batch_object = return_batch_object
+        self.return_indices = return_indices
 
     def __len__(self):
         _feats = self.num_features_list if self.num_features_list else self.cat_features_list
@@ -57,6 +64,8 @@ class TabularDataset(Dataset):
         Returns
         -------
         tuple or TabularBatch
+            With return_indices enabled and labels present, returns
+            ``(features, label, index)`` for identity-aware retrieval.
             If return_batch_object is False (default), returns a tuple containing
             lists of tensors for numerical features, categorical features, embeddings
             (if available), and a label (if available).
@@ -71,6 +80,10 @@ class TabularDataset(Dataset):
             embeddings = None
 
         label = self.labels[idx] if self.labels is not None else None
+        tuple_embeddings = embeddings if embeddings is not None else []
+
+        if self.return_indices and label is not None:
+            return (num_features, cat_features, tuple_embeddings), label, idx
 
         if self.return_batch_object:
             return TabularBatch(
@@ -82,6 +95,6 @@ class TabularDataset(Dataset):
         else:
             # Legacy tuple format
             if label is not None:
-                return (num_features, cat_features, embeddings), label
+                return (num_features, cat_features, tuple_embeddings), label
             else:
-                return (num_features, cat_features, embeddings)
+                return (num_features, cat_features, tuple_embeddings)

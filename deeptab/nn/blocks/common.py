@@ -1,6 +1,12 @@
-# ruff: noqa: E402
+import math
+from collections.abc import Callable
+from typing import Literal, cast
+
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
+from torch.autograd import Function
 from torch.nn.parameter import Parameter
 
 
@@ -26,9 +32,6 @@ class SNLinear(nn.Module):
 
         x = x.transpose(0, 1) @ self.weight
         return x.transpose(0, 1) + self.bias
-
-
-from torch.autograd import Function
 
 
 def _make_ix_like(x, dim=0):
@@ -83,7 +86,7 @@ class SparsemaxFunction(Function):
         """
         ctx.dim = dim
         max_val, _ = input_.max(dim=dim, keepdim=True)
-        input_ -= max_val  # Numerical stability trick, as with softmax.
+        input_ = input_ - max_val
         tau, supp_size = SparsemaxFunction._threshold_and_support(input_, dim=dim)
         output = torch.clamp(input_ - tau, min=0)
         ctx.save_for_backward(supp_size, output)
@@ -109,7 +112,9 @@ class SparsemaxFunction(Function):
         grad_input = grad_output.clone()
         grad_input[output == 0] = 0
 
-        v_hat = grad_input.sum(dim=dim) / supp_size.to(output.dtype).squeeze()
+        # Squeeze only the reduced dimension; a bare squeeze() also drops any other
+        # singleton axis of the input, silently misaligning the broadcast below.
+        v_hat = grad_input.sum(dim=dim) / supp_size.to(output.dtype).squeeze(dim)
         v_hat = v_hat.unsqueeze(dim)
         grad_input = torch.where(output != 0, grad_input - v_hat, grad_input)
         return grad_input, None
@@ -143,15 +148,12 @@ class SparsemaxFunction(Function):
         return tau, support_size
 
 
-def sparsemax(tensor, dim=-1):
-    return SparsemaxFunction.apply(tensor, dim)
+def sparsemax(tensor: torch.Tensor, dim: int = -1) -> torch.Tensor:
+    return cast(torch.Tensor, SparsemaxFunction.apply(tensor, dim))
 
 
 def sparsemoid(tensor):
     return (0.5 * tensor + 0.5).clamp_(0, 1)
-
-
-import torch.nn as nn
 
 
 class RMSNorm(nn.Module):
@@ -199,7 +201,7 @@ class LayerNorm(nn.Module):
 
 
 class BatchNorm(nn.Module):
-    """Batch normalization layer.
+    """Normalize the last feature dimension over all preceding dimensions.
 
     Attributes:
         d_model (int): The dimensionality of the input and output tensors.
@@ -219,12 +221,14 @@ class BatchNorm(nn.Module):
 
     def forward(self, x):
         if self.training:
-            mean = x.mean(dim=0)
+            dimensions = tuple(range(x.ndim - 1))
+            mean = x.mean(dim=dimensions)
             # Use unbiased=False for consistency with BatchNorm
-            var = x.var(dim=0, unbiased=False)
+            var = x.var(dim=dimensions, unbiased=False)
             # Update running stats in-place
-            self.running_mean.mul_(1 - self.momentum).add_(self.momentum * mean)  # type: ignore[union-attr]
-            self.running_var.mul_(1 - self.momentum).add_(self.momentum * var)  # type: ignore[union-attr]
+            with torch.no_grad():
+                self.running_mean.mul_(1 - self.momentum).add_(self.momentum * mean)  # type: ignore[union-attr]
+                self.running_var.mul_(1 - self.momentum).add_(self.momentum * var)  # type: ignore[union-attr]
         else:
             mean = self.running_mean
             var = self.running_var
@@ -234,7 +238,10 @@ class BatchNorm(nn.Module):
 
 
 class InstanceNorm(nn.Module):
-    """Instance normalization layer.
+    """Normalize each sample and feature over its sequence positions.
+
+    Sequence tensors use feature-last layout. Two-dimensional tensors are
+    normalized over features; four-dimensional images use channel-first layout.
 
     Attributes:
         d_model (int): The dimensionality of the input and output tensors.
@@ -248,15 +255,21 @@ class InstanceNorm(nn.Module):
         self.bias = nn.Parameter(torch.zeros(d_model))
 
     def forward(self, x):
-        mean = x.mean(dim=(2, 3), keepdim=True)
-        var = x.var(dim=(2, 3), keepdim=True)
+        if x.ndim == 4:
+            dimensions = (2, 3)
+            parameter_shape = (1, -1, 1, 1)
+        else:
+            dimensions = tuple(range(1, x.ndim - 1)) or (-1,)
+            parameter_shape = (1,) * (x.ndim - 1) + (-1,)
+        mean = x.mean(dim=dimensions, keepdim=True)
+        var = x.var(dim=dimensions, unbiased=False, keepdim=True)
         output = (x - mean) / torch.sqrt(var + self.eps)
-        output = output * self.weight.unsqueeze(0).unsqueeze(2) + self.bias.unsqueeze(0).unsqueeze(2)
+        output = output * self.weight.view(parameter_shape) + self.bias.view(parameter_shape)
         return output
 
 
 class GroupNorm(nn.Module):
-    """Group normalization layer.
+    """Group normalization for feature-last sequences or channel-first images.
 
     Attributes:
         num_groups (int): Number of groups to separate the channels into.
@@ -266,22 +279,17 @@ class GroupNorm(nn.Module):
 
     def __init__(self, num_groups: int, d_model: int, eps: float = 1e-5):
         super().__init__()
+        if num_groups <= 0 or d_model % num_groups:
+            raise ValueError("d_model must be divisible by a positive num_groups.")
         self.num_groups = num_groups
         self.eps = eps
         self.weight = nn.Parameter(torch.ones(d_model))
         self.bias = nn.Parameter(torch.zeros(d_model))
 
     def forward(self, x):
-        b, c, h, w = x.size()
-        x = x.view(b, self.num_groups, -1)
-        mean = x.mean(dim=-1, keepdim=True)
-        var = x.var(dim=-1, keepdim=True)
-        output = (x - mean) / torch.sqrt(var + self.eps)
-        output = output.view(b, c, h, w)
-        output = output * self.weight.unsqueeze(0).unsqueeze(2).unsqueeze(3) + self.bias.unsqueeze(0).unsqueeze(
-            2
-        ).unsqueeze(3)
-        return output
+        channel_first = x if x.ndim == 4 else x.movedim(-1, 1)
+        output = F.group_norm(channel_first, self.num_groups, self.weight, self.bias, self.eps)
+        return output if x.ndim == 4 else output.movedim(1, -1)
 
 
 class LearnableLayerScaling(nn.Module):
@@ -299,9 +307,6 @@ class LearnableLayerScaling(nn.Module):
     def forward(self, x):
         output = x * self.weight.unsqueeze(0)
         return output
-
-
-import torch.nn as nn
 
 
 class BlockDiagonal(nn.Module):
@@ -324,9 +329,6 @@ class BlockDiagonal(nn.Module):
         return x
 
 
-import torch.nn as nn
-
-
 class LearnableFourierFeatures(nn.Module):
     def __init__(self, num_features=64, d_model=512):
         super().__init__()
@@ -336,7 +338,7 @@ class LearnableFourierFeatures(nn.Module):
     def forward(self, x):
         B, K, _D = x.shape
         positions = torch.arange(K, device=x.device).unsqueeze(1)
-        encoding = torch.sin(positions * self.freqs.T + self.phases)
+        encoding = torch.sin(positions * self.freqs + self.phases.unsqueeze(1))
         return x + encoding.unsqueeze(0).expand(B, K, -1)
 
 
@@ -344,8 +346,9 @@ class LearnableFourierMask(nn.Module):
     def __init__(self, sequence_length, keep_ratio=0.5):
         super().__init__()
         cutoff_index = int(sequence_length * keep_ratio)
-        self.mask = nn.Parameter(torch.ones(sequence_length))
-        self.mask[cutoff_index:] = 0  # Start with a low-frequency cutoff
+        mask = torch.ones(sequence_length)
+        mask[cutoff_index:] = 0
+        self.mask = nn.Parameter(mask)
 
     def forward(self, x):
         freq_repr = torch.fft.fft(x, dim=1)
@@ -356,13 +359,13 @@ class LearnableFourierMask(nn.Module):
 class LearnableRandomPositionalPerturbation(nn.Module):
     def __init__(self, num_features=64, d_model=512):
         super().__init__()
-        self.freqs = nn.Parameter(torch.randn(num_features))
+        self.freqs = nn.Parameter(torch.randn(d_model))
         self.amplitude = nn.Parameter(torch.tensor(0.1))
 
     def forward(self, x):
         B, K, D = x.shape
         positions = torch.arange(K, device=x.device).unsqueeze(1)
-        random_features = torch.sin(positions * self.freqs.T)
+        random_features = torch.sin(positions * self.freqs)
         perturbation = random_features.unsqueeze(0).expand(B, K, D) * self.amplitude
         return x + perturbation
 
@@ -379,6 +382,7 @@ class LearnableRandomProjection(nn.Module):
 class PositionalInvariance(nn.Module):
     def __init__(self, config, invariance_type, seq_len, in_channels=None):
         super().__init__()
+        self._feature_last_conv = invariance_type == "conv" and in_channels is None
         # Select the appropriate layer based on config.invariance_type
         if invariance_type == "lfm":  # Learnable Fourier Mask
             self.layer = LearnableFourierMask(sequence_length=seq_len, keep_ratio=getattr(config, "keep_ratio", 0.5))
@@ -393,25 +397,23 @@ class PositionalInvariance(nn.Module):
             )
 
         elif invariance_type == "conv":
+            channels = config.d_model if in_channels is None else in_channels
             self.layer = nn.Conv1d(
-                in_channels=in_channels,  # type: ignore
-                out_channels=in_channels,  # type: ignore
+                in_channels=channels,
+                out_channels=channels,
                 kernel_size=config.d_conv,
-                padding=config.d_conv - 1,
+                padding="same",
                 bias=config.conv_bias,
-                groups=in_channels,  # type: ignore
+                groups=channels,
             )
         else:
-            raise ValueError(f"Unknown positional invariance type: {config.invariance_type}")
+            raise ValueError(f"Unknown positional invariance type: {invariance_type}")
 
     def forward(self, x):
         # Pass the input through the selected layer
+        if self._feature_last_conv:
+            return self.layer(x.transpose(1, 2)).transpose(1, 2)
         return self.layer(x)
-
-
-import math
-
-import torch.nn as nn
 
 
 class Periodic(nn.Module):
@@ -482,10 +484,6 @@ class PeriodicEmbeddings(nn.Module):
         x = self.periodic(x)
         x = self.linear(x)
         return self.activation(x) if self.activation else x
-
-
-import torch.nn as nn
-import torch.nn.functional as F
 
 
 class NeuralEmbeddingTree(nn.Module):
@@ -564,10 +562,6 @@ class NeuralEmbeddingTree(nn.Module):
         return F.pad(X, (1, 0), value=1)
 
 
-import torch.nn as nn
-from sklearn.preprocessing import MinMaxScaler, PolynomialFeatures
-
-
 class ScaledPolynomialLayer(nn.Module):
     def __init__(self, degree=2):
         super().__init__()
@@ -596,9 +590,6 @@ class ScaledPolynomialLayer(nn.Module):
         output = torch.clamp(output, min=-1e5, max=1e3)
 
         return output
-
-
-import torch.nn as nn
 
 
 class PeriodicLinearEncodingLayer(nn.Module):
@@ -637,9 +628,6 @@ class PeriodicLinearEncodingLayer(nn.Module):
         return z
 
 
-import torch.nn as nn
-
-
 class EmbeddingLayer(nn.Module):
     def __init__(self, num_feature_info, cat_feature_info, emb_feature_info, config):
         """Embedding layer that handles numerical and categorical embeddings.
@@ -669,6 +657,7 @@ class EmbeddingLayer(nn.Module):
         )
         self.embedding_type = getattr(config, "embedding_type", "linear")
         self.embedding_bias = getattr(config, "embedding_bias", False)
+        self.cat_encoding = getattr(config, "cat_encoding", "int")
 
         # Sequence length
         self.seq_len = len(num_feature_info) + len(cat_feature_info)
@@ -709,25 +698,37 @@ class EmbeddingLayer(nn.Module):
         else:
             raise ValueError("Invalid embedding_type. Choose from 'linear', 'ndt', or 'plr'.")
 
-        self.cat_embeddings = nn.ModuleList(
-            [
-                (
-                    nn.Sequential(
-                        nn.Embedding(feature_info["categories"] + 1, self.d_model),
-                        self.embedding_activation,
-                    )
-                    if feature_info["dimension"] == 1
-                    else nn.Sequential(
-                        nn.Linear(
-                            feature_info["dimension"],
-                            self.d_model,
-                            bias=self.embedding_bias,
-                        ),
-                        self.embedding_activation,
-                    )
+        def _make_cat_embedding(feature_info):
+            # Multi-dimensional categorical features (e.g. already multi-hot
+            # encoded upstream) always go through a plain linear projection;
+            # cat_encoding only selects how a single integer category id is
+            # turned into a d_model-wide vector.
+            if feature_info["dimension"] != 1:
+                return nn.Sequential(
+                    nn.Linear(feature_info["dimension"], self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
                 )
-                for feature_name, feature_info in cat_feature_info.items()
-            ]
+            num_categories = feature_info["categories"] + 1
+            if self.cat_encoding == "one-hot":
+                return nn.Sequential(
+                    OneHotEncoding(num_categories),
+                    nn.Linear(num_categories, self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
+                )
+            if self.cat_encoding == "linear":
+                return nn.Sequential(
+                    _CategoricalAsContinuous(),
+                    nn.Linear(1, self.d_model, bias=self.embedding_bias),
+                    self.embedding_activation,
+                )
+            # "int" (default): a learned embedding table indexed by category id
+            return nn.Sequential(
+                nn.Embedding(num_categories, self.d_model),
+                self.embedding_activation,
+            )
+
+        self.cat_embeddings = nn.ModuleList(
+            [_make_cat_embedding(feature_info) for feature_name, feature_info in cat_feature_info.items()]
         )
 
         if len(emb_feature_info) >= 1:
@@ -874,10 +875,14 @@ class OneHotEncoding(nn.Module):
         return torch.nn.functional.one_hot(x, num_classes=self.num_categories).float()
 
 
-from collections.abc import Callable
-from typing import Literal
+class _CategoricalAsContinuous(nn.Module):
+    """Casts an integer-encoded categorical feature to float for cat_encoding='linear'."""
 
-import torch.nn as nn
+    def forward(self, x):
+        x = x.float()
+        if x.ndim == 1:
+            x = x.unsqueeze(-1)
+        return x
 
 
 class LinearBatchEnsembleLayer(nn.Module):
@@ -1203,9 +1208,11 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         num_heads: int,
         ensemble_size: int,
         scaling_init: Literal["ones", "random-signs", "normal"] = "ones",
-        batch_ensemble_projections: list[str] = ["query"],
+        batch_ensemble_projections: list[str] | None = None,
     ):
         super().__init__()
+        if batch_ensemble_projections is None:
+            batch_ensemble_projections = ["query"]
         # Ensure embedding dimension is divisible by the number of heads
         if embed_dim % num_heads != 0:
             raise ValueError("Embedding dimension must be divisible by number of heads.")
@@ -1390,12 +1397,7 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
             return self.batch_ensemble_linear(x, linear_layer, r, s)
         else:
             # Process normally without batch ensembling
-            N, S, E, D_in = x.size()
-            x = x.view(N * E, S, D_in)  # Combine batch and ensemble dimensions
-            y = linear_layer(x)  # Apply linear layer
-            D_out = y.size(-1)
-            y = y.view(N, E, S, D_out).permute(0, 2, 1, 3)  # (N, S, E, D_out)
-            return y
+            return linear_layer(x)
 
     def batch_ensemble_linear(self, x, linear_layer, r, s):
         """Apply a linear transformation with batch ensembling.
@@ -1430,7 +1432,7 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         x_r = x * r.view(1, 1, E, D_in)  # (N, S, E, D_in)
 
         # Reshape x_r to (N*S*E, D_in)
-        x_r = x_r.view(-1, D_in)  # (N*S*E, D_in)
+        x_r = x_r.reshape(-1, D_in)  # (N*S*E, D_in)
 
         # Compute x_r @ W^T + b
         y = F.linear(x_r, W, b)  # (N*S*E, D_out)
@@ -1442,10 +1444,6 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         y = y * s.view(1, 1, E, D_out)  # (N, S, E, D_out)
 
         return y
-
-
-import torch
-import torch.nn as nn
 
 
 class mLSTMblock(nn.Module):
@@ -1541,7 +1539,7 @@ class mLSTMblock(nn.Module):
         self.ct_1 = None
         self.nt_1 = None
 
-    def init_states(self, batch_size, seq_length, device):
+    def init_states(self, batch_size, seq_length, device, dtype=None):
         """Initialize the state tensors with the correct batch and sequence dimensions.
 
         Parameters
@@ -1553,21 +1551,28 @@ class mLSTMblock(nn.Module):
         device : torch.device
             The device to place the tensors on.
         """
-        self.ct_1 = torch.zeros(batch_size, seq_length, self.hidden_size, device=device)
-        self.nt_1 = torch.zeros(batch_size, seq_length, self.hidden_size, device=device)
+        self.ct_1 = torch.zeros(batch_size, self.hidden_size, device=device, dtype=dtype)
+        self.nt_1 = torch.zeros(batch_size, self.hidden_size, device=device, dtype=dtype)
+        return self.ct_1, self.nt_1
 
-    def forward(self, x):
+    def forward(self, x, state=None):
         """Forward pass through mLSTM block.
 
         Parameters
         ----------
         x : torch.Tensor
             Input tensor of shape (batch, sequence_length, input_size).
+        state : tuple of torch.Tensor, optional
+            Cell and normalizer tensors of shape ``(batch, hidden_size)``.
+            Omit to start an independent sequence. Pass the returned state
+            explicitly to continue a sequence across calls.
 
         Returns
         -------
-        torch.Tensor
-            Output tensor of shape (batch, sequence_length, input_size).
+        tuple
+            Output of shape ``(batch, sequence_length, hidden_size)`` and the
+            final cell and normalizer state. The internal convolution uses
+            same padding; chunked calls do not retain convolution context.
         """
         if x.ndim != 3:
             raise ValueError("Input tensor must have 3 dimensions (batch, sequence_length, input_size)")
@@ -1575,8 +1580,10 @@ class mLSTMblock(nn.Module):
         device = x.device
 
         # Initialize states dynamically based on input shape
-        if self.ct_1 is None or self.ct_1.shape[0] != B or self.ct_1.shape[1] != N:
-            self.init_states(B, N, device)
+        if state is None:
+            state = self.init_states(B, N, device, dtype=x.dtype)
+        if len(state) != 2 or any(tensor.shape != (B, self.hidden_size) for tensor in state):
+            raise ValueError("mLSTM state must contain two tensors of shape (batch, hidden_size).")
 
         x = self.ln(x)  # layer norm on x
 
@@ -1597,18 +1604,22 @@ class mLSTMblock(nn.Module):
         f = torch.exp(self.lnf(self.f_gate(left_left)))
         o = torch.sigmoid(self.lno(self.o_gate(left_left)))
 
-        ct_1 = self.ct_1
-
-        ct = f * ct_1 + i * v * k  # type: ignore[operator]
-        ct = torch.mean(self.ln_c(ct), [0, 1], keepdim=True)
-        self.ct_1 = ct.detach()
-
-        nt_1 = self.nt_1
-        nt = f * nt_1 + i * k  # type: ignore[operator]
-        nt = torch.mean(self.ln_n(nt), [0, 1], keepdim=True)
-        self.nt_1 = nt.detach()
-
-        ht = o * ((ct * q) / torch.max(nt * q))
+        cell, normalizer = state
+        # Only the normalized cell and normalizer updates are sequential; everything else is vectorized.
+        cell_inputs = (i * v * k).unbind(1)
+        normalizer_inputs = (i * k).unbind(1)
+        forget_gates = f.unbind(1)
+        cells = []
+        normalizers = []
+        for position in range(N):
+            cell = self.ln_c(torch.addcmul(cell_inputs[position], forget_gates[position], cell))
+            normalizer = self.ln_n(torch.addcmul(normalizer_inputs[position], forget_gates[position], normalizer))
+            cells.append(cell)
+            normalizers.append(normalizer)
+        denominator = (torch.stack(normalizers, dim=1) * q).sum(dim=-1, keepdim=True).abs().clamp_min(1.0)
+        ht = o * torch.stack(cells, dim=1) * q / denominator
+        self.ct_1 = cell.detach()
+        self.nt_1 = normalizer.detach()
         # end mLSTM
         ht = ht
 
@@ -1617,7 +1628,7 @@ class mLSTMblock(nn.Module):
         out = self.ln_out(left * right)
         out = self.ln_proj(self.proj(out))
 
-        return out, None
+        return out, (cell, normalizer)
 
 
 class sLSTMblock(nn.Module):
@@ -1690,7 +1701,6 @@ class sLSTMblock(nn.Module):
 
         self.GN = nn.LayerNorm(self.input_size)
         self.ln_c = nn.LayerNorm(self.input_size)
-        self.ln_n = nn.LayerNorm(self.input_size)
         self.ln_h = nn.LayerNorm(self.input_size)
 
         self.left_linear = nn.Linear(self.input_size, int(self.input_size * (4 / 3)))
@@ -1706,7 +1716,7 @@ class sLSTMblock(nn.Module):
         self.ht_1 = None
         self.mt_1 = None
 
-    def init_states(self, batch_size, seq_length, device):
+    def init_states(self, batch_size, seq_length, device, dtype=None):
         """Initialize the state tensors with the correct batch and sequence dimensions.
 
         Parameters
@@ -1718,77 +1728,83 @@ class sLSTMblock(nn.Module):
         device : torch.device
             The device to place the tensors on.
         """
-        self.nt_1 = torch.zeros(batch_size, seq_length, self.input_size, device=device)
-        self.ct_1 = torch.zeros(batch_size, seq_length, self.input_size, device=device)
-        self.ht_1 = torch.zeros(batch_size, seq_length, self.input_size, device=device)
-        self.mt_1 = torch.zeros(batch_size, seq_length, self.input_size, device=device)
+        self.nt_1 = torch.zeros(batch_size, self.input_size, device=device, dtype=dtype)
+        self.ct_1 = torch.zeros(batch_size, self.input_size, device=device, dtype=dtype)
+        self.ht_1 = torch.zeros(batch_size, self.input_size, device=device, dtype=dtype)
+        self.mt_1 = torch.zeros(batch_size, self.input_size, device=device, dtype=dtype)
+        return self.ct_1, self.nt_1, self.ht_1, self.mt_1
 
-    def forward(self, x):
+    def forward(self, x, state=None):
         """Forward pass through sLSTM block.
 
         Parameters
         ----------
         x : torch.Tensor
             Input tensor of shape (batch, sequence_length, input_size).
+        state : tuple of torch.Tensor, optional
+            Cell, normalizer, hidden, and log-scale tensors of shape
+            ``(batch, input_size)``. Omit for independent sequences; pass the
+            returned state explicitly for continuation across calls.
 
         Returns
         -------
-        torch.Tensor
-            Output tensor of shape (batch, sequence_length, input_size).
+        tuple
+            Output of shape ``(batch, sequence_length, hidden_size)`` and the
+            final cell, normalizer, hidden, and log-scale state.
         """
+        if x.ndim != 3:
+            raise ValueError("Input tensor must have 3 dimensions (batch, sequence_length, input_size)")
         B, N, _ = x.shape
         device = x.device
 
         # Initialize states dynamically based on input shape
-        if self.ct_1 is None or self.nt_1 is None or self.nt_1.shape[0] != B or self.nt_1.shape[1] != N:
-            self.init_states(B, N, device)
+        if state is None:
+            state = self.init_states(B, N, device, dtype=x.dtype)
+        if len(state) != 4 or any(tensor.shape != (B, self.input_size) for tensor in state):
+            raise ValueError("sLSTM state must contain four tensors of shape (batch, input_size).")
 
         x = self.activation(x)
 
-        # Start sLSTM operations
-        ht_1 = self.ht_1
+        size = self.input_size
+        gate_norms = (self.ln_i, self.ln_f, self.ln_o, self.ln_z)
+        # Input projections do not depend on the recurrence, so they run once for the whole sequence.
+        input_logits = torch.cat([self.i_gate(x), self.f_gate(x), self.o_gate(x), self.z_gate(x)], dim=-1)
+        input_logits = input_logits.view(B, N, 4, size).unbind(1)
+        recurrent_gates = (self.ri_gate, self.rf_gate, self.ro_gate, self.rz_gate)
+        recurrent_weight = torch.cat([weight for gate in recurrent_gates for weight in gate.parameters()])
+        norm_weight = torch.stack([norm.weight for norm in gate_norms])
+        norm_bias = torch.stack([norm.bias for norm in gate_norms])
+        eps = torch.finfo(x.dtype).eps
 
-        i = torch.exp(self.ln_i(self.i_gate(x) + self.ri_gate(ht_1)))
-        f = torch.exp(self.ln_f(self.f_gate(x) + self.rf_gate(ht_1)))
-
-        # Use expand_as to match the shapes of f and i for element-wise operations
-        m = torch.max(
-            torch.log(f) + self.mt_1.expand_as(f),  # type: ignore
-            torch.log(i),  # type: ignore
-        )
-        i = torch.exp(torch.log(i) - m)
-        f = torch.exp(torch.log(f) + self.mt_1.expand_as(f) - m)  # type: ignore
-        self.mt_1 = m.detach()
-
-        o = torch.sigmoid(self.ln_o(self.o_gate(x) + self.ro_gate(ht_1)))
-        z = torch.tanh(self.ln_z(self.z_gate(x) + self.rz_gate(ht_1)))
-
-        ct_1 = self.ct_1
-        ct = f * ct_1 + i * z  # type: ignore[operator]
-        ct = torch.mean(self.ln_c(ct), [0, 1], keepdim=True)
-        self.ct_1 = ct.detach()
-
-        nt_1 = self.nt_1
-        nt = f * nt_1 + i  # type: ignore[operator]
-        nt = torch.mean(self.ln_n(nt), [0, 1], keepdim=True)
-        self.nt_1 = nt.detach()
-
-        ht = o * (ct / nt)
-        ht = torch.mean(self.ln_h(ht), [0, 1], keepdim=True)
-        self.ht_1 = ht.detach()
-
-        slstm_out = self.GN(ht)
+        cell, normalizer, hidden, log_scale = state
+        hidden_steps = []
+        for position in range(N):
+            logits = input_logits[position] + F.linear(hidden, recurrent_weight).view(B, 4, size)
+            logits = torch.addcmul(norm_bias, F.layer_norm(logits, (size,), eps=self.ln_i.eps), norm_weight)
+            input_logit, forget_logit, output_logit, candidate_logit = logits.unbind(1)
+            scaled_forget_logit = forget_logit + log_scale
+            next_scale = torch.maximum(scaled_forget_logit, input_logit)
+            input_gate = torch.exp(input_logit - next_scale)
+            forget_gate = torch.exp(scaled_forget_logit - next_scale)
+            output_gate = torch.sigmoid(output_logit)
+            candidate = torch.tanh(candidate_logit)
+            cell = self.ln_c(forget_gate * cell + input_gate * candidate)
+            normalizer = forget_gate * normalizer + input_gate
+            hidden = self.ln_h(output_gate * cell / normalizer.clamp_min(eps))
+            log_scale = next_scale
+            hidden_steps.append(hidden)
+        self.ct_1 = cell.detach()
+        self.nt_1 = normalizer.detach()
+        self.ht_1 = hidden.detach()
+        self.mt_1 = log_scale.detach()
+        slstm_out = self.GN(torch.stack(hidden_steps, dim=1))
 
         left = self.left_linear(slstm_out)
         right = F.gelu(self.right_linear(slstm_out))
 
         out = self.ln_out(left * right)
         out = self.proj(out)
-        return out, None
-
-
-import torch
-import torch.nn as nn
+        return out, (cell, normalizer, hidden, log_scale)
 
 
 class ConvRNN(nn.Module):
@@ -1860,13 +1876,21 @@ class ConvRNN(nn.Module):
         self.rnns = nn.ModuleList()
         self.layernorms_rnn = nn.ModuleList()  # LayerNorms for RNN layers
 
+        # Each stacked block below is its own single-layer RNN module
+        # (num_layers=1), since the conv/layernorm steps are interleaved
+        # between them. PyTorch's RNN/LSTM/GRU only apply their internal
+        # `dropout=` argument between stacked layers *inside one module*, so
+        # passing it here would always be silently ignored (and warned about)
+        # regardless of rnn_dropout's value. Dropout between these blocks is
+        # applied explicitly in forward() instead.
+        self.rnn_dropout_layer = nn.Dropout(self.rnn_dropout)
+
         for i in range(self.num_layers):
             rnn_args = {
                 "input_size": self.input_size if i == 0 else self.hidden_size,
                 "hidden_size": self.hidden_size,
                 "num_layers": 1,
                 "batch_first": True,
-                "dropout": self.rnn_dropout if i < self.num_layers - 1 else 0,
                 "bias": self.bias,
             }
             if self.model_type == "RNN":
@@ -1906,6 +1930,12 @@ class ConvRNN(nn.Module):
 
             # Pass through the RNN layer
             x, _ = self.rnns[i](x)
+
+            # Apply dropout between stacked blocks (not after the last one),
+            # matching how PyTorch applies dropout between the layers of a
+            # single multi-layer RNN module.
+            if i < self.num_layers - 1:
+                x = self.rnn_dropout_layer(x)
 
             # Residual connection with learnable matrix
             if self.residuals:

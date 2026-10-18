@@ -102,6 +102,12 @@ The run identifier combines a timestamp and a short hash, so concurrent or repea
 `experiment_trackers` is a list, not a single string. Pass `["tensorboard"]`, `["mlflow"]`, or `["mlflow", "tensorboard"]` to activate one or both.
 ```
 
+For local SQLite tracking URIs, DeepTab creates the database's parent directory
+before constructing the MLflow logger. This includes the default
+`<root_dir>/mlflow/backend/mlflow.db` and custom relative or absolute SQLite paths.
+Remote tracking URIs and in-memory SQLite stores do not create database directories.
+MLflow's configured local artifact directory is created separately.
+
 ---
 
 ## Verbosity levels
@@ -116,6 +122,10 @@ When `structured_logging=True`, `verbosity` controls how much is emitted. Higher
 | `3`   | Debug: all events.                                                              |
 
 The default of `1` keeps console output to a few meaningful milestones.
+
+```{note}
+This same `verbosity` also governs PreTab's own preprocessing output. DeepTab forwards it to PreTab's `Preprocessor(verbose=...)` on the same 0-3 scale, and, when `structured_logging=True`, attaches DeepTab's console handler to PreTab's shared logger so its fit-time messages appear alongside DeepTab's own. There is no separate PreTab verbose flag to set: one `verbosity` value controls both.
+```
 
 ---
 

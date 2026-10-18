@@ -16,14 +16,20 @@ class CategoricalDistribution(BaseDistribution):
     Parameters
     ----------
         name (str): The name of the distribution, defaulted to "Categorical".
+        num_classes (int): Number of categories and prediction columns. Defaults to ``1``.
         prob_transform (str or callable): Transformation for the probabilities to ensure
         they remain valid (i.e., non-negative and sum to 1).
     """
 
-    def __init__(self, name="Categorical", prob_transform="probabilities"):
-        param_names = ["probs"]
+    def __init__(self, name="Categorical", prob_transform="probabilities", *, num_classes: int = 1):
+        if num_classes < 1:
+            raise ValueError(f"num_classes must be >= 1, got {num_classes}.")
+        param_names = [f"class_{index}" for index in range(num_classes)]
         super().__init__(name, param_names)
         self.probs_transform = self.get_transform(prob_transform)
+
+    def forward(self, predictions):
+        return self.probs_transform(predictions)
 
     def compute_loss(self, predictions, y_true):
         probs = self.probs_transform(predictions)
@@ -59,7 +65,9 @@ class Quantile(BaseDistribution):
         Computes the quantile regression loss between the predictions and true values.
     """
 
-    def __init__(self, name="Quantile", quantiles=[0.25, 0.5, 0.75]):
+    def __init__(self, name="Quantile", quantiles=None):
+        if quantiles is None:
+            quantiles = [0.25, 0.5, 0.75]
         param_names = [f"q_{q}" for q in quantiles]
         super().__init__(name, param_names)
         self.quantiles = quantiles
@@ -113,6 +121,11 @@ class MultinomialDistribution(BaseDistribution):
 
         self.total_count = total_count
         self.probs_transform = self.get_transform(prob_transform)
+
+    def forward(self, predictions):
+        # Softmax needs the full logit row at once, not the per-parameter
+        # column-by-column transform the base class applies.
+        return self.probs_transform(predictions)
 
     def compute_loss(self, predictions, y_true):
         probs = self.probs_transform(predictions)

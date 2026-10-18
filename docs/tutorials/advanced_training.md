@@ -133,7 +133,7 @@ trainer = TrainerConfig(
 
 clf = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=trainer,
     random_state=RANDOM_STATE,
 )
@@ -167,7 +167,7 @@ trainer_wd = TrainerConfig(
 
 clf_wd = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=trainer_wd,
     random_state=RANDOM_STATE,
 )
@@ -183,7 +183,7 @@ Nesterov momentum usually adds a small further improvement at no extra cost.
 ```python
 clf_sgd = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -233,7 +233,7 @@ tuning and is a strong default when you train for a fixed number of epochs.
 ```python
 clf_cos = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -261,7 +261,7 @@ or AUROC.
 ```python
 clf_plateau = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -298,7 +298,7 @@ Set `scheduler_type=None` to use a constant learning rate:
 ```python
 clf_const_lr = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -321,7 +321,7 @@ steps_per_epoch = int(np.ceil(len(X_train) / 128))
 
 clf_onecycle = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -415,7 +415,7 @@ print("scaledadam" in available_optimizers())   # True
 # Use it via TrainerConfig
 clf_custom_opt = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,
@@ -453,7 +453,7 @@ print("warmupconstant" in available_schedulers())   # True
 
 clf_warmup = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=3),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(
         max_epochs=5,
         batch_size=128,

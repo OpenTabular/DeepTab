@@ -10,17 +10,23 @@ from .exceptions import (
     DataWarning,
     DeepTabError,
     DeepTabWarning,
+    DeviceError,
+    DeviceUnavailableError,
     EmptyDataError,
     IncompatibleParamsError,
     InsufficientSamplesError,
+    InvalidDataError,
+    InvalidDeviceError,
     InvalidParamError,
     ModelError,
     NotFittedError,
     PerformanceWarning,
+    UnsupportedParamError,
 )
 from .hardware import print_hardware_info
 from .inference import InferenceModel
-from .inspection import ImportanceGetter, InspectionMixin, get_feature_dimensions
+from .inspection import ImportanceGetter, InspectionMixin, concat_features, get_feature_dimensions
+from .preprocessing import build_preprocessor, fit_preprocessor, list_available_representations
 from .registry import MODEL_REGISTRY, ModelInfo
 from .reproducibility import seed_context, set_seed
 from .serialization import (
@@ -32,7 +38,7 @@ from .serialization import (
     save_state_dict,
 )
 from .sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
-from .utils import MLP_Block, check_numpy, make_random_batches
+from .utils import check_numpy
 
 __all__ = [
     "ARTIFACT_FORMAT_VERSION",
@@ -49,25 +55,32 @@ __all__ = [
     "DataWarning",
     "DeepTabError",
     "DeepTabWarning",
+    "DeviceError",
+    "DeviceUnavailableError",
     "EmptyDataError",
     "ImportanceGetter",
     "IncompatibleParamsError",
     "InferenceModel",
     "InspectionMixin",
     "InsufficientSamplesError",
+    "InvalidDataError",
+    "InvalidDeviceError",
     "InvalidParamError",
-    "MLP_Block",
     "ModelError",
     "ModelInfo",
     "NotFittedError",
     "PerformanceWarning",
+    "UnsupportedParamError",
     "build_artifact_metadata",
+    "build_preprocessor",
     "check_numpy",
     "collect_version_metadata",
+    "concat_features",
     "ensure_dataframe",
+    "fit_preprocessor",
     "get_feature_dimensions",
+    "list_available_representations",
     "load_state_dict",
-    "make_random_batches",
     "print_hardware_info",
     "restore_loaded_metadata",
     "save_state_dict",

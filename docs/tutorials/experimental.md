@@ -122,7 +122,7 @@ The parameters you will tune most are `n_cycles` (how many read-aggregate rounds
 ```python
 trompt = TromptClassifier(
     model_config=TromptConfig(d_model=128, n_cycles=6, n_cells=4, P=128),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(max_epochs=5, batch_size=128, lr=3e-4, patience=2),
     random_state=101,
 )
@@ -156,7 +156,7 @@ Two parameters deserve attention. `temperature` controls how sharply the softmax
 ```python
 nca = ModernNCARegressor(
     model_config=ModernNCAConfig(dim=128, n_blocks=4, temperature=0.75, sample_rate=0.5),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(max_epochs=5, batch_size=128, lr=3e-4, patience=2),
     random_state=101,
 )
@@ -178,17 +178,19 @@ $$L_{\text{total}} = L_{\text{task}} + \lambda_1 L_{\text{spec}} + \lambda_2 L_{
 
 where `lamda1` and `lamda2` weight the two regularizers. The goal is better generalisation on small tabular datasets, at the cost of a more expensive backward pass.
 
-| Field         | Default          | Meaning                                                  |
-| ------------- | ---------------- | -------------------------------------------------------- |
-| `layer_sizes` | `[256, 128, 32]` | Hidden layer widths of the MLP body.                     |
-| `lamda1`      | `0.5`            | Weight of the specialisation penalty ($\lambda_1$).      |
-| `lamda2`      | `0.1`            | Weight of the orthogonalisation penalty ($\lambda_2$).   |
-| `subsample`   | `0.5`            | Fraction of features sampled when computing the penalty. |
+| Field         | Default          | Meaning                                                |
+| ------------- | ---------------- | ------------------------------------------------------ |
+| `layer_sizes` | `[256, 128, 32]` | Hidden layer widths of the MLP body.                   |
+| `lamda1`      | `0.5`            | Weight of the specialisation penalty ($\lambda_1$).    |
+| `lamda2`      | `0.1`            | Weight of the orthogonalisation penalty ($\lambda_2$). |
+| `subsample`   | `0.5`            | Batch-scaled hidden-neuron pair sampling multiplier.   |
+
+In the sampled orthogonality penalty, the number of hidden-neuron pairs is `int(subsample * batch_size)`. This does not subsample input features. Setting `subsample=0` uses all pairs.
 
 ```python
 tangos = TangosClassifier(
     model_config=TangosConfig(layer_sizes=[256, 128, 32], lamda1=0.5, lamda2=0.1),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(max_epochs=5, batch_size=128, lr=1e-3, patience=2),
     random_state=101,
 )
@@ -207,7 +209,7 @@ The Jacobian-based penalty makes each training step noticeably heavier than a pl
 An experimental result is only meaningful next to a reference you trust. The most useful habit when evaluating any experimental model is to run it against a stable baseline under identical preprocessing and trainer settings, then compare on held-out data. Here we put both experimental classifiers next to stable Mambular on the shared classification task.
 
 ```python
-PREPROC = PreprocessingConfig(numerical_preprocessing="quantile")
+PREPROC = PreprocessingConfig(numerical_method="quantile")
 TRAINER = TrainerConfig(max_epochs=5, batch_size=128, patience=2)
 
 candidates = {

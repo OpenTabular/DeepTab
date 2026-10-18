@@ -11,8 +11,11 @@ from typing import Any
 import numpy as np
 import torch
 
+from deeptab.core.exceptions import device_unavailable_error, invalid_device_error
+
 RECOMMENDED_EXTENSION = ".deeptab"
-ARTIFACT_FORMAT_VERSION = 2
+ARTIFACT_FORMAT_VERSION = 3
+RETRIEVAL_STATE_VERSION = 1
 
 
 def _warn_extension(path: str) -> None:
@@ -48,6 +51,64 @@ def load_state_dict(model: torch.nn.Module, path: str, device: str | torch.devic
     model.load_state_dict(state_dict)
     model.to(device)
     return model
+
+
+INFERENCE_DEVICES = ("cpu", "cuda", "mps", "auto")
+
+
+def _device_is_available(device: str) -> bool:
+    """Check whether *device* (a concrete, non-"auto" device name) can be used."""
+    if device == "cpu":
+        return True
+    if device == "cuda":
+        return torch.cuda.is_available()
+    if device == "mps":
+        return torch.backends.mps.is_available()
+    return False
+
+
+def resolve_inference_accelerator(device: str) -> tuple[str, int, str]:
+    """Translate a ``load()``/``InferenceModel`` ``device`` argument into the
+    values needed to safely reconstruct a model on the loading machine.
+
+    A model reloaded from disk must not silently inherit whatever hardware happens
+    to be visible on the loading machine: the trainer created during
+    :meth:`load` is used for every subsequent ``predict()`` call, so an unpinned
+    ``accelerator="auto"`` with a multi-GPU host can start distributed inference
+    the caller never asked for. ``devices`` is therefore always pinned to a single
+    device, even for ``"auto"``, since automatic selection only chooses which
+    accelerator type to use, never how many devices.
+
+    Parameters
+    ----------
+    device : {"cpu", "cuda", "mps", "auto"}
+        Requested inference device.
+
+    Returns
+    -------
+    tuple[str, int, str]
+        ``(accelerator, devices, map_location)``: ``accelerator``/``devices`` are
+        ready to pass to ``lightning.Trainer``; ``map_location`` is the concrete
+        device name to pass to ``torch.load`` so weights saved on one device (e.g.
+        a training GPU) can always be deserialized safely, regardless of what
+        hardware the saved artifact was produced on.
+
+    Raises
+    ------
+    InvalidDeviceError
+        If *device* is not one of the supported values.
+    DeviceUnavailableError
+        If a concrete device (``"cuda"``/``"mps"``) is requested but not available
+        on this machine.
+    """
+    if device not in INFERENCE_DEVICES:
+        raise invalid_device_error(device, INFERENCE_DEVICES)
+    if device == "auto":
+        map_location = next((candidate for candidate in ("cuda", "mps") if _device_is_available(candidate)), "cpu")
+        return "auto", 1, map_location
+    if not _device_is_available(device):
+        raise device_unavailable_error(device)
+    return device, 1, device
 
 
 def collect_version_metadata() -> dict[str, Any]:
@@ -86,11 +147,14 @@ def build_artifact_metadata(
     classes_: Any = None,
 ) -> dict[str, Any]:
     """Build the standard metadata block stored with fitted estimators."""
+    feature_schema = build_feature_schema_metadata(data_module)
     return {
         "format_version": ARTIFACT_FORMAT_VERSION,
         "architecture": build_architecture_metadata(model_class=model_class, config=config, estimator=estimator),
-        "feature_schema": build_feature_schema_metadata(data_module),
-        "preprocessing": build_preprocessing_metadata(preprocessor, preprocessor_kwargs),
+        "feature_schema": _simplify(feature_schema),
+        "preprocessing": build_preprocessing_metadata(
+            preprocessor, preprocessor_kwargs, feature_info=feature_schema.get("feature_info")
+        ),
         "task": build_task_metadata(
             task=task,
             regression=regression,
@@ -162,15 +226,56 @@ def build_feature_schema_metadata(data_module: Any) -> dict[str, Any]:
 
 
 def build_preprocessing_metadata(
-    preprocessor: Any, preprocessor_kwargs: dict[str, Any] | None = None
+    preprocessor: Any,
+    preprocessor_kwargs: dict[str, Any] | None = None,
+    feature_info: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Describe the fitted preprocessing object stored in the artifact."""
+    spec, fingerprint = _resolve_preprocessor_spec_and_fingerprint(preprocessor)
     return {
         "class_name": type(preprocessor).__name__ if preprocessor is not None else None,
         "module": type(preprocessor).__module__ if preprocessor is not None else None,
         "kwargs": _simplify(preprocessor_kwargs or {}),
         "fitted_state_persisted": preprocessor is not None,
+        "spec": spec,
+        "fingerprint": fingerprint,
+        "feature_widths": _resolve_feature_widths(feature_info),
     }
+
+
+def _resolve_preprocessor_spec_and_fingerprint(preprocessor: Any) -> tuple[dict[str, Any] | None, str | None]:
+    """Best-effort ``to_spec()``/``fingerprint_`` snapshot for diagnostics and future migration tooling.
+
+    Looked up defensively (not every object stored as ``preprocessor`` is a fitted
+    PreTab ``Preprocessor``, e.g. in tests) so an artifact still saves successfully
+    either way; this does not change how the preprocessor itself is restored on load.
+    """
+    if preprocessor is None:
+        return None, None
+    spec = None
+    to_spec = getattr(preprocessor, "to_spec", None)
+    if callable(to_spec):
+        try:
+            spec = _simplify(to_spec())
+        except Exception:
+            spec = None
+    try:
+        fingerprint = getattr(preprocessor, "fingerprint_", None)
+    except Exception:
+        fingerprint = None
+    return spec, fingerprint
+
+
+def _resolve_feature_widths(feature_info: dict[str, Any] | None) -> dict[str, Any]:
+    """Flatten the num/cat/emb feature-info groups into ``{feature_name: output_width}``."""
+    widths: dict[str, Any] = {}
+    if not feature_info:
+        return widths
+    for group in ("num", "cat", "emb"):
+        for name, info in (feature_info.get(group) or {}).items():
+            if isinstance(info, dict) and "dimension" in info:
+                widths[name] = info["dimension"]
+    return widths
 
 
 def build_task_metadata(
@@ -210,6 +315,158 @@ _PREPROCESSOR_ARG_NAMES: list[str] = [
     "knots_strategy",
     "spline_implementation",
 ]
+
+
+def build_retrieval_state(task_model: Any, feature_schema: dict[str, Any]) -> dict[str, Any] | None:
+    """Snapshot candidate inputs and targets without device or trainer references."""
+    if not hasattr(task_model.estimator, "predict_with_candidates"):
+        return None
+    if task_model.train_features is None or task_model.train_targets is None:
+        raise ValueError("Retrieval candidate bank is missing. Refit with the original training data before saving.")
+    return {
+        "version": RETRIEVAL_STATE_VERSION,
+        "features": tuple(
+            [feature.detach().cpu().clone() for feature in group] if group is not None else None
+            for group in task_model.train_features
+        ),
+        "targets": task_model.train_targets.detach().cpu().clone(),
+        "row_count": len(task_model.train_targets),
+        "feature_schema": feature_schema,
+        "feature_dtypes": tuple(
+            [str(feature.dtype) for feature in group] if group is not None else None
+            for group in task_model.train_features
+        ),
+        "target_dtype": str(task_model.train_targets.dtype),
+    }
+
+
+def _validate_retrieval_state(state: Any, bundle: dict[str, Any]) -> dict[str, Any]:
+    if (
+        not isinstance(state, dict)
+        or type(state.get("version")) is not int
+        or state["version"] != RETRIEVAL_STATE_VERSION
+    ):
+        raise ValueError(
+            "Retrieval candidate bank is missing or unsupported. Refit with the original training data and save a new artifact."
+        )
+    schema = bundle.get("feature_schema")
+    if not isinstance(schema, dict) or state.get("feature_schema") != schema:
+        raise ValueError("Retrieval candidate bank schema does not match the artifact schema.")
+    task_info = bundle.get("task_info")
+    if not isinstance(task_info, dict) or state.get("task_info") != _simplify(task_info):
+        raise ValueError("Retrieval candidate bank task mapping does not match the artifact.")
+    for name in ("regression", "lss", "family", "num_classes", "classes_"):
+        if task_info.get(name) != _simplify(bundle.get(name)):
+            raise ValueError("Retrieval candidate bank class mapping or task configuration is incompatible.")
+    information = schema.get("feature_info")
+    if not isinstance(information, dict) or information != _simplify(bundle.get("feature_info")):
+        raise ValueError("Retrieval candidate bank feature information is incompatible with the model.")
+    rows = state.get("row_count")
+    targets = state.get("targets")
+    if type(rows) is not int or rows < 1:
+        raise ValueError("Retrieval candidate bank row_count must be a positive integer.")
+    if (
+        not isinstance(targets, torch.Tensor)
+        or targets.layout != torch.strided
+        or targets.ndim not in {1, 2}
+        or targets.shape[0] != rows
+    ):
+        raise ValueError("Retrieval candidate bank targets must align with its rows.")
+    if (
+        targets.device.type not in {"cpu", "cuda", "mps"}
+        or targets.dtype == torch.bool
+        or targets.is_complex()
+        or str(targets.dtype) != state.get("target_dtype")
+        or not torch.isfinite(targets).all()
+    ):
+        raise ValueError("Retrieval candidate bank target dtype or values are invalid.")
+    if not bundle.get("regression", True):
+        classes = bundle.get("classes_")
+        if (
+            classes is None
+            or targets.numel() != rows
+            or not torch.equal(targets, targets.round())
+            or (targets < 0).any()
+            or (targets >= len(classes)).any()
+        ):
+            raise ValueError("Retrieval candidate bank targets do not match the encoded classifier labels.")
+        expected_dtype = torch.int64 if len(classes) > 2 else torch.float32
+        expected_shape = (rows,) if len(classes) > 2 else (rows, 1)
+    else:
+        expected_dtype = torch.float32
+        expected_shape = (
+            rows,
+            bundle["num_classes"] if bundle.get("lss") and bundle.get("family") == "dirichlet" else 1,
+        )
+    if targets.dtype != expected_dtype or tuple(targets.shape) != expected_shape:
+        raise ValueError("Retrieval candidate bank target dtype or width does not match the task.")
+    features = state.get("features")
+    dtypes = state.get("feature_dtypes")
+    if (
+        not isinstance(features, (tuple, list))
+        or len(features) != 3
+        or not isinstance(dtypes, (tuple, list))
+        or len(dtypes) != 3
+    ):
+        raise ValueError("Retrieval candidate bank must contain three ordered feature groups and their dtypes.")
+    for group, declared_dtypes, name in zip(features, dtypes, ("num", "cat", "emb"), strict=True):
+        expected = information.get(name)
+        if not isinstance(expected, dict):
+            raise ValueError("Retrieval candidate bank feature schema is invalid.")
+        if group is None:
+            if expected or name != "emb" or declared_dtypes is not None:
+                raise ValueError("Retrieval candidate bank is missing a required feature group.")
+            continue
+        if (
+            not isinstance(group, (tuple, list))
+            or len(group) != len(expected)
+            or not isinstance(declared_dtypes, (tuple, list))
+            or len(declared_dtypes) != len(group)
+        ):
+            raise ValueError("Retrieval candidate bank feature group counts do not match the schema.")
+        for feature, dtype, description in zip(group, declared_dtypes, expected.values(), strict=True):
+            if (
+                not isinstance(description, dict)
+                or type(description.get("dimension")) is not int
+                or description["dimension"] < 1
+            ):
+                raise ValueError("Retrieval candidate bank feature dimensions in the schema are invalid.")
+            if (
+                not isinstance(feature, torch.Tensor)
+                or feature.layout != torch.strided
+                or feature.ndim != 2
+                or feature.shape[0] != rows
+                or feature.shape[1] != description.get("dimension")
+            ):
+                raise ValueError(
+                    "Retrieval candidate bank feature dimensions or row alignment do not match the schema."
+                )
+            expected_dtype = (
+                torch.float32
+                if name != "cat"
+                or any(value in description.get("preprocessing", "") for value in ("onehot", "pretrained"))
+                else torch.int64
+            )
+            if (
+                feature.device.type not in {"cpu", "cuda", "mps"}
+                or feature.dtype != expected_dtype
+                or str(feature.dtype) != dtype
+                or not torch.isfinite(feature).all()
+            ):
+                raise ValueError("Retrieval candidate bank feature dtype or values are invalid.")
+    return state
+
+
+def restore_retrieval_state(task_model: Any, bundle: dict[str, Any]) -> None:
+    """Restore the required candidate bank before exposing a loaded estimator."""
+    if not hasattr(task_model.estimator, "predict_with_candidates"):
+        return
+    state = _validate_retrieval_state(bundle.get("retrieval_state"), bundle)
+    task_model.train_features = tuple(
+        [feature.detach().to(task_model.device).clone() for feature in group] if group is not None else None
+        for group in state["features"]
+    )
+    task_model.train_targets = state["targets"].detach().to(task_model.device).clone()
 
 
 def build_save_bundle(
@@ -258,10 +515,23 @@ def build_save_bundle(
       :func:`build_artifact_metadata`, including architecture, feature schema,
       preprocessing, task, and version information.
     * ``task_model_state_dict`` — the Lightning module weights.
+    * ``loss_fct`` — the fitted loss module (or ``None`` for LSS models, whose
+      loss is derived from ``family``), so the exact loss the model was
+      trained with (including any class weights) is restored on load instead
+      of being re-derived from ``num_classes``.
     * ``preprocessor`` — the fitted preprocessing object.
     * ``feature_info`` — numerical, categorical, and embedding feature dicts.
     * ``classes_``, ``n_features_in_``, ``feature_names_in_`` — sklearn-style
       fitted attributes.
+    * ``architecture_state``: extra constructor kwargs needed to rebuild an
+      architecture that randomizes part of its own shape at construction
+      time (e.g. NDTF's per-tree depth), or ``None`` for architectures that
+      don't define :meth:`get_architecture_state`.
+        * ``retrieval_state``: a separately versioned CPU snapshot of required
+            transformed candidate feature groups and targets, with row count, schema,
+            dtype declarations, task configuration and class mapping; ``None`` for
+            models that do not use candidates. Runtime search indexes are rebuilt
+            from candidate inputs rather than serialized.
 
     Examples
     --------
@@ -302,11 +572,22 @@ def build_save_bundle(
         classes_=getattr(estimator, "classes_", None),
     )
     feature_schema = artifact_metadata["feature_schema"]
+    distributional_kwargs = getattr(estimator, "distributional_kwargs_", {}) if lss else {}
+    if lss:
+        artifact_metadata["task"]["distributional_kwargs"] = _simplify(distributional_kwargs)
 
-    return {
+    get_architecture_state = getattr(estimator._estimator, "get_architecture_state", None)
+    architecture_state = get_architecture_state() if callable(get_architecture_state) else None
+
+    retrieval_state = build_retrieval_state(estimator._task_model, feature_schema)
+    bundle = {
         "_class": type(estimator),
         "config": estimator.config,
         "config_kwargs": estimator._config_kwargs,
+        "model_config": estimator.model_config,
+        "preprocessing_config": estimator.preprocessing_config,
+        "trainer_config": estimator.trainer_config,
+        "random_state": estimator.random_state,
         "preprocessor_kwargs": getattr(estimator, "_preprocessor_kwargs", {}),
         "preprocessor": estimator._preprocessor,
         "feature_info": {
@@ -320,13 +601,16 @@ def build_save_bundle(
         "num_classes": estimator._task_model.num_classes,
         "lss": lss,
         "family": family,
+        "distributional_kwargs": distributional_kwargs,
         "optimizer_type": estimator._optimizer_type,
         "optimizer_kwargs": estimator._optimizer_kwargs,
         "lr": estimator._task_model.lr,
         "lr_patience": estimator._task_model.lr_patience,
         "lr_factor": estimator._task_model.lr_factor,
         "weight_decay": estimator._task_model.weight_decay,
+        "loss_fct": estimator._task_model.loss_fct,
         "task_model_state_dict": estimator._task_model.state_dict(),
+        "retrieval_state": retrieval_state,
         "artifact_metadata": artifact_metadata,
         "architecture_metadata": artifact_metadata["architecture"],
         "feature_schema": feature_schema,
@@ -337,7 +621,12 @@ def build_save_bundle(
         "n_features_in_": getattr(estimator, "n_features_in_", None),
         "feature_names_in_": getattr(estimator, "feature_names_in_", None),
         "versions": artifact_metadata["versions"],
+        "architecture_state": architecture_state,
     }
+    if retrieval_state is not None:
+        retrieval_state["task_info"] = _simplify(artifact_metadata["task"])
+        _validate_retrieval_state(retrieval_state, bundle)
+    return bundle
 
 
 def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
@@ -370,6 +659,8 @@ def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
     ``trainer`` — those require task-specific wiring handled by each
     ``load()`` classmethod.
     """
+    from deeptab.configs.core import PreprocessingConfig, TrainerConfig
+
     obj.config = bundle["config"]
     obj._config_kwargs = bundle["config_kwargs"]
     obj._preprocessor_kwargs = bundle.get("preprocessor_kwargs", {})
@@ -378,10 +669,24 @@ def restore_base_state(obj: Any, bundle: dict[str, Any]) -> None:
     obj._optimizer_kwargs = bundle["optimizer_kwargs"]
     obj._built = True
     obj.is_fitted_ = True
-    obj.model_config = None
-    obj.preprocessing_config = None
-    obj.trainer_config = None
-    obj.random_state = None
+    obj._is_pretrained = False
+    obj._best_model_path = None
+    obj.model_config = bundle.get("model_config", bundle["config"])
+    if "preprocessing_config" in bundle:
+        obj.preprocessing_config = bundle["preprocessing_config"]
+    else:
+        preprocessing_fields = {field.name for field in fields(PreprocessingConfig)}
+        obj.preprocessing_config = PreprocessingConfig(
+            **{key: value for key, value in obj._preprocessor_kwargs.items() if key in preprocessing_fields}
+        )
+    if "trainer_config" in bundle:
+        obj.trainer_config = bundle["trainer_config"]
+    else:
+        trainer_fields = {field.name for field in fields(TrainerConfig)}
+        trainer_kwargs = {key: value for key, value in bundle.items() if key in trainer_fields}
+        trainer_kwargs["optimizer_kwargs"] = bundle["optimizer_kwargs"]
+        obj.trainer_config = TrainerConfig(**trainer_kwargs)
+    obj.random_state = bundle.get("random_state")
     obj._preprocessor_arg_names = list(_PREPROCESSOR_ARG_NAMES)
 
 

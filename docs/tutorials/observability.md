@@ -255,7 +255,7 @@ print((run / "summary.json").read_text())
   "n_params": 78273,
   "n_samples": 640,
   "best_val_loss": 0.6822827458381653,
-  "best_epoch": null,
+  "best_epoch": 4,
   "n_epochs_run": 5,
   "duration_min": 0.0058
 }
@@ -297,7 +297,7 @@ for level in (1, 2, 3):
 ===================== verbosity = 1 =====================
 2026-06-13 09:46:39 [info] run=f67d60c0  fit.started       model=MLPClassifier  samples=640  features=8  seed=42
 2026-06-13 09:46:39 [info] run=f67d60c0  model.created     backbone=MLP  params=78_273  num=8  cat=0  duration_min=0.0000
-2026-06-13 09:46:39 [info] run=f67d60c0  train.completed   best_epoch=null  best_val_loss=0.6823  epochs_run=5  duration_min=0.0061
+2026-06-13 09:46:39 [info] run=f67d60c0  train.completed   best_epoch=4  best_val_loss=0.6823  epochs_run=5  duration_min=0.0061
 2026-06-13 09:46:39 [info] run=f67d60c0  fit.completed     status=success  model=MLPClassifier  params=78_273  best_val_loss=0.6823  duration_min=0.0069
 
 ===================== verbosity = 2 =====================
@@ -305,7 +305,7 @@ for level in (1, 2, 3):
 2026-06-13 09:46:39 [info] run=d5d96374  data.created      train=512  val=128  num=8  cat=0  val_size=0.2000  duration_min=0.0004
 2026-06-13 09:46:39 [info] run=d5d96374  model.created     backbone=MLP  params=78_273  num=8  cat=0  duration_min=0.0000
 2026-06-13 09:46:39 [info] run=d5d96374  train.started     epochs=5  batch=128  lr=null  optimizer=Adam  patience=2  val_size=0.2000
-2026-06-13 09:46:40 [info] run=d5d96374  train.completed   best_epoch=null  best_val_loss=0.6823  epochs_run=5  duration_min=0.0051
+2026-06-13 09:46:40 [info] run=d5d96374  train.completed   best_epoch=4  best_val_loss=0.6823  epochs_run=5  duration_min=0.0051
 2026-06-13 09:46:40 [info] run=d5d96374  fit.completed     status=success  model=MLPClassifier  params=78_273  best_val_loss=0.6823  duration_min=0.0057
 ```
 
@@ -644,7 +644,7 @@ Captured events:
   data.created -> {'run_id': '0f1c8c6a', 'n_train': 512, 'n_val': 128, 'n_num_features': 8, 'n_cat_features': 0, 'val_size': 0.2, 'duration_min': 0.0004}
   model.created -> {'run_id': '0f1c8c6a', 'backbone': 'MLP', 'n_params': 78273, 'n_num_features': 8, 'n_cat_features': 0, 'duration_min': 0.0}
   train.started -> {'run_id': '0f1c8c6a', 'max_epochs': 5, 'batch_size': 128, 'lr': None, 'optimizer': 'Adam', 'patience': 2, 'val_size': 0.2}
-  train.completed -> {'run_id': '0f1c8c6a', 'best_epoch': None, 'best_val_loss': 0.6822827458381653, 'n_epochs_run': 5, 'duration_min': 0.0051}
+  train.completed -> {'run_id': '0f1c8c6a', 'best_epoch': 4, 'best_val_loss': 0.6822827458381653, 'n_epochs_run': 5, 'duration_min': 0.0051}
   fit.completed -> {'run_id': '0f1c8c6a', 'status': 'success', 'model_class': 'MLPClassifier', 'n_params': 78273, 'best_val_loss': 0.6822827458381653, 'duration_min': 0.0056}
 ```
 

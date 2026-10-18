@@ -34,7 +34,7 @@ class ModernNCAConfig(BaseModelConfig):
         Fraction of training candidates used per forward pass.
     num_embeddings : dict | None, default=None
         Optional dict mapping feature indices to embedding sizes.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the fully connected layers in the prediction head.
     head_dropout : float, default=0.5
         Dropout rate for the head layers.

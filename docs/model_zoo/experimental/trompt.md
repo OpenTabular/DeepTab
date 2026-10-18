@@ -21,6 +21,8 @@ In DeepTab, Trompt is implemented as a sequence of `TromptCell` modules. Each ce
 
 The model returns predictions from every cycle, so DeepTab treats Trompt as an ensemble-like model (`returns_ensemble=True`).
 
+For LSS tasks, the architecture preserves all three output axes: `(batch_size, n_cycles, parameter_count)`. A single-output family such as Poisson therefore produces `(batch_size, n_cycles, 1)`, not `(batch_size, n_cycles)`. Training sums the cycle losses; `TromptLSS.predict` averages raw cycle outputs before applying the distribution's parameter transforms and returns `(n_samples, parameter_count)`. Ordinary scalar regression and binary classification keep the shape `(batch_size, n_cycles)`.
+
 | Property                  | DeepTab Trompt                                |
 | ------------------------- | --------------------------------------------- |
 | Inductive bias            | Prompt/prototype-mediated feature aggregation |
@@ -49,15 +51,15 @@ updated prompt records O
 TromptDecoder -> prediction for this cycle
 ```
 
-The process is repeated for `n_cycles`. Let \(O^{(c)} \in \mathbb{R}^{P \times d}\) be the prompt records after cycle \(c\), \(C\) the number of columns/tokens, and \(d\) the model width.
+The process is repeated for `n_cycles`. Let $O^{(c)} \in \mathbb{R}^{P \times d}$ be the prompt records after cycle $c$, $C$ the number of columns/tokens, and $d$ the model width.
 
 The importance module learns prompt and column embeddings and computes a prompt-column attention-like matrix:
 
-\[
+$$
 M^{(c)} = \mathrm{softmax}(g(O^{(c-1)}, E_p) E_c^\top)
-\]
+$$
 
-where \(M^{(c)} \in \mathbb{R}^{P \times C}\). The cell uses this matrix to aggregate expanded feature embeddings into the next prompt records.
+where $M^{(c)} \in \mathbb{R}^{P \times C}$. The cell uses this matrix to aggregate expanded feature embeddings into the next prompt records.
 
 Unlike FTTransformer, the current DeepTab Trompt implementation does not use a standard multi-head self-attention stack with `n_heads`. Its main controls are `d_model`, `n_cycles`, `n_cells`, and `P`.
 
@@ -79,6 +81,8 @@ The implementation lives in `deeptab/architectures/experimental/trompt.py` and `
 `n_cells` is present in `TromptConfig`, but the current DeepTab implementation constructs one `TromptCell` per cycle. Treat `n_cycles` and `P` as the primary practical controls.
 ```
 
+`init_rec` is drawn from a normal distribution with standard deviation 0.01, so it is seeded by `random_state` like every other weight. Previously, it was allocated with `torch.empty` and never initialized, so it started from whatever values were left in memory.
+
 ## Configuration
 
 | Parameter  | Default | Practical Effect                                                                              |
@@ -99,7 +103,7 @@ model = TromptClassifier(
         n_cells=4,
         P=128,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )
@@ -119,7 +123,7 @@ Suggested search space:
 
 ```python
 param_grid = {
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile", "ple"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile", "ple"],
     "model_config__d_model": [64, 128, 256],
     "model_config__n_cycles": [2, 4, 6],
     "model_config__P": [32, 64, 128],

@@ -1,10 +1,11 @@
 import numpy as np
 import torch
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.blocks.node import DenseBlock
+from deeptab.nn.normalization import get_normalization_layer
 
 from ..configs.models.node_config import NODEConfig
 
@@ -84,9 +85,13 @@ class NODE(BaseModel):
         )
 
         self.tabular_head = MLPhead(
-            input_dim=self.hparams.num_layers * self.hparams.layer_dim,
+            input_dim=self.hparams.num_layers * self.hparams.layer_dim * self.hparams.tree_dim,
             config=config,
             output_dim=num_classes,
+        )
+
+        self.norm_f = get_normalization_layer(
+            config, dim=self.hparams.num_layers * self.hparams.layer_dim * self.hparams.tree_dim
         )
 
     def forward(self, *data):
@@ -109,8 +114,10 @@ class NODE(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
 
         x = self.block(x).squeeze(-1)
+        if self.norm_f is not None:
+            x = self.norm_f(x)
         x = self.tabular_head(x)
         return x

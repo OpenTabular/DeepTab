@@ -7,6 +7,29 @@ install:
 	poetry install
 	poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
 
+# synchronize core test dependencies, removing optional extras and other groups
+install-core:
+    poetry sync --only main,dev
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
+# synchronize test dependencies with structured logging and experiment tracking
+install-extras:
+    poetry sync --only main,dev --extras "logs tracking"
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
+# synchronize native TabR and observability dependencies on Linux or Windows
+install-tabr:
+    poetry sync --only main,dev --extras "logs tracking tabr"
+    poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --hook-type pre-push
+
+# check the installed dependency graph
+deps-check:
+    poetry run python -m pip check
+
+# show exact installed package versions
+deps-list:
+    poetry run python -m pip freeze --all
+
 # update dependencies and pre-commit hook revisions
 update:
 	poetry update
@@ -35,9 +58,30 @@ format:
 types:
     poetry run pyright
 
-# run tests with coverage
+# run tests with at least 90% line coverage
 test:
-    poetry run pytest --cov=deeptab tests/
+    poetry run pytest --cov=deeptab --cov-fail-under=90 tests/
+
+# run selected tests with ordinary pytest arguments, without a coverage gate
+[positional-arguments]
+test-run *args:
+    poetry run pytest --strict-markers "$@"
+
+# verify the existing core-only installation and run the full source suite
+test-core:
+    poetry run pytest tests/ --dependency-profile=core --strict-markers -ra
+
+# verify the existing logs/tracking installation and run the full source suite
+test-extras:
+    poetry run pytest tests/ --dependency-profile=extras --strict-markers -ra
+
+# verify the existing native TabR installation and run the full source suite
+test-tabr:
+    poetry run pytest tests/ --dependency-profile=tabr --strict-markers -ra
+
+# resolve and verify a wheel in a separate dependency endpoint environment
+test-endpoint wheel python endpoint profile output:
+    poetry run python .github/scripts/dependency_endpoints.py --wheel "{{ wheel }}" --python "{{ python }}" --endpoint "{{ endpoint }}" --profile "{{ profile }}" --output "{{ output }}"
 
 # build HTML docs locally (warnings treated as errors)
 docs:
@@ -53,27 +97,8 @@ commit:
     poetry run cz commit
 
 # audit installed dependencies for known vulnerabilities
-# The advisories ignored below are not actionable for a release today. Review this
-# list on every release and drop an entry the moment a fix lands within our pins.
-#   pip (PYSEC-2026-196, CVE-2026-3219, CVE-2026-6357):
-#       the installer itself, dev tooling only, never shipped as a dependency.
-#   msgpack / starlette (GHSA-6v7p-g79w-8964, CVE-2026-54283, CVE-2026-54282):
-#       only pulled in through the optional [mlflow] extra, not the core install.
-#   torch / pytorch-lightning (PYSEC-2026-139, CVE-2025-3000, CVE-2025-3001,
-#       CVE-2026-31221): no published fix, or a fix only in a release above our
-#       current torch <2.10 upper bound.
 audit:
-    poetry run pip-audit \
-        --ignore-vuln PYSEC-2026-196 \
-        --ignore-vuln CVE-2026-3219 \
-        --ignore-vuln CVE-2026-6357 \
-        --ignore-vuln GHSA-6v7p-g79w-8964 \
-        --ignore-vuln CVE-2026-54283 \
-        --ignore-vuln CVE-2026-54282 \
-        --ignore-vuln PYSEC-2026-139 \
-        --ignore-vuln CVE-2025-3000 \
-        --ignore-vuln CVE-2025-3001 \
-        --ignore-vuln CVE-2026-31221
+    poetry run pip-audit
 
 # preview the next stable version bump (pass extra cz args, e.g. `just bump-preview --increment MAJOR`)
 bump-preview *args:

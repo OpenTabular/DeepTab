@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 
 from deeptab.configs.experimental.tangos_config import TangosConfig
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 
@@ -33,7 +33,8 @@ class Tangos(BaseModel):
     lamda2 : float
         Regularization weight for the orthogonality loss.
     subsample : float
-        Proportion of neuron pairs to use for orthogonality loss calculation.
+        Sampling multiplier for the orthogonality penalty. The sampled branch
+        draws ``int(subsample * batch_size)`` hidden-neuron pairs.
     embedding_layer : EmbeddingLayer or None
         Optional embedding layer for categorical features.
     layers : nn.ModuleList
@@ -62,10 +63,12 @@ class Tangos(BaseModel):
         # Initialize layers
         self.layers = nn.ModuleList()
 
+        projection_factor = 2 if self.hparams.use_glu else 1
+
         # Input layer
-        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0]))
+        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0] * projection_factor))
         if self.hparams.batch_norm:
-            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0]))
+            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0] * projection_factor))
 
         if self.hparams.use_glu:
             self.layers.append(nn.GLU())
@@ -76,11 +79,12 @@ class Tangos(BaseModel):
 
         # Hidden layers
         for i in range(1, len(self.hparams.layer_sizes)):
-            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i]))
+            projection_size = self.hparams.layer_sizes[i] * projection_factor
+            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], projection_size))
             if self.hparams.batch_norm:
-                self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.BatchNorm1d(projection_size))
             if self.hparams.layer_norm:
-                self.layers.append(nn.LayerNorm(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.LayerNorm(projection_size))
             if self.hparams.use_glu:
                 self.layers.append(nn.GLU())
             else:
@@ -140,7 +144,7 @@ class Tangos(BaseModel):
             The output tensor of shape (batch_size, num_classes).
         """
 
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
 
         for i in range(len(self.layers)):
             if isinstance(self.layers[i], nn.Linear):
@@ -178,16 +182,18 @@ class Tangos(BaseModel):
                 The computed penalty term for regularization.
         """
 
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
         batch_size = x.shape[0]
         subsample = np.int32(self.subsample * batch_size)
 
         # Flatten before passing to jacrev
-        flat_data = torch.cat([t for tensors in data for t in tensors], dim=1)
+        flat_data = concat_features(data)
 
         # Compute Jacobian
         jacobian = torch.func.vmap(torch.func.jacrev(self.repr_forward), randomness="different")(flat_data)
-        jacobian = jacobian.squeeze()
+        # Only remove the singleton axis repr_forward's unsqueeze(0) added; a bare
+        # squeeze() also collapses the batch axis when the batch has one sample.
+        jacobian = jacobian.squeeze(1)
 
         neuron_attr = jacobian.swapaxes(0, 1)
         h_dim = neuron_attr.shape[0]

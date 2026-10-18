@@ -1,16 +1,25 @@
+import os
+import uuid
 import warnings
 from collections.abc import Callable
+from copy import deepcopy
 
 import lightning as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
-from pretab.preprocessor import Preprocessor
-from torch.utils.data import DataLoader
-from tqdm import tqdm
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
-from deeptab.core.exceptions import not_fitted_error
-from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.configs import TrainerConfig
+from deeptab.core.exceptions import invalid_data_error, not_fitted_error, unsupported_param_error
+from deeptab.core.preprocessing import build_preprocessor
+from deeptab.core.serialization import (
+    _warn_extension,
+    build_save_bundle,
+    resolve_inference_accelerator,
+    restore_base_state,
+    restore_loaded_metadata,
+    restore_retrieval_state,
+)
 from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
@@ -29,6 +38,34 @@ class SklearnBaseLSS(SklearnBase):
     distribution-transform post-processing in ``predict``.
     """
 
+    def _configure_distribution(self, y, family=None, distributional_kwargs=None, *, allow_change=True):
+        family = family or getattr(self, "family_name", "normal")
+        if distributional_kwargs is None and family == getattr(self, "family_name", None):
+            distributional_kwargs = getattr(self, "distributional_kwargs_", {})
+        options = deepcopy(distributional_kwargs or {})
+        if family == "categorical":
+            count = len(np.unique(y))
+            if options.get("num_classes", count) != count:
+                raise ValueError("Categorical num_classes must match the number of target classes")
+            options["num_classes"] = count
+        elif family == "dirichlet":
+            targets = np.asarray(y)
+            if targets.ndim != 2 or targets.shape[1] < 2:
+                raise ValueError(
+                    "Dirichlet targets must have shape (n_samples, n_components) with at least two components"
+                )
+            count = targets.shape[1]
+            if options.get("num_classes", count) != count:
+                raise ValueError("Dirichlet num_classes must match the number of target components")
+            options["num_classes"] = count
+        if not allow_change:
+            if family != getattr(self, "family_name", None) or options != getattr(self, "distributional_kwargs_", {}):
+                raise ValueError("Changing the distribution family or options requires rebuild=True")
+            return
+        self.family = get_distribution(family, **options)
+        self.family_name = family
+        self.distributional_kwargs_ = options
+
     def build_model(
         self,
         X,
@@ -36,7 +73,7 @@ class SklearnBaseLSS(SklearnBase):
         val_size: float = 0.2,
         X_val=None,
         y_val=None,
-        random_state: int = 101,
+        random_state: int | None = 101,
         batch_size: int = 128,
         shuffle: bool = True,
         lr: float | None = None,
@@ -45,7 +82,11 @@ class SklearnBaseLSS(SklearnBase):
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
+        family=None,
+        distributional_kwargs=None,
+        monitor: str | None = None,
+        mode: str | None = None,
     ):
         """Builds the model using the provided training data.
 
@@ -62,32 +103,46 @@ class SklearnBaseLSS(SklearnBase):
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
             The validation target values. Required if `X_val` is provided.
-        random_state : int, default=101
+        random_state : int or None, default=101
             Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
+        batch_size : int, default=128
             Number of samples per gradient update.
         shuffle : bool, default=True
             Whether to shuffle the training data before each epoch.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        lr_factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
+        family : str, optional
+            Distribution family. Reuses the selected family, or defaults to
+            ``"normal"`` on a new estimator.
+        distributional_kwargs : dict, optional
+            Family constructor options, such as quantiles or mixture size.
+            Reuses the selected options when omitted for the same family.
 
         Returns
         -------
         self : object
             The built distributional regressor.
         """
+        if dataloader_kwargs is None:
+            dataloader_kwargs = {}
+        self._configure_distribution(y, family, distributional_kwargs)
+
         # When trainer_config is active, resolve lr / scheduler params from it
         if self.trainer_config is not None:
             tc = self.trainer_config
@@ -103,9 +158,17 @@ class SklearnBaseLSS(SklearnBase):
         # Re-sync preprocessor from current preprocessing_config state so that
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
         # honoured on the next fit(), consistent with set_params() behaviour.
+        # Rebuilt unconditionally (even without an explicit preprocessing_config)
+        # because the task, unlike for classifiers/regressors, is only knowable
+        # once the distribution family is set, just above.
         if self.preprocessing_config is not None:
             self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+        self._preprocessor = build_preprocessor(
+            self.preprocessing_config,
+            task="classification" if getattr(self, "family_name", None) == "categorical" else "regression",
+            random_state=random_state,
+            observability_config=getattr(self, "_observability_config", None),
+        )
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
@@ -116,6 +179,14 @@ class SklearnBaseLSS(SklearnBase):
             X_val = ensure_dataframe(X_val)
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y = _encode_labels(y, self.classes_)
+            if y_val is not None:
+                y_val = _encode_labels(y_val, self.classes_, name="y_val")
 
         self._data_module = TabularDataModule(
             preprocessor=self._preprocessor,
@@ -126,6 +197,7 @@ class SklearnBaseLSS(SklearnBase):
             val_size=val_size,
             random_state=random_state,
             regression=getattr(self, "family_name", None) != "categorical",
+            vector_targets=self.family_name == "dirichlet",
             **dataloader_kwargs,
         )
         self._data_module.input_columns_ = self.input_columns_
@@ -136,6 +208,7 @@ class SklearnBaseLSS(SklearnBase):
         # (assigned below). Resolve back to the class so repeated builds
         # (e.g. HPO trials or a refit) construct a fresh model correctly.
         _model_class = self._estimator if isinstance(self._estimator, type) else type(self._estimator)
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
         self._task_model = TaskModel(
             model_class=_model_class,  # type: ignore
             num_classes=self.family.param_count,
@@ -161,6 +234,15 @@ class SklearnBaseLSS(SklearnBase):
                 if self.trainer_config is not None
                 else self._optimizer_kwargs
             ),
+            scheduler_type=tc.scheduler_type,
+            scheduler_kwargs=tc.scheduler_kwargs,
+            monitor=tc.scheduler_monitor
+            if tc.scheduler_monitor is not None
+            else (monitor if monitor is not None else tc.monitor),
+            mode=mode if mode is not None else tc.mode,
+            scheduler_interval=tc.scheduler_interval,
+            scheduler_frequency=tc.scheduler_frequency,
+            no_weight_decay_for_bias_and_norm=tc.no_weight_decay_for_bias_and_norm,
         )
 
         self._built = True
@@ -173,25 +255,25 @@ class SklearnBaseLSS(SklearnBase):
         X,
         y,
         family,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
-        max_epochs: int = 100,
-        random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        max_epochs: int | None = None,
+        random_state: int | None = None,
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
+        checkpoint_path: str | None = None,
         distributional_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         rebuild=True,
         **trainer_kwargs,
     ):
@@ -207,45 +289,73 @@ class SklearnBaseLSS(SklearnBase):
         family : str
             The name of the distribution family to use for the loss function. Examples include 'normal'
             for regression tasks.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             The proportion of the dataset to include in the validation split if `X_val` is None.
-            Ignored if `X_val` is provided.
+            Ignored if `X_val` is provided. Falls back to the active `TrainerConfig`'s
+            value, or 0.2 when no `TrainerConfig` is set.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
             The validation target values. Required if `X_val` is provided.
-        max_epochs : int, default=100
-            Maximum number of epochs for training.
-        random_state : int, default=101
-            Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
-            Number of samples per gradient update.
-        shuffle : bool, default=True
-            Whether to shuffle the training data before each epoch.
-        patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before early stopping.
-        monitor : str, default="val_loss"
-            The metric to monitor for early stopping.
-        mode : str, default="min"
-            Whether the monitored metric should be minimized (`min`) or maximized (`max`).
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        max_epochs : int or None, default=None
+            Maximum number of epochs for training. Falls back to the active
+            `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, no reseeding happens, so any external
+            ``set_seed``/``seed_context`` call already in effect is left
+            untouched.
+        batch_size : int or None, default=None
+            Number of samples per gradient update. Falls back to the active
+            `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle the training data before each epoch. Falls back
+            to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        patience : int or None, default=None
+            Number of epochs with no improvement on the validation loss to wait
+            before early stopping. Falls back to the active `TrainerConfig`'s
+            value, or 15 when no `TrainerConfig` is set.
+        monitor : str or None, default=None
+            The metric for early stopping and best checkpoint selection. Falls back to the active
+            `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+            Plateau schedulers inherit it unless `scheduler_monitor` is explicit.
+            Unknown or unavailable names raise `ValueError` before replacing fitted state.
+        mode : str or None, default=None
+            Whether the monitored metric should be minimized (`min`) or
+            maximized (`max`). Falls back to the active `TrainerConfig`'s value,
+            or "min" when no `TrainerConfig` is set.
+            An explicit `scheduler_kwargs["mode"]` wins for the plateau scheduler only.
+            Per-call overrides are resolved again on continuation without mutating config.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         distributional_kwargs : dict, default=None
             any arguments taht are specific for a certain distribution.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        checkpoint_path : str, default="model_checkpoints"
-            Path where the checkpoints are being saved.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        checkpoint_path : str or None, default=None
+            Path where the checkpoints are being saved. When given, it is used
+            as-is (each run must use a distinct path to avoid collisions
+            between concurrent fits). Falls back to the active
+            `TrainerConfig`'s value, or "model_checkpoints" when no
+            `TrainerConfig` is set; in that case each fit writes to its own
+            uniquely named sub-directory so parallel/repeated fits never
+            collide.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -253,31 +363,116 @@ class SklearnBaseLSS(SklearnBase):
         -------
         self : object
             The fitted regressor.
+
+        Notes
+        -----
+        ``rebuild=False`` retains weights, fitted preprocessing, distribution,
+        class labels, and metrics while preparing fresh data and loaders.
+        Each call starts a new trainer, optimizer, and scheduler rather than
+        resuming their previous state. Explicit epoch, learning-rate,
+        weight-decay, batch, and loader overrides are honored. Changing
+        distribution options or
+        replacing metrics requires ``rebuild=True``.
+
+        Targets must be finite and valid for the selected distribution. Target
+        dimensions are retained, including Dirichlet component columns. Input
+        and distribution-configuration validation errors preserve the previous
+        fitted estimator. Failures after rebuilding or training starts invalidate
+        prediction until a successful fit. Supply both validation inputs with
+        matching feature and target widths.
+
+        Raises
+        ------
+        deeptab.core.exceptions.UnsupportedParamError
+            If the unsupported ``sample_weight`` keyword is supplied. Rejection
+            occurs before input validation or changes to estimator state.
         """
-        # When trainer_config is active, override all training-loop params from it
-        if self.trainer_config is not None:
-            tc = self.trainer_config
+        if "sample_weight" in trainer_kwargs:
+            raise unsupported_param_error("sample_weight", "weighted-loss fitting")
+
+        # Resolve precedence: an explicit fit() argument always wins; a TrainerConfig
+        # value is used only for arguments the caller left unset. TrainerConfig's own
+        # field defaults are the single source of truth for "no config at all" too, so
+        # there is no separate set of literals to keep in sync.
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        if max_epochs is None:
             max_epochs = tc.max_epochs
+        if batch_size is None:
             batch_size = tc.batch_size
+        if val_size is None:
             val_size = tc.val_size
+        if shuffle is None:
             shuffle = tc.shuffle
+        if patience is None:
             patience = tc.patience
+        if monitor is None:
             monitor = tc.monitor
+        if mode is None:
             mode = tc.mode
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not rebuild,
+            validation_enabled=X_val is not None or val_size > 0,
+            trainer_kwargs=trainer_kwargs,
+        )
+        # An explicit checkpoint_path (fit() argument) must always be honored as-is.
+        _checkpoint_path_explicit = checkpoint_path is not None
+        if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
         # Validate inputs before any preprocessing or model construction
-        _validate_fit_inputs(X, y, regression=True, family=family)
+        family = family or getattr(self, "family_name", "normal")
+        _validate_fit_inputs(X, y, regression=True, family=family, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
+        if y_val is not None:
+            y_val = np.asarray(y_val)
 
-        # When random_state was fixed at construction time, honour it
-        if self.random_state is not None:
+        prepared = None
+        if not rebuild:
+            self._validate_continuation_options(train_metrics=train_metrics, val_metrics=val_metrics)
+            self._configure_distribution(y, family, distributional_kwargs, allow_change=False)
+            if family == "categorical":
+                from deeptab.models.classifier_base import _encode_labels
+
+                if self.classes_ is None or not np.array_equal(np.unique(y), self.classes_):
+                    raise invalid_data_error(
+                        "Continuation requires the original categorical labels.",
+                        "use rebuild=True to change the class labels or distribution head.",
+                    )
+                y = _encode_labels(y, self.classes_)
+                if y_val is not None:
+                    y_val = _encode_labels(y_val, self.classes_, name="y_val")
+            prepared = self._prepare_continuation(
+                X,
+                y,
+                regression=family != "categorical",
+                X_val=X_val,
+                y_val=y_val,
+                embeddings=None,
+                embeddings_val=None,
+                val_size=val_size,
+                random_state=self.random_state if random_state is None else random_state,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                stratify=False,
+                dataloader_kwargs=dataloader_kwargs,
+            )
+
+        # An explicit fit() argument always wins over the random_state fixed at
+        # construction time; only fall back to the latter when the caller left
+        # the fit() argument unset.
+        if random_state is None:
             random_state = self.random_state
+        if random_state is not None:
+            from deeptab.core.reproducibility import set_seed
 
-        if distributional_kwargs is None:
-            distributional_kwargs = {}
+            set_seed(random_state)
 
-        self.family = get_distribution(family, **distributional_kwargs)
-        self.family_name = family
+        self._configure_distribution(y, family, distributional_kwargs, allow_change=rebuild)
+        self.is_fitted_ = False
 
         if rebuild:
             self.build_model(
@@ -296,26 +491,56 @@ class SklearnBaseLSS(SklearnBase):
                 val_metrics=val_metrics,
                 weight_decay=weight_decay,
                 dataloader_kwargs=dataloader_kwargs,
+                monitor=monitor,
+                mode=mode,
             )
 
         else:
-            if not self._built:
-                raise ValueError(
-                    "The model must be built before calling the fit method. \
-                                 Either call .build_model() or set rebuild=True"
-                )
+            self._data_module = prepared
+            self._configure_continuation(
+                lr=lr,
+                lr_patience=lr_patience,
+                lr_factor=lr_factor,
+                weight_decay=weight_decay,
+                monitor=monitor,
+                mode=mode,
+            )
 
         early_stop_callback = EarlyStopping(
-            monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
+            monitor=monitor,
+            min_delta=0.00,
+            patience=patience,
+            verbose=False,
+            mode=mode,
+            check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
+        # An explicit checkpoint_path is used as-is. Otherwise, isolate each run
+        # under its own unique, timestamped sub-directory of the default
+        # checkpoint_path (rather than writing directly into it) so that
+        # parametrized/back-to-back fits across different estimator classes
+        # never collide on the same "best_model" filename.
+        from deeptab.core.observability import timestamped_run_label
+
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",  # Adjust according to your validation metric
-            mode="min",
+            monitor=monitor,
+            mode=mode,
+            save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
-            dirpath=checkpoint_path,  # Specify the directory to save checkpoints
+            dirpath=checkpoint_path
+            if _checkpoint_path_explicit
+            else os.path.join(checkpoint_path, timestamped_run_label(uuid.uuid4().hex[:8])),
             filename="best_model",
         )
+
+        # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
+        # Optuna pruning callback) with the built-in ones instead of colliding
+        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
+        # single Callback instance is accepted too, matching Lightning's own
+        # `callbacks` contract.
+        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
+        if isinstance(_user_callbacks, Callback):
+            _user_callbacks = [_user_callbacks]
 
         # Initialize the trainer and train the model
         self._trainer = pl.Trainer(
@@ -324,9 +549,23 @@ class SklearnBaseLSS(SklearnBase):
                 early_stop_callback,
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
+                *_user_callbacks,
             ],
             **trainer_kwargs,
         )
+
+        # Warm up any data-aware initialization (e.g. NODE/ENODE's threshold
+        # init) on a genuine training batch before Lightning's sanity check
+        # runs. The sanity check evaluates in eval mode before any training
+        # step, and data-aware init only fires in train mode (so it never
+        # sees held-out validation data); without this warm-up, the sanity
+        # check's forward pass would see uninitialized (NaN) parameters.
+        self._task_model.train()  # type: ignore[union-attr]
+        self._data_module.setup("fit")  # type: ignore[union-attr]
+        with torch.no_grad():
+            _warmup_feats, _ = next(iter(self._data_module.train_dataloader()))  # type: ignore[union-attr]
+            self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
+
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
@@ -352,7 +591,7 @@ class SklearnBaseLSS(SklearnBase):
         predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
             The predicted target values.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
@@ -365,7 +604,7 @@ class SklearnBaseLSS(SklearnBase):
         self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
+        predictions_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore[arg-type]
@@ -409,7 +648,9 @@ class SklearnBaseLSS(SklearnBase):
         """
         # Infer distribution family from model settings if not provided
         if distribution_family is None:
-            distribution_family = getattr(self._task_model, "distribution_family", "normal")
+            distribution_family = getattr(self, "family_name", None)
+            if distribution_family is None:
+                raise not_fitted_error(type(self).__name__, "evaluate")
 
         # Setup default metrics if none are provided
         if metrics is None:
@@ -421,6 +662,12 @@ class SklearnBaseLSS(SklearnBase):
         predictions_raw = self.predict(X, raw=True) if needs_any_raw else None
 
         y_true = np.asarray(y_true)
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y_true = _encode_labels(y_true, self.classes_)
         scores = {}
         for metric_name, metric_func in metrics.items():
             _needs_raw = getattr(metric_func, "needs_raw", False)
@@ -450,10 +697,13 @@ class SklearnBaseLSS(SklearnBase):
         dict
             ``{metric_name: callable}`` dictionary of metric functions.
         """
+        family = getattr(self, "family", None)
+        if distribution_family == getattr(self, "family_name", None) and family is not None:
+            return get_default_metrics_dict("lss", family=family)
         return get_default_metrics_dict("lss", family=distribution_family)
 
     def score(self, X, y, metric="NLL"):
-        """Calculate the score of the model using the specified metric.
+        """Return negative mean negative log-likelihood for sklearn scoring.
 
         Parameters
         ----------
@@ -462,20 +712,36 @@ class SklearnBaseLSS(SklearnBase):
         y : array-like of shape (n_samples,) or (n_samples, n_outputs)
             The true target values against which to evaluate the predictions.
         metric : str, default="NLL"
-            So far, only negative log-likelihood is supported
+            Only ``"NLL"`` is supported. Its sign is reversed so larger
+            scores represent better fits, as expected by scikit-learn.
 
         Returns
         -------
         score : float
-            The score calculated using the specified metric.
+            Negative mean NLL evaluated on raw network parameters. For
+            quantile models, this is the negative mean training loss.
         """
-        predictions = self.predict(X)
-        score = self._task_model.family.evaluate_nll(y, predictions)  # type: ignore
-        return score
+        if metric != "NLL":
+            raise ValueError(f"Unsupported score metric: {metric!r}; use 'NLL'")
+        predictions = self.predict(X, raw=True)
+        if self.family_name == "categorical":
+            from deeptab.models.classifier_base import _encode_labels
+
+            if self.classes_ is None:
+                raise RuntimeError("Categorical class labels are unavailable")
+            y = _encode_labels(np.asarray(y), self.classes_)
+        loss = self.family.compute_loss(
+            torch.as_tensor(predictions, dtype=torch.float32),
+            torch.as_tensor(np.asarray(y), dtype=torch.float32).squeeze(-1),
+        )
+        return -float(loss.detach().cpu())
 
     def encode(self, X, batch_size=64):
-        """
-        Encodes input data using the trained model's embedding layer.
+        """Return contextualized feature tokens from a fitted LSS backbone.
+
+        Uses the shared encoding path in evaluation mode without gradients.
+        The model remains in evaluation mode afterward. No pooling or
+        distribution-parameter head is applied.
 
         Parameters
         ----------
@@ -486,13 +752,24 @@ class SklearnBaseLSS(SklearnBase):
 
         Returns
         -------
-        torch.Tensor
-            Encoded representations of the input data.
+        torch.Tensor of shape (n_samples, n_tokens, hidden_dim)
+            Contextualized tokens in input order, including a CLS token when
+            enabled. The final dimension is the backbone's output width.
 
         Raises
         ------
         ValueError
-            If the model or data module is not fitted.
+            If the model or data module is not fitted, or the backbone has
+            no supported contextualizing block.
+        AttributeError
+            If the backbone has no embedding layer.
+
+        Notes
+        -----
+        Encoding requires an embedding layer and a contextualizing block,
+        as in FTTransformerLSS, TabTransformerLSS, SAINTLSS, MambularLSS,
+        MambAttentionLSS, and TabulaRNNLSS. MLPLSS does not support encoding.
+        The second positional argument remains ``batch_size``.
         """
         # Ensure model and data module are initialized
         if self._task_model is None or self._data_module is None:
@@ -501,20 +778,7 @@ class SklearnBaseLSS(SklearnBase):
             raise AttributeError(
                 f"{type(self._task_model.estimator).__name__} does not have an embedding_layer."  # type: ignore[union-attr]
             )
-        encoded_dataset = self._data_module.preprocess_new_data(X)
-
-        data_loader = DataLoader(encoded_dataset, batch_size=batch_size, shuffle=False)
-
-        # Process data in batches
-        encoded_outputs = []
-        for num_features, cat_features in tqdm(data_loader):
-            embeddings = self._task_model.estimator.encode(num_features, cat_features)  # type: ignore[union-attr]  # Call your encode function
-            encoded_outputs.append(embeddings)
-
-        # Concatenate all encoded outputs
-        encoded_outputs = torch.cat(encoded_outputs, dim=0)
-
-        return encoded_outputs
+        return super().encode(X, batch_size=batch_size)
 
     # ------------------------------------------------------------------
     # Persistence
@@ -534,6 +798,9 @@ class SklearnBaseLSS(SklearnBase):
         The bundle is built by :func:`~deeptab.core.serialization.build_save_bundle`,
         which is the single source of truth for artifact structure across all
         model variants.
+        Retrieval models also retain transformed training features and targets
+        as detached CPU tensors. Treat their artifacts as training-derived data;
+        size grows with the candidate bank.
 
         Parameters
         ----------
@@ -543,7 +810,8 @@ class SklearnBaseLSS(SklearnBase):
         Raises
         ------
         ValueError
-            If the model has not been fitted yet.
+            If the model has not been fitted yet or a required candidate bank
+            is missing or incompatible.
 
         Examples
         --------
@@ -558,13 +826,20 @@ class SklearnBaseLSS(SklearnBase):
         torch.save(bundle, path)
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, device: str = "cpu"):
         """Load and return a fitted model from *path*.
 
         Parameters
         ----------
         path : str
             Path to a file previously written by :meth:`save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reconstructed model. Defaults to ``"cpu"``
+            regardless of what hardware it was trained on, so loading is
+            reproducible across machines. Pass ``"cuda"``/``"mps"`` to pin a
+            single accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
 
         Returns
         -------
@@ -574,6 +849,22 @@ class SklearnBaseLSS(SklearnBase):
             ``feature_schema_``, ``input_columns_``, ``task_info_``,
             ``classes_``, and ``versions_`` attributes after loading.
 
+        Raises
+        ------
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
+        ValueError
+            If required retrieval state is missing, malformed, or incompatible.
+            Refit from the original data to replace older incomplete artifacts.
+
+        Warnings
+        --------
+        Load only trusted artifacts. Reconstruction uses pickle-based objects;
+        schema validation does not make an untrusted file safe to load.
+
         Examples
         --------
         >>> loaded = MLPLSS.load("my_lss_model.deeptab")
@@ -582,11 +873,20 @@ class SklearnBaseLSS(SklearnBase):
         'normal'
         """
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        map_location = resolve_inference_accelerator(device)[2]
+        bundle = torch.load(path, weights_only=False, map_location=map_location)
+        return cls._load_from_bundle(bundle, device=device, path=path)
 
+    @classmethod
+    def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
+        """Reconstruct distributional inference state from a loaded bundle."""
+        accelerator, devices, _ = resolve_inference_accelerator(device)
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
-        obj.family = get_distribution(bundle["family"])
+        obj.distributional_kwargs_ = deepcopy(bundle.get("distributional_kwargs", {}))
+        if bundle["family"] in {"categorical", "dirichlet"}:
+            obj.distributional_kwargs_.setdefault("num_classes", bundle["num_classes"])
+        obj.family = get_distribution(bundle["family"], **obj.distributional_kwargs_)
         obj.family_name = bundle["family"]
 
         obj._data_module = TabularDataModule(
@@ -611,19 +911,24 @@ class SklearnBaseLSS(SklearnBase):
             num_classes=bundle["num_classes"],
             lss=bundle["lss"],
             family=obj.family,
+            loss_fct=bundle.get("loss_fct"),
             optimizer_type=bundle["optimizer_type"],
             optimizer_args=bundle["optimizer_kwargs"],
             lr=bundle["lr"],
             lr_patience=bundle["lr_patience"],
             lr_factor=bundle["lr_factor"],
             weight_decay=bundle["weight_decay"],
+            **(bundle.get("architecture_state") or {}),
         )
         obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        restore_retrieval_state(obj._task_model, bundle)
         obj._task_model.eval()
         obj._estimator = obj._task_model.estimator
 
         obj._trainer = pl.Trainer(
             max_epochs=1,
+            accelerator=accelerator,
+            devices=devices,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,
@@ -643,14 +948,7 @@ class SklearnBaseLSS(SklearnBase):
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):

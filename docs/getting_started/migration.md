@@ -11,7 +11,97 @@ branch receives no bug fixes or security updates. If you are not ready to upgrad
 pin `deeptab<2.0` and plan the move when you can.
 ```
 
+## Python support in 2.1
+
+DeepTab 2.1 supports Python 3.11, 3.12 and 3.13. Python 3.10 has reached upstream
+end of life and is no longer supported. Package metadata rejects Python 3.10;
+Python 3.14 and newer are not admitted by this release either.
+
+Recreate your environment with a supported interpreter before upgrading DeepTab.
+Prefer Python 3.12 or 3.13 for a new environment; documentation builds require
+one of those versions. Do not bypass the interpreter check or reuse a virtual
+environment created by Python 3.10.
+
+If you must retain Python 3.10 temporarily, keep the older DeepTab release and
+its tested dependency environment isolated. An older release is not a security
+guarantee or a promise of continued fixes. Changing Python does not convert
+historical model artifacts or resolve the dependency and native-platform
+limitations in the [Support Matrix](../developer_guide/support_matrix).
+
+## Native Retrieval Dependencies in 2.1
+
+The default install and the `all` observability bundle no longer install FAISS
+or delu. On Linux or Windows, install the extra before fitting or loading TabR:
+
+```bash
+pip install 'deeptab[tabr]'
+```
+
+Combine it with `all` as `deeptab[all,tabr]` when observability is also needed.
+Native TabR is unsupported on macOS arm64 and fails before importing the
+conflicting Torch/FAISS OpenMP runtimes. Other architectures, including
+experimental ModernNCA, do not require this extra.
+
+Recreate an older environment rather than leaving obsolete retrieval packages
+alongside the patched Torch stack. The new Torch, setuptools, Lightning,
+Accelerate, and TensorBoard bounds are listed in the
+[installation guide](installation). Do not retain vulnerable versions merely
+to satisfy an older native installation.
+
+## PreTab 1.0 migration
+
+DeepTab's preprocessing runs on [PreTab](https://pretab.readthedocs.io/en/latest/index.html),
+and PreTab 1.0 changed its own configuration API. This section covers what changes
+for existing DeepTab code; it links to the config reference rather than repeating
+every field here.
+
+```{important}
+**The default `output_dim` changed from 64 to 7.** A fit that omits `output_dim` (and
+its legacy aliases `n_bins`/`n_knots`) uses the narrower default and emits a
+`FutureWarning`. `output_dim` is a requested width, not a guarantee: current PreTab
+caps B-splines at **50 columns**, so `output_dim=64` fits 50, not 64. Check
+`preprocessor.output_dims_` after fitting for each feature's effective width.
+```
+
+Saved dimensions survive only a compatible reload. Before upgrading an existing
+model, check the [historical artifact assessment](../core_concepts/model_operations.md).
+
+`PreprocessingConfig` field names also changed. Renames fall into two categories:
+
+| Category                                 | Example                                                                                                                            | What happens                                                                                     |
+| ---------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| **A: faithful rename**                   | `numerical_preprocessing` → `numerical_method`, `categorical_preprocessing` → `categorical_method`, `scaling_strategy` → `scaling` | The old name still works and emits a `ConfigWarning` naming its replacement.                     |
+| **B: removed or re-meant in PreTab 1.0** | `spline_implementation`; `binning_strategy`/`knots_strategy` or decision-tree flags with no unambiguous equivalent                 | The old name raises an actionable error naming the current field; it is never silently accepted. |
+
+Passing both an old name and its replacement with conflicting values raises
+`IncompatibleParamsError` in either category. See the [Config System](../core_concepts/config_system)
+page for the complete current field reference, and `PreprocessingConfig`'s docstring
+for the authoritative, version-accurate list.
+
 ## Before you upgrade
+
+### Retrieval artifacts without candidate data
+
+TabR and experimental ModernNCA artifacts now retain the transformed training
+candidate bank required for inference, using artifact format 3 and a versioned
+retrieval payload. Older retrieval artifacts that omitted the bank cannot be
+repaired from their weights alone. Loading such an otherwise deserializable
+artifact raises `ValueError` with a refitting instruction instead of silently
+using an unrelated ordinary forward pass.
+
+Refit from the original training data with the current preprocessing config,
+validate the resulting model and save a new artifact. This is a new training
+run, not an inference-equivalent migration from an incomplete old file. Ordinary
+models do not require candidate data and keep their existing compatible loading
+path. PreTab deserialization failures described above can occur before the
+candidate-bank check.
+
+Retrieval files contain training-derived features and labels and may be much
+larger than weight-only files. Use trusted artifacts and training-data-level
+access/retention controls. See {ref}`retrieval-artifacts` for the payload,
+continuation, device limits, privacy and executable round-trip example.
+
+### Version pinning
 
 Pin the major version you test against so a future release never surprises a running
 pipeline:
@@ -51,18 +141,18 @@ from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),                      # architecture
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),   # features
+   preprocessing_config=PreprocessingConfig(numerical_method="ple"),          # features
     trainer_config=TrainerConfig(lr=1e-3),                                     # training
 )
 ```
 
 Each option moves to the config that owns its concern:
 
-| v1 argument was about  | Now lives on          | Typical fields                                                   |
-| ---------------------- | --------------------- | ---------------------------------------------------------------- |
-| Neural architecture    | `<Model>Config`       | `d_model`, `n_layers`, `n_heads`, `dropout`, `layer_sizes`       |
-| Feature handling       | `PreprocessingConfig` | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins` |
-| Training and optimizer | `TrainerConfig`       | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`   |
+| v1 argument was about  | Now lives on          | Typical fields                                                 |
+| ---------------------- | --------------------- | -------------------------------------------------------------- |
+| Neural architecture    | `<Model>Config`       | `d_model`, `n_layers`, `n_heads`, `dropout`, `layer_sizes`     |
+| Feature handling       | `PreprocessingConfig` | `numerical_method`, `categorical_method`, `output_dim`         |
+| Training and optimizer | `TrainerConfig`       | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type` |
 
 ```{important}
 Flat v1 keyword arguments are no longer accepted. A call like

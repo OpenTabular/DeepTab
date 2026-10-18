@@ -1,0 +1,729 @@
+"""
+End-to-end behavioural tests for the sklearn-compatible model API.
+
+Tests cover fit → predict → evaluate for all 15 stable models across all
+three task variants (Classifier, Regressor, LSS), plus smoke coverage for the
+3 experimental models.  A small synthetic dataset keeps CI fast.
+"""
+
+import importlib.util
+import platform
+from typing import Any
+
+import numpy as np
+import pandas as pd
+import pytest
+import torch
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
+from sklearn.metrics import r2_score
+from sklearn.model_selection import train_test_split
+
+from deeptab import set_seed
+from deeptab.models import (
+    ENODELSS,
+    MLPLSS,
+    NDTFLSS,
+    NODELSS,
+    SAINTLSS,
+    AutoIntClassifier,
+    AutoIntLSS,
+    AutoIntRegressor,
+    ENODEClassifier,
+    ENODERegressor,
+    FTTransformerClassifier,
+    FTTransformerLSS,
+    FTTransformerRegressor,
+    MambaTabClassifier,
+    MambaTabLSS,
+    MambaTabRegressor,
+    MambAttentionClassifier,
+    MambAttentionLSS,
+    MambAttentionRegressor,
+    MambularClassifier,
+    MambularLSS,
+    MambularRegressor,
+    MLPClassifier,
+    MLPRegressor,
+    NDTFClassifier,
+    NDTFRegressor,
+    NODEClassifier,
+    NODERegressor,
+    ResNetClassifier,
+    ResNetLSS,
+    ResNetRegressor,
+    SAINTClassifier,
+    SAINTRegressor,
+    TabMClassifier,
+    TabMLSS,
+    TabMRegressor,
+    TabRClassifier,
+    TabRLSS,
+    TabRRegressor,
+    TabTransformerClassifier,
+    TabTransformerLSS,
+    TabTransformerRegressor,
+    TabulaRNNClassifier,
+    TabulaRNNLSS,
+    TabulaRNNRegressor,
+)
+from deeptab.models.experimental import (
+    ModernNCAClassifier,
+    ModernNCALSS,
+    ModernNCARegressor,
+    TangosClassifier,
+    TangosLSS,
+    TangosRegressor,
+    TromptClassifier,
+    TromptLSS,
+    TromptRegressor,
+)
+
+_skip_tabr = pytest.mark.skipif(
+    (platform.system() == "Darwin" and platform.machine() == "arm64")
+    or any(importlib.util.find_spec(package) is None for package in ("delu", "faiss")),
+    reason="Native TabR requires deeptab[tabr] on a supported Linux or Windows environment",
+)
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+N_SAMPLES = 200
+N_FEATURES = 6
+N_CLASSES = 3
+RANDOM_STATE = 0
+FIT_KWARGS: dict[str, Any] = {"max_epochs": 2, "batch_size": 64}
+
+
+@pytest.fixture(scope="module")
+def classification_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = pd.qcut(y_cont, q=N_CLASSES, labels=False)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def binary_classification_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = np.where(y_cont > np.median(y_cont), 1, 0)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def regression_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def classification_data_with_cat():
+    """Fixture with one categorical column — required by TabTransformer."""
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y_cont = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    y = pd.qcut(y_cont, q=N_CLASSES, labels=False)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    df["cat_col"] = rng.choice(["A", "B", "C"], size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.fixture(scope="module")
+def regression_data_with_cat():
+    """Fixture with one categorical column — required by TabTransformer."""
+    rng = np.random.default_rng(RANDOM_STATE)
+    X = rng.standard_normal((N_SAMPLES, N_FEATURES))
+    y = X @ rng.standard_normal(N_FEATURES) + rng.standard_normal(N_SAMPLES)
+    df = pd.DataFrame({f"f{i}": X[:, i] for i in range(N_FEATURES)})
+    df["cat_col"] = rng.choice(["A", "B", "C"], size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+# ---------------------------------------------------------------------------
+# Classifier tests
+# ---------------------------------------------------------------------------
+
+CLASSIFIERS = [
+    MLPClassifier,
+    ResNetClassifier,
+    FTTransformerClassifier,
+    MambularClassifier,
+    TabMClassifier,
+    pytest.param(TabRClassifier, marks=_skip_tabr),
+    NODEClassifier,
+    NDTFClassifier,
+    SAINTClassifier,
+    AutoIntClassifier,
+    MambaTabClassifier,
+    MambAttentionClassifier,
+    TabulaRNNClassifier,
+    ENODEClassifier,
+]
+
+
+@pytest.mark.parametrize("cls", CLASSIFIERS)
+def test_classifier_fit_predict_shape(cls, classification_data):
+    X_train, X_test, y_train, _y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
+    np.testing.assert_array_equal(model.classes_, np.unique(y_train))
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert set(preds).issubset(set(range(N_CLASSES))), f"{cls.__name__}.predict returned out-of-range labels"
+
+
+@pytest.mark.parametrize("cls", CLASSIFIERS)
+def test_classifier_predict_proba_shape(cls, classification_data):
+    X_train, X_test, y_train, _y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    proba = model.predict_proba(X_test)
+    assert proba.shape == (len(X_test), N_CLASSES), f"{cls.__name__}.predict_proba returned unexpected shape"
+    np.testing.assert_allclose(
+        proba.sum(axis=1),
+        np.ones(len(X_test)),
+        atol=1e-5,
+        err_msg=f"{cls.__name__}.predict_proba rows do not sum to 1",
+    )
+
+
+@pytest.mark.parametrize("cls", CLASSIFIERS)
+def test_classifier_evaluate_returns_dict(cls, classification_data):
+    X_train, X_test, y_train, y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict), f"{cls.__name__}.evaluate should return a dict"
+    assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
+
+
+@pytest.mark.smoke
+def test_classifier_binary_predict_proba_and_score(binary_classification_data):
+    X_train, X_test, y_train, y_test = binary_classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    preds = model.predict(X_test)
+    proba = model.predict_proba(X_test)
+    score = model.score(X_test, y_test)
+
+    assert set(preds).issubset({0, 1})
+    assert proba.shape == (len(X_test), 2)
+    np.testing.assert_allclose(proba.sum(axis=1), np.ones(len(X_test)), atol=1e-5)
+    assert 0.0 <= score <= 1.0
+
+
+@pytest.mark.smoke
+def test_predict_validates_feature_names(classification_data):
+    X_train, X_test, y_train, _y_test = classification_data
+    model = MLPClassifier()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    from deeptab.core.exceptions import ColumnNameError
+
+    with pytest.raises(ColumnNameError):
+        model.predict(X_test[X_test.columns[::-1]])
+
+
+# ---------------------------------------------------------------------------
+# pretrain() -> fit() continuity (#446)
+# ---------------------------------------------------------------------------
+
+
+def test_classifier_fit_continues_from_pretrained_weights(binary_classification_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+
+    model = MambularClassifier()
+    model.build_model(X_train, y_train)
+    assert model._task_model is not None
+    weight_before_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    weight_after_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+    assert not torch.allclose(weight_before_pretrain, weight_after_pretrain)
+
+    # If fit() silently rebuilds, self._task_model.estimator becomes a brand
+    # new module instance (a fresh, random re-initialization), which is
+    # exactly the bug #446 reports. A continued fit() keeps the same object.
+    pretrained_estimator = model._task_model.estimator
+    model.fit(X_train, y_train, max_epochs=1)
+
+    assert model._task_model is not None
+    assert model._task_model.estimator is pretrained_estimator
+    assert model._is_pretrained is False  # cleared once fit() actually trains
+
+
+def test_regressor_fit_continues_from_pretrained_weights(regression_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = regression_data
+
+    model = MambularRegressor()
+    model.build_model(X_train, y_train)
+    assert model._task_model is not None
+    weight_before_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    weight_after_pretrain = next(model._task_model.estimator.embedding_layer.parameters()).clone()
+    assert not torch.allclose(weight_before_pretrain, weight_after_pretrain)
+
+    pretrained_estimator = model._task_model.estimator
+    model.fit(X_train, y_train, max_epochs=1)
+
+    assert model._task_model is not None
+    assert model._task_model.estimator is pretrained_estimator
+
+
+def test_explicit_rebuild_true_discards_pretrained_weights_with_warning(binary_classification_data, tmp_path):
+    X_train, _X_test, y_train, _y_test = binary_classification_data
+
+    model = MambularClassifier()
+    model.build_model(X_train, y_train)
+    model.pretrain(pretrain_epochs=2, k_neighbors=5, save_path=str(tmp_path / "pretrained_embeddings.pth"))
+    assert model._task_model is not None
+    pretrained_estimator = model._task_model.estimator
+
+    with pytest.warns(UserWarning, match="rebuild=True discards"):
+        model.fit(X_train, y_train, max_epochs=1, rebuild=True)
+
+    assert model._task_model is not None
+    # An explicit rebuild=True is honored even though it throws pretraining away.
+    assert model._task_model.estimator is not pretrained_estimator
+
+
+# ---------------------------------------------------------------------------
+# Regressor tests
+# ---------------------------------------------------------------------------
+
+REGRESSORS = [
+    MLPRegressor,
+    ResNetRegressor,
+    FTTransformerRegressor,
+    MambularRegressor,
+    TabMRegressor,
+    pytest.param(TabRRegressor, marks=_skip_tabr),
+    NODERegressor,
+    NDTFRegressor,
+    SAINTRegressor,
+    AutoIntRegressor,
+    MambaTabRegressor,
+    MambAttentionRegressor,
+    TabulaRNNRegressor,
+    ENODERegressor,
+]
+
+
+@pytest.mark.parametrize("cls", REGRESSORS)
+def test_regressor_fit_predict_shape(cls, regression_data):
+    X_train, X_test, y_train, _y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+
+@pytest.mark.parametrize("cls", REGRESSORS)
+def test_regressor_evaluate_returns_dict(cls, regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict), f"{cls.__name__}.evaluate should return a dict"
+    assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
+
+
+@pytest.mark.smoke
+def test_regressor_score_returns_r2(regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), "score() should return a float"
+    np.testing.assert_allclose(score, r2_score(y_test, model.predict(X_test)), rtol=1e-6, atol=1e-7)
+
+
+@pytest.mark.parametrize("cls", CLASSIFIERS)
+def test_classifier_score_returns_float_in_unit_interval(cls, classification_data):
+    """score() returns a float in [0, 1] for every classifier."""
+    X_train, X_test, y_train, y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), f"{cls.__name__}.score() should return a float"
+    assert 0.0 <= score <= 1.0, f"{cls.__name__}.score()={score} is outside [0, 1]"
+
+
+@pytest.mark.parametrize("cls", REGRESSORS)
+def test_regressor_score_returns_r2_all(cls, regression_data):
+    """Compare each regressor's score with sklearn's R2 on identical predictions."""
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    score = model.score(X_test, y_test)
+    assert isinstance(score, float), f"{cls.__name__}.score() should return a float"
+    np.testing.assert_allclose(score, r2_score(y_test, model.predict(X_test)), rtol=1e-6, atol=1e-7)
+
+
+def test_checkpoint_monitor_and_mode_match_early_stopping(regression_data):
+    """ModelCheckpoint must track the same monitor/mode requested for early stopping (#425)."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+    model.fit(X_train, y_train, monitor="val_loss", mode="max", **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    early_stop_cb = model._trainer.early_stopping_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert isinstance(early_stop_cb, EarlyStopping)
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == ("val_loss", "max")
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == (early_stop_cb.monitor, early_stop_cb.mode)
+
+
+def test_checkpoint_path_explicit_is_honored(regression_data, tmp_path):
+    """An explicit checkpoint_path must be used as-is, not silently ignored (#411)."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    custom_dir = tmp_path / "my_checkpoints"
+    model = MLPRegressor()
+    model.fit(X_train, y_train, checkpoint_path=str(custom_dir), **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert checkpoint_cb.dirpath == str(custom_dir)
+    assert model._best_model_path is not None
+    assert model._best_model_path.startswith(str(custom_dir))
+
+
+def test_checkpoint_path_default_isolates_concurrent_runs(regression_data, tmp_path, monkeypatch):
+    """Without an explicit checkpoint_path, back-to-back fits must use distinct
+    checkpoint directories so concurrent/repeated fits can never overwrite each
+    other's weights (#411)."""
+    monkeypatch.chdir(tmp_path)
+    X_train, _X_test, y_train, _y_test = regression_data
+    model_a = MLPRegressor()
+    model_a.fit(X_train, y_train, **FIT_KWARGS)
+    model_b = MLPRegressor()
+    model_b.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model_a._trainer is not None
+    assert model_b._trainer is not None
+    checkpoint_cb_a = model_a._trainer.checkpoint_callback
+    checkpoint_cb_b = model_b._trainer.checkpoint_callback
+    assert isinstance(checkpoint_cb_a, ModelCheckpoint)
+    assert isinstance(checkpoint_cb_b, ModelCheckpoint)
+    assert checkpoint_cb_a.dirpath != checkpoint_cb_b.dirpath
+
+
+def test_best_epoch_metadata_is_populated(regression_data, tmp_path, monkeypatch):
+    """best_epoch must be resolved from the checkpoint payload, not a fixed
+    filename pattern that never matches (#411)."""
+    monkeypatch.chdir(tmp_path)
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPRegressor()
+
+    captured: dict[str, Any] = {}
+    original_emit = model._emit_event
+
+    def _capture(event, **kwargs):
+        if event == "train.completed":
+            captured.update(kwargs)
+        return original_emit(event, **kwargs)
+
+    model._emit_event = _capture
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert captured.get("best_epoch") is not None
+
+
+LSS_MODELS = [
+    MLPLSS,
+    ResNetLSS,
+    FTTransformerLSS,
+    MambularLSS,
+    TabMLSS,
+    pytest.param(TabRLSS, marks=_skip_tabr),
+    NODELSS,
+    NDTFLSS,
+    SAINTLSS,
+    AutoIntLSS,
+    MambaTabLSS,
+    MambAttentionLSS,
+    TabulaRNNLSS,
+    ENODELSS,
+]
+
+
+@pytest.mark.parametrize("cls", LSS_MODELS)
+def test_lss_fit_predict_shape(cls, regression_data):
+    X_train, X_test, y_train, _y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.feature_names_in_, np.asarray(X_train.columns, dtype=object))
+
+    preds = model.predict(X_test)
+    # predict returns the location parameter for the normal family
+    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected first dimension"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+
+@pytest.mark.parametrize("cls", LSS_MODELS)
+def test_lss_evaluate_returns_dict(cls, regression_data):
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict), f"{cls.__name__}.evaluate should return a dict"
+    assert len(metrics) > 0, f"{cls.__name__}.evaluate returned an empty dict"
+
+
+def test_lss_checkpoint_monitor_and_mode_match_early_stopping(regression_data):
+    """ModelCheckpoint must track the same monitor/mode requested for early stopping (#425), LSS path."""
+    X_train, _X_test, y_train, _y_test = regression_data
+    model = MLPLSS()
+    model.fit(X_train, y_train, family="normal", monitor="val_loss", mode="max", **FIT_KWARGS)
+
+    assert model._trainer is not None
+    checkpoint_cb = model._trainer.checkpoint_callback
+    early_stop_cb = model._trainer.early_stopping_callback
+    assert isinstance(checkpoint_cb, ModelCheckpoint)
+    assert isinstance(early_stop_cb, EarlyStopping)
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == ("val_loss", "max")
+    assert (checkpoint_cb.monitor, checkpoint_cb.mode) == (early_stop_cb.monitor, early_stop_cb.mode)
+
+
+# ---------------------------------------------------------------------------
+# Config serialisation round-trip (Requirement 5)
+# ---------------------------------------------------------------------------
+
+ALL_ESTIMATOR_CLASSES = (
+    CLASSIFIERS + REGRESSORS + LSS_MODELS + [TabTransformerClassifier, TabTransformerRegressor, TabTransformerLSS]
+)
+
+
+@pytest.mark.parametrize("cls", ALL_ESTIMATOR_CLASSES)
+def test_config_serialisation_roundtrip(cls):
+    """get_params() → construct new instance → config values survive."""
+    model = cls()
+    params = model.get_params()
+
+    # Constructing a second instance with the same params must not raise.
+    model2 = cls(**params)
+
+    # All config kwargs must round-trip exactly.
+    for key, value in model._config_kwargs.items():
+        assert getattr(model2.config, key, object()) == value, (
+            f"{cls.__name__}: config.{key}={value!r} did not survive get_params round-trip"
+        )
+
+
+# ---------------------------------------------------------------------------
+# TabTransformer — requires at least one categorical feature
+# ---------------------------------------------------------------------------
+
+TAB_TRANSFORMER_MODELS = [
+    (TabTransformerClassifier, "classification"),
+    (TabTransformerRegressor, "regression"),
+    (TabTransformerLSS, "lss"),
+]
+
+
+@pytest.mark.parametrize("cls,task", TAB_TRANSFORMER_MODELS)
+def test_tabtransformer_fit_predict(cls, task, classification_data_with_cat, regression_data_with_cat):
+    if task == "classification":
+        X_train, X_test, y_train, _y_test = classification_data_with_cat
+    else:
+        X_train, X_test, y_train, _y_test = regression_data_with_cat
+
+    model = cls()
+    if task == "lss":
+        model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+    else:
+        model.fit(X_train, y_train, **FIT_KWARGS)
+
+    preds = model.predict(X_test)
+    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected shape"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+
+# ---------------------------------------------------------------------------
+# Experimental models — smoke coverage only
+#
+# These ship under ``deeptab.models.experimental`` and are subject to change.
+# We do not test them as exhaustively as the stable lineup, but we do confirm
+# that fit -> predict -> evaluate works end-to-end for every task variant so we
+# can reliably claim the experimental models run without issues.
+# ---------------------------------------------------------------------------
+
+EXPERIMENTAL_CLASSIFIERS = [ModernNCAClassifier, TangosClassifier, TromptClassifier]
+EXPERIMENTAL_REGRESSORS = [ModernNCARegressor, TangosRegressor, TromptRegressor]
+EXPERIMENTAL_LSS_MODELS = [ModernNCALSS, TangosLSS, TromptLSS]
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_CLASSIFIERS)
+def test_experimental_classifier_fit_predict_evaluate(cls, classification_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
+    X_train, X_test, y_train, y_test = classification_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+    np.testing.assert_array_equal(model.classes_, np.unique(y_train))
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert set(preds).issubset(set(range(N_CLASSES))), f"{cls.__name__}.predict returned out-of-range labels"
+
+    proba = model.predict_proba(X_test)
+    assert proba.shape == (len(X_test), N_CLASSES), f"{cls.__name__}.predict_proba returned unexpected shape"
+    np.testing.assert_allclose(
+        proba.sum(axis=1),
+        np.ones(len(X_test)),
+        atol=1e-5,
+        err_msg=f"{cls.__name__}.predict_proba rows do not sum to 1",
+    )
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+@pytest.mark.smoke
+def test_modern_nca_classifier_binary_predict_proba_not_biased(binary_classification_data):
+    set_seed(RANDOM_STATE)
+    X_train, X_test, y_train, y_test = binary_classification_data
+    model = ModernNCAClassifier()
+    model.fit(X_train, y_train, max_epochs=20, batch_size=64)
+
+    proba = model.predict_proba(X_test)
+    assert proba[:, 1].min() < 0.5, "positive-class probability never drops below 0.5"
+
+    score = model.score(X_test, y_test)
+    assert score > 0.6, f"ModernNCAClassifier binary accuracy too low ({score})"
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_REGRESSORS)
+def test_experimental_regressor_fit_predict_evaluate(cls, regression_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),), f"{cls.__name__}.predict returned unexpected shape"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+@pytest.mark.parametrize("cls", EXPERIMENTAL_LSS_MODELS)
+def test_experimental_lss_fit_predict_evaluate(cls, regression_data):
+    # Experimental models are numerically less stable; seed for deterministic CI.
+    set_seed(RANDOM_STATE)
+    X_train, X_test, y_train, y_test = regression_data
+    model = cls()
+    model.fit(X_train, y_train, family="normal", **FIT_KWARGS)
+
+    assert model.n_features_in_ == X_train.shape[1]
+
+    preds = model.predict(X_test)
+    assert preds.shape[0] == len(X_test), f"{cls.__name__}.predict returned unexpected first dimension"
+    assert np.isfinite(preds).all(), f"{cls.__name__}.predict returned non-finite values"
+
+    metrics = model.evaluate(X_test, y_test)
+    assert isinstance(metrics, dict) and len(metrics) > 0, f"{cls.__name__}.evaluate returned no metrics"
+
+
+# ---------------------------------------------------------------------------
+# Regression coverage for GH #448: reasonable tabular inputs (all-categorical
+# frames, a constant numeric column, an all-NaN column) must not crash fit().
+# ---------------------------------------------------------------------------
+
+ALL_CATEGORICAL_MODELS = [
+    MLPClassifier,
+    ResNetClassifier,
+    NODEClassifier,
+    NDTFClassifier,
+    MambaTabClassifier,
+]
+
+
+@pytest.fixture(scope="module")
+def all_categorical_data():
+    rng = np.random.default_rng(RANDOM_STATE)
+    df = pd.DataFrame(
+        {
+            "city": rng.choice(["A", "B", "C"], size=N_SAMPLES),
+            "type": rng.choice(["x", "y"], size=N_SAMPLES),
+        }
+    )
+    y = rng.integers(0, 2, size=N_SAMPLES)
+    return train_test_split(df, y, test_size=0.2, random_state=RANDOM_STATE)
+
+
+@pytest.mark.parametrize("cls", ALL_CATEGORICAL_MODELS)
+def test_fit_predict_with_only_categorical_features(cls, all_categorical_data):
+    """A frame with zero numerical columns leaves every concatenated feature tensor
+    integer-typed; the non-embedding forward path must still accept it."""
+    X_train, X_test, y_train, _y_test = all_categorical_data
+    model = cls()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_fit_predict_with_constant_numeric_column(regression_data):
+    """A zero-variance numeric column must not crash the default PLE preprocessing."""
+    X_train, X_test, y_train, _y_test = regression_data
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+    X_train["flag"] = 1.0
+    X_test["flag"] = 1.0
+
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)
+
+
+def test_fit_predict_with_all_nan_column(regression_data):
+    """An entirely-NaN column must be imputed with a constant, not crash the pipeline."""
+    X_train, X_test, y_train, _y_test = regression_data
+    X_train = X_train.copy()
+    X_test = X_test.copy()
+    X_train["empty"] = np.nan
+    X_test["empty"] = np.nan
+
+    model = MLPRegressor()
+    model.fit(X_train, y_train, **FIT_KWARGS)
+    preds = model.predict(X_test)
+    assert preds.shape == (len(X_test),)

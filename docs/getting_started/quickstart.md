@@ -108,12 +108,12 @@ model = MambularClassifier(
     model_config=MambularConfig(
         d_model=128,        # Hidden dimension (default: 64)
         n_layers=8,         # Number of Mamba blocks (default: 4)
-        dropout=0.2,        # Dropout rate (default: 0.2)
+        dropout=0.2,        # Dropout rate (default: 0.0)
     ),
     # Preprocessing strategy
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="quantile",  # Options: standardization, quantile, minmax, ple
-        n_bins=50,                           # For binning strategies
+        numerical_method="quantile",  # Options: standardization, quantile, minmax, ple
+        output_dim=50,                # For binning strategies
     ),
     # Training loop parameters
     trainer_config=TrainerConfig(

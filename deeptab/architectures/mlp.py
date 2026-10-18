@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 
 from ..configs.models.mlp_config import MLPConfig
@@ -76,14 +77,16 @@ class MLP(BaseModel):
                 *feature_information,
                 config=config,
             )
-            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
+            input_dim = int(np.sum([len(info) * self.hparams.d_model for info in feature_information]))
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
+        projection_factor = 2 if self.hparams.use_glu else 1
+
         # Input layer
-        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0]))
+        self.layers.append(nn.Linear(input_dim, self.hparams.layer_sizes[0] * projection_factor))
         if self.hparams.batch_norm:
-            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0]))
+            self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[0] * projection_factor))
 
         if self.hparams.use_glu:
             self.layers.append(nn.GLU())
@@ -94,11 +97,12 @@ class MLP(BaseModel):
 
         # Hidden layers
         for i in range(1, len(self.hparams.layer_sizes)):
-            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], self.hparams.layer_sizes[i]))
+            projection_size = self.hparams.layer_sizes[i] * projection_factor
+            self.layers.append(nn.Linear(self.hparams.layer_sizes[i - 1], projection_size))
             if self.hparams.batch_norm:
-                self.layers.append(nn.BatchNorm1d(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.BatchNorm1d(projection_size))
             if self.hparams.layer_norm:
-                self.layers.append(nn.LayerNorm(self.hparams.layer_sizes[i]))
+                self.layers.append(nn.LayerNorm(projection_size))
             if self.hparams.use_glu:
                 self.layers.append(nn.GLU())
             else:
@@ -108,6 +112,16 @@ class MLP(BaseModel):
 
         # Output layer
         self.layers.append(nn.Linear(self.hparams.layer_sizes[-1], num_classes))
+
+    @staticmethod
+    def _apply_linear(layer, x):
+        """Keep bias addition separate from the MPS linear kernel."""
+        if x.device.type != "mps":
+            return layer(x)
+        output = F.linear(x, layer.weight)
+        if layer.bias is not None:
+            output = output + layer.bias
+        return output
 
     def forward(self, *data) -> torch.Tensor:
         """Forward pass of the MLP model.
@@ -128,11 +142,11 @@ class MLP(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
 
         for i in range(len(self.layers) - 1):
             if isinstance(self.layers[i], nn.Linear):
-                out = self.layers[i](x)
+                out = self._apply_linear(self.layers[i], x)
                 if self.hparams.skip_connections and x.shape == out.shape:
                     x = x + out
                 else:
@@ -140,5 +154,5 @@ class MLP(BaseModel):
             else:
                 x = self.layers[i](x)
 
-        x = self.layers[-1](x)
+        x = self._apply_linear(self.layers[-1], x)
         return x

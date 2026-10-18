@@ -37,6 +37,20 @@ features -> optional embeddings -> BatchEnsemble MLP blocks -> ensemble output/h
 
 When `average_ensembles=False`, `TabM` returns one prediction per ensemble member and sets `returns_ensemble=True`. When `average_ensembles=True`, the model averages member states before the final head.
 
+For LSS tasks, per-member outputs have shape `(batch_size, ensemble_size, parameter_count)`, including `(batch_size, ensemble_size, 1)` for single-output families such as Poisson and Tweedie. The training wrapper sums the member losses. `TabMLSS.predict` averages raw member outputs before applying the distribution's parameter transforms and returns `(n_samples, parameter_count)` for both raw and transformed predictions. With `average_ensembles=True`, the architecture produces `(batch_size, parameter_count)` directly and the wrapper computes one distribution loss.
+
+Ordinary scalar regression and binary classification retain the per-member shape `(batch_size, ensemble_size)`.
+
+`batch_norm=True` and `norm` add normalization after the first ensemble layer, sized to that layer's projection width. Batch normalization normalizes each feature over the batch and member axes during training and uses running statistics at inference. `norm` accepts `"LayerNorm"`, `"RMSNorm"`, `"BatchNorm"`, and `"LearnableLayerScaling"`, which all keep members independent at inference.
+
+```{important}
+`norm="InstanceNorm"` and `norm="GroupNorm"` raise `InvalidParamError`. Both compute statistics across the ensemble members of the same row, so changing one member's weights would shift every other member's prediction, even at inference. That coupling defeats the purpose of an ensemble.
+```
+
+`use_glu=True` doubles each ensemble projection so that GLU returns the configured `layer_sizes` width. Normalization before GLU acts on the doubled width.
+
+> **Configuration note:** `TabMConfig(layer_sizes=[7, 5], use_glu=True, norm="LayerNorm")` builds a first projection of width 14, normalizes those 14 features, and passes 7 features to the next layer. Previously, any `norm` value failed during construction, `batch_norm=True` treated the ensemble axis as channels, and GLU halved the configured widths without resizing the next layer.
+
 ## Practical Config
 
 ```python
@@ -51,7 +65,7 @@ model = TabMClassifier(
         dropout=0.2,
         average_ensembles=False,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

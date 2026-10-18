@@ -8,16 +8,22 @@ Exception hierarchy
 -------------------
 DeepTabError
 ├── DataError
+│   ├── InvalidDataError (also inherits ValueError)
 │   ├── ColumnDtypeError
 │   ├── ColumnCountError
 │   ├── ColumnNameError
+│   ├── DuplicateColumnsError
 │   ├── EmptyDataError
 │   └── InsufficientSamplesError
 ├── ModelError
-│   ├── NotFittedError
+│   ├── NotFittedError (also inherits sklearn.exceptions.NotFittedError)
 │   └── ArchitectureRequirementError
+├── DeviceError
+│   ├── InvalidDeviceError (also inherits ValueError)
+│   └── DeviceUnavailableError (also inherits RuntimeError)
 └── ConfigError
     ├── InvalidParamError
+    ├── UnsupportedParamError (also inherits ValueError)
     └── IncompatibleParamsError
 
 Warning hierarchy
@@ -32,6 +38,8 @@ from __future__ import annotations
 
 import warnings
 from typing import Any
+
+from sklearn.exceptions import NotFittedError as _SklearnNotFittedError
 
 # ---------------------------------------------------------------------------
 # Exception hierarchy
@@ -49,6 +57,10 @@ class DataError(DeepTabError):
     """Problem with the input DataFrame (shape, dtypes, missing columns, or values)."""
 
 
+class InvalidDataError(DataError, ValueError):
+    """Training inputs or targets violate the task's validation requirements."""
+
+
 class ColumnDtypeError(DataError):
     """One or more columns have an unsupported dtype."""
 
@@ -59,6 +71,10 @@ class ColumnCountError(DataError, ValueError):
 
 class ColumnNameError(DataError):
     """Feature column names don't match what was seen at fit time."""
+
+
+class DuplicateColumnsError(DataError):
+    """Two or more input columns share the same name."""
 
 
 class EmptyDataError(DataError, ValueError):
@@ -76,12 +92,31 @@ class ModelError(DeepTabError):
     """Problem with model construction or state."""
 
 
-class NotFittedError(ModelError):
-    """A method was called before fit() completed."""
+class NotFittedError(ModelError, _SklearnNotFittedError):
+    """A method was called before fit() completed.
+
+    Also inherits from :class:`sklearn.exceptions.NotFittedError` so that code
+    written against either exception hierarchy catches it.
+    """
 
 
 class ArchitectureRequirementError(ModelError):
     """The chosen architecture cannot operate on the provided data."""
+
+
+# -- Device errors -----------------------------------------------------------
+
+
+class DeviceError(DeepTabError):
+    """Problem resolving or validating an inference device."""
+
+
+class InvalidDeviceError(DeviceError, ValueError):
+    """The requested device name is not one of the supported choices."""
+
+
+class DeviceUnavailableError(DeviceError, RuntimeError):
+    """The requested device is a supported choice but not available on this machine."""
 
 
 # -- Config errors -----------------------------------------------------------
@@ -93,6 +128,10 @@ class ConfigError(DeepTabError):
 
 class InvalidParamError(ConfigError):
     """A single config field is out of range or not a valid choice."""
+
+
+class UnsupportedParamError(ConfigError, ValueError):
+    """A parameter is not supported by the requested operation."""
 
 
 class IncompatibleParamsError(ConfigError):
@@ -174,6 +213,15 @@ def empty_data_error(context: str = "fit") -> EmptyDataError:
     )
 
 
+def duplicate_columns_error(duplicates: list[str]) -> DuplicateColumnsError:
+    """Return a :class:`DuplicateColumnsError` naming each repeated column label."""
+    return DuplicateColumnsError(
+        f"Input has duplicate column names: {duplicates}.\n"
+        "Fix: rename or drop the duplicated columns before calling fit(), e.g.\n"
+        "  X.columns = [...]  # assign unique names"
+    )
+
+
 def insufficient_samples_error(
     n_rows: int,
     min_required: int,
@@ -188,9 +236,17 @@ def insufficient_samples_error(
     )
 
 
-def target_nan_error() -> DataError:
-    """Return a :class:`DataError` when ``y`` contains NaN values."""
-    return DataError("y contains NaN values.\nFix: remove or impute missing target values before calling fit().")
+def invalid_data_error(details: str, fix: str) -> InvalidDataError:
+    """Return a compatible data-validation error with a concrete remedy."""
+    return InvalidDataError(f"{details}\nFix: {fix}")
+
+
+def target_nan_error(name: str = "y") -> InvalidDataError:
+    """Return a data-validation error when a target contains NaN values."""
+    return invalid_data_error(
+        f"Input {name} contains NaN values.",
+        "remove or impute missing target values before calling fit().",
+    )
 
 
 def target_range_error(family: str, constraint: str) -> DataError:
@@ -202,11 +258,20 @@ def target_range_error(family: str, constraint: str) -> DataError:
     )
 
 
-def xy_length_mismatch_error(n_X: int, n_y: int) -> DataError:
+def xy_length_mismatch_error(n_X: int, n_y: int) -> InvalidDataError:
     """Return a :class:`DataError` when X and y have different row counts."""
-    return DataError(
+    return InvalidDataError(
         f"X has {n_X} row(s) but y has {n_y} element(s). They must match.\n"
+        "Found input variables with inconsistent numbers of samples.\n"
         "Fix: ensure X and y are derived from the same dataset without dropping rows."
+    )
+
+
+def multi_output_regression_error(shape: tuple[int, ...]) -> DataError:
+    """Return a :class:`DataError` when y has more than one regression target column."""
+    return DataError(
+        f"y has shape {shape}, but DeepTab does not yet support multi-output regression.\n"
+        "Fix: pass a single target column, i.e. y of shape (n_samples,) or (n_samples, 1)."
     )
 
 
@@ -234,6 +299,21 @@ def architecture_requirement_error(
 
 
 # ---------------------------------------------------------------------------
+# Message factories — Device
+# ---------------------------------------------------------------------------
+
+
+def invalid_device_error(device: Any, valid_devices: tuple[str, ...]) -> InvalidDeviceError:
+    """Return an :class:`InvalidDeviceError` for an unsupported device name."""
+    return InvalidDeviceError(f"device must be one of {valid_devices!r}, got {device!r}.")
+
+
+def device_unavailable_error(device: str) -> DeviceUnavailableError:
+    """Return a :class:`DeviceUnavailableError` for a device unavailable on this machine."""
+    return DeviceUnavailableError(f"device={device!r} was requested but is not available on this machine.")
+
+
+# ---------------------------------------------------------------------------
 # Message factories — Config
 # ---------------------------------------------------------------------------
 
@@ -250,6 +330,11 @@ def invalid_param_error(
     if valid_values is not None:
         msg += f"\nValid values: {valid_values}"
     return InvalidParamError(msg)
+
+
+def unsupported_param_error(param: str, operation: str) -> UnsupportedParamError:
+    """Return an unsupported-parameter error with an instruction to omit it."""
+    return UnsupportedParamError(f"{param} is not supported for {operation}.\nFix: omit {param} from this call.")
 
 
 def incompatible_params_error(

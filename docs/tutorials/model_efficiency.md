@@ -32,6 +32,13 @@ The cells below profile low-level architecture classes directly. This isolates t
 
 Use this tutorial for architecture screening. For end-to-end claims, add a second benchmark around the sklearn-style estimator workflow: `fit`, `predict`, and `evaluate`.
 
+The separate {ref}`numerical width study <numerical-width-study>` measures full
+estimator workflows on two bundled datasets. Its
+{download}`runner <examples/numerical_widths/numerical_widths.py>` and
+{download}`recorded results <examples/numerical_widths/results.json>` live beside
+the tutorial notebooks. The runner uses a fresh process for each case so peak
+RSS measurements do not include allocations from earlier notebook cells.
+
 ## Setup
 
 ```python
@@ -305,15 +312,15 @@ For SAINT-style row attention or retrieval-style models, batch size can change t
 
 Report benchmark results with enough context that another researcher can reproduce the workload.
 
-| Field | What to record |
-| ----- | -------------- |
-| Hardware | CPU/GPU model, GPU memory, CUDA version |
-| Software | DeepTab version or commit, PyTorch version, Python version |
-| Workload | Number of rows if applicable, feature count, categorical cardinalities |
-| Config | Model config, preprocessing config, trainer config if training is measured |
-| Measurement | Forward-only, training step, epoch, or full fit |
-| Runtime settings | Batch size, dtype, warmup count, repeat count |
-| Results | Latency, peak memory, parameter count, throughput if useful |
+| Field            | What to record                                                             |
+| ---------------- | -------------------------------------------------------------------------- |
+| Hardware         | CPU/GPU model, GPU memory, CUDA version                                    |
+| Software         | DeepTab version or commit, PyTorch version, Python version                 |
+| Workload         | Number of rows if applicable, feature count, categorical cardinalities     |
+| Config           | Model config, preprocessing config, trainer config if training is measured |
+| Measurement      | Forward-only, training step, epoch, or full fit                            |
+| Runtime settings | Batch size, dtype, warmup count, repeat count                              |
+| Results          | Latency, peak memory, parameter count, throughput if useful                |
 
 ```{tip}
 If efficiency is part of a research claim, report accuracy or validation loss separately. A faster model is not automatically a better model.

@@ -6,6 +6,8 @@ import torch.nn as nn
 
 from .serialization import load_state_dict, save_state_dict
 
+logger = logging.getLogger(__name__)
+
 
 class BaseModel(nn.Module):
     def __init__(self, config=None, **kwargs):
@@ -26,14 +28,17 @@ class BaseModel(nn.Module):
         # Store any additional keyword arguments
         self.extra_hparams = kwargs
 
-    def save_hyperparameters(self, ignore=[]):
+    def save_hyperparameters(self, ignore=None):
         """Saves the configuration and additional hyperparameters while ignoring specified keys.
 
         Parameters
         ----------
         ignore : list, optional
-            List of keys to ignore while saving hyperparameters, by default [].
+            List of keys to ignore while saving hyperparameters, by default None.
         """
+        if ignore is None:
+            ignore = []
+
         # Filter the config and extra hparams for ignored keys
         config_hparams = {k: v for k, v in vars(self.config).items() if k not in ignore} if self.config else {}
         extra_hparams = {k: v for k, v in self.extra_hparams.items() if k not in ignore}
@@ -51,7 +56,7 @@ class BaseModel(nn.Module):
             Path to save the model parameters.
         """
         save_state_dict(self, path)
-        print(f"Model parameters saved to {path}")
+        logger.info(f"Model parameters saved to {path}")
 
     def load_model(self, path, device="cpu"):
         """Load the model parameters from the given path.
@@ -64,7 +69,7 @@ class BaseModel(nn.Module):
             Device to map the model parameters, by default 'cpu'.
         """
         load_state_dict(self, path, device=device)
-        print(f"Model parameters loaded from {path}")
+        logger.info(f"Model parameters loaded from {path}")
 
     def count_parameters(self):
         """Count the number of trainable parameters in the model.
@@ -99,7 +104,7 @@ class BaseModel(nn.Module):
         if logger is None:
             logger = logging.getLogger(__name__)
         logger.info("Hyperparameters:")
-        for key, value in self.hparams.items():
+        for key, value in vars(self.hparams).items():
             logger.info(f"  {key}: {value}")
         logger.info(f"Total number of trainable parameters: {self.count_parameters()}")
 
@@ -145,25 +150,42 @@ class BaseModel(nn.Module):
         for name, count in self.parameter_count().items():
             print(f"  {name}: {count}")
 
-    def initialize_pooling_layers(self, config, n_inputs):
-        """Initializes the layers needed for learnable pooling methods based on self.hparams.pooling_method."""
+    def initialize_pooling_layers(self, config, n_inputs, hidden_size=None):
+        """Initializes the layers needed for learnable pooling methods based on self.hparams.pooling_method.
+
+        Parameters
+        ----------
+        config : BaseModelConfig
+            The model's configuration object.
+        n_inputs : int
+            Sequence length the pooling layers are sized for.
+        hidden_size : int, optional
+            Width of the sequence being pooled. Defaults to ``config.d_model``,
+            which is correct for the transformer/Mamba-style architectures
+            whose sequence width equals ``d_model``. Pass this explicitly for
+            architectures whose pooled sequence has a different width (e.g.
+            TabulaRNN pools its RNN output, sized to ``dim_feedforward``, not
+            ``d_model``).
+        """
+        hidden_size = hidden_size if hidden_size is not None else getattr(config, "d_model", 128)
+
         if self.hparams.pooling_method == "learned_flatten":
             # Flattening + Linear layer
-            self.learned_flatten_pooling = nn.Linear(n_inputs * config.dim_feedforward, config.dim_feedforward)
+            self.learned_flatten_pooling = nn.Linear(n_inputs * hidden_size, hidden_size)
 
         elif self.hparams.pooling_method == "attention":
             # Attention-based pooling with learnable attention weights
-            self.attention_weights = nn.Parameter(torch.randn(config.dim_feedforward))
+            self.attention_weights = nn.Parameter(torch.randn(hidden_size))
 
         elif self.hparams.pooling_method == "gated":
             # Gated pooling with a learned gating layer
-            self.gate_layer = nn.Linear(config.dim_feedforward, config.dim_feedforward)
+            self.gate_layer = nn.Linear(hidden_size, hidden_size)
 
         elif self.hparams.pooling_method == "rnn":
             # RNN-based pooling: Use a small RNN (e.g., LSTM)
             self.pooling_rnn = nn.LSTM(
-                input_size=config.dim_feedforward,
-                hidden_size=config.dim_feedforward,
+                input_size=hidden_size,
+                hidden_size=hidden_size,
                 num_layers=1,
                 batch_first=True,
                 bidirectional=False,
@@ -172,8 +194,8 @@ class BaseModel(nn.Module):
         elif self.hparams.pooling_method == "conv":
             # Conv1D-based pooling with global max pooling
             self.conv1d_pooling = nn.Conv1d(
-                in_channels=config.dim_feedforward,
-                out_channels=config.dim_feedforward,
+                in_channels=hidden_size,
+                out_channels=hidden_size,
                 kernel_size=3,  # or a configurable kernel size
                 padding=1,  # ensures output has the same sequence length
             )
@@ -191,7 +213,8 @@ class BaseModel(nn.Module):
         elif self.hparams.pooling_method == "last":
             return out[:, -1, :]
         elif self.hparams.pooling_method == "cls":
-            return out[:, 0, :]
+            position = 0 if getattr(self.hparams, "cls_position", 0) == 0 else -1
+            return out[:, position, :]
         elif self.hparams.pooling_method == "learned_flatten":
             # Flatten sequence and apply a learned linear layer
             batch_size, _, _ = out.shape
@@ -267,7 +290,6 @@ class BaseModel(nn.Module):
                 if available_layer == "rnn":
                     embeddings, _ = layer(x)  # type: ignore[reportCallIssue]
                 else:
-                    embeddings = self.encoder(x)  # type: ignore[reportCallIssue]
                     embeddings = layer(x)  # type: ignore[reportCallIssue]
         else:
             x = self.embedding_layer(*data)  # type: ignore[reportCallIssue]

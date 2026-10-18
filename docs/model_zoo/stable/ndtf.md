@@ -53,7 +53,7 @@ model = NDTFClassifier(
         node_sampling=0.3,
         lamda=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
@@ -72,6 +72,10 @@ Key settings:
 ## When To Use
 
 Use NDTF when you need a neural forest-style model with explicit ensemble aggregation. It can be sensitive to random tree construction, so set `random_state` and evaluate multiple seeds for research reporting.
+
+```{note}
+The per-tree input dimensions, depths, and temperatures are only randomized once, when a model is first constructed. `save()` persists the values that were actually generated, so `load()` rebuilds the same tree shapes rather than sampling a new forest.
+```
 
 ## References
 

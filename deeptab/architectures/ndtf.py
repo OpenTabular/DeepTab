@@ -1,8 +1,9 @@
 import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.node import NeuralDecisionTree
 
 from ..configs.models.ndtf_config import NDTFConfig
@@ -37,6 +38,10 @@ class NDTF(BaseModel):
         Scaling factor for the penalty applied during training, specified in the self.hparams.
     input_dimensions : list of int
         List of input dimensions for each tree in the ensemble, with random sampling.
+    depths : list of int
+        Depth of each tree in the ensemble, with random sampling.
+    temperatures : list of float
+        Softmax temperature of each tree in the ensemble, with random sampling.
     trees : nn.ModuleList
         List of neural decision trees used in the ensemble.
     conv_layer : nn.Conv1d
@@ -50,6 +55,9 @@ class NDTF(BaseModel):
         Perform a forward pass through the model, producing predictions based on an ensemble of neural decision trees.
     penalty_forward(num_features, cat_features) -> tuple of torch.Tensor
         Perform a forward pass with penalty regularization, returning predictions and the calculated penalty term.
+    get_architecture_state() -> dict
+        Return the per-tree shapes generated at construction time, so a saved
+        artifact can rebuild identical trees before loading weights back in.
     """
 
     def __init__(
@@ -57,28 +65,48 @@ class NDTF(BaseModel):
         feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes: int = 1,
         config: NDTFConfig = NDTFConfig(),  # noqa: B008
+        input_dimensions: list[int] | None = None,
+        depths: list[int] | None = None,
+        temperatures: list[float] | None = None,
         **kwargs,
     ):
         super().__init__(config=config, **kwargs)
-        self.save_hyperparameters(ignore=["feature_information"])
+        self.save_hyperparameters(ignore=["feature_information", "input_dimensions", "depths", "temperatures"])
 
         self.returns_ensemble = False
 
         input_dim = get_feature_dimensions(*feature_information)
 
-        self.input_dimensions = [input_dim]
+        # Each tree's input width, depth, and temperature are drawn at random the
+        # first time a model is constructed. Passing them back in here (as done
+        # when reconstructing a saved model) skips the random draw so the rebuilt
+        # trees have the exact shapes the saved weights were trained with.
+        if input_dimensions is None:
+            input_dimensions = [input_dim]
+            for _ in range(self.hparams.n_ensembles - 1):
+                input_dimensions.append(np.random.randint(1, input_dim))
+        if depths is None:
+            depths = [
+                np.random.randint(self.hparams.min_depth, self.hparams.max_depth)
+                for _ in range(self.hparams.n_ensembles)
+            ]
+        if temperatures is None:
+            temperatures = [
+                self.hparams.temperature + np.abs(np.random.normal(0, 0.1)) for _ in range(self.hparams.n_ensembles)
+            ]
 
-        for _ in range(self.hparams.n_ensembles - 1):
-            self.input_dimensions.append(np.random.randint(1, input_dim))
+        self.input_dimensions = input_dimensions
+        self.depths = depths
+        self.temperatures = temperatures
 
         self.trees = nn.ModuleList(
             [
                 NeuralDecisionTree(
                     input_dim=self.input_dimensions[idx],
-                    depth=np.random.randint(self.hparams.min_depth, self.hparams.max_depth),
+                    depth=self.depths[idx],
                     output_dim=num_classes,
                     lamda=self.hparams.lamda,
-                    temperature=self.hparams.temperature + np.abs(np.random.normal(0, 0.1)),
+                    temperature=self.temperatures[idx],
                     node_sampling=self.hparams.node_sampling,
                 )
                 for idx in range(self.hparams.n_ensembles)
@@ -100,6 +128,25 @@ class NDTF(BaseModel):
             requires_grad=True,
         )
 
+    def get_architecture_state(self) -> dict[str, list]:
+        """Return the randomly generated per-tree shapes for persistence.
+
+        Saved alongside the model weights so that :meth:`load` can pass these
+        same values back into the constructor and rebuild trees with matching
+        shapes, instead of drawing new random ones that the saved weights
+        would no longer fit.
+        """
+        return {
+            "input_dimensions": self.input_dimensions,
+            "depths": self.depths,
+            "temperatures": self.temperatures,
+        }
+
+    def _feature_interactions(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the single-position padded convolution as a linear projection."""
+        weight = self.conv_layer.weight[0].flip(-1).transpose(0, 1)
+        return F.linear(x, weight, self.conv_layer.bias)
+
     def forward(self, *data) -> torch.Tensor:
         """Forward pass of the NDTF model.
 
@@ -113,9 +160,8 @@ class NDTF(BaseModel):
         torch.Tensor
             Output tensor.
         """
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
-        x = self.conv_layer(x.unsqueeze(2))
-        x = x.transpose(1, 2).squeeze(-1)
+        x = concat_features(data)
+        x = self._feature_interactions(x)
 
         preds = []
 
@@ -140,9 +186,8 @@ class NDTF(BaseModel):
         torch.Tensor
             Output tensor.
         """
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
-        x = self.conv_layer(x.unsqueeze(2))
-        x = x.transpose(1, 2).squeeze(-1)
+        x = concat_features(data)
+        x = self._feature_interactions(x)
 
         penalty = 0.0
         preds = []

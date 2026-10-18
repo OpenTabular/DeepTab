@@ -168,6 +168,88 @@ for name, model in models.items():
     print(name, {"latency_ms": latency_ms, "memory_mb": memory_mb})
 ```
 
+(numerical-width-study)=
+
+## Numerical Width Study
+
+This small end-to-end study compares requested preprocessing widths, not model
+architectures. It was measured on 2026-10-15 at development revision `c68656f`
+on Apple Silicon macOS 27.0.1, using CPU and one Torch thread. The candidate's
+package metadata still reads `2.0.0`; these are not measurements of the
+historical `v2.0.0` release or certification of a published 2.1 artifact.
+
+The environment used Python 3.13.15, PyTorch 2.9.1, Lightning 2.6.6, NumPy 2.5.4,
+pandas 2.3.3, scikit-learn 1.9.1 and PreTab 1.0.0. Each fresh-process run used an
+MLP with hidden widths `[32, 16]`, zero dropout, batch size 64, learning rate
+`0.001`, no scheduler and a 20-epoch budget. All runs completed 20 epochs.
+
+The bundled sklearn breast-cancer and diabetes datasets each gained one
+deterministic categorical feature. Seeds 42, 101 and 202 produce identical
+splits across widths: 341/114/114 train/validation/test rows for classification
+and 264/89/89 for regression. Classification uses stratified splits and
+target-aware CART PLE. Regression uses uniform B-splines, with targets centered
+and scaled using training statistics only; reported scores use the original
+target scale. The categorical transform is integer encoding in both tasks.
+
+### Held-Out Quality
+
+Values are the mean and sample standard deviation across three seeds, rounded
+once from full-precision measurements. Effective width is per numerical
+feature; the categorical column retains width 1.
+
+| Classification Request | Effective Width | Accuracy, Mean (SD) | AUROC, Mean (SD) |
+| ---------------------- | --------------- | ------------------- | ---------------- |
+| 7                      | 7               | 0.9708 (0.0051)     | 0.9960 (0.0025)  |
+| 15                     | 15              | 0.9766 (0.0134)     | 0.9969 (0.0020)  |
+| 30                     | 30              | 0.9795 (0.0183)     | 0.9969 (0.0028)  |
+| 64                     | 64              | 0.9766 (0.0051)     | 0.9959 (0.0033)  |
+
+| Regression Request | Effective Width | RMSE, Mean (SD)  | R2, Mean (SD)   |
+| ------------------ | --------------- | ---------------- | --------------- |
+| 7                  | 7               | 59.4150 (8.6235) | 0.3908 (0.1208) |
+| 15                 | 15              | 56.5717 (3.1065) | 0.4462 (0.0577) |
+| 30                 | 30              | 60.8712 (4.7937) | 0.3597 (0.0747) |
+| 64                 | 50              | 62.4998 (5.1062) | 0.3260 (0.0656) |
+
+### Runtime and Memory
+
+The following are means across the same three seeds. Preprocessing time includes
+fitting and train/validation transformations. Training time spans Lightning's
+train-start/train-end callbacks; full fit also includes setup and orchestration,
+so it is not simply the sum of the other columns. Peak RSS is the fresh process's
+high-water mark through test inference, including imports and preprocessing but
+excluding artifact reload. It is neither incremental model memory nor GPU memory.
+
+| Task           | Request | Preprocessing (s) | Training (s) | Full Fit (s) | Peak RSS (MiB) |
+| -------------- | ------- | ----------------- | ------------ | ------------ | -------------- |
+| Classification | 7       | 0.0616            | 0.3775       | 0.5465       | 416.1          |
+| Classification | 15      | 0.0622            | 0.3723       | 0.5429       | 418.0          |
+| Classification | 30      | 0.0628            | 0.3754       | 0.5527       | 419.2          |
+| Classification | 64      | 0.0709            | 0.3774       | 0.5827       | 432.3          |
+| Regression     | 7       | 0.0237            | 0.1563       | 0.2401       | 413.3          |
+| Regression     | 15      | 0.0261            | 0.1553       | 0.2425       | 413.7          |
+| Regression     | 30      | 0.0298            | 0.1523       | 0.2539       | 414.0          |
+| Regression     | 64      | 0.0355            | 0.1585       | 0.2822       | 415.9          |
+
+Every case checked fitted and transformed widths, finite outputs and exact CPU
+save/load predictions. The {download}`raw measurements <../tutorials/examples/numerical_widths/results.json>`
+retain per-seed quality, timing, parameter counts, effective widths and split
+hashes. The {download}`runner <../tutorials/examples/numerical_widths/numerical_widths.py>` reproduces the
+24-case design on macOS or Linux with compatible dependencies. Set `TMPDIR` to
+a writable location; for example, from the downloaded runner's directory:
+
+```bash
+TMPDIR="$PWD" python numerical_widths.py --epochs 20 --output results-rerun.json
+```
+
+```{important}
+The default requested width remains 7. Width 30 had the highest mean accuracy
+on this classifier task, while 15 had the highest mean regression R2. Three
+seeds on two datasets do not establish a universal accuracy winner. Timing and
+process RSS depend on the environment; do not pool these measurements with
+older runs or use them as native retrieval, accelerator or security evidence.
+```
+
 ## Reporting Template
 
 Use this compact template in experiment notes or pull requests:

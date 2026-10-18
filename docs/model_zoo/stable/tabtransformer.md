@@ -8,6 +8,8 @@ TabTransformer uses self-attention to contextualize categorical feature embeddin
 
 Use it when categorical interactions are central to the task. If the dataset has no categorical features, use FTTransformer, MLP, ResNet, or TabM instead.
 
+Categorical-only datasets are supported. When there are no numerical features, the pooled categorical representation passes directly to the prediction head, with no numerical normalization or concatenation.
+
 ## Architectural Details
 
 DeepTab's `TabTransformer` pipeline is:
@@ -16,7 +18,7 @@ DeepTab's `TabTransformer` pipeline is:
 2. Embed categorical and external embedding features with `EmbeddingLayer`.
 3. Apply a Transformer encoder to the categorical token sequence.
 4. Pool the contextualized categorical tokens.
-5. Concatenate the pooled categorical representation with layer-normalized numerical features.
+5. Concatenate the pooled categorical representation with layer-normalized numerical features, if any.
 6. Predict with `MLPhead`.
 
 ```text
@@ -41,6 +43,12 @@ DeepTab raises a `ValueError` if no categorical features are available. This is 
 
 The default config uses `d_model=128`, `n_layers=4`, `n_heads=8`, `transformer_activation=ReGLU()`, and `transformer_dim_feedforward=512`.
 
+Each encoder layer follows PyTorch's `nn.TransformerEncoderLayer` ordering. `attn_dropout` sets dropout on the attention weights and on each sublayer output before its residual addition. The feed-forward hidden activations are not dropped out, and `ff_dropout` is part of the config but is not used by this encoder layer.
+
+> **Configuration note:** `norm_first=True` is the default and builds pre-norm encoder layers: each attention and feed-forward sublayer normalizes its own input, and the residual stream itself stays unnormalized until the encoder's final `norm`. `norm_first=False` selects post-norm. Previously, the encoder layer accepted `norm_first` but always ran post-norm, so default TabTransformer models now compute differently. Models saved by earlier versions load without error but no longer reproduce their old predictions; retrain them.
+
+> **Pooling note:** Pooling uses width `d_model` and counts only categorical and external embedding tokens. Numerical features bypass this sequence and are concatenated afterward. With two categorical tokens of width 16, learned flattening uses `Linear(32, 16)`, regardless of how many numerical features are present. A list of feature-group counts is not a valid token count.
+
 ## Practical Config
 
 ```python
@@ -57,8 +65,8 @@ model = TabTransformerClassifier(
         pooling_method="avg",
     ),
     preprocessing_config=PreprocessingConfig(
-        numerical_preprocessing="standardization",
-        categorical_preprocessing="int",
+        numerical_method="standardization",
+        categorical_method="int",
     ),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,

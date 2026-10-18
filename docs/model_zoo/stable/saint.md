@@ -38,6 +38,8 @@ The original SAINT paper also emphasizes contrastive pretraining and data augmen
 
 The default config uses `d_model=128`, `n_layers=1`, `n_heads=2`, `pooling_method="cls"`, and `use_cls=True`.
 
+> **Pooling note:** Learnable pooling operates on width-`d_model` tokens. The architecture passes that width explicitly, so attention, gated, recurrent, convolutional, and learned-flatten pooling do not depend on TabulaRNN's `dim_feedforward` field.
+
 ## Practical Config
 
 ```python
@@ -54,7 +56,7 @@ model = SAINTClassifier(
         pooling_method="cls",
         use_cls=True,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=3e-4, batch_size=128, max_epochs=100),
     random_state=101,
 )

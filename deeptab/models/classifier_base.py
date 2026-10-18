@@ -5,11 +5,13 @@ from collections.abc import Callable
 
 import numpy as np
 import torch
+from sklearn.base import ClassifierMixin
 from sklearn.metrics import accuracy_score, log_loss
 
-from deeptab.core.exceptions import NotFittedError, not_fitted_error
+from deeptab.configs import TrainerConfig
+from deeptab.core.exceptions import NotFittedError, invalid_data_error, not_fitted_error
 from deeptab.metrics import get_default_metrics_dict
-from deeptab.models.base import SklearnBase
+from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training.losses import build_classification_loss, compute_class_weights
 
 
@@ -28,7 +30,25 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     resolved_loss = build_classification_loss(loss_fct, num_classes=num_classes, class_weights=class_weights)
 
     if sample_weight is not None:
-        sampler = sample_weight
+        try:
+            weights = np.asarray(sample_weight, dtype=np.float64)
+        except (TypeError, ValueError) as error:
+            raise invalid_data_error(
+                "sample_weight must contain numeric values.", "supply finite sampling weights."
+            ) from error
+        if weights.ndim != 1 or len(weights) != len(y):
+            raise invalid_data_error(
+                "sample_weight must be one-dimensional with one weight per training row.",
+                "supply sampling weights matching X and y.",
+            )
+        if not np.isfinite(weights).all() or (weights < 0).any():
+            raise invalid_data_error("sample_weight must be finite and non-negative.", "supply valid sampling weights.")
+        if not np.any(weights):
+            raise invalid_data_error(
+                "Sample weights must contain at least one non-zero number.",
+                "supply at least one positive sampling weight.",
+            )
+        sampler = weights
     elif balanced_sampler:
         sampler = "balanced"
     else:
@@ -36,7 +56,35 @@ def _resolve_loss_and_sampler(loss_fct, class_weight, balanced_sampler, sample_w
     return resolved_loss, sampler
 
 
-class SklearnBaseClassifier(SklearnBase):
+def _encode_labels(y, classes: np.ndarray, *, name: str = "y") -> np.ndarray:
+    """Map raw labels in *y* to contiguous ``0..K-1`` indices via sorted *classes*.
+
+    Training, loss computation, and ``predict``'s ``classes_[index]`` lookup all
+    assume label indices, not the original label values, so every ``y`` reaching
+    the loss/preprocessor must be encoded this way. Works for string, boolean, or
+    non-contiguous integer labels alike, since it never assumes the raw values are
+    already usable as indices.
+
+    Raises
+    ------
+    ValueError
+        If *y* contains a label absent from *classes* (only possible for
+        ``y_val``, since *classes* is always derived from the training labels).
+    """
+    y = np.asarray(y)
+    indices = np.clip(np.searchsorted(classes, y), 0, len(classes) - 1)
+    unmatched = classes[indices] != y
+    if unmatched.any():
+        unseen = np.unique(y[unmatched]).tolist()
+        raise ValueError(
+            f"{name} contains label(s) {unseen} that were not seen during fit; known classes are {classes.tolist()}."
+        )
+    return indices
+
+
+class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
+    _task = "classification"
+
     def __init__(
         self,
         model_config=None,
@@ -72,7 +120,7 @@ class SklearnBaseClassifier(SklearnBase):
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         class_weight: str | dict | list | np.ndarray | None = None,
         loss_fct=None,
         balanced_sampler: bool = False,
@@ -102,20 +150,24 @@ class SklearnBaseClassifier(SklearnBase):
         stratify : bool, default=True
             Whether to stratify the validation split on `y` so the split keeps
             the same class proportions. Set to False for a purely random split.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        lr_factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
 
         class_weight : {"balanced"}, dict, array-like, or None, default=None
             Weights associated with classes for imbalanced data. ``"balanced"``
@@ -134,7 +186,9 @@ class SklearnBaseClassifier(SklearnBase):
         sample_weight : array-like, optional
             Explicit per-row sampling weights (length matches ``X``). Takes
             precedence over ``balanced_sampler`` and drives the
-            ``WeightedRandomSampler``.
+            ``WeightedRandomSampler``. This is resampling, not per-row loss
+            weighting, and does not satisfy sklearn's removed/repeated-row
+            equivalence contract.
 
         Returns
         -------
@@ -142,12 +196,20 @@ class SklearnBaseClassifier(SklearnBase):
             The built classifier.
         """
 
-        self.classes_ = np.unique(y)
-        num_classes = len(self.classes_)
+        classes = np.unique(y)
+        num_classes = len(classes)
+        if num_classes < 2:
+            received = "one class" if num_classes == 1 else "no classes"
+            raise ValueError(f"Classification requires at least 2 classes; received {received}.")
+        self.classes_ = classes
 
         loss_fct, sampler = _resolve_loss_and_sampler(
             loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
         )
+
+        y = _encode_labels(y, self.classes_)
+        if y_val is not None:
+            y_val = _encode_labels(y_val, self.classes_, name="y_val")
 
         return super()._build_model(
             X,
@@ -178,28 +240,28 @@ class SklearnBaseClassifier(SklearnBase):
         self,
         X,
         y,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        max_epochs: int = 100,
-        random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        stratify: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        max_epochs: int | None = None,
+        random_state: int | None = None,
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        stratify: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
+        checkpoint_path: str | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
-        rebuild=True,
+        dataloader_kwargs=None,
+        rebuild: bool | None = None,
         class_weight: str | dict | list | np.ndarray | None = None,
         loss_fct=None,
         balanced_sampler: bool = False,
@@ -215,49 +277,84 @@ class SklearnBaseClassifier(SklearnBase):
             The training input samples.
         y : array-like, shape (n_samples,) or (n_samples, n_targets)
             The target values (real numbers).
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             The proportion of the dataset to include in the validation split if `X_val` is None.
-            Ignored if `X_val` is provided.
+            Ignored if `X_val` is provided. Falls back to the active `TrainerConfig`'s
+            value, or 0.2 when no `TrainerConfig` is set.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
         y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
             The validation target values. Required if `X_val` is provided.
-        max_epochs : int, default=100
-            Maximum number of epochs for training.
-        random_state : int, default=101
-            Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
-            Number of samples per gradient update.
-        shuffle : bool, default=True
-            Whether to shuffle the training data before each epoch.
-        stratify : bool, default=True
+        max_epochs : int or None, default=None
+            Maximum number of epochs for training. Falls back to the active
+            `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, no reseeding happens, so any external
+            ``set_seed``/``seed_context`` call already in effect is left
+            untouched.
+        batch_size : int or None, default=None
+            Number of samples per gradient update. Falls back to the active
+            `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle the training data before each epoch. Falls back
+            to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        stratify : bool or None, default=None
             Whether to stratify the validation split on `y` so the split keeps
             the same class proportions. Set to False for a purely random split.
-            When a `TrainerConfig` is set, its `stratify` value takes precedence.
-        patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before early stopping.
-        monitor : str, default="val_loss"
-            The metric to monitor for early stopping.
-        mode : str, default="min"
-            Whether the monitored metric should be minimized (`min`) or maximized (`max`).
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
-        checkpoint_path : str, default="model_checkpoints"
-            Path where the checkpoints are being saved.
+            Falls back to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        patience : int or None, default=None
+            Number of epochs with no improvement on the validation loss to wait
+            before early stopping. Falls back to the active `TrainerConfig`'s
+            value, or 15 when no `TrainerConfig` is set.
+        monitor : str or None, default=None
+            The metric for early stopping and best checkpoint selection. Falls back to the active
+            `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+            Plateau schedulers inherit it unless `scheduler_monitor` is explicit.
+            Unknown or unavailable names raise `ValueError` before replacing fitted state.
+        mode : str or None, default=None
+            Whether the monitored metric should be minimized (`min`) or
+            maximized (`max`). Falls back to the active `TrainerConfig`'s value,
+            or "min" when no `TrainerConfig` is set.
+            An explicit `scheduler_kwargs["mode"]` wins for the plateau scheduler only.
+            Per-call overrides are resolved again on continuation without mutating config.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
+        checkpoint_path : str or None, default=None
+            Path where the checkpoints are being saved. When given, it is used
+            as-is (each run must use a distinct path to avoid collisions
+            between concurrent fits). Falls back to the active
+            `TrainerConfig`'s value, or "model_checkpoints" when no
+            `TrainerConfig` is set; in that case each fit writes to its own
+            uniquely named sub-directory so parallel/repeated fits never
+            collide.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
-        rebuild: bool, default=True
-            Whether to rebuild the model when it already was built.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way. Continuing keeps
+            the existing loss and sampler; supplying new loss or sampling
+            options requires ``rebuild=True``.
         class_weight : {"balanced"}, dict, array-like, or None, default=None
             Weights associated with classes for imbalanced data. ``"balanced"``
             mirrors scikit-learn and uses ``n_samples / (n_classes * bincount(y))``
@@ -281,7 +378,9 @@ class SklearnBaseClassifier(SklearnBase):
         sample_weight : array-like, optional
             Explicit per-row sampling weights (length matches ``X``). Takes
             precedence over ``balanced_sampler``; rows are drawn into batches in
-            proportion to their weight.
+            proportion to their weight. This is resampling, not per-row loss
+            weighting, and does not satisfy sklearn's removed/repeated-row
+            equivalence contract.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -289,14 +388,77 @@ class SklearnBaseClassifier(SklearnBase):
         -------
         self : object
             The fitted classifier.
+
+        Notes
+        -----
+        ``rebuild=False`` retains neural weights, fitted preprocessing, class
+        labels, loss, and metrics while preparing fresh data and loaders. Each
+        call starts a new trainer, optimizer, and scheduler; it does not resume
+        their previous state. Explicit epoch, learning-rate, weight-decay,
+        batch, and loader overrides are honored. Changing task objects or
+        explicit row-specific
+        sampling weights requires ``rebuild=True``. Balanced sampling retains
+        its policy and recomputes weights from the new labels.
+
+        Input and loss/sampling validation occurs before replacing fitted
+        state. Rejection preserves the previous classes, weights, preprocessing,
+        and predictions. Failures after rebuilding or training starts invalidate
+        prediction until a successful fit. Targets must be finite discrete labels;
+        validation labels must occur in the training classes.
+
+        Raises
+        ------
+        ValueError
+            If loss or sampling options are supplied while continuing an
+            existing model without rebuilding it.
         """
 
-        self.classes_ = np.unique(y)
-        num_classes = len(self.classes_)
+        effective_rebuild = rebuild if rebuild is not None else not getattr(self, "_is_pretrained", False)
+        if not effective_rebuild and (
+            class_weight is not None or loss_fct is not None or balanced_sampler or sample_weight is not None
+        ):
+            raise ValueError(
+                "Supplying class_weight, loss_fct, balanced_sampler, or sample_weight requires rebuild=True. "
+                "Continuing a model preserves its existing loss and sampling setup."
+            )
 
-        loss_fct, sampler = _resolve_loss_and_sampler(
-            loss_fct, class_weight, balanced_sampler, sample_weight, y, self.classes_, num_classes
+        _validate_fit_inputs(X, y, regression=False, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
+        classes = np.unique(y)
+        num_classes = len(classes)
+        if num_classes < 2:
+            received = "one class" if num_classes == 1 else "no classes"
+            raise ValueError(f"Classification requires at least 2 classes; received {received}.")
+
+        if effective_rebuild:
+            loss_fct, sampler = _resolve_loss_and_sampler(
+                loss_fct, class_weight, balanced_sampler, sample_weight, y, classes, num_classes
+            )
+        else:
+            original_classes = getattr(self, "classes_", None)
+            if original_classes is None or not np.array_equal(classes, original_classes):
+                raise invalid_data_error(
+                    "Continuation requires the original classifier labels.",
+                    "use rebuild=True to change the class labels or classification head.",
+                )
+            loss_fct, sampler = None, None
+
+        y = _encode_labels(y, classes)
+        if y_val is not None:
+            y_val = _encode_labels(y_val, classes, name="y_val")
+
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not effective_rebuild,
+            validation_enabled=X_val is not None
+            or (val_size if val_size is not None else (self.trainer_config or TrainerConfig()).val_size) > 0,
+            trainer_kwargs=trainer_kwargs,
         )
+        if effective_rebuild:
+            self.classes_ = classes
 
         return super().fit(
             X=X,
@@ -343,7 +505,7 @@ class SklearnBaseClassifier(SklearnBase):
         predictions : ndarray, shape (n_samples,)
             The predicted class labels.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
@@ -360,7 +522,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
+        logits_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore
@@ -404,7 +566,7 @@ class SklearnBaseClassifier(SklearnBase):
         probabilities : ndarray, shape (n_samples, n_classes)
             The predicted class probabilities.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict_proba")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
 
@@ -419,7 +581,7 @@ class SklearnBaseClassifier(SklearnBase):
         # Perform inference using PyTorch Lightning's predict function
         if self._trainer is None:
             raise not_fitted_error(type(self).__name__, "predict_proba")
-        logits_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[arg-type]
+        logits_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[arg-type]
 
         # Concatenate predictions from all batches
         logits = torch.cat(logits_list, dim=0)  # type: ignore[arg-type]
@@ -609,6 +771,7 @@ class SklearnBaseClassifier(SklearnBase):
             use_negative=use_negative,
             pool_sequence=pool_sequence,
         )
+        self._is_pretrained = True
 
     def optimize_hparams(
         self,
@@ -622,14 +785,7 @@ class SklearnBaseClassifier(SklearnBase):
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):

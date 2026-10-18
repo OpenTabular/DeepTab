@@ -119,7 +119,7 @@ class InferenceModel:
         self._task = self._detect_task()
 
     @classmethod
-    def from_path(cls, path: str | os.PathLike) -> InferenceModel:
+    def from_path(cls, path: str | os.PathLike, device: str = "cpu") -> InferenceModel:
         """Load a DeepTab artifact and return an :class:`InferenceModel`.
 
         Parameters
@@ -127,6 +127,17 @@ class InferenceModel:
         path : str or path-like
             Path to a ``.deeptab`` file written by
             :meth:`~deeptab.models.base.SklearnBase.save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reloaded model. Defaults to ``"cpu"``
+            regardless of what hardware the model was trained on, so a
+            deployment machine's available hardware never silently changes
+            how the model runs. Pass ``"cuda"``/``"mps"`` to pin a single
+            accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
+
+        The artifact is deserialized once on CPU, then reconstructed for the
+        requested inference device.
 
         Returns
         -------
@@ -138,11 +149,21 @@ class InferenceModel:
             If *path* does not exist.
         ValueError
             If the loaded artifact was not fitted.
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
 
         Examples
         --------
         >>> model = InferenceModel.from_path("my_model.deeptab")
         >>> predictions = model.predict(X_new)
+
+        Loading a CPU-trained model on a multi-GPU deployment host stays on
+        CPU by default; pass ``device="cuda"`` to run inference on one GPU:
+
+        >>> model = InferenceModel.from_path("my_model.deeptab", device="cuda")
         """
         path = os.fspath(path)
         if not os.path.exists(path):
@@ -153,7 +174,7 @@ class InferenceModel:
         from deeptab.core.serialization import _warn_extension
 
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        bundle = torch.load(path, weights_only=False, map_location="cpu")
 
         estimator_class = bundle.get("_class")
         if estimator_class is None:
@@ -162,7 +183,7 @@ class InferenceModel:
                 "It may have been saved by an older version of DeepTab."
             )
 
-        estimator = estimator_class.load(path)
+        estimator = estimator_class._load_from_bundle(bundle, device=device, path=path)
         return cls(estimator)
 
     @classmethod
@@ -220,12 +241,14 @@ class InferenceModel:
 
     @property
     def feature_names(self) -> list[str] | None:
-        """Ordered list of feature names from the training run, or *None*."""
-        names = getattr(self._estimator, "input_columns_", None)
+        """Ordered list of feature names from the training run, or *None* when
+        the artifact was fitted on a positionally-indexed array (no string
+        column names available)."""
+        names = getattr(self._estimator, "feature_names_in_", None)
         if names is None:
-            fn = getattr(self._estimator, "feature_names_in_", None)
-            if fn is not None:
-                names = list(fn)
+            candidate = getattr(self._estimator, "input_columns_", None)
+            if candidate is not None and all(isinstance(column, str) for column in candidate):
+                names = candidate
         return list(names) if names is not None else None
 
     @property
@@ -341,19 +364,34 @@ class InferenceModel:
     # Prediction
     # ------------------------------------------------------------------
 
-    def predict(self, X: Any) -> np.ndarray:
+    def _check_embeddings(self, embeddings: Any) -> None:
+        """Raise a clear error if embeddings are required but were not passed."""
+        data_module = getattr(self._estimator, "_data_module", None)
+        if embeddings is None and bool(getattr(data_module, "embedding_feature_info", None)):
+            raise ValueError(
+                f"{type(self._estimator).__name__} was trained with external embeddings; "
+                "pass embeddings=... (aligned with the rows of X) to predict()/predict_proba()."
+            )
+
+    def predict(self, X: Any, embeddings: Any = None) -> np.ndarray:
         """Run inference and return the primary predictions.
 
         For **classification** returns integer class labels (same dtype as
         ``classes_``).  For **regression** returns a float array of target
         values.  For **distributional regression** (LSS) returns the
-        distribution mean / mode as a float array.
+        transformed distribution parameters, shape ``(n_samples, n_params)``
+        — identical to ``predict_params(X, raw=False)``.
 
         *X* is passed through :meth:`validate_input` before prediction.
 
         Parameters
         ----------
         X : DataFrame or array-like of shape (n_samples, n_features)
+        embeddings : array-like or None, optional
+            Pre-computed external embeddings aligned with the rows of *X*.
+            Required when the wrapped model was trained with
+            ``fit(..., embeddings=...)``; not supported for distributional
+            regression (LSS) models.
 
         Returns
         -------
@@ -362,7 +400,8 @@ class InferenceModel:
         Raises
         ------
         ValueError
-            If *X* does not match the training schema.
+            If *X* does not match the training schema, or if the model
+            requires embeddings that were not provided.
 
         Examples
         --------
@@ -370,14 +409,23 @@ class InferenceModel:
         >>> predictions = model.predict(X_new)
         """
         X_validated = self.validate_input(X)
-        return self._estimator.predict(X_validated)
+        self._check_embeddings(embeddings)
+        if self._task == "distributional_regression":
+            if embeddings is not None:
+                raise TypeError(f"{type(self._estimator).__name__}.predict() does not support the embeddings argument.")
+            return self._estimator.predict(X_validated)
+        return self._estimator.predict(X_validated, embeddings=embeddings)
 
-    def predict_proba(self, X: Any) -> np.ndarray:
+    def predict_proba(self, X: Any, embeddings: Any = None) -> np.ndarray:
         """Return predicted class probabilities (classification only).
 
         Parameters
         ----------
         X : DataFrame or array-like of shape (n_samples, n_features)
+        embeddings : array-like or None, optional
+            Pre-computed external embeddings aligned with the rows of *X*.
+            Required when the wrapped model was trained with
+            ``fit(..., embeddings=...)``.
 
         Returns
         -------
@@ -388,7 +436,8 @@ class InferenceModel:
         TypeError
             If the wrapped model is not a classifier.
         ValueError
-            If *X* does not match the training schema.
+            If *X* does not match the training schema, or if the model
+            requires embeddings that were not provided.
 
         Examples
         --------
@@ -402,7 +451,8 @@ class InferenceModel:
         if not callable(getattr(self._estimator, "predict_proba", None)):
             raise TypeError(f"{type(self._estimator).__name__} does not expose predict_proba().")
         X_validated = self.validate_input(X)
-        return self._estimator.predict_proba(X_validated)
+        self._check_embeddings(embeddings)
+        return self._estimator.predict_proba(X_validated, embeddings=embeddings)
 
     def predict_params(self, X: Any, *, raw: bool = False) -> np.ndarray:
         """Return distribution parameters (distributional regression only).

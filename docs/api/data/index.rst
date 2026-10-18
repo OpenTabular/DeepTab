@@ -42,8 +42,7 @@ After fitting a model, inspect how features were preprocessed:
     model = MambularClassifier()
     model.fit(X_train, y_train)
 
-    # Access feature schema
-    schema = model.feature_schema
+    schema = model._data_module.schema
 
     # Inspect numerical features
     for name, info in schema.numerical_features.items():
@@ -51,11 +50,17 @@ After fitting a model, inspect how features were preprocessed:
 
     # Inspect categorical features
     for name, info in schema.categorical_features.items():
-        print(f"{name}: {len(info.categories)} categories, dim={info.dimension}")
+        print(f"{name}: {info.categories} categories, dim={info.dimension}")
 
     # Get totals
     print(f"Total numerical dim: {schema.total_numerical_dim}")
     print(f"Total categorical dim: {schema.total_categorical_dim}")
+
+.. note::
+
+   ``_data_module`` is a private estimator attribute used here for low-level
+   inspection. PreTab's categorical metadata stores the category count in
+   ``categories``, not a list of category labels.
 
 **When to use:** Debugging feature preprocessing, understanding model input dimensions, verifying feature detection.
 
@@ -89,28 +94,70 @@ Custom Data Loading
 
 For advanced workflows, create data modules directly:
 
+Constructor ``X_val`` and ``y_val`` are used when ``preprocess_data()`` omits
+both arguments. An explicit method pair overrides the constructor pair.
+Both values must be supplied together; an incomplete pair raises ``ValueError``.
+For automatic splits, the method uses the constructor's ``val_size`` unless
+an explicit method value overrides it.
+
 .. code-block:: python
 
+    from pretab import Preprocessor
     from deeptab.data import TabularDataModule
 
-    # Already have a fitted preprocessor
+    preprocessor = Preprocessor(
+        numerical_method="standardization",
+        categorical_method="int",
+        output_structure="blocks",
+        output_format="dense",
+    )
     datamodule = TabularDataModule(
-        preprocessor=model.preprocessor,
+        preprocessor=preprocessor,
         batch_size=512,
         shuffle=True,
         regression=False,
+        X_val=X_val,
+        y_val=y_val,
     )
 
-    datamodule.preprocess_data(
-        X_train, y_train,
-        X_val=X_val, y_val=y_val,
-    )
+    datamodule.preprocess_data(X_train, y_train)
+    datamodule.setup("fit")
 
     # Access dataloaders
     train_loader = datamodule.train_dataloader()
     val_loader = datamodule.val_dataloader()
 
+``output_structure="blocks"`` and ``output_format="dense"`` supply the
+feature-wise arrays expected by the data module. ``preprocess_data()`` fits
+the preprocessor on the training partition before ``setup()`` creates datasets.
+
 **When to use:** Custom training loops, hyperparameter tuning with fixed preprocessing, integration with PyTorch Lightning.
+
+.. note::
+
+   Classification label shape uses the full training-target class count before
+   splitting. A rare class falling entirely into validation with ``stratify=False``
+   does not turn a multiclass task into a binary one. This prevents a loss-shape
+   mismatch; it does not teach the model a class absent from its training rows.
+
+Tuple datasets without embeddings work with PyTorch's standard ``DataLoader``:
+
+.. code-block:: python
+
+    import torch
+    from torch.utils.data import DataLoader
+    from deeptab.data import TabularDataset
+
+    dataset = TabularDataset(
+        [], [torch.arange(6, dtype=torch.float32).reshape(6, 1)],
+        labels=torch.arange(6),
+    )
+    features, labels = next(iter(DataLoader(dataset, batch_size=2)))
+    assert features[2] == []
+
+Absent embeddings are represented by an empty list in tuple samples, including
+indexed samples. ``TabularBatch`` object samples retain ``None`` for absent
+embeddings and require a suitable custom collation strategy.
 
 Key Design Principles
 ---------------------

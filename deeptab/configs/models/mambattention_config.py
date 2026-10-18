@@ -58,7 +58,7 @@ class MambAttentionConfig(BaseModelConfig):
         Whether to apply layer normalization to B-C matrices.
     shuffle_embeddings : bool, default=False
         Whether to shuffle embeddings before passing to Mamba layers.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the fully connected layers in the model's head.
     head_dropout : float, default=0.5
         Dropout rate for the head layers.

@@ -8,11 +8,11 @@ The model constructor accepts `model_config`, `preprocessing_config`, and `train
 
 ## The Three Config Layers
 
-| Config                | Scope                                     | Examples                                                                             |
-| --------------------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
-| `<Model>Config`       | Neural architecture                       | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes`                           |
-| `PreprocessingConfig` | Arguments passed to `pretab.Preprocessor` | `numerical_preprocessing`, `categorical_preprocessing`, `n_bins`, `scaling_strategy` |
-| `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`                       |
+| Config                | Scope                                     | Examples                                                                    |
+| --------------------- | ----------------------------------------- | --------------------------------------------------------------------------- |
+| `<Model>Config`       | Neural architecture                       | `d_model`, `n_layers`, `dropout`, `n_heads`, `layer_sizes`                  |
+| `PreprocessingConfig` | Arguments passed to `pretab.Preprocessor` | `numerical_method`, `categorical_method`, `output_dim`, `scaling`, `preset` |
+| `TrainerConfig`       | Training loop and optimizer               | `max_epochs`, `batch_size`, `lr`, `patience`, `optimizer_type`              |
 
 All three are optional. If omitted, DeepTab creates default config objects internally.
 
@@ -39,7 +39,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),
+    preprocessing_config=PreprocessingConfig(numerical_method="ple"),
     trainer_config=TrainerConfig(lr=1e-3),
 )
 ```
@@ -131,51 +131,124 @@ model = MambularClassifier(
 
 Model configs inherit shared embedding and architecture fields from `BaseModelConfig`, including `use_embeddings`, `embedding_type`, `d_model`, `batch_norm`, `layer_norm`, `activation`, and `cat_encoding`. Individual models add their own fields; use the model-zoo pages or API reference for model-specific details.
 
+> **Embedding note:** On paths using `EmbeddingLayer`, `cat_encoding` selects how a single category ID becomes a token: `"int"` uses a learned lookup table, `"one-hot"` creates a one-hot vector and projects it, and `"linear"` casts the ID to a scalar and projects it. Already multi-dimensional categorical inputs use a linear projection regardless of this choice. This model setting is distinct from `PreprocessingConfig.categorical_method`; interpreting category IDs as scalars can impose an unintended ordering on nominal categories.
+
+An inherited field does not imply identical behavior in every architecture. For example, NODE and ENODE select their final normalization using `norm`, while AutoInt uses `fprenorm` for its attention normalization arrangement. Consult each architecture's notes rather than assuming generic `batch_norm`/`layer_norm` flags control all normalization layers.
+
 ## Preprocessing Config
 
-`PreprocessingConfig` is a thin wrapper around the supported `pretab.Preprocessor` keyword arguments. Fields set to `None` are omitted, leaving the preprocessor default in effect.
+`PreprocessingConfig` is a thin wrapper around the fields PreTab 1.0's `Preprocessor` accepts. Fields set to `None` are omitted, leaving the preprocessor's own default in effect.
 
 ```python
 from deeptab.configs import PreprocessingConfig
 
 preprocessing_config = PreprocessingConfig(
-    numerical_preprocessing="quantile",
-    categorical_preprocessing="int",
-    n_bins=50,
-    scaling_strategy="minmax",
+    numerical_method="quantile",
+    categorical_method="int",
+    output_dim=50,
+    scaling="minmax",
 )
 ```
 
 Valid fields:
 
-| Field                                                                                     | Purpose                                                                                                                                                        |
-| ----------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_preprocessing`                                                                 | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform. |
-| `categorical_preprocessing`                                                               | Categorical encoding strategy passed to `pretab`, such as `"int"` or `"one-hot"` where supported.                                                              |
-| `n_bins`                                                                                  | Number of bins for binned/PLE-style numerical transforms.                                                                                                      |
-| `feature_preprocessing`                                                                   | General feature-level preprocessing override.                                                                                                                  |
-| `use_decision_tree_bins`, `binning_strategy`                                              | Controls bin edge construction.                                                                                                                                |
-| `task`                                                                                    | Optional task hint passed to the preprocessor.                                                                                                                 |
-| `cat_cutoff`, `treat_all_integers_as_numerical`                                           | Controls integer-column type inference.                                                                                                                        |
-| `degree`, `n_knots`, `use_decision_tree_knots`, `knots_strategy`, `spline_implementation` | Spline/piecewise preprocessing controls.                                                                                                                       |
-| `scaling_strategy`                                                                        | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                |
+| Field                                           | Purpose                                                                                                                                                                                        |
+| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform.                                 |
+| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
+| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                           |
+| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
+| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                  |
+| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                          |
+| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                        |
+| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                    |
+| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                |
+| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                        |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
+`PreprocessingConfig` only forwards these fields; the transforms themselves live in PreTab. For the full catalogue of representations and what each one does mathematically, see [PreTab's documentation](https://pretab.readthedocs.io/en/latest/index.html), in particular the [representations overview](https://pretab.readthedocs.io/en/latest/representations/overview.html) and [API reference](https://pretab.readthedocs.io/en/latest/api/index.html).
+
+```{note}
+Earlier DeepTab releases used a different set of field names, for example `numerical_preprocessing` instead of `numerical_method`, or `scaling_strategy` instead of `scaling`. These legacy names still work: passing one on its own resolves to the matching field above and emits a `ConfigWarning` naming the replacement, while passing both a legacy name and its canonical replacement with conflicting values raises `IncompatibleParamsError`. A few legacy names have no direct replacement (`spline_implementation` is one) and raise an actionable error immediately rather than being silently accepted.
+```
+
+### Requested and fitted widths
+
+The default requested `output_dim` is 7. Representation rules and fitted data
+determine the actual width of each feature; neither a request nor a saved
+configuration is a substitute for inspecting fitted preprocessing. With
+PreTab 1.0, B-splines cap a request of 64 at 50 basis columns:
+
+```python
+import numpy as np
+import pandas as pd
+
+from deeptab.configs import MLPConfig, PreprocessingConfig
+from deeptab.models import MLPRegressor
+
+features = pd.DataFrame({"value": np.linspace(-1, 1, 96)})
+targets = features["value"].to_numpy() ** 2
+model = MLPRegressor(
+    model_config=MLPConfig(layer_sizes=[8]),
+    preprocessing_config=PreprocessingConfig(
+        numerical_method="bspline", categorical_method="int", output_dim=64,
+        target_aware=False, placement_strategy="uniform",
+    ),
+    random_state=42,
+)
+model.build_model(features, targets)
+assert model._preprocessor.output_dims_["value"] == 50
+```
+
+`build_model()` fits preprocessing and constructs the network without training
+its weights. The private preprocessor access above is only for inspecting the
+fitted widths. The {ref}`controlled width study <numerical-width-study>`
+compares requests of 7, 15, 30 and 64 without changing the default or claiming
+one width is best for every dataset.
+
+### Presets
+
+Instead of setting individual fields, `preset` fills in a whole configuration bundle in one step, straight from PreTab's own named presets. A preset only fills in fields left at their defaults; anything you set explicitly on `PreprocessingConfig` always wins.
+
+```python
+from deeptab.configs import PreprocessingConfig
+
+# "expanded" widens the numerical basis and one-hot encodes categoricals
+prep = PreprocessingConfig(preset="expanded")
+
+# "adaptive" sizes each feature's width from the data instead of using a fixed output_dim
+prep = PreprocessingConfig(preset="adaptive")
+```
+
+| Preset       | Behavior                                                                                                               |
+| ------------ | ---------------------------------------------------------------------------------------------------------------------- |
+| `"standard"` | The balanced baseline; resolves `numerical_method` from the task (`bspline` for regression, `ple` for classification). |
+| `"expanded"` | Widens the numerical representation and one-hot encodes categorical features.                                          |
+| `"adaptive"` | Sizes each feature's width individually based on the data, rather than using one fixed `output_dim`.                   |
+
+```{tip}
+To see which representations PreTab supports before choosing `numerical_method` or `categorical_method`, call `deeptab.core.list_available_representations()`. It accepts `feature_kind`, `scope`, `supervised`, and `adaptive` filters and returns the matching representation names.
+```
+
 ### Running with no numerical preprocessing
 
-Set `numerical_preprocessing=None` (and `categorical_preprocessing=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
+Set `numerical_method=None` (and `categorical_method=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
 
 ```python
 prep = PreprocessingConfig(
-    numerical_preprocessing=None,    # no scaling, binning, or PLE on numeric columns
-    categorical_preprocessing=None,  # leave categorical encoding at its default
+    numerical_method=None,    # no scaling, binning, or PLE on numeric columns
+    categorical_method=None,  # leave categorical encoding at its default
 )
 model = MambularClassifier(preprocessing_config=prep)
 ```
 
 ```{important}
 `None` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
+```
+
+```{warning}
+Don't confuse Python `None` above with the string `"none"`, which PreTab also accepts as a literal representation name for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
 ```
 
 ```{note}
@@ -207,25 +280,25 @@ trainer_config = TrainerConfig(
 
 Valid fields:
 
-| Field                               | Meaning                                                                                                                                                               |
-| ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `max_epochs`                        | Maximum Lightning training epochs.                                                                                                                                    |
-| `batch_size`                        | Batch size for train/validation/prediction loaders.                                                                                                                   |
-| `val_size`                          | Fraction held out when no explicit validation set is passed.                                                                                                          |
-| `shuffle`                           | Whether to shuffle the training dataloader.                                                                                                                           |
-| `stratify`                          | Whether to stratify the validation split on `y` for classification. Ignored for regression. Default `True`.                                                           |
-| `patience`, `monitor`, `mode`       | Early-stopping settings. `monitor` and `mode` also apply to the LR scheduler.                                                                                         |
-| `lr`, `lr_patience`, `lr_factor`    | Learning rate and `ReduceLROnPlateau` scheduler defaults.                                                                                                             |
-| `weight_decay`                      | Optimizer weight decay (L2 penalty).                                                                                                                                  |
-| `optimizer_type`                    | Case-insensitive name of a registered optimizer (e.g. `"Adam"`, `"AdamW"`).                                                                                           |
-| `optimizer_kwargs`                  | Extra kwargs forwarded to the optimizer constructor (e.g. `{"betas": (0.9, 0.95)}`).                                                                                  |
-| `scheduler_type`                    | Case-insensitive name of a registered LR scheduler, or `None` to disable. Default: `"ReduceLROnPlateau"`.                                                             |
-| `scheduler_kwargs`                  | Extra kwargs forwarded to the scheduler constructor. For `ReduceLROnPlateau`, `"factor"` and `"patience"` are synthesised from `lr_factor`/`lr_patience` when absent. |
-| `scheduler_monitor`                 | Override the metric watched by the scheduler (defaults to `monitor`).                                                                                                 |
-| `scheduler_interval`                | `"epoch"` (default) or `"step"`: Lightning scheduling granularity.                                                                                                    |
-| `scheduler_frequency`               | How many intervals to wait between scheduler steps (default `1`).                                                                                                     |
-| `no_weight_decay_for_bias_and_norm` | When `True`, bias and normalisation-layer parameters receive zero weight decay. Recommended for transformer-style architectures.                                      |
-| `checkpoint_path`                   | Directory for the best-model checkpoint.                                                                                                                              |
+| Field                               | Meaning                                                                                                                                                                                                          |
+| ----------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `max_epochs`                        | Maximum Lightning training epochs.                                                                                                                                                                               |
+| `batch_size`                        | Batch size for train/validation/prediction loaders.                                                                                                                                                              |
+| `val_size`                          | Fraction held out when no explicit validation set is passed.                                                                                                                                                     |
+| `shuffle`                           | Whether to shuffle the training dataloader.                                                                                                                                                                      |
+| `stratify`                          | Whether to stratify the validation split on `y` for classification. Ignored for regression. Default `True`.                                                                                                      |
+| `patience`, `monitor`, `mode`       | Early-stopping settings. `monitor` and `mode` also apply to the LR scheduler.                                                                                                                                    |
+| `lr`, `lr_patience`, `lr_factor`    | Learning rate and `ReduceLROnPlateau` scheduler defaults.                                                                                                                                                        |
+| `weight_decay`                      | Optimizer weight decay (L2 penalty).                                                                                                                                                                             |
+| `optimizer_type`                    | Case-insensitive name of a registered optimizer (e.g. `"Adam"`, `"AdamW"`).                                                                                                                                      |
+| `optimizer_kwargs`                  | Extra kwargs forwarded to the optimizer constructor (e.g. `{"betas": (0.9, 0.95)}`).                                                                                                                             |
+| `scheduler_type`                    | Case-insensitive name of a registered LR scheduler, or `None` to disable. Default: `"ReduceLROnPlateau"`.                                                                                                        |
+| `scheduler_kwargs`                  | Extra kwargs forwarded to the scheduler constructor. For `ReduceLROnPlateau`, `"factor"` and `"patience"` are synthesised from `lr_factor`/`lr_patience` when absent.                                            |
+| `scheduler_monitor`                 | Override the metric watched by the scheduler (defaults to `monitor`).                                                                                                                                            |
+| `scheduler_interval`                | `"epoch"` (default) or `"step"`: Lightning scheduling granularity.                                                                                                                                               |
+| `scheduler_frequency`               | How many intervals to wait between scheduler steps (default `1`).                                                                                                                                                |
+| `no_weight_decay_for_bias_and_norm` | When `True`, bias and normalisation-layer parameters receive zero weight decay. Recommended for transformer-style architectures.                                                                                 |
+| `checkpoint_path`                   | Directory for the best-model checkpoint. Only honored as-is when passed explicitly to `fit()`; otherwise each run gets its own timestamped sub-directory of this path so concurrent/repeated runs never collide. |
 
 Runtime options such as `accelerator`, `devices`, `precision`, `gradient_clip_val`, and logger/callback settings are Lightning trainer keyword arguments, not `TrainerConfig` fields. Pass them to `fit(...)` when needed.
 
@@ -330,14 +403,14 @@ Metrics work differently: there is no `register_metric` function. `METRIC_REGIST
 
 ## Controlling the validation split
 
-When you do not pass an explicit validation set, DeepTab holds one out from the training data. The split is governed by `TrainerConfig` fields, so the split policy lives in the same place as the rest of the training settings.
+When you do not pass an explicit validation set, DeepTab holds one out from the training data. `TrainerConfig.val_size` and `stratify` control this random split; `shuffle` controls training-loader order instead.
 
 ```python
 from deeptab.configs import TrainerConfig
 
 trainer_config = TrainerConfig(
     val_size=0.15,    # fraction held out when no explicit validation set is passed
-    shuffle=True,     # shuffle before splitting
+    shuffle=True,    # shuffle training batches, not the validation split
     stratify=True,    # keep class proportions in the split (classification only)
 )
 ```
@@ -345,7 +418,7 @@ trainer_config = TrainerConfig(
 | Field      | Default | Meaning                                                                                                    |
 | ---------- | ------- | ---------------------------------------------------------------------------------------------------------- |
 | `val_size` | `0.2`   | Validation fraction used when no `X_val` is given.                                                         |
-| `shuffle`  | `True`  | Shuffle before splitting; `False` keeps the split order-based.                                             |
+| `shuffle`  | `True`  | Shuffle training-loader rows. Does not control the validation split.                                       |
 | `stratify` | `True`  | Stratify the split on `y` so train and validation keep the same class proportions. Ignored for regression. |
 
 The seed for the split comes from the estimator's `random_state` (or the `random_state` you pass to `fit()`), so the same seed always reproduces the same partition.
@@ -355,7 +428,7 @@ The seed for the split comes from the estimator's `random_state` (or the `random
 ```
 
 ```{note}
-When you provide your own `X_val` and `y_val`, no internal split happens at all, so `val_size`, `shuffle`, and `stratify` do not apply.
+When you provide your own `X_val` and `y_val`, no internal split happens, so `val_size` and `stratify` do not apply. `shuffle` still controls training-loader order. For chronological validation, split the data yourself and pass `X_val` and `y_val`; `shuffle=False` alone does not create a chronological split.
 ```
 
 ## Observability Config
@@ -377,7 +450,7 @@ model = MambularClassifier(
 ```
 
 ```{note}
-`ObservabilityConfig` lives in `deeptab.core.observability`, not `deeptab.configs`, because it records training rather than defining the model recipe. Unlike the three configs above it is excluded from `get_params()` and `sklearn.clone`, so it never takes part in hyperparameter search. The [Observability guide](observability) has the full field reference, the run-directory layout, and the verbosity levels.
+`ObservabilityConfig` lives in `deeptab.core.observability`, not `deeptab.configs`, because it records training rather than defining the model recipe. It is included in `get_params()` and copied independently by `sklearn.clone`. Each clone creates its own run directory when fitted. The [Observability guide](observability) has the full field reference, the run-directory layout, and the verbosity levels.
 ```
 
 ## Using Configs Together
@@ -388,7 +461,7 @@ from deeptab.models import MambularClassifier
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=64, n_layers=4),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(max_epochs=100, batch_size=128, lr=3e-4),
     random_state=101,
 )
@@ -396,7 +469,7 @@ model = MambularClassifier(
 model.fit(X_train, y_train)
 ```
 
-If `trainer_config` is provided, `fit()` takes its `max_epochs`, `batch_size`, `val_size`, `shuffle`, `stratify`, `patience`, `monitor`, `mode`, and `checkpoint_path`, overriding the matching `fit()` arguments.
+`TrainerConfig` supplies defaults for settings such as `max_epochs`, `batch_size`, `val_size`, `shuffle`, `stratify`, `patience`, `monitor`, `mode`, and `checkpoint_path`. Explicit matching `fit()` arguments override those defaults for that call. See [Training and Evaluation](training_and_evaluation) for supported per-fit overrides; optimizer selection and scheduler configuration belong in `TrainerConfig`.
 
 ## Hyperparameter Search
 
@@ -417,7 +490,7 @@ param_grid = {
     "model_config__d_model": [32, 64, 128],
     "model_config__n_layers": [2, 4],
     "trainer_config__lr": [1e-3, 3e-4],
-    "preprocessing_config__numerical_preprocessing": ["standardization", "quantile"],
+    "preprocessing_config__numerical_method": ["standardization", "quantile"],
 }
 
 search = GridSearchCV(estimator, param_grid=param_grid, cv=3, n_jobs=1)

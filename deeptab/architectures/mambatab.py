@@ -1,7 +1,7 @@
 import torch
 import torch.nn as nn
 
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import LayerNorm
 from deeptab.nn.blocks.mamba import Mamba, MambaOriginal
 from deeptab.nn.blocks.mlp import MLPhead
@@ -99,7 +99,7 @@ class MambaTab(BaseModel):
         torch.Tensor
             Output tensor.
         """
-        x = torch.cat([t for tensors in data for t in tensors], dim=1)
+        x = concat_features(data)
 
         x = self.initial_layer(x)
         if self.axis == 1:

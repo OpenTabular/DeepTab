@@ -1,6 +1,7 @@
 from collections.abc import Callable
 
 import torch
+from sklearn.base import RegressorMixin
 from sklearn.metrics import r2_score
 
 from deeptab.core.exceptions import not_fitted_error
@@ -8,7 +9,7 @@ from deeptab.metrics import get_default_metrics_dict
 from deeptab.models.base import SklearnBase
 
 
-class SklearnBaseRegressor(SklearnBase):
+class SklearnBaseRegressor(RegressorMixin, SklearnBase):
     def __init__(
         self,
         model_config=None,
@@ -43,7 +44,7 @@ class SklearnBaseRegressor(SklearnBase):
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
     ):
         """Builds the model using the provided training data.
 
@@ -51,35 +52,40 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : DataFrame or array-like, shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape (n_samples,) or (n_samples, n_targets)
-            The target values (real numbers).
+        y : array-like, shape (n_samples,) or (n_samples, 1)
+            The target values (real numbers). Multi-output regression (more than
+            one target column) is not currently supported.
         val_size : float, default=0.2
             The proportion of the dataset to include in the validation split if `X_val` is None.
             Ignored if `X_val` is provided.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
-        y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
+        y_val : array-like, shape (n_samples,) or (n_samples, 1), optional
             The validation target values. Required if `X_val` is provided.
         random_state : int, default=101
             Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
+        batch_size : int, default=128
             Number of samples per gradient update.
         shuffle : bool, default=True
             Whether to shuffle the training data before each epoch.
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
 
 
 
@@ -115,27 +121,27 @@ class SklearnBaseRegressor(SklearnBase):
         self,
         X,
         y,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
         embeddings=None,
         embeddings_val=None,
-        max_epochs: int = 100,
-        random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        max_epochs: int | None = None,
+        random_state: int | None = None,
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
-        dataloader_kwargs={},
+        checkpoint_path: str | None = None,
+        dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        rebuild=True,
+        rebuild: bool | None = None,
         **trainer_kwargs,
     ):
         """Trains the regression model using the provided training data. Optionally, a separate validation set can be
@@ -145,47 +151,76 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : DataFrame or array-like, shape (n_samples, n_features)
             The training input samples.
-        y : array-like, shape (n_samples,) or (n_samples, n_targets)
-            The target values (real numbers).
-        val_size : float, default=0.2
+        y : array-like, shape (n_samples,) or (n_samples, 1)
+            The target values (real numbers). Multi-output regression (more than
+            one target column) is not currently supported.
+        val_size : float or None, default=None
             The proportion of the dataset to include in the validation split if `X_val` is None.
-            Ignored if `X_val` is provided.
+            Ignored if `X_val` is provided. Falls back to the active `TrainerConfig`'s
+            value, or 0.2 when no `TrainerConfig` is set.
         X_val : DataFrame or array-like, shape (n_samples, n_features), optional
             The validation input samples. If provided, `X` and `y` are not split and this data is used for validation.
-        y_val : array-like, shape (n_samples,) or (n_samples, n_targets), optional
+        y_val : array-like, shape (n_samples,) or (n_samples, 1), optional
             The validation target values. Required if `X_val` is provided.
-        max_epochs : int, default=100
-            Maximum number of epochs for training.
-        random_state : int, default=101
-            Controls the shuffling applied to the data before applying the split.
-        batch_size : int, default=64
-            Number of samples per gradient update.
-        shuffle : bool, default=True
-            Whether to shuffle the training data before each epoch.
-        patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before early stopping.
-        monitor : str, default="val_loss"
-            The metric to monitor for early stopping.
-        mode : str, default="min"
-            Whether the monitored metric should be minimized (`min`) or maximized (`max`).
-        lr : float, default=1e-3
-            Learning rate for the optimizer.
-        lr_patience : int, default=10
-            Number of epochs with no improvement on the validation loss to wait before reducing the learning rate.
-        factor : float, default=0.1
-            Factor by which the learning rate will be reduced.
-        weight_decay : float, default=0.025
-            Weight decay (L2 penalty) coefficient.
-        checkpoint_path : str, default="model_checkpoints"
-            Path where the checkpoints are being saved.
-        dataloader_kwargs: dict, default={}
-            The kwargs for the pytorch dataloader class.
+        max_epochs : int or None, default=None
+            Maximum number of epochs for training. Falls back to the active
+            `TrainerConfig`'s value, or 100 when no `TrainerConfig` is set.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, no reseeding happens, so any external
+            ``set_seed``/``seed_context`` call already in effect is left
+            untouched.
+        batch_size : int or None, default=None
+            Number of samples per gradient update. Falls back to the active
+            `TrainerConfig`'s value, or 128 when no `TrainerConfig` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle the training data before each epoch. Falls back
+            to the active `TrainerConfig`'s value, or `True` when no
+            `TrainerConfig` is set.
+        patience : int or None, default=None
+            Number of epochs with no improvement on the validation loss to wait
+            before early stopping. Falls back to the active `TrainerConfig`'s
+            value, or 15 when no `TrainerConfig` is set.
+        monitor : str or None, default=None
+            The metric to monitor for early stopping. Falls back to the active
+            `TrainerConfig`'s value, or "val_loss" when no `TrainerConfig` is set.
+        mode : str or None, default=None
+            Whether the monitored metric should be minimized (`min`) or
+            maximized (`max`). Falls back to the active `TrainerConfig`'s value,
+            or "min" when no `TrainerConfig` is set.
+        lr : float or None, default=None
+            Learning rate for the optimizer. Falls back to the active
+            `TrainerConfig`'s value, or 1e-4 when no `TrainerConfig` is set.
+        lr_patience : int or None, default=None
+            Epochs without improvement before reducing the learning rate.
+            ``None`` uses the active ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            Learning-rate reduction factor. ``None`` uses the active
+            ``TrainerConfig`` value.
+        weight_decay : float or None, default=None
+            Weight decay (L2 penalty) coefficient. Falls back to the active
+            `TrainerConfig`'s value, or 1e-6 when no `TrainerConfig` is set.
+        checkpoint_path : str or None, default=None
+            Path where the checkpoints are being saved. When given, it is used
+            as-is (each run must use a distinct path to avoid collisions
+            between concurrent fits). Falls back to the active
+            `TrainerConfig`'s value, or "model_checkpoints" when no
+            `TrainerConfig` is set; in that case each fit writes to its own
+            uniquely named sub-directory so parallel/repeated fits never
+            collide.
+        dataloader_kwargs : dict or None, default=None
+            Extra PyTorch DataLoader keyword arguments. ``None`` adds none.
         train_metrics : dict, default=None
             torch.metrics dict to be logged during training.
         val_metrics : dict, default=None
             torch.metrics dict to be logged during validation.
-        rebuild: bool, default=True
-            Whether to rebuild the model when it already was built.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way.
         **trainer_kwargs : Additional keyword arguments for PyTorch Lightning's Trainer class.
 
 
@@ -193,6 +228,27 @@ class SklearnBaseRegressor(SklearnBase):
         -------
         self : object
             The fitted regressor.
+
+        Notes
+        -----
+        ``rebuild=False`` retains neural weights, fitted preprocessing, loss,
+        and metrics while preparing fresh data and loaders. Each call starts
+        a new trainer, optimizer, and scheduler rather than resuming their
+        previous state. Explicit epoch, learning-rate, weight-decay, batch,
+        and loader overrides are honored. Replacing metrics requires
+        ``rebuild=True``.
+
+        Targets must be finite numeric values for a single output. Validation
+        inputs must be supplied together with a matching feature schema.
+        Input-validation errors preserve the previous fitted estimator. Failures
+        after rebuilding or training starts invalidate prediction until a
+        successful fit.
+
+        Raises
+        ------
+        deeptab.core.exceptions.UnsupportedParamError
+            If the unsupported ``sample_weight`` keyword is supplied. Rejection
+            occurs before input validation or changes to estimator state.
         """
 
         return super().fit(
@@ -235,10 +291,10 @@ class SklearnBaseRegressor(SklearnBase):
 
         Returns
         -------
-        predictions : ndarray, shape (n_samples,) or (n_samples, n_outputs)
+        predictions : ndarray, shape (n_samples,)
             The predicted target values.
         """
-        X = self._validate_predict_input(X)
+        X = self._validate_predict_input(X, method="predict")
         if self._task_model is None:
             raise not_fitted_error(type(self).__name__, "predict")
 
@@ -251,7 +307,7 @@ class SklearnBaseRegressor(SklearnBase):
         self._task_model.eval()
 
         # Perform inference using PyTorch Lightning's predict function
-        predictions_list = self._trainer.predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
+        predictions_list = self._resolve_predict_trainer(device).predict(self._task_model, self._data_module)  # type: ignore[union-attr, arg-type]
 
         # Concatenate predictions from all batches
         predictions = torch.cat(predictions_list, dim=0)  # type: ignore
@@ -274,7 +330,7 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
-        y_true : array-like of shape (n_samples,) or (n_samples, n_outputs)
+        y_true : array-like of shape (n_samples,) or (n_samples, 1)
             The true target values against which to evaluate the predictions.
         metrics : dict
             A dictionary where keys are metric names and values are the metric functions.
@@ -311,7 +367,7 @@ class SklearnBaseRegressor(SklearnBase):
         ----------
         X : array-like or pd.DataFrame of shape (n_samples, n_features)
             The input samples to predict.
-        y : array-like of shape (n_samples,) or (n_samples, n_outputs)
+        y : array-like of shape (n_samples,) or (n_samples, 1)
             The true target values against which to evaluate the predictions.
         metric : callable, default=r2_score
             The metric function to use for evaluation. Must be a callable with the
@@ -404,6 +460,7 @@ class SklearnBaseRegressor(SklearnBase):
             use_negative=use_negative,
             pool_sequence=pool_sequence,
         )
+        self._is_pretrained = True
 
     def optimize_hparams(
         self,
@@ -417,14 +474,7 @@ class SklearnBaseRegressor(SklearnBase):
         max_epochs=200,
         prune_by_epoch=True,
         prune_epoch=5,
-        fixed_params={
-            "pooling_method": "avg",
-            "head_skip_layers": False,
-            "head_layer_size_length": 0,
-            "cat_encoding": "int",
-            "head_skip_layer": False,
-            "use_cls": False,
-        },
+        fixed_params=None,
         custom_search_space=None,
         **optimize_kwargs,
     ):

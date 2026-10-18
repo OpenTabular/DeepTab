@@ -26,9 +26,27 @@ probabilities = model.predict_proba(X_test)
 pip install deeptab
 ```
 
-DeepTab requires Python 3.10+ and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
+DeepTab requires Python 3.11-3.13 and installs PyTorch automatically. See [Installation](getting_started/installation) for GPU setup and the optional Mamba CUDA kernels.
 
-## What's New in v2.0
+## What's New in v2.1 (Upcoming)
+
+v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
+
+- **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
+- **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
+- **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
+- **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
+- **Release checks:** publication requires passing CI, documentation, installed-wheel training and reload checks, and at least 90% line coverage.
+
+See the {ref}`numerical width study <numerical-width-study>` for a small CPU comparison of preprocessing widths, including the protocol, runner, and raw results.
+
+```{important}
+See the [Migration Guide](getting_started/migration) for configuration changes and
+historical artifact limitations. Tested 2.0 PLE artifacts require their original
+dependency environment; upgrading does not convert them.
+```
+
+## v2.0 Background and Migration
 
 v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API stays familiar, while the package layout, configuration objects, and import paths have been updated.
 
@@ -78,7 +96,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig
 
 model = MambularClassifier(
     model_config=MambularConfig(d_model=128, n_layers=4),          # architecture
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="ple"),  # features
+  preprocessing_config=PreprocessingConfig(numerical_method="ple"),  # features
 )
 model.fit(X_train, y_train, max_epochs=50)
 ```

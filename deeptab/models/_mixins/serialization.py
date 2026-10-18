@@ -2,9 +2,10 @@
 
 The :meth:`save` / :meth:`load` pair is the canonical persistence
 mechanism.  Standard :mod:`pickle` is intentionally **not** supported:
-``__getstate__`` clears ``task_model`` to avoid serialising Lightning
-modules, so a pickled estimator cannot make predictions after
-unpickling.  Use :meth:`save` / :meth:`load` for all persistence needs.
+``__getstate__`` clears ``_task_model``, ``_trainer``, and ``_data_module``
+to avoid serialising the Lightning training graph. Unpickling resets the
+fitted and built flags, so the estimator cannot make predictions without
+refitting. Use :meth:`save` / :meth:`load` for fitted-model persistence.
 """
 
 from __future__ import annotations
@@ -15,7 +16,14 @@ import lightning as pl
 import torch
 
 from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
-from deeptab.core.serialization import _warn_extension, build_save_bundle, restore_base_state, restore_loaded_metadata
+from deeptab.core.serialization import (
+    _warn_extension,
+    build_save_bundle,
+    resolve_inference_accelerator,
+    restore_base_state,
+    restore_loaded_metadata,
+    restore_retrieval_state,
+)
 
 
 class _SerializationMixin:
@@ -29,11 +37,12 @@ class _SerializationMixin:
     weights, fitted preprocessor, feature schema, column order, task
     metadata, and a version snapshot.
 
-    Note
-    ----
+    Notes
+    -----
     :class:`pickle` is **not** supported.  ``__getstate__`` intentionally
-    clears ``task_model`` to prevent serialising Lightning modules.  Always
-    use :meth:`save` / :meth:`load` instead.
+    clears the task model, trainer, and datamodule to prevent serialising
+    Lightning runtime references. Unpickling does not restore a fitted
+    model. Always use :meth:`save` / :meth:`load` instead.
     """
 
     if TYPE_CHECKING:
@@ -49,7 +58,11 @@ class _SerializationMixin:
         architecture/config, neural-network weights, fitted preprocessing
         state, feature schema, column order, task metadata, classifier
         classes (when available), and package versions for debugging
-        reloads across environments.
+        reloads across environments. Constructor model, preprocessing, and
+        trainer configs and the constructor seed are retained for refitting.
+        Candidate-aware models also retain transformed training features and
+        targets as detached CPU tensors. Their artifacts contain training-derived
+        data and grow with the candidate bank; protect them accordingly.
 
         Parameters
         ----------
@@ -70,6 +83,7 @@ class _SerializationMixin:
         ValueError
             If the model has not been fitted yet, or *path* is ``None``
             and no run directory is active.
+            Also raised if a required candidate bank is missing or incompatible.
 
         Examples
         --------
@@ -100,19 +114,43 @@ class _SerializationMixin:
         return path
 
     @classmethod
-    def load(cls, path: str):
+    def load(cls, path: str, device: str = "cpu"):
         """Load and return a fitted model from *path*.
 
         Parameters
         ----------
         path : str
             Path to a file previously written by :meth:`save`.
+        device : {"cpu", "cuda", "mps", "auto"}, default="cpu"
+            Inference device for the reconstructed model. Defaults to ``"cpu"``
+            regardless of what hardware it was trained on, so loading is
+            reproducible across machines. Pass ``"cuda"``/``"mps"`` to pin a
+            single accelerator device, or ``"auto"`` to explicitly opt into
+            Lightning's automatic hardware selection; ``"auto"`` still uses a
+            single device, never distributed multi-device inference.
 
         Returns
         -------
         estimator
             A fully reconstructed, ready-to-predict estimator of the same
-            type that was saved.
+            type that was saved. Saved constructor configs and the seed are
+            restored for parameter inspection, cloning, and refitting.
+
+        Raises
+        ------
+        InvalidDeviceError
+            If *device* is not one of the supported values.
+        DeviceUnavailableError
+            If *device* names hardware unavailable on this machine (e.g.
+            ``"cuda"`` without a GPU).
+        ValueError
+            If required retrieval state is missing, malformed, or incompatible.
+            Refit from the original data to replace older incomplete artifacts.
+
+        Warnings
+        --------
+        Load only trusted artifacts. Reconstruction uses pickle-based objects;
+        schema validation does not make an untrusted file safe to load.
 
         Examples
         --------
@@ -124,8 +162,14 @@ class _SerializationMixin:
         6
         """
         _warn_extension(path)
-        bundle = torch.load(path, weights_only=False)
+        map_location = resolve_inference_accelerator(device)[2]
+        bundle = torch.load(path, weights_only=False, map_location=map_location)
+        return cls._load_from_bundle(bundle, device=device, path=path)
 
+    @classmethod
+    def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
+        """Reconstruct inference state from an already deserialized bundle."""
+        accelerator, devices, _ = resolve_inference_accelerator(device)
         obj = bundle["_class"].__new__(bundle["_class"])
         restore_base_state(obj, bundle)
 
@@ -147,6 +191,10 @@ class _SerializationMixin:
         obj._data_module.embedding_feature_info = bundle["feature_info"]["emb"]
         obj._data_module.input_columns_ = bundle.get("input_columns")
 
+        num_classes = bundle["num_classes"]
+        if not bundle["regression"] and num_classes == 1:
+            num_classes = 2
+
         obj._task_model = obj._task_model_factory.create(
             model_class=bundle["model_class"],
             config=bundle["config"],
@@ -155,22 +203,27 @@ class _SerializationMixin:
                 bundle["feature_info"]["cat"],
                 bundle["feature_info"]["emb"],
             ),
-            num_classes=bundle["num_classes"],
+            num_classes=num_classes,
             lss=bundle["lss"],
             family=bundle["family"],
+            loss_fct=bundle.get("loss_fct"),
             optimizer_type=bundle["optimizer_type"],
             optimizer_args=bundle["optimizer_kwargs"],
             lr=bundle["lr"],
             lr_patience=bundle["lr_patience"],
             lr_factor=bundle["lr_factor"],
             weight_decay=bundle["weight_decay"],
+            **(bundle.get("architecture_state") or {}),
         )
         obj._task_model.load_state_dict(bundle["task_model_state_dict"])
+        restore_retrieval_state(obj._task_model, bundle)
         obj._task_model.eval()
         obj._estimator = obj._task_model.estimator
 
         obj._trainer = pl.Trainer(
             max_epochs=1,
+            accelerator=accelerator,
+            devices=devices,
             enable_progress_bar=False,
             enable_model_summary=False,
             logger=False,

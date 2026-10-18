@@ -1,11 +1,12 @@
-# ruff: noqa: E402
 import math
+from typing import cast
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from deeptab.nn.blocks.common import LayerNorm, LearnableLayerScaling, RMSNorm
+from deeptab.nn.blocks.common import BatchNorm, GroupNorm, InstanceNorm, LayerNorm, LearnableLayerScaling, RMSNorm
+from deeptab.nn.initialization import _init_weights
 from deeptab.nn.normalization import get_normalization_layer
 
 # Heavily inspired and mostly taken from https://github.com/alxndrTL/mamba.py
@@ -136,7 +137,7 @@ class ResidualBlock(nn.Module):
         d_conv=16,
         conv_bias=True,
         dropout=0.01,
-        dt_rank="auto",
+        dt_rank: str | int = "auto",
         d_state=32,
         dt_scale=1.0,
         dt_init="random",
@@ -297,7 +298,7 @@ class MambaBlock(nn.Module):
         d_conv=16,
         conv_bias=True,
         dropout=0.01,
-        dt_rank="auto",
+        dt_rank: str | int = "auto",
         d_state=32,
         dt_scale=1.0,
         dt_init="random",
@@ -323,7 +324,10 @@ class MambaBlock(nn.Module):
 
                 self.pscan = pscan  # Store the imported pscan function
             except ImportError:
-                self.pscan = None  # Set to None if pscan is not available
+                # Fall back to the sequential scan instead of leaving use_pscan
+                # True with no pscan function to call.
+                self.use_pscan = False
+                self.pscan = None
                 print("The 'mambapy' package is not installed. Please install it by running:\npip install mambapy")
         else:
             self.pscan = None
@@ -342,7 +346,8 @@ class MambaBlock(nn.Module):
             kernel_size=d_conv,
             bias=conv_bias,
             groups=self.d_inner,
-            padding=d_conv - 1,
+            padding=dilation * (d_conv - 1),
+            dilation=dilation,
         )
         if self.bidirectional:
             self.conv1d_bwd = nn.Conv1d(
@@ -351,7 +356,7 @@ class MambaBlock(nn.Module):
                 kernel_size=d_conv,
                 bias=conv_bias,
                 groups=self.d_inner,
-                padding=d_conv - 1,
+                padding=dilation * (d_conv - 1),
                 dilation=dilation,
             )
 
@@ -545,19 +550,6 @@ class LearnableFeatureInteraction(nn.Module):
         return interactions.view(batch_size, n_vars, d_model)
 
 
-# black: noqa
-
-import torch.nn as nn
-
-from deeptab.nn.blocks.common import (
-    BatchNorm,
-    GroupNorm,
-    InstanceNorm,
-    RMSNorm,
-)
-from deeptab.nn.initialization import _init_weights
-
-
 class OriginalResidualBlock(nn.Module):
     """Residual block composed of a MambaBlock and a normalization layer.
 
@@ -650,6 +642,9 @@ class OriginalResidualBlock(nn.Module):
         output = self.layers(self.norm(x)) + x
         return output
 
+    def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
+        return self.layers.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
+
 
 class MambaOriginal(nn.Module):
     def __init__(self, config):
@@ -728,9 +723,14 @@ class MambaOriginal(nn.Module):
         )
 
     def allocate_inference_cache(self, batch_size, max_seqlen, dtype=None, **kwargs):
+        layers = list(self.fwd_layers)
+        if self.bidirectional:
+            layers.extend(self.bckwd_layers)
         return {
-            i: layer.allocate_inference_cache(batch_size, max_seqlen, dtype=dtype, **kwargs)
-            for i, layer in enumerate(self.layers)  # type: ignore[arg-type]
+            index: cast(OriginalResidualBlock, layer).allocate_inference_cache(
+                batch_size, max_seqlen, dtype=dtype, **kwargs
+            )
+            for index, layer in enumerate(layers)
         }
 
     def forward(self, x):
@@ -754,9 +754,6 @@ class MambaOriginal(nn.Module):
 
         # Return forward output only if not bidirectional
         return x
-
-
-import torch.nn as nn
 
 
 class MambAttn(nn.Module):

@@ -20,8 +20,26 @@ scikit-learn defines a small set of conventions that every estimator is expected
 | `predict_proba` (classifiers)  | Probability estimates for classification tasks                                    |    ✓    |
 
 ```{note}
-DeepTab implements `score` directly rather than inheriting `ClassifierMixin` / `RegressorMixin`, but it follows the same "higher is better" convention, so `GridSearchCV` and friends behave as expected.
+DeepTab classifiers inherit `ClassifierMixin`, and point-estimate regressors
+inherit `RegressorMixin`. Their sklearn task tags make `is_classifier()` and
+`is_regressor()` identify them correctly. Classification cross-validation uses
+stratified folds by default, and classifiers can be used in `VotingClassifier`
+with hard or soft voting. DeepTab still provides its own `score()` methods,
+following the "higher is better" convention.
 ```
+
+Task recognition does not imply full sklearn compliance. The estimator contract
+suite executes sklearn's checks against `MLPClassifier` and `MLPRegressor` on CPU,
+including Pipeline consistency, fixed-seed refits, prediction order/subset
+invariance, and read-only memmaps. Passing these checks does not establish the
+same behavior for every architecture or accelerator.
+
+Arbitrary array-like wrappers and some error or warning conventions still have
+tracked gaps. Missing targets, continuous classifier targets, and non-finite
+numeric targets are rejected before fitted state changes. Sparse input and
+standard fitted-estimator pickle are unsupported; use dense inputs and the documented `save()`/`load()`
+workflow. Classifier sampling weights do not implement sklearn's weighted-loss
+contract.
 
 ```{important}
 Because every constructor argument is stored untouched and all heavy lifting happens in `fit`, DeepTab estimators are safe to clone and reuse inside `Pipeline` and cross-validation. Avoid mutating private (underscore-prefixed) attributes if you rely on cloning, since those are deliberately hidden from `get_params`.
@@ -82,6 +100,31 @@ X = np.random.randn(1000, 10)
 
 For mixed numerical/categorical data, DataFrames are strongly preferred.
 
+Targets are required and must be finite. Classifiers require discrete labels;
+point regressors accept one numeric target column. Distributional models retain
+their task-specific target dimensions, including Dirichlet component columns.
+When supplying an explicit validation set, provide both `X_val` and `y_val`.
+Feature widths, ordered DataFrame columns, and target widths must match training
+data; classifier validation labels must occur in the training classes.
+
+Preflight input rejection leaves a previously fitted estimator unchanged,
+including classes, preprocessing, weights, and predictions. A failure during
+rebuilding or training instead invalidates prediction and raises `NotFittedError`
+on subsequent prediction calls. Fit again with valid data to recover. See
+{ref}`failed fits and recovery <failed-fits-and-recovery>`.
+`InvalidDataError` is a `DataError` and a `ValueError`, so either handler can
+catch errors for missing or non-finite numeric targets, mismatched row counts,
+unpaired validation data, and invalid sampling weights. Other granular errors
+retain their existing inheritance. Import granular
+error types from `deeptab.core.exceptions`.
+
+```{warning}
+SciPy sparse matrices and sparse arrays are not supported. Convert to a dense
+array before fitting only when it fits in memory. Current rejection errors do
+not consistently identify sparse input; a failed sklearn sparse check records
+that validation gap, not support for sparse training.
+```
+
 ## Constructor Pattern
 
 ```python
@@ -90,13 +133,40 @@ from deeptab.models import MLPRegressor
 
 model = MLPRegressor(
     model_config=MLPConfig(layer_sizes=[256, 128, 32], dropout=0.2),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="standardization"),
+    preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
 ```
 
 The split-config API is the recommended style for new code.
+
+### Cloning and observability
+
+`get_params()` reports `observability_config` alongside the model, preprocessing,
+trainer, and seed parameters. `set_params(observability_config=...)` replaces it.
+Cloning copies the observability configuration in both the split-config and
+default-constructor paths, but does not copy fitted state or an active run.
+
+```python
+from sklearn.base import clone
+from deeptab.core.observability import ObservabilityConfig
+from deeptab.models import MLPClassifier
+
+obs = ObservabilityConfig(root_dir="experiments", experiment_name="cv")
+classifier = MLPClassifier(observability_config=obs, random_state=42)
+cloned = clone(classifier)
+cloned_obs = cloned.get_params()["observability_config"]
+assert cloned_obs == obs
+assert cloned_obs is not obs
+```
+
+```{note}
+Each cloned estimator creates its own run directory when fitted. Cross-validation
+and parameter searches therefore retain run tracking, but may create many runs.
+Optional structured logging and experiment trackers still require their usual
+dependencies.
+```
 
 ## Fit
 
@@ -123,14 +193,46 @@ Early stopping, the learning-rate scheduler, and checkpointing all watch the val
 
 Useful fit arguments:
 
-| Argument                                     | Use                                                                         |
-| -------------------------------------------- | --------------------------------------------------------------------------- |
-| `X`, `y`                                     | Training features and targets.                                              |
-| `X_val`, `y_val`                             | Explicit validation set. If omitted, DeepTab creates one.                   |
-| `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                     |
-| `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments. |
-| `train_metrics`, `val_metrics`               | Optional Lightning metrics logged during training.                          |
-| `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                             |
+| Argument                                     | Use                                                                                                  |
+| -------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `X`, `y`                                     | Training features and targets.                                                                       |
+| `X_val`, `y_val`                             | Explicit validation set. If omitted, DeepTab creates one.                                            |
+| `embeddings`, `embeddings_val`               | Optional external embeddings for train/validation data.                                              |
+| `max_epochs`, `batch_size`, `lr`, `patience` | Legacy fit-time overrides; prefer `TrainerConfig` for reusable experiments.                          |
+| `train_metrics`, `val_metrics`               | Optional metrics logged during training; accepts `torchmetrics.Metric` or `DeepTabMetric` instances. |
+| `dataloader_kwargs`                          | PyTorch loader options; `drop_last` affects training only.                                           |
+| `**trainer_kwargs`                           | Additional Lightning trainer keyword arguments.                                                      |
+
+### Sampling Is Not Weighted Loss
+
+Classifiers accept `class_weight` for class-level loss weighting,
+`balanced_sampler=True` for balanced row draws, and `sample_weight` for explicit
+per-row sampling probabilities. `sample_weight` drives a `WeightedRandomSampler`;
+it does not multiply individual loss terms. Sampling
+weights must be one-dimensional, finite, non-negative, match the training row
+count, and include at least one positive value. Invalid weights are rejected
+before fitted state changes.
+Passing a list or pandas Series of
+weights, or validating their shape, does not establish sklearn-style weighted
+fitting or equivalence with removing/repeating rows.
+
+Point-estimate regressors and LSS models do not accept `sample_weight`, including
+an explicit `None`. They raise `UnsupportedParamError` before input validation,
+model construction, or estimator-state changes. This is a `DeepTabError` that
+also inherits `ValueError`, so either exception hierarchy can catch it:
+
+```python
+from deeptab.core import UnsupportedParamError
+from deeptab.models import MLPRegressor
+
+regressor = MLPRegressor()
+try:
+    regressor.fit(X_train, y_train, sample_weight=weights)
+except UnsupportedParamError as error:
+    print(error)
+# sample_weight is not supported for weighted-loss fitting.
+# Fix: omit sample_weight from this call.
+```
 
 For LSS models, `family` is required:
 
@@ -140,6 +242,34 @@ from deeptab.models import MambularLSS
 model = MambularLSS()
 model.fit(X_train, y_train, family="normal")
 ```
+
+LSS models can also be built before fitting. Choose the family and its constructor
+options at build time; a fresh build without a family defaults to `"normal"`:
+
+```python
+from deeptab.models import MLPLSS
+
+model = MLPLSS(random_state=42)
+model.build_model(
+    X_train, y_train,
+    family="quantile",
+    distributional_kwargs={"quantiles": [0.1, 0.5, 0.9]},
+)
+model.fit(X_train, y_train, family="quantile", rebuild=False)
+```
+
+For the same family, omitted `distributional_kwargs` reuse the selected options.
+Changing the family or options requires `rebuild=True`. `rebuild=False` continues
+training the existing network; it does not reinitialize its weights.
+
+Continuation also reuses fitted preprocessing while rebuilding data and loaders
+from the supplied compatible inputs. It creates a new trainer, optimizer and
+scheduler rather than resuming their checkpoint state. See
+{ref}`weight continuation <weight-continuation>` for overrides and failure
+semantics. To select a validation metric for callbacks and a plateau scheduler,
+pass `monitor` and `mode` to `fit`; explicitly configured callback or scheduler
+settings retain their documented precedence in the
+{ref}`training guide <monitoring-precedence>`.
 
 ## Predict
 
@@ -189,15 +319,28 @@ classifier.evaluate(
 )
 ```
 
+Accuracy and F1 consume class labels; AUROC and log loss consume probabilities.
+For ensembles, member probabilities are averaged before probability-based
+evaluation. Training and validation epoch metrics use the epoch's accumulated
+inputs or metric state, not an unweighted mean of per-batch scores. Metric state
+resets between sanity validation and training epochs. A valid probability shape
+or finite score alone is not evidence that a model learned the task.
+
 ## Score
 
 `score()` follows the scikit-learn convention of one default metric per estimator family (higher is better):
 
-| Estimator  | Default `score()`       |
-| ---------- | ----------------------- |
-| Classifier | accuracy                |
-| Regressor  | R2                      |
-| LSS        | negative log-likelihood |
+| Estimator  | Default `score()` |
+| ---------- | ----------------- |
+| Classifier | accuracy          |
+| Regressor  | R2                |
+| LSS        | negative mean NLL |
+
+LSS `score()` returns a single float, computed from raw network outputs so that
+parameter transforms are applied exactly once. Higher is better; use
+`-lss_model.score(X_test, y_test)` to report mean negative log-likelihood (NLL)
+as a loss. LSS accepts only `metric="NLL"`. For quantile models, the returned
+value is the negative mean training pinball loss, not a likelihood.
 
 Pass a metric explicitly if you need F1, log loss, or another convention:
 
@@ -236,7 +379,22 @@ model.save("model.deeptab")
 
 loaded = type(model).load("model.deeptab")
 predictions = loaded.predict(X_test)
+score = loaded.score(X_test, y_test)
 ```
+
+The constructor's model, preprocessing, trainer configs, and seed are restored
+for parameter inspection, cloning, and refitting. A normal refit starts fresh
+rather than resuming a Lightning checkpoint. See
+[model operations](model_operations.md)
+for an example and the limits of recovering settings from older bundles.
+
+To reuse neural weights and fitted preprocessing with compatible new training
+data, call `fit(..., rebuild=False)`. Data, splits, and loaders are refreshed;
+optimizer and scheduler state are not resumed. Class labels, transformed
+feature widths, and the output head must remain compatible. Task-object
+replacements require rebuilding. See
+{ref}`weight continuation <weight-continuation>` for an executable example,
+supported overrides, sampling restrictions, and pretraining behavior.
 
 The saved estimator bundle is designed as a fitted inference artifact. It includes:
 
@@ -245,6 +403,7 @@ The saved estimator bundle is designed as a fitted inference artifact. It includ
 | Architecture metadata      | Stores the model class, module, registry status, config class, and resolved config values.                                         |
 | Trained weights            | Restores the fitted `TaskModel` state.                                                                                             |
 | Fitted preprocessing state | Reuses the exact fitted preprocessing object instead of refitting on future data.                                                  |
+| Retrieval candidate data   | TabR and ModernNCA retain transformed training candidates and encoded targets required for inference.                              |
 | Feature schema             | Stores column order, numerical/categorical/embedding feature groups, dimensions, and feature preprocessing metadata.               |
 | Task metadata              | Stores the task type, regression/LSS flags, distribution family for LSS, number of output classes, and `classes_` for classifiers. |
 | Runtime/debug metadata     | Stores Python, platform, DeepTab, PyTorch, Lightning, pandas, NumPy, scikit-learn, pretab, and related dependency versions.        |
@@ -260,7 +419,21 @@ loaded.task_info_
 loaded.versions_
 ```
 
-`load()` keeps backward compatibility with older DeepTab artifacts that do not contain the richer metadata block, but newer artifacts are easier to audit and debug across environments.
+LSS artifacts also retain `distributional_kwargs`, including configured quantiles,
+Tweedie power, mixture component count, and inferred categorical or Dirichlet width.
+The options are available as `loaded.distributional_kwargs_` and in
+`loaded.task_info_["distributional_kwargs"]`.
+
+When older artifacts omit family options, loading falls back to constructor
+defaults. Missing custom options cannot be recovered from weights alone. See
+[model operations](model_operations.md)
+for the supported artifact versions.
+
+Retrieval artifacts require training-data-level access controls. Older files
+without their required candidate bank need original-data refitting, and the
+new payload does not repair incompatible historical PreTab pickles. Standard
+Python pickle is not a replacement for the supported estimator save/load API.
+See {ref}`retrieval-artifacts` and {ref}`historical-artifacts` for the limits.
 
 ## Model Inspection
 

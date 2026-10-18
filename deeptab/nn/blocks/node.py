@@ -1,7 +1,13 @@
-# ruff: noqa: E402
+from warnings import warn
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from deeptab.core.utils import check_numpy
+from deeptab.nn.blocks.common import sparsemax, sparsemoid
+from deeptab.nn.initialization import ModuleWithInit
 
 
 class NeuralDecisionTree(nn.Module):
@@ -177,16 +183,6 @@ class NeuralDecisionTree(nn.Module):
 
 
 # Source: https://github.com/Qwicen/node
-from warnings import warn
-
-import numpy as np
-import torch.nn as nn
-
-from deeptab.core.utils import check_numpy
-from deeptab.nn.blocks.common import sparsemax, sparsemoid
-from deeptab.nn.initialization import ModuleWithInit
-
-
 class ODST(ModuleWithInit):
     def __init__(
         self,
@@ -517,12 +513,6 @@ class DenseBlock(nn.Sequential):
         return outputs
 
 
-import torch.nn as nn
-
-from deeptab.nn.blocks.common import sparsemax, sparsemoid
-from deeptab.nn.initialization import ModuleWithInit
-
-
 class ODSTE(ModuleWithInit):
     def __init__(
         self,
@@ -682,7 +672,9 @@ class ODSTE(ModuleWithInit):
         response_weights = torch.prod(bin_matches, dim=2)
 
         # Compute final response
-        response = torch.einsum("bnds,ncds->bnd", response_weights, self.response)
+        response = torch.einsum("bnds,ncds->bncd", response_weights, self.response)
+        if self.flatten_output:
+            response = response.flatten(1, 2)
         return response
 
     def __repr__(self):

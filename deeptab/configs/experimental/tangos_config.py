@@ -29,7 +29,9 @@ class TangosConfig(BaseModelConfig):
     lamda2 : float, default=0.1
         Weight on the orthogonalization regularisation term (multiplies ``orth_loss``).
     subsample : float, default=0.5
-        Fraction of features subsampled for regularisation estimation.
+        Sampling multiplier for hidden-neuron pairs in the orthogonality
+        penalty. The sampled branch draws ``int(subsample * batch_size)``
+        pairs, not a subset of input features. Zero selects all pairs.
     """
 
     # Override parent defaults

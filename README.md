@@ -29,38 +29,20 @@
 - **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
 - **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.
 
-## ⚡ What's New in v2.0
+## What's New in v2.1 (Upcoming)
 
-v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API (`MambularClassifier().fit(...)`) is largely unchanged, but the internal package layout, configuration objects, and import paths have moved.
+v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
 
-> **⚠️ Upgrading from v1?** Packages were reorganised, the `Default<Arch>Config` classes were renamed to `<Arch>Config`, and the data modules were renamed to `TabularDataModule` / `TabularDataset`. Code that only uses the high-level estimators mostly keeps working; code that imported internal modules needs updating. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html) for v1 support and upgrade notes.
+- **Python support:** Python 3.11-3.13; Python 3.10 is no longer supported. Recreate older environments before upgrading.
+- **Dependency security:** patched Torch, setuptools, Lightning, and Accelerate requirements; native TabR dependencies now use the separate `tabr` extra on Linux and Windows.
+- **Preprocessing:** canonical `numerical_method`, `categorical_method`, and `output_dim` fields, native PreTab presets, and a default requested width of 7. Effective widths depend on the representation and fitted data; B-splines cap a request of 64 at 50 columns.
+- **Model correctness:** fixes for normalization, activations, attention, recurrent state, repeatable `encode()` calls, and ensemble LSS output shapes.
+- **Estimator reliability:** improved cloning, fitted-state checks, class-label handling, validation, and CPU artifact reloads.
+- **Release checks:** publication requires passing CI, documentation, installed-wheel training and reload checks, and at least 90% line coverage.
 
-### Configuration and data
+See the [Numerical Width Study](https://deeptab.readthedocs.io/en/latest/model_zoo/efficiency.html#numerical-width-study) for a small CPU comparison of preprocessing widths, including the protocol, runner, and raw results.
 
-- **Split-config API**: The model, preprocessing, and training each have their own configuration object, so you can tune one concern without disturbing the others. This is the first thing you reach for in v2.
-- **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the data pipeline an explicit, inspectable contract, with stratified splitting controlled through `TrainerConfig`.
-
-### Models
-
-- **New stable models**: AutoInt, ENODE, and TabR.
-- **New experimental models**: Tangos, Trompt, and ModernNCA, under evaluation for promotion.
-
-### Training and evaluation
-
-- **Observability and experiment tracking**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, with every run saved to an organised directory tree. It is opt-in and silent by default.
-- **Registry-driven training**: Every `torch.optim` optimizer, learning-rate scheduler, and loss is selectable by name through `TrainerConfig`, and you can register your own at runtime.
-- **Unified metrics**: `deeptab.metrics` ships 25+ metric classes for regression, classification, and distributional models, auto-selected per task through a registry.
-- **Reproducibility**: `set_seed` and `seed_context` seed Python, NumPy, and PyTorch across CPU, CUDA, and MPS, including the DataLoader and sampler generators.
-
-### Deployment
-
-- **Deployment-safe inference**: `InferenceModel` wraps a fitted estimator in a read-only prediction surface with schema validation and task-type enforcement. Training methods are deliberately absent, so a served model cannot be re-fitted by accident.
-- **Self-describing artifacts**: save and load go through a single `.deeptab` format that bundles the architecture, feature schema, preprocessing, task type, and package versions alongside the weights, so a saved model carries everything needed to reload it.
-
-### Documentation
-
-- **Rebuilt from the ground up**: [Getting Started](https://deeptab.readthedocs.io/en/latest/getting_started/index.html), [Core Concepts](https://deeptab.readthedocs.io/en/latest/core_concepts/index.html), and the [Model Zoo](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
-- **End-to-end tutorials**: runnable [walkthroughs with Colab](https://deeptab.readthedocs.io/en/latest/tutorials/index.html) covering imbalanced classification, skewed regression, uncertainty quantification, hyperparameter tuning, and observability.
+> **Upgrading?** See the [Migration Guide](https://deeptab.readthedocs.io/en/latest/getting_started/migration.html) for configuration changes and historical artifact limitations. Tested 2.0 PLE artifacts require their original dependency environment; upgrading does not convert them.
 
 ## 🏃 Quickstart
 
@@ -161,7 +143,8 @@ pip install deeptab
 ```bash
 pip install 'deeptab[tracking]'   # MLflow + TensorBoard loggers
 pip install 'deeptab[logs]'       # structured logging via structlog
-pip install 'deeptab[all]'        # every optional backend
+pip install 'deeptab[all]'        # all logging and tracking backends
+pip install 'deeptab[tabr]'       # native TabR retrieval on Linux or Windows
 ```
 
 **Faster Mamba models (optional CUDA kernels):**
@@ -172,9 +155,11 @@ pip install mamba-ssm
 
 > **Mamba kernels are optional:** They give a 20-30% speedup for Mamba-based models on a compatible NVIDIA GPU (CUDA 11.6+). If the install fails or no GPU is present, DeepTab falls back to a pure-PyTorch implementation automatically.
 
-> **Lightweight by default:** Tracking backends are optional and imported lazily, so a plain `pip install deeptab` stays small. Install only the extras you actually use.
+> **Optional dependencies:** Logging, tracking, and TabR retrieval dependencies are loaded lazily. The default installation does not include `faiss-cpu` or `delu`. The `all` extra bundles observability backends only; combine extras explicitly, for example `deeptab[all,tabr]`, on a supported native platform.
 
-> **Requirements:** Python 3.10+, PyTorch 2.2+, Lightning 2.3.3+
+> **Requirements:** Python 3.11-3.13, PyTorch >=2.13,<2.15, PreTab 1.x, Lightning >=2.6.6,<3.0. See the [Support Matrix](https://deeptab.readthedocs.io/en/latest/developer_guide/support_matrix.html) for dependency and platform constraints.
+
+> **macOS:** Python 3.13 PyTorch wheels are available for Apple Silicon. Intel Macs are outside the CI matrix. Native TabR is unsupported on Apple Silicon because Torch and the PyPI FAISS build load conflicting OpenMP runtimes; use Linux or Windows for TabR.
 
 > **GPU Support:** See [installation guide](https://deeptab.readthedocs.io/en/latest/getting_started/installation.html) for CUDA setup.
 
@@ -188,7 +173,7 @@ from deeptab.configs import MambularConfig, PreprocessingConfig, TrainerConfig
 
 # 1. Initialize with configuration (optional - defaults work well!)
 model_config = MambularConfig(d_model=64, n_layers=6)
-prep_config = PreprocessingConfig(numerical_preprocessing="quantile")
+prep_config = PreprocessingConfig(numerical_method="quantile")
 trainer_config = TrainerConfig(lr=1e-4, batch_size=256)
 
 model = MambularClassifier(
@@ -215,10 +200,11 @@ metrics = model.evaluate(X_test, y_test)
 
 ### Hyperparameter Tuning
 
-DeepTab models are sklearn-compatible, so you can use `GridSearchCV`:
+DeepTab models support `GridSearchCV`. Supply explicit configs before tuning nested parameters:
 
 ```python
 from sklearn.model_selection import GridSearchCV
+from deeptab.configs import MambularConfig, TrainerConfig
 from deeptab.models import MambularClassifier
 
 param_grid = {
@@ -228,7 +214,7 @@ param_grid = {
 }
 
 search = GridSearchCV(
-    MambularClassifier(),
+    MambularClassifier(model_config=MambularConfig(), trainer_config=TrainerConfig()),
     param_grid,
     cv=5,
     scoring="accuracy"
@@ -274,8 +260,8 @@ from deeptab.configs import PreprocessingConfig
 from deeptab.models import MambularClassifier
 
 prep_config = PreprocessingConfig(
-    numerical_preprocessing="ple",  # Piecewise linear encoding
-    n_bins=50                       # Number of bins for the encoding
+    numerical_method="ple",
+    output_dim=20,
 )
 
 model = MambularClassifier(preprocessing_config=prep_config)
@@ -290,6 +276,8 @@ model.fit(X_train, y_train, max_epochs=50)
 > - **Pre-trained encodings:** Transfer learning for categorical features
 
 > **Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
+
+> **Note:** Duplicate column names raise a `DuplicateColumnsError`, and a column that is entirely missing is imputed with a constant rather than passed through untouched. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html#data-and-preprocessing) for details.
 
 ### Observability & Experiment Tracking
 

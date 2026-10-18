@@ -15,24 +15,29 @@ DeepTab's `ENODE` pipeline is:
 1. `EmbeddingLayer` creates feature tokens.
 2. `ENODEDenseBlock` processes the token sequence with differentiable tree layers.
 3. The block output is squeezed and averaged across the feature axis.
-4. A two-layer MLP head maps the embedding representation to the task output.
+4. Optional final normalization is applied.
+5. `MLPhead` maps the pooled representation to the task output.
 
 ```text
-feature tokens -> ENODEDenseBlock -> mean over feature axis -> Linear/ReLU/Dropout/Linear
+feature tokens -> ENODEDenseBlock -> mean over feature axis -> optional norm -> MLPhead
 ```
 
 ## Main Building Blocks
 
-| Component   | DeepTab implementation                      | Role                                                  |
-| ----------- | ------------------------------------------- | ----------------------------------------------------- |
-| Tokenizer   | `EmbeddingLayer`                            | Builds embedded feature tokens.                       |
-| Tree block  | `ENODEDenseBlock`                           | Applies enhanced differentiable tree transformations. |
-| Aggregation | `x.mean(axis=1)`                            | Produces one row representation.                      |
-| Head        | `nn.Linear -> ReLU -> Dropout -> nn.Linear` | Task output.                                          |
+| Component   | DeepTab implementation | Role                                                                                  |
+| ----------- | ---------------------- | ------------------------------------------------------------------------------------- |
+| Tokenizer   | `EmbeddingLayer`       | Builds embedded feature tokens.                                                       |
+| Tree block  | `ENODEDenseBlock`      | Applies enhanced differentiable tree transformations.                                 |
+| Aggregation | `x.mean(axis=1)`       | Produces one row representation.                                                      |
+| Head        | `MLPhead`              | Configurable prediction head (`head_layer_sizes`, `head_activation`, `head_dropout`). |
 
 ## Implementation Notes
 
-The model always constructs an `EmbeddingLayer`. Unlike `NODE`, it does not branch to a raw concatenated input path. The architecture computes `input_dim` as the number of feature tokens and uses `d_model` as the embedding dimension inside the tree block.
+The model always constructs an `EmbeddingLayer`. Unlike `NODE`, it does not branch to a raw concatenated input path. The architecture computes `input_dim` as the number of feature tokens and uses `d_model` as the embedding dimension inside the tree block, plus `d_model` as the `MLPhead` input width. `norm` selects optional normalization after pooling and before the head; the inherited `batch_norm`/`layer_norm` flags do not select this layer.
+
+With `tree_dim` greater than 1, each tree contributes `tree_dim` separate response channels, which the dense block appends as additional tokens before averaging. Previously, the tree layer summed its response channels into one, so the extra channels added parameters without adding distinct outputs.
+
+> **Configuration note:** With `d_model=16`, `head_layer_sizes=[32, 64]`, and three outputs, the head's linear widths are `16 -> 32 -> 64 -> 3`. Previously, ENODE always built `16 -> 16 -> 3` regardless of the requested hidden sizes. Using `MLPhead` makes hidden sizes, activation, skip connections, and head batch normalization configurable. `norm="LayerNorm"` separately normalizes the pooled width-16 vector before that head.
 
 ## Practical Config
 
@@ -49,7 +54,7 @@ model = ENODERegressor(
         tree_dim=1,
         head_dropout=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )

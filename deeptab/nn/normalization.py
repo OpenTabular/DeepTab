@@ -1,13 +1,18 @@
 from deeptab.nn.blocks.common import BatchNorm, GroupNorm, InstanceNorm, LayerNorm, LearnableLayerScaling, RMSNorm
 
 
-def get_normalization_layer(config):
+def get_normalization_layer(config, dim: int | None = None):
     """Function to return the appropriate normalization layer based on the configuration.
 
     Parameters
     ----------
     config : BaseModelConfig
         Configuration object containing the parameters for the model including normalization.
+    dim : int, optional
+        Width to size the normalization layer to. Defaults to ``config.d_model``,
+        which is correct for most architectures; pass this explicitly when the
+        normalized tensor's width differs from ``d_model`` (e.g. a tree- or
+        RNN-based architecture whose output width is its own hidden size).
 
     Returns
     -------
@@ -21,7 +26,7 @@ def get_normalization_layer(config):
     """
 
     norm_layer = getattr(config, "norm", None)
-    d_model = getattr(config, "d_model", 128)
+    d_model = dim if dim is not None else getattr(config, "d_model", 128)
     layer_norm_eps = getattr(config, "layer_norm_eps", 1e-05)
 
     if norm_layer == "RMSNorm":

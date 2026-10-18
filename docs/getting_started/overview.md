@@ -73,7 +73,7 @@ from deeptab.models import ResNetClassifier
 
 model = ResNetClassifier(
     model_config=ResNetConfig(d_model=128),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256),
 )
 ```

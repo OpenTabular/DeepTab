@@ -34,6 +34,15 @@ poetry run pre-commit install --hook-type commit-msg --hook-type pre-commit --ho
 
 To work on the docs, also install the docs group with `poetry install --with docs`.
 
+Use `just install-extras` and `just test-extras` for the logging/tracking-positive
+test lane, or `just install-core` and `just test-core` for the core-only lane.
+These synchronize only `main,dev` and remove other packages, including docs
+dependencies; use separate environments for comparisons and restore `just install`
+before building docs. `just test` retains the 90% line-coverage gate.
+For a selected file or marker, use `just test-run tests/data/ -v` or
+`just test-run -m integration`; these targeted runs do not enforce coverage.
+See [Testing](testing.md) for profile checks, categories, and setup details.
+
 ## How to contribute
 
 1. Branch off `main` with a short, descriptive name.

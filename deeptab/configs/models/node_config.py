@@ -22,7 +22,7 @@ class NODEConfig(BaseModelConfig):
         Depth of each decision tree in the ensemble.
     norm : str | None, default=None
         Type of normalization to use in the model.
-    head_layer_sizes : list, default=field(default_factory=list
+    head_layer_sizes : list, default=[]
         Sizes of the layers in the model's head.
     head_dropout : float, default=0.3
         Dropout rate for the head layers.

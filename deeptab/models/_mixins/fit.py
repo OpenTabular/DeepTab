@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import os
-import re
 import time
 import uuid
 from collections.abc import Callable
@@ -14,14 +13,18 @@ from typing import TYPE_CHECKING, Any
 import lightning as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint, ModelSummary
-from pretab.preprocessor import Preprocessor
+from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
 
-from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes
+from deeptab.configs import TrainerConfig
+from deeptab.core.exceptions import DataError, invalid_data_error, unsupported_param_error
+from deeptab.core.preprocessing import build_preprocessor
+from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attributes, validate_input_features
 from deeptab.training import pretrain_embeddings
+from deeptab.training.optimizers import normalize_optimizer_kwargs
+from deeptab.training.schedulers import get_scheduler
 
 if TYPE_CHECKING:
-    from deeptab.configs import PreprocessingConfig, TrainerConfig
+    from deeptab.configs import PreprocessingConfig
     from deeptab.core.default_factories import DefaultDataModuleFactory, DefaultTaskModelFactory
     from deeptab.core.observability import ObservabilityConfig
     from deeptab.models._mixins.observability import _SupportsInfo
@@ -93,7 +96,7 @@ class _FitMixin:
         embeddings=None,
         embeddings_val=None,
         num_classes: int | None = None,
-        random_state: int = 101,
+        random_state: int | None = 101,
         batch_size: int = 128,
         shuffle: bool = True,
         stratify: bool = True,
@@ -103,11 +106,16 @@ class _FitMixin:
         weight_decay: float | None = None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        dataloader_kwargs={},
+        dataloader_kwargs=None,
         loss_fct: Callable | None = None,
         sampler=None,
+        monitor: str | None = None,
+        mode: str | None = None,
     ):
         """Builds the model using the provided training data."""
+        if dataloader_kwargs is None:
+            dataloader_kwargs = {}
+
         # When trainer_config is active, use its values for lr / weight_decay / scheduler
         if self.trainer_config is not None:
             tc = self.trainer_config
@@ -120,24 +128,28 @@ class _FitMixin:
             if weight_decay is None:
                 weight_decay = tc.weight_decay
 
-        # Collect new scheduler/optimizer fields from TrainerConfig
-        _tc = self.trainer_config
-        _scheduler_type = (
-            getattr(_tc, "scheduler_type", "ReduceLROnPlateau") if _tc is not None else "ReduceLROnPlateau"
-        )
-        _scheduler_kwargs = getattr(_tc, "scheduler_kwargs", None) if _tc is not None else None
-        _scheduler_monitor = getattr(_tc, "scheduler_monitor", None) if _tc is not None else None
-        _scheduler_interval = getattr(_tc, "scheduler_interval", "epoch") if _tc is not None else "epoch"
-        _scheduler_frequency = getattr(_tc, "scheduler_frequency", 1) if _tc is not None else 1
-        _no_wd_bn = getattr(_tc, "no_weight_decay_for_bias_and_norm", False) if _tc is not None else False
-        _optimizer_kwargs = getattr(_tc, "optimizer_kwargs", None) if _tc is not None else None
+        # Collect scheduler/optimizer fields from TrainerConfig, or its own field
+        # defaults when no TrainerConfig was supplied at all.
+        _tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        _scheduler_type = _tc.scheduler_type
+        _scheduler_kwargs = _tc.scheduler_kwargs
+        _scheduler_monitor = _tc.scheduler_monitor
+        _scheduler_interval = _tc.scheduler_interval
+        _scheduler_frequency = _tc.scheduler_frequency
+        _no_wd_bn = _tc.no_weight_decay_for_bias_and_norm
+        _optimizer_kwargs = _tc.optimizer_kwargs
 
         # Re-sync preprocessor from current preprocessing_config state so that
         # direct mutations (e.g. clf.preprocessing_config.n_bins = 8) are
         # honoured on the next fit(), consistent with set_params() behaviour.
         if self.preprocessing_config is not None:
             self._preprocessor_kwargs = self.preprocessing_config.to_preprocessor_kwargs()
-            self._preprocessor = Preprocessor(**self._preprocessor_kwargs)
+            self._preprocessor = build_preprocessor(
+                self.preprocessing_config,
+                task="regression" if regression else "classification",
+                random_state=random_state,
+                observability_config=getattr(self, "_observability_config", None),
+            )
 
         X = ensure_dataframe(X)
         set_input_feature_attributes(self, X)
@@ -218,10 +230,8 @@ class _FitMixin:
             scheduler_kwargs=_scheduler_kwargs,
             monitor=_scheduler_monitor
             if _scheduler_monitor is not None
-            else (
-                getattr(self.trainer_config, "monitor", "val_loss") if self.trainer_config is not None else "val_loss"
-            ),
-            mode=getattr(self.trainer_config, "mode", "min") if self.trainer_config is not None else "min",
+            else (monitor if monitor is not None else _tc.monitor),
+            mode=mode if mode is not None else _tc.mode,
             scheduler_interval=_scheduler_interval,
             scheduler_frequency=_scheduler_frequency,
             no_weight_decay_for_bias_and_norm=_no_wd_bn,
@@ -229,6 +239,7 @@ class _FitMixin:
         )
 
         self._built = True
+        self._is_pretrained = False
         self._estimator = self._task_model.estimator
         _n_params_build = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)
         self._emit_event(
@@ -271,34 +282,229 @@ class _FitMixin:
     # Training loop
     # ------------------------------------------------------------------
 
+    def _prepare_continuation(
+        self,
+        X,
+        y,
+        *,
+        regression,
+        X_val,
+        y_val,
+        embeddings,
+        embeddings_val,
+        val_size,
+        random_state,
+        batch_size,
+        shuffle,
+        stratify,
+        dataloader_kwargs,
+    ):
+        """Prepare new compatible data using the existing fitted representation."""
+        if not self._built or self._task_model is None or self._data_module is None:
+            raise invalid_data_error("Continuation requires an already built model.", "fit with rebuild=True first.")
+        try:
+            X = validate_input_features(self, X)
+            if X_val is not None:
+                X_val = validate_input_features(self, X_val)
+        except DataError as error:
+            raise invalid_data_error(
+                f"Incompatible continuation features: {error}", "use rebuild=True to change the feature schema."
+            ) from error
+        previous = self._data_module
+        embedding_info = previous.embedding_feature_info or {}
+        expected_embeddings = [info["dimension"] for info in embedding_info.values()]
+        if X_val is None and embeddings_val is not None:
+            raise invalid_data_error(
+                "embeddings_val requires explicit validation data.", "supply X_val and y_val or omit embeddings_val."
+            )
+        for name, supplied, rows in [
+            ("embeddings", embeddings, len(X)),
+            ("embeddings_val", embeddings_val, len(X_val) if X_val is not None else None),
+        ]:
+            if rows is None:
+                continue
+            groups = supplied if isinstance(supplied, list) else [supplied] if supplied is not None else []
+            if len(groups) != len(expected_embeddings):
+                raise invalid_data_error(
+                    f"{name} must retain all {len(expected_embeddings)} fitted embedding group(s).",
+                    "supply compatible embeddings or use rebuild=True to change the representation.",
+                )
+            for group, width in zip(groups, expected_embeddings, strict=True):
+                values = np.asarray(group)
+                if values.shape != (rows, width) or not np.issubdtype(values.dtype, np.number):
+                    raise invalid_data_error(
+                        f"{name} requires numeric embedding groups with shape ({rows}, {width}).",
+                        "supply row-aligned embeddings with the fitted widths, or use rebuild=True.",
+                    )
+                if not np.isfinite(values).all():
+                    raise invalid_data_error(f"{name} must be finite.", "supply finite embedding values.")
+        sampler = getattr(previous, "sampler", None)
+        if sampler is not None and not isinstance(sampler, bool | str):
+            raise unsupported_param_error("sample_weight", "continuation without rebuild=True")
+        loader_options = dict(getattr(previous, "dataloader_kwargs", {}))
+        loader_options.update(dataloader_kwargs or {})
+        from deeptab.core.default_factories import DefaultDataModuleFactory
+
+        factory = getattr(self, "_data_module_factory", None) or DefaultDataModuleFactory()
+        prepared = factory.create(
+            preprocessor=self._preprocessor,
+            batch_size=batch_size,
+            shuffle=shuffle,
+            regression=regression,
+            X_val=X_val,
+            y_val=y_val,
+            val_size=val_size,
+            random_state=random_state,
+            stratify=stratify,
+            sampler=sampler,
+            vector_targets=getattr(self, "family_name", None) == "dirichlet"
+            or getattr(previous, "vector_targets", False),
+            **loader_options,
+        )
+        prepared.input_columns_ = self.input_columns_
+        prepared.preprocess_data(
+            X,
+            y,
+            X_val=X_val,
+            y_val=y_val,
+            embeddings_train=embeddings,
+            embeddings_val=embeddings_val,
+            val_size=val_size,
+            random_state=random_state,
+            fit_preprocessing=False,
+        )
+        prepared.setup("fit")
+        for loader in (prepared.train_dataloader(), prepared.val_dataloader()):
+            dataset = loader.dataset
+            for tensors, metadata in [
+                (dataset.num_features_list, previous.num_feature_info),
+                (dataset.cat_features_list, previous.cat_feature_info),
+                (dataset.embeddings_list, previous.embedding_feature_info),
+            ]:
+                widths = [info["dimension"] for info in (metadata or {}).values()]
+                actual = [tensor.shape[1] for tensor in (tensors or [])]
+                if actual != widths:
+                    raise invalid_data_error(
+                        f"Transformed continuation widths {actual} do not match the built model's widths {widths}.",
+                        "use rebuild=True to change the fitted representation.",
+                    )
+        return prepared
+
+    def _validate_monitoring(
+        self, *, monitor, mode, train_metrics, val_metrics, continuation, validation_enabled, trainer_kwargs
+    ):
+        """Validate declared monitoring names, directions, and scheduler cadence."""
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        monitor = tc.monitor if monitor is None else monitor
+        mode = tc.mode if mode is None else mode
+        if mode not in {"min", "max"}:
+            raise ValueError(f"mode must be 'min' or 'max'; received {mode!r}.")
+        if continuation:
+            train_metrics = getattr(self._task_model, "train_metrics", {})
+            val_metrics = getattr(self._task_model, "val_metrics", {})
+        available = set()
+        if trainer_kwargs.get("limit_train_batches", 1) != 0:
+            available.update({"train_loss", "train_loss_epoch", "train_loss_step"})
+            available.update(f"train_{name}" for name in (train_metrics or {}))
+        if validation_enabled and trainer_kwargs.get("limit_val_batches", 1) != 0:
+            available.add("val_loss")
+            available.update(f"val_{name}" for name in (val_metrics or {}))
+        if monitor not in available:
+            raise ValueError(f"monitor {monitor!r} is not available; logged metrics are {sorted(available)}.")
+        if tc.scheduler_type is None or tc.scheduler_type.lower() == "none":
+            return
+        if not issubclass(get_scheduler(tc.scheduler_type), torch.optim.lr_scheduler.ReduceLROnPlateau):
+            return
+        scheduler_monitor = tc.scheduler_monitor if tc.scheduler_monitor is not None else monitor
+        scheduler_mode = (tc.scheduler_kwargs or {}).get("mode", mode)
+        if scheduler_monitor not in available:
+            raise ValueError(
+                f"scheduler_monitor {scheduler_monitor!r} is not available; logged metrics are {sorted(available)}."
+            )
+        if scheduler_mode not in {"min", "max"}:
+            raise ValueError(f"scheduler mode must be 'min' or 'max'; received {scheduler_mode!r}.")
+        if tc.scheduler_interval == "step" and scheduler_monitor not in {"train_loss", "train_loss_step"}:
+            raise ValueError(
+                "A step plateau scheduler requires train_loss or train_loss_step; validation and other epoch metrics are unavailable at training steps."
+            )
+        if scheduler_monitor.startswith("val_"):
+            validation_frequency = trainer_kwargs.get("check_val_every_n_epoch", 1)
+            if (
+                not isinstance(validation_frequency, int)
+                or isinstance(validation_frequency, bool)
+                or validation_frequency < 1
+            ):
+                raise ValueError("A validation plateau monitor requires a positive integer check_val_every_n_epoch.")
+            if tc.scheduler_frequency % validation_frequency != 0:
+                raise ValueError(
+                    "A validation plateau monitor requires scheduler_frequency to be a multiple of check_val_every_n_epoch."
+                )
+
+    def _configure_continuation(self, *, lr, lr_patience, lr_factor, weight_decay, monitor=None, mode=None):
+        """Apply settings for a new optimizer without replacing model weights."""
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        values = {
+            "lr": tc.lr if lr is None else lr,
+            "lr_patience": tc.lr_patience if lr_patience is None else lr_patience,
+            "lr_factor": tc.lr_factor if lr_factor is None else lr_factor,
+            "weight_decay": tc.weight_decay if weight_decay is None else weight_decay,
+            "optimizer_type": tc.optimizer_type,
+            "optimizer_params": normalize_optimizer_kwargs(tc.optimizer_kwargs),
+            "scheduler_type": tc.scheduler_type,
+            "scheduler_kwargs": tc.scheduler_kwargs,
+            "monitor": tc.scheduler_monitor
+            if tc.scheduler_monitor is not None
+            else (monitor if monitor is not None else tc.monitor),
+            "mode": mode if mode is not None else tc.mode,
+            "scheduler_interval": tc.scheduler_interval,
+            "scheduler_frequency": tc.scheduler_frequency,
+            "no_weight_decay_for_bias_and_norm": tc.no_weight_decay_for_bias_and_norm,
+        }
+        hyperparameters = getattr(self._task_model, "hparams", None)
+        for name, value in values.items():
+            setattr(self._task_model, name, value)
+            if hyperparameters is not None:
+                hyperparameters["optimizer_args" if name == "optimizer_params" else name] = value
+
+    def _validate_continuation_options(self, *, train_metrics, val_metrics, loss_fct=None, sampler=None):
+        """Reject training-object replacements that require a rebuilt task."""
+        for name, value in {
+            "train_metrics": train_metrics,
+            "val_metrics": val_metrics,
+            "loss_fct": loss_fct,
+            "sampler": sampler,
+        }.items():
+            if value is not None:
+                raise unsupported_param_error(name, "continuation without rebuild=True")
+
     def fit(
         self,
         X,
         y,
         regression: bool,
-        val_size: float = 0.2,
+        val_size: float | None = None,
         X_val=None,
         y_val=None,
         embeddings=None,
         embeddings_val=None,
         num_classes: int | None = None,
-        max_epochs: int = 100,
-        random_state: int = 101,
-        batch_size: int = 128,
-        shuffle: bool = True,
-        stratify: bool = True,
-        patience: int = 15,
-        monitor: str = "val_loss",
-        mode: str = "min",
+        max_epochs: int | None = None,
+        random_state: int | None = None,
+        batch_size: int | None = None,
+        shuffle: bool | None = None,
+        stratify: bool | None = None,
+        patience: int | None = None,
+        monitor: str | None = None,
+        mode: str | None = None,
         lr: float | None = None,
         lr_patience: int | None = None,
         lr_factor: float | None = None,
         weight_decay: float | None = None,
-        checkpoint_path="model_checkpoints",
-        dataloader_kwargs={},
+        checkpoint_path: str | None = None,
+        dataloader_kwargs=None,
         train_metrics: dict[str, Callable] | None = None,
         val_metrics: dict[str, Callable] | None = None,
-        rebuild=True,
+        rebuild: bool | None = None,
         loss_fct: Callable | None = None,
         sampler=None,
         **trainer_kwargs,
@@ -313,9 +519,9 @@ class _FitMixin:
             The target values.
         regression : bool
             Whether this is a regression task.
-        val_size : float, default=0.2
+        val_size : float or None, default=None
             Proportion of the dataset for the validation split when ``X_val``
-            is ``None``.
+            is ``None``. Uses the active ``TrainerConfig`` value when omitted.
         X_val : DataFrame or array-like, optional
             Explicit validation features.
         y_val : array-like, optional
@@ -326,44 +532,75 @@ class _FitMixin:
             Pre-computed embeddings for validation samples.
         num_classes : int or None, optional
             Number of target classes (classification only).
-        max_epochs : int, default=100
-            Maximum number of training epochs.
-        random_state : int, default=101
-            RNG seed for reproducibility.
-        batch_size : int, default=128
-            Mini-batch size.
-        shuffle : bool, default=True
-            Whether to shuffle training data each epoch.
-        stratify : bool, default=True
+        max_epochs : int or None, default=None
+            Maximum number of training epochs. Falls back to the active
+            ``TrainerConfig``'s value, or 100 when no ``TrainerConfig`` is set.
+        random_state : int or None, default=None
+            RNG seed for reproducibility. An explicit value here always wins
+            over the ``random_state`` fixed at construction time. When both
+            are ``None``, ``fit()`` performs no reseeding, so any external
+            :func:`~deeptab.core.reproducibility.set_seed` or
+            :func:`~deeptab.core.reproducibility.seed_context` call already in
+            effect is left untouched.
+        batch_size : int or None, default=None
+            Mini-batch size. Falls back to the active ``TrainerConfig``'s value,
+            or 128 when no ``TrainerConfig`` is set.
+        shuffle : bool or None, default=None
+            Whether to shuffle training data each epoch. Falls back to the
+            active ``TrainerConfig``'s value, or ``True`` when no
+            ``TrainerConfig`` is set.
+        stratify : bool or None, default=None
             Whether to stratify the validation split on ``y`` for classification
             tasks so the split keeps the same class proportions. Ignored for
-            regression. When a ``TrainerConfig`` is set, its ``stratify`` value
-            takes precedence.
-        patience : int, default=15
+            regression. Falls back to the active ``TrainerConfig``'s value, or
+            ``True`` when no ``TrainerConfig`` is set.
+        patience : int or None, default=None
             Early-stopping patience (epochs without validation improvement).
-        monitor : str, default="val_loss"
-            Metric to monitor for early stopping.
-        mode : str, default="min"
+            Falls back to the active ``TrainerConfig``'s value, or 15 when no
+            ``TrainerConfig`` is set.
+        monitor : str or None, default=None
+            Metric for early stopping and best checkpoint selection. Falls back to the active
+            ``TrainerConfig``'s value, or ``"val_loss"`` when no
+            ``TrainerConfig`` is set. Plateau schedulers inherit this value unless
+            ``scheduler_monitor`` is explicitly configured. Unknown or unavailable
+            names raise ``ValueError`` before replacing fitted state.
+        mode : str or None, default=None
             Whether the monitored metric should be minimised (``"min"``) or
-            maximised (``"max"``).
+            maximised (``"max"``). Falls back to the active ``TrainerConfig``'s
+            value, or ``"min"`` when no ``TrainerConfig`` is set.
+            Plateau schedulers inherit it unless ``scheduler_kwargs["mode"]``
+            is explicit. Overrides apply to this call only, including continuation.
         lr : float or None, optional
             Learning rate override.
-        lr_patience : int or None, optional
-            LR scheduler patience override.
-        lr_factor : float or None, optional
-            LR scheduler reduction factor override.
+        lr_patience : int or None, default=None
+            LR scheduler patience override. ``None`` uses the active
+            ``TrainerConfig`` value.
+        lr_factor : float or None, default=None
+            LR scheduler reduction factor override. ``None`` uses the active
+            ``TrainerConfig`` value.
         weight_decay : float or None, optional
             Weight-decay (L2 penalty) override.
-        checkpoint_path : str, default="model_checkpoints"
-            Directory for Lightning checkpoints.
-        dataloader_kwargs : dict, default={}
-            Extra kwargs forwarded to the PyTorch DataLoader.
+        checkpoint_path : str or None, default=None
+            Directory for Lightning checkpoints. When given, it is used as-is
+            (each run must use a distinct path to avoid collisions between
+            concurrent fits). Falls back to the active ``TrainerConfig``'s
+            value, or ``"model_checkpoints"`` when no ``TrainerConfig`` is
+            set; in that case each fit writes to its own uniquely named
+            sub-directory so parallel/repeated fits never collide.
+        dataloader_kwargs : dict or None, default=None
+            Extra kwargs forwarded to the PyTorch DataLoader. ``None`` adds none.
         train_metrics : dict or None, optional
-            TorchMetrics to log during training.
+            Metrics to log during training. Accepts ``torchmetrics.Metric`` instances
+            (kept on-device, called as ``metric(preds, target)``) or ``DeepTabMetric``
+            instances (NumPy-based, called as ``metric(y_true, y_pred)``).
         val_metrics : dict or None, optional
-            TorchMetrics to log during validation.
-        rebuild : bool, default=True
-            Whether to rebuild the model when already built.
+            Metrics to log during validation. Same accepted types as ``train_metrics``.
+        rebuild : bool or None, default=None
+            Whether to rebuild the model when already built. ``None`` (the
+            default) rebuilds unless the current model was warm-started via
+            :meth:`pretrain`, in which case it continues training the
+            pretrained model instead of discarding it. Pass ``True``/``False``
+            explicitly to override that behavior either way.
         loss_fct : Callable or None, optional
             Custom loss function override.
         sampler : {"balanced", True}, array-like, or None, optional
@@ -374,31 +611,116 @@ class _FitMixin:
         Returns
         -------
         self
+
+        Notes
+        -----
+        Continuation keeps the fitted representation and neural task, but
+        replaces data and loaders and creates fresh optimizer and scheduler
+        state. Loss and metric replacements require rebuilding the task.
+
+        Input-validation errors preserve the previous fitted estimator. Targets
+        must be finite and validation inputs must be supplied together with
+        matching feature and target widths. Failures after rebuilding or training
+        starts invalidate prediction until a successful fit.
+
+        Raises
+        ------
+        deeptab.core.exceptions.UnsupportedParamError
+            If the unsupported ``sample_weight`` keyword is supplied. Rejection
+            occurs before input validation or changes to estimator state.
         """
-        # When trainer_config is active, override all training-loop params from it
-        if self.trainer_config is not None:
-            tc = self.trainer_config
+        if "sample_weight" in trainer_kwargs:
+            raise unsupported_param_error("sample_weight", "weighted-loss fitting")
+
+        # Resolve precedence: an explicit fit() argument always wins; a TrainerConfig
+        # value is used only for arguments the caller left unset. TrainerConfig's own
+        # field defaults are the single source of truth for "no config at all" too, so
+        # there is no separate set of literals to keep in sync.
+        tc = self.trainer_config if self.trainer_config is not None else TrainerConfig()
+        if max_epochs is None:
             max_epochs = tc.max_epochs
+        if batch_size is None:
             batch_size = tc.batch_size
+        if val_size is None:
             val_size = tc.val_size
+        if shuffle is None:
             shuffle = tc.shuffle
+        if stratify is None:
             stratify = tc.stratify
+        if patience is None:
             patience = tc.patience
+        if monitor is None:
             monitor = tc.monitor
+        if mode is None:
             mode = tc.mode
+        effective_rebuild = rebuild if rebuild is not None else not self._is_pretrained
+        self._validate_monitoring(
+            monitor=monitor,
+            mode=mode,
+            train_metrics=train_metrics,
+            val_metrics=val_metrics,
+            continuation=not effective_rebuild,
+            validation_enabled=X_val is not None or val_size > 0,
+            trainer_kwargs=trainer_kwargs,
+        )
+        # An explicit checkpoint_path (fit() argument) must always be honored,
+        # even when observability would otherwise pick a run directory.
+        _checkpoint_path_explicit = checkpoint_path is not None
+        if checkpoint_path is None:
             checkpoint_path = tc.checkpoint_path
 
         # Validate inputs before any preprocessing or model construction
         from deeptab.models.base import _validate_fit_inputs
 
-        _validate_fit_inputs(X, y, regression=regression)
+        _validate_fit_inputs(X, y, regression=regression, X_val=X_val, y_val=y_val)
+        y = np.asarray(y)
+        if y_val is not None:
+            y_val = np.asarray(y_val)
 
-        # When random_state was fixed at construction time, honour it
-        if self.random_state is not None:
+        if random_state is None:
+            random_state = self.random_state
+        prepared = None
+        if not effective_rebuild:
+            self._validate_continuation_options(
+                train_metrics=train_metrics,
+                val_metrics=val_metrics,
+                loss_fct=loss_fct,
+                sampler=sampler,
+            )
+            prepared = self._prepare_continuation(
+                X,
+                y,
+                regression=regression,
+                X_val=X_val,
+                y_val=y_val,
+                embeddings=embeddings,
+                embeddings_val=embeddings_val,
+                val_size=val_size,
+                random_state=random_state,
+                batch_size=batch_size,
+                shuffle=shuffle,
+                stratify=stratify,
+                dataloader_kwargs=dataloader_kwargs,
+            )
+
+        # From here on, fit() mutates estimator state (schema attributes,
+        # _data_module, _task_model, etc.) before training can even start.
+        # Mark the estimator as unfitted up front so a failure anywhere below
+        # (build, training, checkpoint loading) leaves is_fitted_ honestly
+        # False instead of a stale True from a previous successful fit() that
+        # now points at corrupted internal state.
+        self.is_fitted_ = False
+
+        # An explicit fit() argument always wins over the random_state fixed at
+        # construction time; only fall back to the latter when the caller left
+        # the fit() argument unset.
+        if random_state is None:
             random_state = self.random_state
 
         # Seed all RNGs so that weight init, dropout masks, and DataLoader
         # shuffling are all deterministic when a random_state is provided.
+        # Leaving both the constructor and fit() random_state unset skips this
+        # entirely, so it never clobbers an external set_seed()/seed_context().
         if random_state is not None:
             from deeptab.core.reproducibility import set_seed
 
@@ -438,9 +760,29 @@ class _FitMixin:
             "fit.started",
             model_class=type(self).__name__,
             n_samples=len(X),
-            n_features=X.shape[1] if hasattr(X, "shape") else len(X.columns),
+            n_features=(
+                X.shape[1] if hasattr(X, "shape") else (len(X.columns) if hasattr(X, "columns") else len(X[0]))
+            ),
             random_state=getattr(self, "random_state", None),
         )
+
+        if rebuild is None:
+            rebuild = not self._is_pretrained
+        elif rebuild and self._is_pretrained:
+            import warnings
+
+            warnings.warn(
+                "rebuild=True discards the embeddings warm-started by pretrain(); "
+                "the model will be rebuilt from scratch. Pass rebuild=False (or omit "
+                "rebuild) to continue training from the pretrained weights.",
+                UserWarning,
+                stacklevel=2,
+            )
+
+        # This fit() call consumes the pretrained state: it either continues
+        # from it (below) or discards it via a rebuild, so later fit() calls
+        # go back to the ordinary rebuild-by-default behavior.
+        self._is_pretrained = False
 
         if rebuild:
             self._build_model(
@@ -466,39 +808,72 @@ class _FitMixin:
                 val_metrics=val_metrics,
                 loss_fct=loss_fct,
                 sampler=sampler,
+                monitor=monitor,
+                mode=mode,
             )
         else:
-            if not self._built:
-                raise ValueError(
-                    "The model must be built before calling the fit method. "
-                    "Either call .build_model() or set rebuild=True"
-                )
+            self._data_module = prepared
+            self._configure_continuation(
+                lr=lr,
+                lr_patience=lr_patience,
+                lr_factor=lr_factor,
+                weight_decay=weight_decay,
+                monitor=monitor,
+                mode=mode,
+            )
 
         # n_params computed in _build_model and emitted via model.created;
         # recalculate here for _log_run_metadata_to_mlflow and fit.completed.
         _n_params = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore[union-attr]
 
         early_stop_callback = EarlyStopping(
-            monitor=monitor, min_delta=0.00, patience=patience, verbose=False, mode=mode
+            monitor=monitor,
+            min_delta=0.00,
+            patience=patience,
+            verbose=False,
+            mode=mode,
+            check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
+        # An explicit checkpoint_path always wins and is used as-is. Otherwise,
+        # prefer the observability run directory when one exists; failing that,
+        # isolate each run under its own unique sub-directory of the default
+        # checkpoint_path (rather than writing directly into it) so that
+        # parametrized/back-to-back fits across different estimator classes
+        # never collide on the same "best_model" filename.
+        if _checkpoint_path_explicit:
+            _checkpoint_dir = checkpoint_path
+        elif self._run_dir:
+            _checkpoint_dir = os.path.join(self._run_dir, "checkpoints")
+        else:
+            from deeptab.core.observability import timestamped_run_label
+
+            _checkpoint_dir = os.path.join(checkpoint_path, timestamped_run_label(self._run_id))
+
         checkpoint_callback = ModelCheckpoint(
-            monitor="val_loss",
-            mode="min",
+            monitor=monitor,
+            mode=mode,
+            save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
-            # Use the per-run checkpoints/ sub-directory when a run dir exists.
-            # When no run dir is active (no observability config), use a temp
-            # directory so no model_checkpoints/ folder is left behind.
-            dirpath=os.path.join(self._run_dir, "checkpoints") if self._run_dir else None,
+            dirpath=_checkpoint_dir,
             filename="best_model",
         )
 
+        # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
+        # Optuna pruning callback) with the built-in ones instead of colliding
+        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
+        # single Callback instance is accepted too, matching Lightning's own
+        # `callbacks` contract.
+        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
+        if isinstance(_user_callbacks, Callback):
+            _user_callbacks = [_user_callbacks]
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
             callbacks=[
                 early_stop_callback,
                 checkpoint_callback,
                 ModelSummary(max_depth=2),
+                *_user_callbacks,
             ],
             # Let an explicit `logger=` in trainer_kwargs override our default.
             logger=trainer_kwargs.pop(
@@ -509,6 +884,17 @@ class _FitMixin:
         )
         self._task_model.train()  # type: ignore[union-attr]
         self._task_model.estimator.train()  # type: ignore[union-attr]
+
+        # Warm up any data-aware initialization (e.g. NODE/ENODE's threshold
+        # init) on a genuine training batch before Lightning's sanity check
+        # runs. The sanity check evaluates in eval mode before any training
+        # step, and data-aware init only fires in train mode (so it never
+        # sees held-out validation data); without this warm-up, the sanity
+        # check's forward pass would see uninitialized (NaN) parameters.
+        self._data_module.setup("fit")  # type: ignore[union-attr]
+        with torch.no_grad():
+            _warmup_feats, _ = next(iter(self._data_module.train_dataloader()))  # type: ignore[union-attr]
+            self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
 
         _t_train = time.monotonic()
         self._emit_event(
@@ -523,17 +909,15 @@ class _FitMixin:
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
+        _best_epoch: int | None = None
         if self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
             checkpoint = torch.load(self._best_model_path, weights_only=False)
             self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            # The checkpoint filename is fixed ("best_model"), so the epoch has
+            # to come from the checkpoint payload itself rather than its name.
+            _best_epoch = checkpoint.get("epoch")
 
-        # Parse best epoch from checkpoint filename (epoch=N pattern).
-        _best_epoch: int | None = None
-        if self._best_model_path:
-            _m = re.search(r"epoch=(\d+)", self._best_model_path)
-            if _m:
-                _best_epoch = int(_m.group(1))
         _best_val_loss = (
             checkpoint_callback.best_model_score.item() if checkpoint_callback.best_model_score is not None else None
         )

@@ -1,10 +1,9 @@
 ---
 name: Question
 about: Ask a question about how to use the software
-title: '[FAQ]'
+title: "[FAQ]"
 labels: question
-assignees: ''
-
+assignees: ""
 ---
 
 **Context**

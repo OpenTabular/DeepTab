@@ -25,7 +25,7 @@ The notebook linked above is generated from this same tutorial content. The mark
 ## What You Will Learn
 
 - How to train an `FTTransformerRegressor` and read its default `evaluate()` metrics.
-- Why piecewise-linear encoding (`numerical_preprocessing="ple"`) helps transformer regressors.
+- Why piecewise-linear encoding (`numerical_method="ple"`) helps transformer regressors.
 - How to transform a skewed target without leaking statistics, and inverse-transform before reporting.
 - When a robust loss (`nn.HuberLoss`) beats the default MSE, and how to pass it through `fit()`.
 - How to run Bayesian hyperparameter search with `optimize_hparams()`.
@@ -133,9 +133,9 @@ across CPU, CUDA, and MPS. Call it before each `fit()` and pass the same
 
 ```python
 PREPROC = PreprocessingConfig(
-    numerical_preprocessing="ple",   # piecewise-linear encoding of numericals
-    n_bins=64,
-    categorical_preprocessing="int", # integer codes feed the model's embeddings
+    numerical_method="ple",   # piecewise-linear encoding of numericals
+    output_dim=64,
+    categorical_method="int", # integer codes feed the model's embeddings
 )
 TRAINER = TrainerConfig(
     max_epochs=5,
@@ -149,7 +149,7 @@ FIT_KWARGS = dict(X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 ```
 
 ```{tip}
-`numerical_preprocessing="ple"` bins each numerical feature and encodes it as a
+`numerical_method="ple"` bins each numerical feature and encodes it as a
 piecewise-linear vector. This gives attention-based models like FT-Transformer a
 much richer numerical representation than raw standardisation, and it is one of
 the cheapest accuracy wins available for tabular deep learning. Other strong
@@ -305,17 +305,16 @@ best_hparams = tuned.optimize_hparams(
 print("Best hyperparameters:", best_hparams)
 ```
 
-`optimize_hparams()` writes the winning values straight back into `tuned.config`,
-so a final clean fit trains on the selected configuration:
+`optimize_hparams()` updates `tuned.config` and refits the winning configuration
+before returning. Evaluate it directly without another training call:
 
 ```python
-set_seed(RANDOM_STATE)
-tuned.fit(X_train, y_train_log, X_val=X_val, y_val=y_val_log, random_state=RANDOM_STATE)
 results["tuned (HPO)"] = report(y_test, np.exp(tuned.predict(X_test)), "tuned (HPO)")
 ```
 
 ```{warning}
 Each trial trains a full model, so the search is the most expensive step here.
+The baseline and final winner fit add two fits to the trial budget.
 Keep `time` small while prototyping, run the search on the training and
 validation splits only, and never expose the test set to it.
 ```

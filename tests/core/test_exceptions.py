@@ -1,0 +1,1451 @@
+"""Tests for deeptab.core.exceptions — exception hierarchy, factories, and integration.
+
+Covers:
+- Exception class hierarchy (is-a relationships)
+- Warning class hierarchy
+- Every factory function produces the right type with the right message fragment
+- PreprocessingConfig validation (__post_init__)
+- TrainerConfig validation (__post_init__)
+- Misplaced-config warning from the estimator constructor
+- BaseModelConfig / per-model config validation (__post_init__)
+- sklearn_compat.ensure_dataframe() guards (empty, bad dtype, all-NaN warning)
+- sklearn_compat.validate_input_features() guards (column count, column names)
+- _validate_fit_inputs() guards (length mismatch, NaN y, family range)
+- Distribution registry: unknown family raises InvalidParamError
+- TabTransformer architecture requirement
+- Public API exports from deeptab and deeptab.core
+"""
+
+from __future__ import annotations
+
+import warnings
+from typing import Any, cast
+
+import numpy as np
+import pandas as pd
+import pytest
+
+import deeptab
+from deeptab.core.exceptions import (
+    ArchitectureRequirementError,
+    ColumnCountError,
+    ColumnDtypeError,
+    ColumnNameError,
+    ConfigError,
+    ConfigWarning,
+    DataError,
+    DataWarning,
+    DeepTabError,
+    DeepTabWarning,
+    DeviceError,
+    DeviceUnavailableError,
+    DuplicateColumnsError,
+    EmptyDataError,
+    IncompatibleParamsError,
+    InsufficientSamplesError,
+    InvalidDataError,
+    InvalidDeviceError,
+    InvalidParamError,
+    ModelError,
+    NotFittedError,
+    PerformanceWarning,
+    UnsupportedParamError,
+    architecture_requirement_error,
+    column_count_error,
+    column_dtype_error,
+    column_name_error,
+    device_unavailable_error,
+    empty_data_error,
+    incompatible_params_error,
+    insufficient_samples_error,
+    invalid_data_error,
+    invalid_device_error,
+    invalid_param_error,
+    multi_output_regression_error,
+    not_fitted_error,
+    target_nan_error,
+    target_range_error,
+    unsupported_param_error,
+    warn_config,
+    warn_data,
+    warn_performance,
+    xy_length_mismatch_error,
+)
+
+# ===========================================================================
+# 1 — Exception hierarchy
+# ===========================================================================
+
+
+class TestExceptionHierarchy:
+    def test_data_error_is_deeptab_error(self):
+        assert issubclass(DataError, DeepTabError)
+
+    def test_invalid_data_error_is_data_error_and_value_error(self):
+        assert issubclass(InvalidDataError, DataError)
+        assert issubclass(InvalidDataError, ValueError)
+
+    def test_column_dtype_error_is_data_error(self):
+        assert issubclass(ColumnDtypeError, DataError)
+
+    def test_column_count_error_is_data_error(self):
+        assert issubclass(ColumnCountError, DataError)
+
+    def test_column_name_error_is_data_error(self):
+        assert issubclass(ColumnNameError, DataError)
+
+    def test_empty_data_error_is_data_error(self):
+        assert issubclass(EmptyDataError, DataError)
+
+    def test_insufficient_samples_error_is_data_error(self):
+        assert issubclass(InsufficientSamplesError, DataError)
+
+    def test_model_error_is_deeptab_error(self):
+        assert issubclass(ModelError, DeepTabError)
+
+    def test_not_fitted_error_is_model_error(self):
+        assert issubclass(NotFittedError, ModelError)
+
+    def test_architecture_requirement_error_is_model_error(self):
+        assert issubclass(ArchitectureRequirementError, ModelError)
+
+    def test_device_error_is_deeptab_error(self):
+        assert issubclass(DeviceError, DeepTabError)
+
+    def test_invalid_device_error_is_device_error_and_value_error(self):
+        assert issubclass(InvalidDeviceError, DeviceError)
+        assert issubclass(InvalidDeviceError, ValueError)
+
+    def test_device_unavailable_error_is_device_error_and_runtime_error(self):
+        assert issubclass(DeviceUnavailableError, DeviceError)
+        assert issubclass(DeviceUnavailableError, RuntimeError)
+
+    def test_config_error_is_deeptab_error(self):
+        assert issubclass(ConfigError, DeepTabError)
+
+    def test_invalid_param_error_is_config_error(self):
+        assert issubclass(InvalidParamError, ConfigError)
+
+    def test_unsupported_param_error_is_config_error_and_value_error(self):
+        assert issubclass(UnsupportedParamError, ConfigError)
+        assert issubclass(UnsupportedParamError, DeepTabError)
+        assert issubclass(UnsupportedParamError, ValueError)
+
+    def test_incompatible_params_error_is_config_error(self):
+        assert issubclass(IncompatibleParamsError, ConfigError)
+
+    def test_all_errors_are_exceptions(self):
+        for cls in (
+            DeepTabError,
+            DataError,
+            ColumnDtypeError,
+            ColumnCountError,
+            ColumnNameError,
+            EmptyDataError,
+            InsufficientSamplesError,
+            ModelError,
+            NotFittedError,
+            ArchitectureRequirementError,
+            DeviceError,
+            InvalidDeviceError,
+            DeviceUnavailableError,
+            ConfigError,
+            InvalidParamError,
+            UnsupportedParamError,
+            IncompatibleParamsError,
+        ):
+            assert issubclass(cls, Exception)
+
+
+class TestWarningHierarchy:
+    def test_deeptab_warning_is_user_warning(self):
+        assert issubclass(DeepTabWarning, UserWarning)
+
+    def test_data_warning_is_deeptab_warning(self):
+        assert issubclass(DataWarning, DeepTabWarning)
+
+    def test_config_warning_is_deeptab_warning(self):
+        assert issubclass(ConfigWarning, DeepTabWarning)
+
+    def test_performance_warning_is_deeptab_warning(self):
+        assert issubclass(PerformanceWarning, DeepTabWarning)
+
+
+# ===========================================================================
+# 2 — Factory functions: return type and message content
+# ===========================================================================
+
+
+class TestDataFactories:
+    def test_invalid_data_error(self):
+        error = invalid_data_error("Input is invalid.", "supply valid input.")
+        assert isinstance(error, InvalidDataError)
+        assert str(error) == "Input is invalid.\nFix: supply valid input."
+
+    def test_column_dtype_error_type_and_message(self):
+        exc = column_dtype_error([("col_a", "datetime64[ns]"), ("col_b", "timedelta64")])
+        assert isinstance(exc, ColumnDtypeError)
+        assert "col_a" in str(exc)
+        assert "col_b" in str(exc)
+        assert "Fix:" in str(exc)
+
+    def test_column_count_error_type_and_message(self):
+        exc = column_count_error(expected=10, got=8)
+        assert isinstance(exc, ColumnCountError)
+        assert "10" in str(exc)
+        assert "8" in str(exc)
+        assert "Fix:" in str(exc)
+
+    def test_column_name_error_missing_and_extra(self):
+        exc = column_name_error(missing=["age", "income"], extra=["AGE"])
+        assert isinstance(exc, ColumnNameError)
+        assert "age" in str(exc)
+        assert "income" in str(exc)
+        assert "AGE" in str(exc)
+        assert "Fix:" in str(exc)
+
+    def test_column_name_error_missing_only(self):
+        exc = column_name_error(missing=["x"], extra=[])
+        assert "x" in str(exc)
+        assert "Extra" not in str(exc)
+
+    def test_empty_data_error_default_context(self):
+        exc = empty_data_error()
+        assert isinstance(exc, EmptyDataError)
+        assert "fit" in str(exc)
+
+    def test_empty_data_error_custom_context(self):
+        exc = empty_data_error("predict")
+        assert "predict" in str(exc)
+
+    def test_insufficient_samples_error(self):
+        exc = insufficient_samples_error(n_rows=5, min_required=50, reason="PLE binning")
+        assert isinstance(exc, InsufficientSamplesError)
+        assert "5" in str(exc)
+        assert "50" in str(exc)
+        assert "PLE binning" in str(exc)
+        assert "Fix:" in str(exc)
+
+    def test_target_nan_error(self):
+        exc = target_nan_error()
+        assert isinstance(exc, DataError)
+        assert isinstance(exc, ValueError)
+        assert "NaN" in str(exc)
+        assert "Fix:" in str(exc)
+
+    def test_target_range_error(self):
+        exc = target_range_error("poisson", "non-negative")
+        assert isinstance(exc, DataError)
+        assert "poisson" in str(exc)
+        assert "non-negative" in str(exc)
+
+    def test_xy_length_mismatch_error(self):
+        exc = xy_length_mismatch_error(n_X=100, n_y=95)
+        assert isinstance(exc, DataError)
+        assert isinstance(exc, ValueError)
+        assert "100" in str(exc)
+        assert "95" in str(exc)
+
+    def test_multi_output_regression_error(self):
+        exc = multi_output_regression_error((100, 3))
+        assert isinstance(exc, DataError)
+        assert "(100, 3)" in str(exc)
+        assert "multi-output regression" in str(exc)
+        assert "Fix:" in str(exc)
+        assert "Fix:" in str(exc)
+
+
+class TestModelFactories:
+    def test_not_fitted_error(self):
+        exc = not_fitted_error("MambularClassifier", "predict")
+        assert isinstance(exc, NotFittedError)
+        assert "MambularClassifier" in str(exc)
+        assert "predict" in str(exc)
+        assert "fit(" in str(exc)
+
+    def test_architecture_requirement_error(self):
+        exc = architecture_requirement_error(
+            arch="TabTransformer",
+            requirement="requires categorical features",
+            suggestion="use FTTransformer instead",
+        )
+        assert isinstance(exc, ArchitectureRequirementError)
+        assert "TabTransformer" in str(exc)
+        assert "requires categorical features" in str(exc)
+        assert "FTTransformer" in str(exc)
+
+
+class TestDeviceFactories:
+    def test_invalid_device_error(self):
+        exc = invalid_device_error("tpu", ("cpu", "cuda", "mps", "auto"))
+        assert isinstance(exc, InvalidDeviceError)
+        assert isinstance(exc, ValueError)
+        assert "tpu" in str(exc)
+        assert "cpu" in str(exc)
+
+    def test_device_unavailable_error(self):
+        exc = device_unavailable_error("cuda")
+        assert isinstance(exc, DeviceUnavailableError)
+        assert isinstance(exc, RuntimeError)
+        assert "cuda" in str(exc)
+        assert "not available" in str(exc)
+
+
+class TestConfigFactories:
+    def test_invalid_param_error_without_valid_values(self):
+        exc = invalid_param_error("TrainerConfig", "lr", -0.01, "must be > 0")
+        assert isinstance(exc, InvalidParamError)
+        assert "TrainerConfig" in str(exc)
+        assert "lr" in str(exc)
+        assert "-0.01" in str(exc)
+        assert "must be > 0" in str(exc)
+
+    def test_invalid_param_error_with_valid_values(self):
+        exc = invalid_param_error(
+            "PreprocessingConfig",
+            "scaling_strategy",
+            "zscore",
+            "must be a known strategy",
+            ["minmax", "robust", "standardization"],
+        )
+        assert "zscore" in str(exc)
+        assert "minmax" in str(exc)
+
+    def test_unsupported_param_error_type_and_message(self):
+        exc = unsupported_param_error("sample_weight", "weighted-loss fitting")
+        assert isinstance(exc, UnsupportedParamError)
+        assert str(exc) == (
+            "sample_weight is not supported for weighted-loss fitting.\nFix: omit sample_weight from this call."
+        )
+
+    def test_incompatible_params_error(self):
+        exc = incompatible_params_error("FTTransformerConfig", "d_model (64) must be divisible by n_heads (5).")
+        assert isinstance(exc, IncompatibleParamsError)
+        assert "FTTransformerConfig" in str(exc)
+        assert "d_model" in str(exc)
+
+
+class TestWarningHelpers:
+    def test_warn_data_issues_data_warning(self):
+        with pytest.warns(DataWarning, match="test data warning"):
+            warn_data("test data warning", stacklevel=1)
+
+    def test_warn_config_issues_config_warning(self):
+        with pytest.warns(ConfigWarning, match="test config warning"):
+            warn_config("test config warning", stacklevel=1)
+
+    def test_warn_performance_issues_performance_warning(self):
+        with pytest.warns(PerformanceWarning, match="test perf warning"):
+            warn_performance("test perf warning", stacklevel=1)
+
+
+# ===========================================================================
+# 3 — PreprocessingConfig.__post_init__ validation
+# ===========================================================================
+
+
+class TestPreprocessingConfigValidation:
+    from deeptab.configs import PreprocessingConfig
+
+    def test_valid_numerical_preprocessing_values(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for val in (
+            "ple",
+            "quantile",
+            "standardization",
+            "minmax",
+            "robust",
+            "bspline",
+            "box-cox",
+            "yeo-johnson",
+            None,
+        ):
+            cfg = PreprocessingConfig(numerical_preprocessing=val)
+            assert cfg.numerical_preprocessing == val
+
+    def test_splines_is_not_a_valid_method(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # "splines" was never a real PreTab method name (the real one is
+        # "bspline"); confirm it is rejected rather than silently accepted.
+        with pytest.raises(InvalidParamError, match="numerical_preprocessing"):
+            PreprocessingConfig(numerical_preprocessing="splines")
+
+    def test_invalid_numerical_preprocessing_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="numerical_preprocessing"):
+            PreprocessingConfig(numerical_preprocessing="zscore")
+
+    def test_n_bins_zero_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="n_bins"):
+            PreprocessingConfig(n_bins=0)
+
+    def test_n_bins_one_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="n_bins"):
+            PreprocessingConfig(n_bins=1)
+
+    def test_n_bins_negative_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="n_bins"):
+            PreprocessingConfig(n_bins=-5)
+
+    def test_n_bins_two_is_valid(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(n_bins=2)
+        assert cfg.n_bins == 2
+
+    def test_n_knots_one_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="n_knots"):
+            PreprocessingConfig(n_knots=1)
+
+    def test_output_dim_omitted_defaults_to_seven_with_future_warning(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning, match="output_dim"):
+            cfg = PreprocessingConfig()
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 7
+
+    def test_output_dim_explicit_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(output_dim=15)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 15
+
+    def test_legacy_n_bins_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(n_bins=10)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 10
+
+    def test_legacy_alias_fields_emit_config_warning_not_deprecation_warning(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for field, value in (
+            ("numerical_preprocessing", "ple"),
+            ("categorical_preprocessing", "int"),
+            ("scaling_strategy", "minmax"),
+            ("n_bins", 10),
+            ("n_knots", 10),
+        ):
+            with pytest.warns(ConfigWarning) as record:
+                PreprocessingConfig(**cast(dict[str, Any], {field: value}))
+            assert not any(issubclass(w.category, DeprecationWarning) for w in record)
+
+    def test_legacy_canonical_conflict_raises_incompatible_params_error(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for kwargs in (
+            {"numerical_preprocessing": "ple", "numerical_method": "bspline"},
+            {"categorical_preprocessing": "int", "categorical_method": "one-hot"},
+            {"scaling_strategy": "minmax", "scaling": "robust"},
+        ):
+            with pytest.raises(IncompatibleParamsError, match="disagree"):
+                PreprocessingConfig(**cast(dict[str, Any], kwargs))
+
+    def test_legacy_canonical_matching_value_does_not_conflict(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning):
+            cfg = PreprocessingConfig(numerical_preprocessing="ple", numerical_method="ple")
+        assert cfg.to_preprocessor_kwargs()["numerical_method"] == "ple"
+
+    def test_spline_implementation_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="spline_implementation"):
+            PreprocessingConfig(spline_implementation="natural")
+
+    def test_categorical_method_none_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match=r"^PreprocessingConfig\.categorical_method"):
+            PreprocessingConfig(categorical_method="none")
+
+    def test_legacy_categorical_preprocessing_none_is_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match=r"^PreprocessingConfig\.categorical_method"):
+            PreprocessingConfig(categorical_preprocessing="none")
+
+    def test_numerical_method_none_is_not_rejected(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(numerical_method="none")
+        assert cfg.to_preprocessor_kwargs()["numerical_method"] == "none"
+
+    def test_use_decision_tree_bins_maps_to_target_aware(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning, match="use_decision_tree_bins"):
+            cfg = PreprocessingConfig(use_decision_tree_bins=True)
+        assert cfg.to_preprocessor_kwargs()["target_aware"] is True
+
+    def test_use_decision_tree_knots_maps_to_target_aware(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(ConfigWarning, match="use_decision_tree_knots"):
+            cfg = PreprocessingConfig(use_decision_tree_knots=False, numerical_method="minmax")
+        assert cfg.to_preprocessor_kwargs()["target_aware"] is False
+
+    def test_conflicting_decision_tree_flags_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="disagree"):
+            PreprocessingConfig(use_decision_tree_bins=True, use_decision_tree_knots=False)
+
+    def test_invalid_scaling_strategy_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="scaling_strategy"):
+            PreprocessingConfig(scaling_strategy="normalize")
+
+    def test_valid_scaling_strategy_values(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for val in ("minmax", "standardization", "robust", None):
+            cfg = PreprocessingConfig(scaling_strategy=val)
+            assert cfg.scaling_strategy == val
+
+    def test_feature_preprocessing_string_raises(self):
+        """Regression test: a bare string used to be accepted then crash at fit."""
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="must be a dict"):
+            PreprocessingConfig(feature_preprocessing="ple")  # type: ignore[arg-type]
+
+    def test_feature_preprocessing_invalid_method_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="not a known preprocessing method"):
+            PreprocessingConfig(feature_preprocessing={"age": "splines"})
+
+    def test_feature_preprocessing_non_string_key_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="column name"):
+            PreprocessingConfig(feature_preprocessing={0: "ple"})  # type: ignore[arg-type]
+
+    def test_feature_preprocessing_valid_mapping(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(feature_preprocessing={"age": "cubicspline", "city": "pretrained"})
+        assert cfg.to_preprocessor_kwargs()["feature_preprocessing"] == {"age": "cubicspline", "city": "pretrained"}
+
+    def test_invalid_binning_strategy_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="binning_strategy"):
+            PreprocessingConfig(binning_strategy="entropy")
+
+    def test_cat_cutoff_zero_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="cat_cutoff"):
+            PreprocessingConfig(cat_cutoff=0.0)
+
+    def test_cat_cutoff_one_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="cat_cutoff"):
+            PreprocessingConfig(cat_cutoff=1.0)
+
+    def test_cat_cutoff_valid(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(cat_cutoff=0.05)
+        assert cfg.cat_cutoff == 0.05
+
+    def test_degree_zero_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="degree"):
+            PreprocessingConfig(degree=0)
+
+    def test_degree_one_is_valid(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(degree=1)
+        assert cfg.degree == 1
+
+    def test_ple_with_target_aware_false_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # PLE always requires y to fit; it cannot run in target_aware=False mode.
+        with pytest.raises(IncompatibleParamsError, match="ple"):
+            PreprocessingConfig(numerical_method="ple", target_aware=False)
+
+    def test_never_target_aware_method_with_target_aware_true_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # minmax never consumes y; target_aware=True has no effect it can honor.
+        with pytest.raises(IncompatibleParamsError, match="minmax"):
+            PreprocessingConfig(numerical_method="minmax", target_aware=True)
+
+    def test_optionally_target_aware_method_accepts_either(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # bspline can run with or without a target; both should be accepted.
+        PreprocessingConfig(numerical_method="bspline", target_aware=True)
+        PreprocessingConfig(numerical_method="bspline", target_aware=False)
+
+    def test_kmeans_placement_strategy_has_no_equivalent_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        # "kmeans" was never a real PreTab placement strategy; confirm it is
+        # rejected with guidance rather than silently forwarded.
+        with pytest.raises(IncompatibleParamsError, match="binning_strategy"):
+            PreprocessingConfig(binning_strategy="kmeans")
+
+    def test_cart_placement_strategy_requires_target_aware_true(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="cart"):
+            PreprocessingConfig(placement_strategy="cart", target_aware=False)
+
+    def test_unsupervised_placement_strategy_requires_target_aware_false(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(IncompatibleParamsError, match="uniform"):
+            PreprocessingConfig(placement_strategy="uniform", target_aware=True)
+
+    def test_placement_strategy_valid_combinations(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for strategy in ("uniform", "quantile"):
+            cfg = PreprocessingConfig(placement_strategy=strategy, target_aware=False)
+            assert cfg.to_preprocessor_kwargs()["placement_strategy"] == strategy
+        for strategy in ("cart", "lightgbm"):
+            cfg = PreprocessingConfig(placement_strategy=strategy, target_aware=True)
+            assert cfg.to_preprocessor_kwargs()["placement_strategy"] == strategy
+
+
+class TestPreprocessingConfigPreset:
+    def test_valid_preset_values(self):
+        from deeptab.configs import PreprocessingConfig
+
+        for val in ("standard", "expanded", "adaptive", None):
+            cfg = PreprocessingConfig(preset=val)
+            assert cfg.preset == val
+
+    def test_invalid_preset_raises(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.raises(InvalidParamError, match="preset"):
+            PreprocessingConfig(preset="bogus")
+
+    def test_preset_is_forwarded_in_kwargs(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(preset="expanded")
+        assert cfg.to_preprocessor_kwargs()["preset"] == "expanded"
+
+    def test_no_preset_omits_preset_key(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig()
+        assert "preset" not in cfg.to_preprocessor_kwargs()
+
+    def test_preset_defers_output_dim_and_suppresses_future_warning(self):
+        import warnings
+
+        from deeptab.configs import PreprocessingConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", FutureWarning)
+            cfg = PreprocessingConfig(preset="expanded")
+        assert "output_dim" not in cfg.to_preprocessor_kwargs()
+
+    def test_explicit_output_dim_still_wins_over_preset(self):
+        from deeptab.configs import PreprocessingConfig
+
+        cfg = PreprocessingConfig(preset="expanded", output_dim=9)
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 9
+
+    def test_no_preset_keeps_default_output_dim_resolution(self):
+        from deeptab.configs import PreprocessingConfig
+
+        with pytest.warns(FutureWarning):
+            cfg = PreprocessingConfig()
+        assert cfg.to_preprocessor_kwargs()["output_dim"] == 7
+
+
+# ===========================================================================
+# 4 — TrainerConfig.__post_init__ validation
+# ===========================================================================
+
+
+class TestTrainerConfigValidation:
+    def test_max_epochs_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="max_epochs"):
+            TrainerConfig(max_epochs=0)
+
+    def test_max_epochs_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="max_epochs"):
+            TrainerConfig(max_epochs=-10)
+
+    def test_batch_size_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="batch_size"):
+            TrainerConfig(batch_size=0)
+
+    def test_lr_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr"):
+            TrainerConfig(lr=0.0)
+
+    def test_lr_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr"):
+            TrainerConfig(lr=-1e-3)
+
+    def test_weight_decay_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="weight_decay"):
+            TrainerConfig(weight_decay=-0.01)
+
+    def test_val_size_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="val_size"):
+            TrainerConfig(val_size=0.0)
+
+    def test_val_size_one_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="val_size"):
+            TrainerConfig(val_size=1.0)
+
+    def test_invalid_mode_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="mode"):
+            TrainerConfig(mode="maximum")
+
+    def test_patience_ge_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="patience"):
+            TrainerConfig(max_epochs=5, patience=5)
+
+    def test_patience_greater_than_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="patience"):
+            TrainerConfig(max_epochs=3, patience=10)
+
+    def test_valid_config_no_warning(self):
+        from deeptab.configs import TrainerConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            cfg = TrainerConfig(max_epochs=100, patience=15)
+        assert cfg.max_epochs == 100
+
+    def test_lr_patience_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_patience"):
+            TrainerConfig(lr_patience=0)
+
+    def test_lr_patience_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_patience"):
+            TrainerConfig(lr_patience=-5)
+
+    def test_lr_factor_zero_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=0.0)
+
+    def test_lr_factor_one_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=1.0)
+
+    def test_lr_factor_negative_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=-0.5)
+
+    def test_lr_factor_greater_than_one_raises(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.raises(InvalidParamError, match="lr_factor"):
+            TrainerConfig(lr_factor=1.5)
+
+    def test_lr_patience_ge_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="lr_patience"):
+            TrainerConfig(max_epochs=5, lr_patience=5)
+
+    def test_lr_patience_greater_than_max_epochs_warns(self):
+        from deeptab.configs import TrainerConfig
+
+        with pytest.warns(ConfigWarning, match="lr_patience"):
+            TrainerConfig(max_epochs=3, lr_patience=10)
+
+    def test_valid_lr_params_no_warning(self):
+        from deeptab.configs import TrainerConfig
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            cfg = TrainerConfig(max_epochs=100, lr_patience=5, lr_factor=0.5)
+        assert cfg.lr_patience == 5
+        assert cfg.lr_factor == 0.5
+
+
+# ===========================================================================
+# 4b — Misplaced-config warning (estimator constructor)
+# ===========================================================================
+
+
+class TestMisplacedConfigWarning:
+    """The estimator constructor warns when a config lands in the wrong slot."""
+
+    def test_trainer_config_as_model_config_warns(self):
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="model_config.*expects a BaseModelConfig"):
+            MLPClassifier(model_config=TrainerConfig())
+
+    def test_model_config_as_preprocessing_config_warns(self):
+        from deeptab.configs import MLPConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="preprocessing_config.*expects a PreprocessingConfig"):
+            MLPClassifier(preprocessing_config=MLPConfig())
+
+    def test_preprocessing_config_as_trainer_config_warns(self):
+        from deeptab.configs import PreprocessingConfig
+        from deeptab.models import MLPClassifier
+
+        with pytest.warns(ConfigWarning, match="trainer_config.*expects a TrainerConfig"):
+            MLPClassifier(trainer_config=PreprocessingConfig())
+
+    def test_correct_slots_emit_no_misplacement_warning(self):
+        from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            MLPClassifier(
+                model_config=MLPConfig(),
+                preprocessing_config=PreprocessingConfig(),
+                trainer_config=TrainerConfig(max_epochs=100, patience=15),
+            )
+
+    def test_duck_typed_object_is_not_flagged(self):
+        from deeptab.models import MLPClassifier
+
+        class DuckConfig:
+            def get_params(self, deep=True):
+                return {}
+
+        # An unknown duck-typed object must not trip the misplacement check.
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ConfigWarning)
+            MLPClassifier(model_config=DuckConfig())
+
+
+# ===========================================================================
+# 5 — BaseModelConfig / per-model config validation
+# ===========================================================================
+
+
+class TestModelConfigValidation:
+    def test_d_model_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="d_model"):
+            MambularConfig(d_model=0)
+
+    def test_d_model_negative_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(InvalidParamError, match="d_model"):
+            FTTransformerConfig(d_model=-8)
+
+    def test_n_layers_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="n_layers"):
+            MambularConfig(n_layers=0)
+
+    def test_n_heads_zero_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(InvalidParamError, match="n_heads"):
+            FTTransformerConfig(n_heads=0)
+
+    def test_d_model_not_divisible_by_n_heads_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(IncompatibleParamsError, match="d_model"):
+            FTTransformerConfig(d_model=64, n_heads=5)
+
+    def test_dropout_negative_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="dropout"):
+            MambularConfig(dropout=-0.1)
+
+    def test_dropout_one_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="dropout"):
+            MambularConfig(dropout=1.0)
+
+    def test_attn_dropout_out_of_range_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(InvalidParamError, match="attn_dropout"):
+            FTTransformerConfig(attn_dropout=1.5)
+
+    def test_head_dropout_out_of_range_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="head_dropout"):
+            MambularConfig(head_dropout=-0.01)
+
+    def test_valid_config_passes(self):
+        from deeptab.configs import FTTransformerConfig
+
+        cfg = FTTransformerConfig(d_model=128, n_heads=8)
+        assert cfg.d_model == 128
+        assert cfg.n_heads == 8
+
+    def test_invalid_cat_encoding_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="cat_encoding"):
+            MambularConfig(cat_encoding="embedding")
+
+    def test_rnn_dropout_negative_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="rnn_dropout"):
+            TabulaRNNConfig(rnn_dropout=-0.1)
+
+    def test_rnn_dropout_one_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="rnn_dropout"):
+            TabulaRNNConfig(rnn_dropout=1.0)
+
+    def test_n_frequencies_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="n_frequencies"):
+            MambularConfig(n_frequencies=0)
+
+    def test_n_frequencies_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="n_frequencies"):
+            MLPConfig(n_frequencies=-4)
+
+    def test_frequencies_init_scale_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="frequencies_init_scale"):
+            MambularConfig(frequencies_init_scale=0.0)
+
+    def test_frequencies_init_scale_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="frequencies_init_scale"):
+            MLPConfig(frequencies_init_scale=-1.0)
+
+    def test_layer_norm_eps_zero_raises(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.raises(InvalidParamError, match="layer_norm_eps"):
+            MambularConfig(layer_norm_eps=0.0)
+
+    def test_layer_norm_eps_negative_raises(self):
+        from deeptab.configs import MLPConfig
+
+        with pytest.raises(InvalidParamError, match="layer_norm_eps"):
+            MLPConfig(layer_norm_eps=-1e-5)
+
+    def test_batch_norm_and_layer_norm_both_true_warns(self):
+        from deeptab.configs import MambularConfig
+
+        with pytest.warns(ConfigWarning, match="batch_norm"):
+            MambularConfig(batch_norm=True, layer_norm=True)
+
+    def test_expand_factor_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="expand_factor"):
+            MambaTabConfig(expand_factor=0)
+
+    def test_d_conv_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="d_conv"):
+            MambaTabConfig(d_conv=0)
+
+    def test_d_state_zero_raises(self):
+        from deeptab.configs import MambaTabConfig
+
+        with pytest.raises(InvalidParamError, match="d_state"):
+            MambaTabConfig(d_state=0)
+
+    def test_transformer_dim_feedforward_zero_raises(self):
+        from deeptab.configs import FTTransformerConfig
+
+        with pytest.raises(InvalidParamError, match="transformer_dim_feedforward"):
+            FTTransformerConfig(transformer_dim_feedforward=0)
+
+    def test_dim_feedforward_zero_raises(self):
+        from deeptab.configs import TabulaRNNConfig
+
+        with pytest.raises(InvalidParamError, match="dim_feedforward"):
+            TabulaRNNConfig(dim_feedforward=0)
+
+
+# ===========================================================================
+# 6 — ensure_dataframe() guards
+# ===========================================================================
+
+
+class TestEnsureDataframe:
+    def test_empty_rows_raises_empty_data_error(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"a": pd.Series([], dtype="float64")})
+        with pytest.raises(EmptyDataError):
+            ensure_dataframe(df)
+
+    def test_empty_columns_raises_empty_data_error(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(index=range(10))
+        with pytest.raises(EmptyDataError):
+            ensure_dataframe(df)
+
+    def test_unsupported_dtype_raises_column_dtype_error(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "a": [1.0, 2.0, 3.0],
+                "dt": pd.to_datetime(["2021-01-01", "2021-01-02", "2021-01-03"]),
+            }
+        )
+        with pytest.raises(ColumnDtypeError, match="dt"):
+            ensure_dataframe(df)
+
+    def test_bool_columns_auto_cast_to_int8(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"flag": [True, False, True], "val": [1.0, 2.0, 3.0]})
+        result = ensure_dataframe(df)
+        assert result["flag"].dtype == np.dtype("int8")
+
+    def test_numeric_and_object_pass(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0], "cat": ["a", "b"]})
+        result = ensure_dataframe(df)
+        assert result.shape == (2, 2)
+
+    def test_all_nan_column_warns(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0, 2.0, 3.0],
+                "all_nan": [np.nan, np.nan, np.nan],
+            }
+        )
+        with pytest.warns(DataWarning, match="all_nan"):
+            ensure_dataframe(df)
+
+    def test_all_nan_numeric_column_filled_with_zero(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0, 2.0, 3.0],
+                "all_nan": [np.nan, np.nan, np.nan],
+            }
+        )
+        with pytest.warns(DataWarning):
+            result = ensure_dataframe(df)
+        assert (result["all_nan"] == 0).all()
+
+    def test_all_nan_object_column_filled_with_sentinel(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0, 2.0, 3.0],
+                "all_nan": pd.Series([None, None, None], dtype="object"),
+            }
+        )
+        with pytest.warns(DataWarning):
+            result = ensure_dataframe(df)
+        assert (result["all_nan"] == "missing").all()
+
+    def test_duplicate_columns_raise_duplicate_columns_error(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"a": [1.0, 2.0], "b": [3.0, 4.0]})
+        df.columns = ["a", "a"]
+        with pytest.raises(DuplicateColumnsError, match=r"^Input has duplicate column names: \['a'\]"):
+            ensure_dataframe(df)
+
+    def test_none_in_object_column_normalized_to_nan(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "segment": pd.Series(["a", None, "b"], dtype="object")})
+        result = ensure_dataframe(df)
+        assert result["segment"].isna().tolist() == [False, True, False]
+        assert isinstance(result["segment"].iloc[1], float)
+        assert np.isnan(result["segment"].iloc[1])
+
+    def test_existing_nan_in_object_column_untouched(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "segment": pd.Series(["a", np.nan, "b"], dtype="object")})
+        result = ensure_dataframe(df)
+        assert result["segment"].tolist()[0] == "a"
+        assert np.isnan(result["segment"].tolist()[1])
+        assert result["segment"].tolist()[2] == "b"
+
+    def test_context_appears_in_empty_error_message(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(index=range(10))
+        with pytest.raises(EmptyDataError, match="predict"):
+            ensure_dataframe(df, context="predict")
+
+
+# ===========================================================================
+# 7 — validate_input_features() guards
+# ===========================================================================
+
+
+class TestValidateInputFeatures:
+    """Use a mock fitted estimator to test column validation."""
+
+    def _make_estimator(self, n_features=3, feature_names=None):
+        class FakeEstimator:  # pyright: ignore[reportGeneralTypeIssues]
+            n_features_in_: int
+            feature_names_in_: np.ndarray
+
+        est = FakeEstimator()
+        est.n_features_in_ = n_features  # type: ignore[assignment]
+        if feature_names is not None:
+            est.feature_names_in_ = np.array(feature_names, dtype=object)  # type: ignore[assignment]
+        return est
+
+    def test_column_count_mismatch_raises(self):
+        from deeptab.core.sklearn_compat import validate_input_features
+
+        est = self._make_estimator(n_features=3)
+        X = pd.DataFrame({"a": [1], "b": [2]})  # 2 cols, expected 3
+        with pytest.raises(ColumnCountError, match="3"):
+            validate_input_features(est, X)
+
+    def test_column_names_missing_raises(self):
+        from deeptab.core.sklearn_compat import validate_input_features
+
+        est = self._make_estimator(n_features=2, feature_names=["age", "income"])
+        X = pd.DataFrame({"age": [25], "salary": [50000]})
+        with pytest.raises(ColumnNameError, match="income"):
+            validate_input_features(est, X)
+
+    def test_column_names_extra_in_error_message(self):
+        from deeptab.core.sklearn_compat import validate_input_features
+
+        est = self._make_estimator(n_features=2, feature_names=["age", "income"])
+        X = pd.DataFrame({"age": [25], "salary": [50000]})
+        with pytest.raises(ColumnNameError, match="salary"):
+            validate_input_features(est, X)
+
+    def test_matching_columns_passes(self):
+        from deeptab.core.sklearn_compat import validate_input_features
+
+        est = self._make_estimator(n_features=2, feature_names=["age", "income"])
+        X = pd.DataFrame({"age": [25], "income": [50000]})
+        result = validate_input_features(est, X)
+        assert result.shape == (1, 2)
+
+    def test_no_feature_names_on_estimator_passes_count_check(self):
+        from deeptab.core.sklearn_compat import validate_input_features
+
+        est = self._make_estimator(n_features=2)
+        X = pd.DataFrame({"x": [1], "y": [2]})
+        result = validate_input_features(est, X)
+        assert result.shape == (1, 2)
+
+
+# ===========================================================================
+# 8 — _validate_fit_inputs() guards
+# ===========================================================================
+
+
+class TestValidateFitInputs:
+    from deeptab.models.base import _validate_fit_inputs
+
+    def _X(self, n=50):
+        return pd.DataFrame(np.random.randn(n, 3), columns=["a", "b", "c"])  # type: ignore[call-overload]
+
+    def _y(self, n=50):
+        return np.random.randn(n)
+
+    def test_length_mismatch_raises(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        with pytest.raises(DataError, match="100"):
+            _validate_fit_inputs(self._X(100), self._y(80), regression=True)
+
+    def test_nan_in_y_float_raises(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = self._y(50)
+        y[0] = np.nan
+        with pytest.raises(DataError, match="NaN"):
+            _validate_fit_inputs(self._X(50), y, regression=True)
+
+    def test_integer_y_with_nan_does_not_raise(self):
+        """Integer y cannot contain NaN; validation skips non-float arrays."""
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = np.array([0, 1, 0, 1] * 10, dtype=int)
+        _validate_fit_inputs(self._X(40), y, regression=False)  # no error
+
+    def test_poisson_negative_y_raises(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = np.array([1.0, 2.0, -1.0] * 5)
+        with pytest.raises(DataError, match="poisson"):
+            _validate_fit_inputs(self._X(15), y, regression=True, family="poisson")
+
+    def test_poisson_non_negative_y_passes(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = np.array([0.0, 1.0, 2.0, 3.0] * 10)
+        _validate_fit_inputs(self._X(40), y, regression=True, family="poisson")
+
+    def test_gamma_zero_y_raises(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = np.array([1.0, 0.0, 2.0] * 5)
+        with pytest.raises(DataError, match="gamma"):
+            _validate_fit_inputs(self._X(15), y, regression=True, family="gamma")
+
+    def test_gamma_positive_y_passes(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        y = np.abs(np.random.randn(30)) + 0.01
+        _validate_fit_inputs(self._X(30), y, regression=True, family="gamma")
+
+    @pytest.mark.parametrize("family", ["inversegamma", "lognormal"])
+    @pytest.mark.parametrize("invalid_target", [0.0, -1.0])
+    def test_positive_support_families_reject_non_positive_targets(self, family, invalid_target):
+        from deeptab.models.base import _validate_fit_inputs
+
+        targets = np.array([1.0, invalid_target, 2.0])
+        with pytest.raises(DataError, match="strictly positive"):
+            _validate_fit_inputs(self._X(3), targets, regression=True, family=family)
+
+    @pytest.mark.parametrize("family", ["inversegamma", "lognormal"])
+    def test_positive_support_families_accept_positive_targets(self, family):
+        from deeptab.models.base import _validate_fit_inputs
+
+        _validate_fit_inputs(self._X(3), np.array([0.1, 1.0, 2.0]), regression=True, family=family)
+
+    def test_high_nan_columns_warns(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        X = self._X(40)
+        X["a"] = np.nan  # 100 % NaN
+        y = self._y(40)
+        with pytest.warns(DataWarning, match="50%"):
+            _validate_fit_inputs(X, y, regression=True)
+
+
+# ===========================================================================
+# 9 — Distribution registry: unknown family
+# ===========================================================================
+
+
+class TestDistributionRegistry:
+    @pytest.mark.parametrize("family", ["inversegaussian", "binomial"])
+    def test_unregistered_family_names_are_rejected(self, family):
+        from deeptab.distributions import get_distribution
+
+        with pytest.raises(InvalidParamError, match="family"):
+            get_distribution(family)
+
+    def test_unknown_family_raises_invalid_param_error(self):
+        from deeptab.distributions import get_distribution
+
+        with pytest.raises(InvalidParamError, match="family"):
+            get_distribution("banana")
+
+    def test_unknown_family_message_lists_valid_options(self):
+        from deeptab.distributions import get_distribution
+
+        with pytest.raises(InvalidParamError, match="normal"):
+            get_distribution("xyz_unknown")
+
+    def test_known_family_returns_distribution(self):
+        from deeptab.distributions import get_distribution
+
+        dist = get_distribution("normal")
+        assert dist is not None
+
+
+# ===========================================================================
+# 10 — TabTransformer architecture requirement
+# ===========================================================================
+
+
+class TestTabTransformerArchitectureRequirement:
+    def test_no_categorical_features_raises_architecture_error(self):
+        from deeptab.architectures.tabtransformer import TabTransformer
+        from deeptab.configs.models.tabtransformer_config import TabTransformerConfig
+
+        num_info = {"f0": {"preprocessing": "ple", "dimension": 20, "categories": None}}
+        cat_info = {}  # no categorical features
+        emb_info = {}
+        with pytest.raises(ArchitectureRequirementError, match="categorical"):
+            TabTransformer(
+                feature_information=(num_info, cat_info, emb_info),
+                num_classes=2,
+                config=TabTransformerConfig(),
+            )
+
+    def test_with_categorical_features_passes(self):
+        from deeptab.architectures.tabtransformer import TabTransformer
+        from deeptab.configs.models.tabtransformer_config import TabTransformerConfig
+
+        num_info = {}
+        cat_info = {"city": {"dimension": 1, "categories": ["NYC", "LA"]}}
+        emb_info = {}
+        # Should not raise — if it raises for other reasons (unrelated to the
+        # requirement guard), that is a separate issue.
+        try:
+            TabTransformer(
+                feature_information=(num_info, cat_info, emb_info),
+                num_classes=2,
+                config=TabTransformerConfig(),
+            )
+        except ArchitectureRequirementError:
+            pytest.fail("ArchitectureRequirementError raised unexpectedly with categorical features")
+        except Exception:  # noqa: S110
+            pass
+
+
+# ===========================================================================
+# 11 — Public API exports
+# ===========================================================================
+
+
+class TestPublicAPIExports:
+    def test_exceptions_exported_from_deeptab(self):
+        """Only the catch-all base and NotFittedError (the one users legitimately handle) are exported."""
+        for name in ("DeepTabError", "NotFittedError"):
+            assert hasattr(deeptab, name), f"deeptab.{name} not exported"
+
+    def test_internal_exceptions_not_in_deeptab_top_level(self):
+        """Granular exception types live in deeptab.core.exceptions, not the top-level namespace."""
+        for name in (
+            "DataError",
+            "InvalidDataError",
+            "ColumnDtypeError",
+            "ColumnCountError",
+            "EmptyDataError",
+            "InvalidParamError",
+            "UnsupportedParamError",
+            "ArchitectureRequirementError",
+        ):
+            assert not hasattr(deeptab, name), (
+                f"deeptab.{name} should not be in the public top-level namespace "
+                "(import from deeptab.core.exceptions instead)"
+            )
+
+    def test_warnings_exported_from_deeptab(self):
+        for name in ("DeepTabWarning", "DataWarning", "ConfigWarning", "PerformanceWarning"):
+            assert hasattr(deeptab, name), f"deeptab.{name} not exported"
+
+    def test_exceptions_exported_from_deeptab_core(self):
+        import deeptab.core as core
+
+        for name in (
+            "DeepTabError",
+            "DataError",
+            "InvalidDataError",
+            "ColumnDtypeError",
+            "NotFittedError",
+            "InvalidParamError",
+            "UnsupportedParamError",
+            "DeviceError",
+            "InvalidDeviceError",
+            "DeviceUnavailableError",
+            "ConfigWarning",
+            "DataWarning",
+        ):
+            assert hasattr(core, name), f"deeptab.core.{name} not exported"
+
+    def test_unsupported_param_error_core_export(self):
+        import deeptab.core as core
+
+        assert core.UnsupportedParamError is UnsupportedParamError
+        assert "UnsupportedParamError" in core.__all__
+
+    def test_invalid_data_error_core_export(self):
+        import deeptab.core as core
+
+        assert core.InvalidDataError is InvalidDataError
+        assert "InvalidDataError" in core.__all__
+
+    def test_filterable_data_warning(self):
+        """Users can filter DataWarning independently from other warnings."""
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            warn_data("data issue", stacklevel=1)
+            warn_config("config issue", stacklevel=1)
+        data_warns = [
+            w for w in caught if issubclass(w.category, DataWarning) and not issubclass(w.category, ConfigWarning)
+        ]
+        assert len(data_warns) == 1
+        assert "data issue" in str(data_warns[0].message)

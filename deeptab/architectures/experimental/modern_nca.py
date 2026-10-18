@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
-from deeptab.core import BaseModel, get_feature_dimensions
+from deeptab.core import BaseModel, concat_features, get_feature_dimensions
 from deeptab.nn.blocks.common import EmbeddingLayer
 from deeptab.nn.blocks.mlp import MLPhead
 from deeptab.nn.normalization import get_normalization_layer
@@ -42,13 +42,15 @@ class ModernNCA(BaseModel):
         A tuple containing feature information for numerical, categorical, and
         embedding features.
     num_classes : int, optional (default=1)
-        The output dimension. ``1`` for scalar regression, the number of
-        classes for classification, or the distribution parameter count for
-        distributional (LSS) models.
+        The output dimension. ``1`` for scalar regression or binary
+        classification, the number of classes for multiclass classification,
+        or the distribution parameter count for distributional (LSS) models.
     config : ModernNCAConfig, optional (default=ModernNCAConfig())
         Configuration object defining model hyperparameters.
     **kwargs : dict
         Additional arguments for the base model, including the ``lss`` flag.
+        Set ``is_binary_classification=True`` for binary classification so
+        weighted label probabilities are converted to logits.
 
     Attributes
     ----------
@@ -93,7 +95,7 @@ class ModernNCA(BaseModel):
                 config=config,
             )
 
-            input_dim = np.sum([len(info) * self.hparams.d_model for info in feature_information])
+            input_dim = int(np.sum([len(info) * self.hparams.d_model for info in feature_information]))
         else:
             input_dim = get_feature_dimensions(*feature_information)
 
@@ -140,13 +142,13 @@ class ModernNCA(BaseModel):
             B, S, D = x.shape
             x = x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
+            x = concat_features(data)
         x = self.encoder(x)
         if hasattr(self, "post_encoder"):
             x = self.post_encoder(x)
         return self.tabular_head(x)
 
-    def train_with_candidates(self, *data, targets, candidate_x, candidate_y):
+    def train_with_candidates(self, *data, targets, candidate_x, candidate_y, query_indices=None):
         """NCA-style training forward pass selecting candidates.
 
         Parameters
@@ -159,9 +161,14 @@ class ModernNCA(BaseModel):
             each query can attend to its own batch.
         candidate_x : tuple
             Input tuple of tensors of num_features, cat_features, embeddings for
-            the candidate (training) rows.
+            training rows outside the current query batch. Callers must exclude
+            query identities from this pool before sampling.
         candidate_y : Tensor
             Targets for the candidate rows.
+        query_indices : Tensor or None
+            Dataset row identities for the queries. Repeated identities in a
+            replacement-sampled batch are excluded from each other's context.
+            If omitted, each query is assumed to have a distinct identity.
 
         Returns
         -------
@@ -179,8 +186,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)
@@ -193,7 +200,7 @@ class ModernNCA(BaseModel):
         # Select a subset of candidates
         data_size = candidate_x.shape[0]
         retrieval_size = int(data_size * self.sample_rate)
-        sample_idx = torch.randperm(data_size)[:retrieval_size]
+        sample_idx = torch.randperm(data_size, device=candidate_x.device)[:retrieval_size]
         candidate_x = candidate_x[sample_idx]
         candidate_y = candidate_y[sample_idx]
 
@@ -203,8 +210,14 @@ class ModernNCA(BaseModel):
 
         # Compute distances
         distances = torch.cdist(x, candidate_x, p=2) / self.T
-        # remove the label of training index
-        distances = distances.fill_diagonal_(torch.inf)
+        batch_size = len(x)
+        query_indices = (
+            torch.arange(batch_size, device=x.device) if query_indices is None else query_indices.to(x.device)
+        )
+        same_query = query_indices[:, None] == query_indices[None, :]
+        distances[:, :batch_size] = distances[:, :batch_size].masked_fill(same_query, torch.inf)
+        if torch.isinf(distances).all(dim=1).any():
+            raise ValueError("ModernNCA training requires at least one candidate with a different row identity.")
         distances = F.softmax(-distances, dim=-1)
 
         if self.hparams.lss:
@@ -223,6 +236,8 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        elif getattr(self.hparams, "is_binary_classification", False):
+            logits = torch.logit(logits, eps=eps)
 
         return logits
 
@@ -256,8 +271,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)
@@ -288,6 +303,8 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        elif getattr(self.hparams, "is_binary_classification", False):
+            logits = torch.logit(logits, eps=eps)
 
         return logits
 
@@ -321,8 +338,8 @@ class ModernNCA(BaseModel):
             B, S, D = candidate_x.shape
             candidate_x = candidate_x.reshape(B, S * D)
         else:
-            x = torch.cat([t for tensors in data for t in tensors], dim=1)
-            candidate_x = torch.cat([t for tensors in candidate_x for t in tensors], dim=1)
+            x = concat_features(data)
+            candidate_x = concat_features(candidate_x)
 
         # Encode input
         x = self.encoder(x)
@@ -353,5 +370,7 @@ class ModernNCA(BaseModel):
         eps = 1e-7
         if self.hparams.num_classes > 1:
             logits = torch.log(logits + eps)
+        elif getattr(self.hparams, "is_binary_classification", False):
+            logits = torch.logit(logits, eps=eps)
 
         return logits

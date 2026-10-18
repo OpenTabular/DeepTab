@@ -18,7 +18,9 @@ class TabMConfig(BaseModelConfig):
     dropout : float, default=0.5
         Dropout rate for regularization.
     norm : str | None, default=None
-        Normalization method to be used, if any.
+        Normalization method to be used, if any. ``"InstanceNorm"`` and
+        ``"GroupNorm"`` are rejected because they would compute statistics
+        across ensemble members and couple their predictions.
     use_glu : bool, default=False
         Whether to use Gated Linear Units (GLU) in the model.
     ensemble_size : int, default=32

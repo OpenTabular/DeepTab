@@ -87,16 +87,12 @@ Vulnerabilities with no upstream fix available should be noted and tracked as kn
 
 Run all checks in the order shown below. **Each step must pass cleanly before proceeding to the next.**
 
-## 3. Quality checks
-
-Run these in order. **Each must pass cleanly before proceeding to the next.**
-
 | Step   | Command       | What it does                                                          |
 | ------ | ------------- | --------------------------------------------------------------------- |
 | Lint   | `just lint`   | `ruff check --fix`; review and resolve any errors it cannot auto-fix. |
 | Format | `just format` | `ruff format` for consistent code style.                              |
 | Hooks  | `just check`  | All pre-commit hooks across all files: ruff, prettier, and Pyright.   |
-| Tests  | `just test`   | Full test suite with coverage.                                        |
+| Tests  | `just test`   | Full test suite with at least 90% line coverage.                      |
 
 ```{important}
 If `just check` modifies any files, stage and commit them before continuing:
@@ -261,12 +257,12 @@ git push origin vX.Y.Z
 ```
 
 ```{warning}
-Pushing the tag triggers PyPI publication immediately and cannot be undone. Confirm that `main` is in the expected state and the version in `pyproject.toml` is correct before pushing.
+Pushing the tag starts the release validation workflow. Publication runs only after CI, documentation, and package checks succeed. Once the package is uploaded, that release cannot be overwritten. Confirm that `main` is in the expected state and the version in `pyproject.toml` is correct before pushing.
 ```
 
 ## 10. Publish package
 
-The tag push automatically triggers the appropriate GitHub Actions workflow. Both use **OIDC Trusted Publishing**, so no API tokens are required. See **[CI/CD](ci_cd.md)** for full details.
+The tag push automatically triggers the appropriate GitHub Actions workflow. Both require the full CI test matrix and coverage collection, a successful Sphinx build, and package validation including classifier/regressor training and save/load from an installed wheel. Any failed, cancelled, or skipped prerequisite blocks publication. Both use **OIDC Trusted Publishing**, so no API tokens are required. The publish job downloads the validated distributions from the same run rather than rebuilding them. See **[CI/CD](ci_cd.md)** for full details.
 
 | Tag pushed  | Workflow               | Result                        |
 | ----------- | ---------------------- | ----------------------------- |

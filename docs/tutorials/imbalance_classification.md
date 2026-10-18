@@ -130,7 +130,7 @@ TRAINER = TrainerConfig(
     patience=2,
     optimizer_type="Adam",
 )
-PREPROC = PreprocessingConfig(numerical_preprocessing="quantile")
+PREPROC = PreprocessingConfig(numerical_method="quantile")
 
 FIT_KWARGS = dict(X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 ```
@@ -225,6 +225,14 @@ You can also inspect the computed weights before fitting:
 ```python
 weights = compute_class_weights("balanced", y_train)
 print(weights)   # e.g. [0.549, 5.556]
+```
+
+```{warning}
+When continuing a fitted classifier with `rebuild=False`, omit loss and sampling
+arguments to retain its current configuration. Passing `class_weight`, `loss_fct`,
+`balanced_sampler=True`, or `sample_weight` raises `ValueError`. Changing these
+settings requires `rebuild=True`, which starts a fresh model rather than continuing
+the trained weights. This also applies to automatic continuation after `pretrain()`.
 ```
 
 ## Strategy 2: Focal Loss
@@ -370,6 +378,14 @@ clf_sw.fit(X_train, y_train, sample_weight=recency, **FIT_KWARGS)
 
 The weight array is split alongside the train/val partition using the same random
 state, so it always aligns with the training rows actually used.
+
+```{important}
+Classifier `sample_weight` changes row-drawing probabilities through
+`WeightedRandomSampler`; it does not multiply per-example loss terms. Sampling
+is not sklearn-style weighted loss and does not guarantee the same fitted
+predictions as removing or repeating rows. Point-estimate regressors and LSS
+models reject the `sample_weight` keyword before changing estimator state.
+```
 
 ## Strategy 4: Combined Focal Loss + Balanced Sampler
 

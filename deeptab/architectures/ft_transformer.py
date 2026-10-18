@@ -75,7 +75,6 @@ class FTTransformer(BaseModel):
         self.encoder = nn.TransformerEncoder(
             encoder_layer,
             num_layers=self.hparams.n_layers,
-            norm=self.norm_f,
             enable_nested_tensor=False,
         )
 
@@ -87,7 +86,7 @@ class FTTransformer(BaseModel):
 
         # pooling
         n_inputs = np.sum([len(info) for info in feature_information])
-        self.initialize_pooling_layers(config=config, n_inputs=n_inputs)
+        self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.d_model)
 
     def forward(self, *data):
         """Defines the forward pass of the model.

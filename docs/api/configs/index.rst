@@ -25,7 +25,7 @@ settings can be managed, versioned, and shared independently.
      - ``d_model``, ``n_layers``, ``dropout``, ``activation``, …
    * - :class:`PreprocessingConfig`
      - Feature engineering
-     - ``numerical_preprocessing``, ``n_bins``, ``scaling_strategy``, …
+     - ``numerical_method``, ``output_dim``, ``scaling``, ``preset``, …
    * - :class:`TrainerConfig`
      - Training loop
      - ``max_epochs``, ``lr``, ``batch_size``, ``patience``, …
@@ -47,8 +47,8 @@ Classification
     from deeptab.models import MLPClassifier
 
     model = MLPClassifier(
-        model_config=MLPConfig(d_model=128, dropout=0.1),
-        preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+      model_config=MLPConfig(layer_sizes=[128, 64], dropout=0.1),
+        preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
         trainer_config=TrainerConfig(max_epochs=50, lr=1e-3),
     )
     model.fit(X_train, y_train)
@@ -64,7 +64,7 @@ Regression
     from deeptab.models import ResNetRegressor
 
     model = ResNetRegressor(
-        model_config=ResNetConfig(d_model=256, n_layers=4),
+      model_config=ResNetConfig(layer_sizes=[256, 128, 32], num_blocks=4),
         trainer_config=TrainerConfig(max_epochs=100, lr=5e-4, patience=10),
     )
     model.fit(X_train, y_train)

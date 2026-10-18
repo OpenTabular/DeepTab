@@ -15,10 +15,11 @@ DeepTab's `NODE` pipeline is:
 1. Use raw/preprocessed concatenated features, or optionally embed features and flatten them.
 2. Pass the vector through a `DenseBlock` of differentiable oblivious trees.
 3. Flatten the dense block output.
-4. Predict with `MLPhead`.
+4. Apply optional final normalization.
+5. Predict with `MLPhead`.
 
 ```text
-features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree_dim) -> MLPhead
+features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree_dim) -> optional norm -> MLPhead
 ```
 
 ## Main Building Blocks
@@ -33,7 +34,11 @@ features -> optional embeddings -> DenseBlock(num_layers, layer_dim, depth, tree
 
 ## Implementation Notes
 
-`num_layers * layer_dim` determines the input dimension to the prediction head. Larger values increase capacity and memory use. `tree_dim` controls the output dimension per tree.
+`norm` selects optional normalization after the dense block and before the head. The inherited `batch_norm`/`layer_norm` flags do not select this layer.
+
+> **Configuration note:** `NODEConfig(num_layers=2, layer_dim=8, norm="LayerNorm")` normalizes a vector of width 16, not `d_model`. Previously, `norm` was accepted but never applied. The normalization helper now receives the tree-output width explicitly. `head_use_batch_norm` remains a separate setting inside the prediction head.
+
+`num_layers * layer_dim * tree_dim` determines the input dimension to the prediction head and to `norm`. Larger values increase capacity and memory use. `tree_dim` controls how many response channels each tree outputs; `num_layers=2`, `layer_dim=8`, and `tree_dim=2` give a width of 32. Previously, the head and `norm` were sized as if `tree_dim` were 1, so any larger value failed with a shape mismatch.
 
 ## Practical Config
 
@@ -49,7 +54,7 @@ model = NODEClassifier(
         tree_dim=1,
         head_dropout=0.3,
     ),
-    preprocessing_config=PreprocessingConfig(numerical_preprocessing="quantile"),
+    preprocessing_config=PreprocessingConfig(numerical_method="quantile"),
     trainer_config=TrainerConfig(lr=1e-3, batch_size=256, max_epochs=100),
     random_state=101,
 )
