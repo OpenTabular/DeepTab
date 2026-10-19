@@ -63,6 +63,10 @@ and consolidated for each stable version before publication.
 
 #### Training, Metrics, and HPO
 
+- Preserve string class labels in `Accuracy` and `F1Score`, fixing classifier
+  `evaluate()` returning NaN accuracy for valid string predictions. Add an explicit
+  `pos_label` option for binary F1 with string labels; numeric labels and probability
+  inputs retain their existing behavior.
 - Honor fit-level arguments, optimizer options, and custom regression losses instead
   of silently dropping them or overriding them with trainer settings (#415, #430, #442).
 - Respect explicit checkpoint paths and requested monitor/mode settings, resolve

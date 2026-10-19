@@ -10,9 +10,11 @@ from tempfile import TemporaryDirectory
 from zipfile import ZipFile
 
 import numpy as np
+from sklearn.metrics import accuracy_score, f1_score
 
 import deeptab
 from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+from deeptab.metrics import Accuracy, F1Score
 from deeptab.models import MLPClassifier, MLPRegressor
 
 
@@ -27,7 +29,7 @@ def main() -> None:
     installed = distribution("deeptab")
     if (
         installed.version != deeptab.__version__
-        or Path(installed.locate_file("deeptab/__init__.py")).resolve() != package_path
+        or Path(str(installed.locate_file("deeptab/__init__.py"))).resolve() != package_path
     ):
         raise RuntimeError("Imported DeepTab does not match the installed distribution metadata")
     if args.wheel:
@@ -48,10 +50,15 @@ def main() -> None:
     features = generator.normal(size=(48, 3)).astype(np.float32)
 
     with TemporaryDirectory() as root:
-        for model_class in (MLPClassifier, MLPRegressor):
+        for model_class, case_name, class_labels in (
+            (MLPClassifier, "integer-labels", (10, 20, 30)),
+            (MLPClassifier, "binary-string-labels", ("no", "yes")),
+            (MLPClassifier, "multiclass-string-labels", ("blue", "green", "red")),
+            (MLPRegressor, "regression", None),
+        ):
             targets = (
-                np.tile([10, 20, 30], 16)
-                if model_class is MLPClassifier
+                np.resize(np.asarray(class_labels), 48)
+                if class_labels is not None
                 else features[:, 0] + 0.1 * generator.normal(size=48)
             )
             for width in (None, 15):
@@ -73,9 +80,9 @@ def main() -> None:
                     enable_progress_bar=False,
                 )
                 before = model.predict(features[36:])
-                if not np.isfinite(before).all():
+                if class_labels is None and not np.isfinite(before).all():
                     raise RuntimeError(f"{model_class.__name__} produced nonfinite predictions")
-                path = str(Path(root) / f"{model_class.__name__}-{width}.deeptab")
+                path = str(Path(root) / f"{model_class.__name__}-{case_name}-{width}.deeptab")
                 model.save(path)
                 restored = model_class.load(path, device="cpu")
                 np.testing.assert_array_equal(restored.predict(features[36:]), before)
@@ -86,9 +93,27 @@ def main() -> None:
                     probabilities = model.predict_proba(features[36:])
                     np.testing.assert_array_equal(restored.predict_proba(features[36:]), probabilities)
                     np.testing.assert_allclose(probabilities.sum(axis=1), 1, atol=1e-6)
-                    if not set(before).issubset({10, 20, 30}):
+                    if not set(before).issubset(class_labels or ()):
                         raise RuntimeError("Classifier did not restore the original target labels")
-                print(f"{model_class.__name__}, output_dim={width}: fit/save/CPU-reload passed")
+                    metrics = {"accuracy": Accuracy(), "f1_macro": F1Score(average="macro")}
+                    expected = {
+                        "accuracy": accuracy_score(targets[36:], before),
+                        "f1_macro": f1_score(targets[36:], before, average="macro"),
+                    }
+                    if class_labels is not None and len(class_labels) == 2:
+                        metrics["f1_binary"] = F1Score(pos_label=class_labels[1])
+                        expected["f1_binary"] = f1_score(
+                            targets[36:], before, labels=[class_labels[1]], average="macro"
+                        )
+                    for estimator in (model, restored):
+                        default_scores = estimator.evaluate(features[36:], targets[36:])
+                        np.testing.assert_allclose(default_scores["accuracy"], expected["accuracy"])
+                        np.testing.assert_allclose(estimator.score(features[36:], targets[36:]), expected["accuracy"])
+                        scores = estimator.evaluate(features[36:], targets[36:], metrics=metrics)
+                        for metric_name, metric in metrics.items():
+                            np.testing.assert_allclose(metric(targets[36:], before), expected[metric_name])
+                            np.testing.assert_allclose(scores[metric_name], expected[metric_name])
+                print(f"{model_class.__name__}, {case_name}, output_dim={width}: fit/evaluate/save/CPU-reload passed")
 
 
 if __name__ == "__main__":

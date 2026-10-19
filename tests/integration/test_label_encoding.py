@@ -9,7 +9,10 @@ from typing import Any
 import numpy as np
 import pandas as pd
 import pytest
+from sklearn.metrics import accuracy_score, f1_score
 
+from deeptab.configs import MLPConfig, TrainerConfig
+from deeptab.metrics import Accuracy, F1Score
 from deeptab.models import MLPClassifier
 from deeptab.models.classifier_base import _encode_labels
 
@@ -68,6 +71,46 @@ def _multiclass_data(labels: tuple):
 
 
 class TestClassifierLabelEncoding:
+    @pytest.mark.parametrize("classes", [["no", "yes"], ["blue", "green", "red"]], ids=["binary", "multiclass"])
+    @pytest.mark.parametrize("dtype", [str, object], ids=["unicode", "object"])
+    def test_string_label_evaluation_matches_sklearn(self, classes, dtype, tmp_path):
+        generator = np.random.default_rng(RANDOM_STATE)
+        features = generator.normal(size=(48, 3)).astype(np.float32)
+        targets = np.asarray(classes, dtype=dtype)[np.arange(48) % len(classes)]
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[8]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=12, checkpoint_path=str(tmp_path)),
+            random_state=RANDOM_STATE,
+        )
+        model.fit(
+            features[:36],
+            targets[:36],
+            X_val=features[36:],
+            y_val=targets[36:],
+            accelerator="cpu",
+            logger=False,
+            enable_progress_bar=False,
+        )
+        predictions = model.predict(features[36:])
+        expected_accuracy = accuracy_score(targets[36:], predictions)
+        assert model.evaluate(features[36:], targets[36:])["accuracy"] == pytest.approx(expected_accuracy)
+        assert model.score(features[36:], targets[36:]) == pytest.approx(expected_accuracy)
+        metrics = {
+            "accuracy": Accuracy(),
+            "f1_macro": F1Score(average="macro"),
+            "f1_weighted": F1Score(average="weighted"),
+        }
+        if len(classes) == 2:
+            metrics["f1_binary"] = F1Score(pos_label=classes[1])
+        scores = model.evaluate(features[36:], targets[36:], metrics=metrics)
+        assert scores["accuracy"] == pytest.approx(expected_accuracy)
+        for average in ("macro", "weighted"):
+            expected = f1_score(targets[36:], predictions, average=average)
+            assert scores[f"f1_{average}"] == pytest.approx(expected)
+        if len(classes) == 2:
+            expected = f1_score(targets[36:], predictions, pos_label=classes[1])
+            assert scores["f1_binary"] == pytest.approx(expected)
+
     def test_string_binary_labels_round_trip(self):
         X, y = _separable_binary_data(("no", "yes"))
         clf = MLPClassifier()
