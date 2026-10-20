@@ -8,7 +8,7 @@ This project adheres to [Semantic Versioning](https://semver.org/) and uses
 Commitizen generates initial entries with `cz bump`; release notes are reviewed
 and consolidated for each stable version before publication.
 
-## v2.1.0 (2026-10-19)
+## v2.1.0 (2026-10-20)
 
 ### Added
 
