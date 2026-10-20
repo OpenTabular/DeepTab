@@ -320,6 +320,24 @@ classifier.evaluate(
 ```
 
 Accuracy and F1 consume class labels; AUROC and log loss consume probabilities.
+String labels are supported by `Accuracy` and by macro or weighted `F1Score`.
+For binary F1, select the positive class explicitly:
+
+```python
+from deeptab.metrics import Accuracy, F1Score
+
+classifier.evaluate(
+    X_test,
+    y_test,
+    metrics={"accuracy": Accuracy(), "f1": F1Score(pos_label="yes")},
+)
+```
+
+Here `"yes"` must be one of the classifier's two target labels. The default
+positive label remains `1` for numeric binary targets. Direct metric calls accept
+the same labels as `predict()`; `Accuracy` and `F1Score` also accept numeric
+binary probability scores or matrices whose columns use class-index order.
+
 For ensembles, member probabilities are averaged before probability-based
 evaluation. Training and validation epoch metrics use the epoch's accumulated
 inputs or metric state, not an unweighted mean of per-batch scores. Metric state

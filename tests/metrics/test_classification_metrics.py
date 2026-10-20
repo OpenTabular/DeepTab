@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+from functools import partial
+
 import numpy as np
 import pytest
+from sklearn.metrics import accuracy_score, f1_score
 
 from deeptab.metrics import (  # Classification; Distributional; Registry; Base; Regression
     AUPRC,
@@ -56,6 +59,58 @@ class TestClassificationMetrics:
         y = np.array([0, 1, 1, 0])
         proba = np.array([0.1, 0.9, 0.8, 0.2])
         assert Accuracy()(y, proba) == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("classes", [["no", "yes"], ["blue", "green", "red"]], ids=["binary", "multiclass"])
+    @pytest.mark.parametrize("dtype", [str, object], ids=["unicode", "object"])
+    @pytest.mark.parametrize(
+        ("metric", "reference"),
+        [
+            pytest.param(Accuracy(), accuracy_score, id="accuracy"),
+            pytest.param(F1Score(average="macro"), partial(f1_score, average="macro"), id="f1-macro"),
+            pytest.param(F1Score(average="weighted"), partial(f1_score, average="weighted"), id="f1-weighted"),
+        ],
+    )
+    def test_string_labels_match_sklearn(self, classes, dtype, metric, reference):
+        vocabulary = np.asarray(classes, dtype=dtype)
+        y_true = vocabulary[np.arange(6) % len(classes)]
+        predictions = y_true.copy()
+        predictions[0] = vocabulary[1]
+        assert metric(y_true, predictions) == pytest.approx(reference(y_true, predictions))
+
+    @pytest.mark.parametrize("dtype", [str, object], ids=["unicode", "object"])
+    @pytest.mark.parametrize("positive_label", ["no", "yes"])
+    def test_f1_binary_string_positive_label(self, dtype, positive_label):
+        y_true = np.asarray(["no", "yes", "no", "yes"], dtype=dtype)
+        predictions = np.asarray(["no", "yes", "yes", "yes"], dtype=dtype)
+        metric = F1Score(pos_label=positive_label)
+        expected = f1_score(y_true, predictions, pos_label=positive_label)
+        assert metric(y_true, predictions) == pytest.approx(expected)
+        assert f"pos_label={positive_label!r}" in repr(metric)
+
+    @pytest.mark.parametrize(
+        ("targets", "predictions", "expected_labels"),
+        [
+            pytest.param([10, 20, 30, 10], np.array([10, 30, 30, 10]), [10, 30, 30, 10], id="integers"),
+            pytest.param([-3, 2, -3, 2], np.array([-3.0, 2.0, 2.0, 2.0]), [-3, 2, 2, 2], id="integral-floats"),
+            pytest.param([0, 1, 0, 1], np.array([0, 1, 1, 1], dtype=object), [0, 1, 1, 1], id="object-integers"),
+            pytest.param([0, 1, 0, 1], np.array([0.1, 0.9, 0.5, 0.49]), [0, 1, 1, 0], id="binary-probabilities"),
+            pytest.param(
+                [0, 1, 0, 1], np.array([0.1, 0.9, 0.5, 0.49], dtype=object), [0, 1, 1, 0], id="object-probabilities"
+            ),
+            pytest.param([0, 1, 2, 0], np.eye(3)[[0, 2, 2, 0]], [0, 2, 2, 0], id="multiclass-probabilities"),
+            pytest.param(
+                [False, True, False, True],
+                np.array([False, True, True, True]),
+                [False, True, True, True],
+                id="booleans",
+            ),
+        ],
+    )
+    def test_numeric_labels_and_probabilities_match_sklearn(self, targets, predictions, expected_labels):
+        assert Accuracy()(targets, predictions) == pytest.approx(accuracy_score(targets, expected_labels))
+        for average in ("macro", "weighted"):
+            expected = f1_score(targets, expected_labels, average=average)
+            assert F1Score(average=average)(targets, predictions) == pytest.approx(expected)
 
     def test_auroc_in_unit_interval(self, clf_data_binary):
         y_true, proba = clf_data_binary

@@ -35,7 +35,7 @@ builds are not covered by this CI matrix.
 
 The authoritative version constraints live in [`pyproject.toml`](https://github.com/OpenTabular/deeptab/blob/main/pyproject.toml) under `[tool.poetry.dependencies]`, which is updated on every release. Treat that file as the source of truth; the list below names the core packages and the policy that governs their bounds.
 
-- **PyTorch, Lightning, NumPy, pandas, scikit-learn, torchmetrics, scipy, PreTab** are the pinned core dependencies. NumPy 1.x is **not** supported.
+- **PyTorch, Lightning, NumPy, pandas, scikit-learn, torchmetrics, scipy, PreTab** are core dependencies with declared version ranges; `poetry.lock` records exact development versions. NumPy 1.x is **not** supported.
 - **delu, faiss-cpu** are model-specific dependencies installed only by the `tabr` extra. The default install and the `all` observability bundle exclude them.
 
 DeepTab targets a tested support window, informed by [SPEC 0](https://scientific-python.org/specs/spec-0000/) used by the broader scientific Python ecosystem:
@@ -63,7 +63,11 @@ Trusted-checkpoint guidance does not make an affected loader secure. Preserve
 the original findings and keep release sign-off open while unapproved findings
 remain.
 
-When a version is dropped, it is announced in the release notes and the `pyproject.toml` lower bound is bumped in the same minor release.
+When a supported version is dropped, announce it in the release notes and update
+the `pyproject.toml` lower bound in the same release. Choose the release increment
+according to the [versioning policy](versioning.md): eligible EOL Python
+retirements may use a minor release. Removing an upstream-supported Python
+version or breaking the public API requires a major release.
 
 ## Dependency Endpoint Validation
 
@@ -108,6 +112,8 @@ source and wheel hashes. The candidate still carries package version `2.0.0`;
 these results do not certify a final-version 2.1 artifact, hosted platforms,
 native TabR, accelerators or security sign-off.
 
-Python 3.10 is no longer supported in DeepTab 2.1. Follow the
+Python 3.10 [reached end of life on 2026-10-01](https://peps.python.org/pep-0619/#lifespan)
+and is no longer supported in DeepTab 2.1. This retirement is permitted in a minor
+release under the [versioning policy](versioning.md). Follow the
 [Migration Guide](../getting_started/migration) before upgrading an older
 environment. Documentation tooling retains its Python 3.12-3.13 requirement.

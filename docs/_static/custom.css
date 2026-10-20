@@ -601,6 +601,13 @@ table.autosummary {
   width: 100%;
 }
 
+#testing table.docutils,
+#testing pre {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 table.autosummary td {
   padding: 0.45rem 0.6rem;
   border-bottom: 1px solid #e5e7eb;

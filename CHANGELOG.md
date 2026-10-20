@@ -5,29 +5,129 @@ All notable changes to this project will be documented in this file.
 This project adheres to [Semantic Versioning](https://semver.org/) and uses
 [Conventional Commits](https://www.conventionalcommits.org/).
 
-Going forward, this file is updated automatically by `cz bump` on each release.
+Commitizen generates initial entries with `cz bump`; release notes are reviewed
+and consolidated for each stable version before publication.
 
-## v2.1.0 (Unreleased)
+## v2.1.0 (2026-10-20)
+
+### Added
+
+- PreTab presets and a representation registry for selecting preprocessing strategies.
+- Canonical `PreprocessingConfig` fields with legacy alias resolution and actionable
+  errors for unsupported preprocessing settings or missing optional dependencies.
+- Block and dense output options in `build_preprocessor`.
+- Saved preprocessor specifications, fingerprints, and feature widths for inspecting
+  and restoring fitted preprocessing.
 
 ### Changed
 
-- Require Python 3.11-3.13. Python 3.10 is no longer supported; recreate older environments before upgrading. Remaining on an older DeepTab release does not guarantee security updates.
-- Require SciPy >=1.16,<2 after reproducing a native loader failure with the previous minimum on Apple Silicon. Documentation builds retain Python 3.12 or newer within the supported range.
-- Require Torch >=2.13,<2.15, setuptools >=83,<84, Lightning >=2.6.6,<3, and Accelerate >=1.15,<2 to exclude versions with reported vulnerabilities.
-- Require TensorBoard >=2.21,<3 for the TensorBoard and tracking extras, compatible with patched setuptools and NumPy 2 hyperparameter logging.
-- Move FAISS and delu to the explicit `tabr` extra. The default install and `all` observability bundle no longer install native retrieval packages. Native TabR remains unsupported on macOS arm64 and now fails before conflicting native imports.
+- **Python support:** Require Python 3.11-3.13 (`>=3.11,<3.14`). Python 3.10
+  [reached end of life on 2026-10-01](https://peps.python.org/pep-0619/#lifespan)
+  and is no longer supported. Users requiring Python 3.10 must remain on DeepTab
+  2.0.x with compatible dependencies; older releases do not guarantee security updates.
+- **Preprocessing:** Integrate PreTab 1.0 and default numerical `output_dim` to 7
+  for new fits. Explicit widths remain honored. Resolve the preprocessing task from
+  the estimator type and map `ObservabilityConfig.verbosity` to preprocessor verbosity.
+- **Dependency compatibility:** Require pandas >=2.2.2,<3 and SciPy >=1.16,<2.
+  The SciPy minimum avoids a reproduced native loader failure on Apple Silicon.
+  Documentation builds require Python 3.12 or 3.13.
+- **Optional retrieval:** Move FAISS and delu to the explicit `tabr` extra. The
+  default install and `all` observability bundle no longer install native retrieval
+  packages. Native TabR remains unsupported on macOS arm64 and fails before
+  conflicting native imports.
+- **Artifact compatibility:** Historical 2.0 PLE artifacts require their original
+  dependency environment; upgrading does not convert them. See the
+  [Migration Guide](docs/getting_started/migration.md) before upgrading older environments.
+- Use configured logging rather than `print()` for model save/load status messages.
 
 ### Fixed
 
-- Preserve an existing fitted estimator when a refit's input validation fails; failures after rebuilding starts invalidate prediction until a successful fit.
-- Refresh supplied data, validation splits and loaders during weight continuation with `rebuild=False`, while retaining compatible weights and fitted preprocessing.
-- Route classification metrics to labels, probabilities or raw outputs as required, including ensemble evaluation.
-- Aggregate training and validation metrics over whole epochs and reset state between sanity validation and epochs.
-- Preserve strict custom architecture constructor signatures when supplying binary task metadata.
-- Forward fit-level monitoring settings to callbacks and plateau schedulers while preserving explicit configuration precedence.
-- Save and restore the candidate data needed for TabR and ModernNCA inference, including after loaded continuation. Older incomplete or incompatible artifacts still require refitting.
+#### Estimator State and Persistence
 
----
+- Preserve an existing fitted estimator when a refit's input validation fails.
+  Failures after rebuilding starts invalidate prediction until a successful fit
+  (#424, #426, #449).
+- Apply `set_params` overrides to model configuration, execute estimator contract
+  checks, and reject unsupported weights (#410, #449).
+- Refresh supplied data, validation splits, and loaders during weight continuation
+  with `rebuild=False`, while retaining compatible weights and fitted preprocessing.
+- Continue from pretrained weights by default in `fit()` (#446).
+- Persist and restore the fitted loss function and NDTF's generated tree architecture
+  across save/load (#444, #445).
+- Default `load()` to CPU instead of automatically selecting hardware (#465).
+- Preserve TabR and ModernNCA candidate data across save/load and loaded continuation,
+  and prevent query-label leakage during retrieval (#413). Older incomplete or
+  incompatible artifacts still require refitting.
+- Correct ModernNCA regression and binary-classification reloads, and convert binary
+  classification votes to real logits (#268).
+
+#### Training, Metrics, and HPO
+
+- Preserve string class labels in `Accuracy` and `F1Score`, fixing classifier
+  `evaluate()` returning NaN accuracy for valid string predictions. Add an explicit
+  `pos_label` option for binary F1 with string labels; numeric labels and probability
+  inputs retain their existing behavior.
+- Honor fit-level arguments, optimizer options, and custom regression losses instead
+  of silently dropping them or overriding them with trainer settings (#415, #430, #442).
+- Respect explicit checkpoint paths and requested monitor/mode settings, resolve
+  `best_epoch`, and timestamp default checkpoint directories (#411, #425).
+- Correct seeding, callbacks, fit-state transitions, and device handling (#452).
+- Encode classification labels consistently and route metrics to labels,
+  probabilities, or raw outputs as required, including ensemble evaluation
+  (#409, #443).
+- Aggregate training and validation metrics over complete epochs and reset metric
+  state between sanity validation and epochs.
+- Accept probabilities rather than raw logits in expected calibration error and
+  include confidence 1.0 in its bins (#421).
+- Correct HPO trial selection, pruning, and winner refitting (#420).
+
+#### Data and Preprocessing
+
+- Correct model encoding, categorical-feature metadata, input-dimension typing, and
+  preprocessing type compatibility with PreTab (#422, #451).
+- Cast concatenated features to floating point for non-embedding architectures.
+- Normalize `None` to `np.nan` in object columns, reject duplicate columns, and impute
+  all-NaN columns in `ensure_dataframe`.
+- Reject `categorical_method="none"` in `PreprocessingConfig` with a clear error.
+- Handle regression target shapes correctly (#441).
+
+#### Architectures and Distributions
+
+- Correct architecture configuration options and neural-block behavior (#423, #450).
+- Preserve strict custom architecture constructor signatures when supplying binary
+  task metadata.
+- Correct MLP bias handling and NDTF backward computation on MPS without changing
+  saved parameter layouts.
+- Apply the Mamba block in `MambaTab.forward`, use pre-normalization and dropout
+  around RowColTransformer attention, and align contrastive anchors with their pairs.
+- Preserve parameter axes in ensemble LSS outputs (#447).
+- Correct LSS scoring, distribution handling, and persistence (#419).
+- Fix multinomial softmax, JohnsonSU naming, and singleton-dimension handling (#453).
+- Use PyTorch's probability convention in `NegativeBinomial` and correct the
+  log-term sign in `GammaDeviance`.
+
+### Security
+
+- Require Torch >=2.13,<2.15, setuptools >=83,<84, Lightning >=2.6.6,<3, and
+  Accelerate >=1.15,<2 to exclude versions with reported vulnerabilities.
+- Require TensorBoard >=2.21,<3 for TensorBoard and tracking extras, compatible with
+  patched setuptools and NumPy 2 hyperparameter logging.
+- Update vulnerable locked dependencies, remove blanket audit ignores, and update
+  the separately installed documentation HTML cleaner to 0.4.5.
+
+### Documentation and Maintenance
+
+- Clarify installation profiles, preprocessing widths, historical artifact limits,
+  supported environments, and the maintainer release process; correct docstrings
+  and examples (#454).
+- Run CI on release-branch pushes and add the aggregate `CI Success` check.
+  Validate release-tag ancestry before packaging, testing, and publication.
+- Validate independently resolved minimum/newest dependency profiles and installed-wheel
+  training and save/load workflows in CI.
+- Correct CI dependency installation, runner-cache scope, and NumPy typing checks;
+  enable Prettier in pre-commit hooks and update regression tests.
+- Centralize preprocessor construction and neural-block imports, and remove unused
+  MLP/batch helpers and stub modules.
 
 ## v2.0.0 (2026-06-24)
 

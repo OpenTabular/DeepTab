@@ -15,23 +15,41 @@ permissions:
   contents: read
 
 jobs:
+  provenance:
+    name: Validate release tag and ancestry
+    if: ${{ !contains(github.ref_name, 'rc') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Validate stable release provenance
+        run: python .github/scripts/check_release_ref.py --channel stable
+
   ci:
     if: ${{ !contains(github.ref_name, 'rc') }}
-    needs: package
+    needs: [provenance, package]
     uses: ./.github/workflows/ci.yml
     with:
       distribution-artifact: dist
 
   docs:
     if: ${{ !contains(github.ref_name, 'rc') }}
+    needs: provenance
     uses: ./.github/workflows/docs.yml
 
   package:
     if: ${{ !contains(github.ref_name, 'rc') }}
+    needs: provenance
     uses: ./.github/workflows/build-check.yml
 
   publish:
-    needs: [ci, docs, package]
+    needs: [provenance, ci, docs, package]
     runs-on: ubuntu-latest
     environment: pypi-publish
     permissions:

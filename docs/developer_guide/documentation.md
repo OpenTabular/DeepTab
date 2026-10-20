@@ -4,6 +4,18 @@ DeepTab documentation is built with [Sphinx 9](https://www.sphinx-doc.org/) usin
 
 ## Building locally
 
+Use Python 3.12 or 3.13 with Poetry 2.x. From a development checkout, prepare
+the documentation environment before building:
+
+```bash
+poetry env use 3.12
+poetry install --with docs
+```
+
+The core library also supports Python 3.11, but the Sphinx dependency group
+does not. Profile setup commands such as `just install-core` remove docs
+packages; repeat the installation above when switching back to documentation.
+
 ```bash
 just docs
 ```
@@ -105,4 +117,14 @@ flowchart LR
 
 ## ReadTheDocs
 
-Documentation is hosted on ReadTheDocs and built automatically on every push to `main` and on every new release tag. The build configuration lives in `readthedocs.yaml` at the repository root. RTD uses Python 3.12 on Ubuntu 24.04.
+Read the Docs builds documentation through its repository integration, separately
+from GitHub Actions. The build configuration lives in `readthedocs.yaml` at the
+repository root. RTD uses Python 3.12 on Ubuntu 24.04 and installs the package
+plus `docs/requirements_docs.txt`; the GitHub docs job instead uses Poetry's
+docs group. Keep both dependency specifications compatible and apply security
+fixes to both where necessary.
+
+The integration can publish `latest` from `main` and versioned documentation
+from enabled release tags. Tag builds depend on the RTD project's settings.
+A passing GitHub docs job verifies its own Sphinx build, not RTD installation,
+build, or publication success.

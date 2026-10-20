@@ -70,24 +70,28 @@ from .base import DeepTabMetric
 
 
 def _labels_from_predictions(y_pred: np.ndarray) -> np.ndarray:
-    """Reduce raw predictions to integer class labels.
+    """Reduce predictions to class labels while preserving string labels.
 
     2-D input is treated as per-class probabilities (argmax over axis 1).
-    1-D input is treated as labels as-is when every value is whole-numbered;
-    otherwise it is treated as binary probability scores and thresholded at 0.5.
+    1-D string labels are returned unchanged. Numeric input is treated as labels
+    when every value is whole-numbered; otherwise it is treated as binary
+    probability scores and thresholded at 0.5.
     """
     if y_pred.ndim == 2:
         return y_pred.argmax(axis=1)
     y_pred = y_pred.ravel()
+    if y_pred.dtype.kind in "UST" or (y_pred.dtype.kind == "O" and all(isinstance(label, str) for label in y_pred)):
+        return y_pred
     if np.all(y_pred == np.floor(y_pred)):
         return y_pred.astype(int)
     return (y_pred >= 0.5).astype(int)
 
 
 class Accuracy(DeepTabMetric):
-    """Classification accuracy -- delegates to :func:`sklearn.metrics.accuracy_score`.
+    """Classification accuracy using :func:`sklearn.metrics.accuracy_score`.
 
-    Accepts 1-D integer labels or 2-D probability arrays (argmax is taken).
+    Accepts 1-D string or integer labels, binary probability scores, or 2-D
+    probability arrays (argmax is taken).
     """
 
     name = "accuracy"
@@ -102,32 +106,37 @@ class Accuracy(DeepTabMetric):
 
 
 class F1Score(DeepTabMetric):
-    """F1 Score -- delegates to :func:`sklearn.metrics.f1_score`.
+    """F1 score using :func:`sklearn.metrics.f1_score`.
 
     Parameters
     ----------
     average : str
         Averaging strategy: ``"binary"`` (default), ``"macro"``, or
         ``"weighted"``.
+    pos_label : int or str, default=1
+        Positive class for binary averaging. Set this to the positive string
+        label when using binary string targets. Ignored for other averages.
     """
 
     name = "f1"
     higher_is_better = True
     input_space = "probabilities"
 
-    def __init__(self, average: str = "binary") -> None:
+    def __init__(self, average: str = "binary", *, pos_label: int | str = 1) -> None:
         if average not in ("binary", "macro", "weighted"):
             raise ValueError(f"average must be 'binary', 'macro', or 'weighted', got {average!r}")
         self.average = average
+        self.pos_label = pos_label
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred)
         labels = _labels_from_predictions(y_pred)
-        return float(_f1(y_true, labels, average=self.average, zero_division=0))  # type: ignore[arg-type]
+        return float(_f1(y_true, labels, average=self.average, pos_label=self.pos_label, zero_division=0))  # type: ignore[arg-type]
 
     def __repr__(self) -> str:
-        return f"F1Score(average={self.average!r})"
+        positive_label = f", pos_label={self.pos_label!r}" if self.pos_label != 1 else ""
+        return f"F1Score(average={self.average!r}{positive_label})"
 
 
 class AUROC(DeepTabMetric):
