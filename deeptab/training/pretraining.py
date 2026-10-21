@@ -164,6 +164,21 @@ class ContrastivePretrainer(pl.LightningModule):
         return x  # Return unpooled sequence embeddings (N, S, D)
 
     def get_knn(self, labels):
+        """Return the positive and negative neighbor indices for a batch.
+
+        For classification, rows without both a same-class and a
+        different-class neighbor are left out; use :meth:`_pair_indices` to
+        also get the anchor rows the returned indices belong to.
+        """
+        knn_indices, neg_indices, _ = self._pair_indices(labels)
+        return knn_indices, neg_indices
+
+    def _pair_indices(self, labels):
+        """Return ``(knn_indices, neg_indices, anchor_indices)`` for a batch.
+
+        Row ``i`` of the neighbor indices belongs to the anchor row
+        ``anchor_indices[i]`` of the batch.
+        """
         batch_size = labels.size(0)
         k_neighbors = min(self.k_neighbors, batch_size - 1)
 
@@ -191,15 +206,22 @@ class ContrastivePretrainer(pl.LightningModule):
                 )
             knn_indices = torch.stack([knn_indices_list[i] for i in valid])
             neg_indices = torch.stack([neg_indices_list[i] for i in valid])
+            anchor_indices = torch.tensor(valid, dtype=torch.long)
         else:
             with torch.no_grad():
                 target_distances = torch.cdist(labels.float(), labels.float(), p=2).squeeze(-1)
             knn_indices = target_distances.topk(k_neighbors + 1, largest=False).indices[:, 1:]
             neg_indices = target_distances.topk(k_neighbors, largest=True).indices
+            anchor_indices = torch.arange(batch_size)
 
-        return knn_indices.to(self.device), neg_indices.to(self.device)
+        return knn_indices.to(self.device), neg_indices.to(self.device), anchor_indices.to(self.device)
 
-    def contrastive_loss(self, embeddings, knn_indices, neg_indices):
+    def contrastive_loss(self, embeddings, knn_indices, neg_indices, anchor_indices=None):
+        """Cosine-embedding loss between anchors and their positive/negative neighbors.
+
+        ``anchor_indices`` selects the batch rows the neighbor indices belong
+        to; ``None`` uses every row of the batch as an anchor.
+        """
         if not self.pool_sequence:
             N, S, D = embeddings.shape
             loss = 0.0
@@ -207,6 +229,8 @@ class ContrastivePretrainer(pl.LightningModule):
                 embs = embeddings[:, i, :]
                 k_neighbors = knn_indices.shape[1]
                 embs = F.normalize(embs, p=2, dim=-1)
+                anchors = embs if anchor_indices is None else embs[anchor_indices]
+                N = anchors.shape[0]
 
                 positive_pairs = embs[knn_indices] if self.use_positive else None
                 negative_pairs = embs[neg_indices] if self.use_negative else None
@@ -229,16 +253,18 @@ class ContrastivePretrainer(pl.LightningModule):
 
                 # Anchor layout must match cat(pairs): one anchor-major block of
                 # k rows per anchor, tiled once per pair type.
-                embeddings_s = embs.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
+                embeddings_s = anchors.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
                 _loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
                 loss += _loss
 
             return loss
 
         else:
-            N, D = embeddings.shape
+            D = embeddings.shape[1]
             k_neighbors = knn_indices.shape[1]
             embeddings = F.normalize(embeddings, p=2, dim=-1)
+            anchors = embeddings if anchor_indices is None else embeddings[anchor_indices]
+            N = anchors.shape[0]
 
             positive_pairs = embeddings[knn_indices] if self.use_positive else None
             negative_pairs = embeddings[neg_indices] if self.use_negative else None
@@ -261,7 +287,7 @@ class ContrastivePretrainer(pl.LightningModule):
 
             # Anchor layout must match cat(pairs): one anchor-major block of
             # k rows per anchor, tiled once per pair type.
-            embeddings_s = embeddings.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
+            embeddings_s = anchors.repeat_interleave(k_neighbors, dim=0).repeat(len(pairs), 1)
             loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
             return loss
 
@@ -270,8 +296,8 @@ class ContrastivePretrainer(pl.LightningModule):
 
         data, labels = batch
         embeddings = self(data)
-        knn_indices, neg_indices = self.get_knn(labels)
-        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
+        knn_indices, neg_indices, anchor_indices = self._pair_indices(labels)
+        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices, anchor_indices)
 
         self.log("train_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
@@ -279,16 +305,16 @@ class ContrastivePretrainer(pl.LightningModule):
     def test_step(self, batch, batch_idx):
         data, labels = batch
         embeddings = self(data)
-        knn_indices, neg_indices = self.get_knn(labels)
-        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
+        knn_indices, neg_indices, anchor_indices = self._pair_indices(labels)
+        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices, anchor_indices)
         self.log("test_loss", loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return loss
 
     def validation_step(self, batch, batch_idx):
         data, labels = batch
         embeddings = self(data)
-        knn_indices, neg_indices = self.get_knn(labels)
-        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices)
+        knn_indices, neg_indices, anchor_indices = self._pair_indices(labels)
+        loss = self.contrastive_loss(embeddings, knn_indices, neg_indices, anchor_indices)
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return loss
 

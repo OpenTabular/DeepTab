@@ -238,6 +238,23 @@ def test_get_knn_classification_all_same_class_raises():
         pt.get_knn(labels)
 
 
+def test_class_singleton_is_dropped_from_anchors_not_from_pairs():
+    """A class with a single row in the batch has no positive neighbor: that row
+    is no anchor, but it still serves as a negative for the other rows."""
+    pt = _make_pretrainer(regression=False, k_neighbors=2)
+    labels = torch.tensor([0, 0, 0, 1, 1, 1, 2])
+    knn_indices, neg_indices, anchor_indices = pt._pair_indices(labels)
+    assert anchor_indices.tolist() == [0, 1, 2, 3, 4, 5]
+    assert knn_indices.shape == neg_indices.shape == (6, 2)
+
+    loss = pt.contrastive_loss(torch.randn(7, 8), knn_indices, neg_indices, anchor_indices)
+    assert torch.isfinite(torch.as_tensor(loss))
+
+    unpooled = _make_pretrainer(regression=False, k_neighbors=2, pool_sequence=False)
+    sequence_loss = unpooled.contrastive_loss(torch.randn(7, 3, 8), knn_indices, neg_indices, anchor_indices)
+    assert torch.isfinite(torch.as_tensor(sequence_loss))
+
+
 # ---------------------------------------------------------------------------
 # ContrastivePretrainer init
 # ---------------------------------------------------------------------------
@@ -284,3 +301,36 @@ def test_contrastive_loss_anchor_layout_matches_pair_layout():
     anchors = embeddings.repeat_interleave(k, dim=0).repeat(n_pair_types, 1).view(-1)
     expected = torch.arange(n_anchors * k * n_pair_types) % (n_anchors * k) // k
     assert torch.equal(anchors, expected.float())
+
+
+def test_contrastive_loss_uses_the_given_anchor_rows():
+    """Self-positives and orthogonal negatives give zero loss only when the
+    neighbor rows are paired with the anchor rows they were selected for."""
+    pt = _make_pretrainer(k_neighbors=1, pool_sequence=True)
+    pt.loss_fn = nn.CosineEmbeddingLoss(margin=0.0)
+    anchor_indices = torch.tensor([1, 2, 4])
+    knn_indices = anchor_indices.view(3, 1)
+    neg_indices = torch.zeros(3, 1, dtype=torch.long)
+    loss = pt.contrastive_loss(torch.eye(5), knn_indices, neg_indices, anchor_indices)
+    assert float(loss) == pytest.approx(0.0, abs=1e-6)
+
+
+def test_classifier_pretraining_completes_with_a_class_singleton(tmp_path, monkeypatch):
+    import numpy as np
+    import pandas as pd
+
+    from deeptab.configs import FTTransformerConfig
+    from deeptab.models import FTTransformerClassifier
+
+    monkeypatch.chdir(tmp_path)
+    rng = np.random.default_rng(0)
+    features = pd.DataFrame({"a": rng.normal(size=48), "b": rng.normal(size=48)})
+    # Class 2 occurs once among the 32 training rows, so the batch holding it has a class singleton.
+    targets = np.array([0, 1] * 15 + [2, 0] + [0, 1] * 8)
+    model = FTTransformerClassifier(
+        model_config=FTTransformerConfig(d_model=8, n_layers=1, n_heads=2),
+        random_state=0,
+    )
+    model.build_model(features[:32], targets[:32], X_val=features[32:], y_val=targets[32:], batch_size=16)
+    model.pretrain(pretrain_epochs=1, k_neighbors=2, save_path=str(tmp_path / "pretrained.pth"))
+    assert (tmp_path / "pretrained.pth").is_file()
