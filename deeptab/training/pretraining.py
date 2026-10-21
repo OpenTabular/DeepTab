@@ -167,8 +167,19 @@ class ContrastivePretrainer(pl.LightningModule):
         """Return the positive and negative neighbor indices for a batch.
 
         For classification, rows without both a same-class and a
-        different-class neighbor are left out; use :meth:`_pair_indices` to
-        also get the anchor rows the returned indices belong to.
+        different-class neighbor are left out, so row ``i`` of the result need
+        not belong to batch row ``i``.
+
+        Parameters
+        ----------
+        labels : torch.Tensor
+            Batch targets: class indices of shape ``(N,)`` for classification,
+            or target values of shape ``(N, 1)`` for regression.
+
+        Returns
+        -------
+        knn_indices, neg_indices : torch.Tensor
+            Positive and negative neighbor indices, each of shape ``(A, k)``.
         """
         knn_indices, neg_indices, _ = self._pair_indices(labels)
         return knn_indices, neg_indices
@@ -219,8 +230,22 @@ class ContrastivePretrainer(pl.LightningModule):
     def contrastive_loss(self, embeddings, knn_indices, neg_indices, anchor_indices=None):
         """Cosine-embedding loss between anchors and their positive/negative neighbors.
 
-        ``anchor_indices`` selects the batch rows the neighbor indices belong
-        to; ``None`` uses every row of the batch as an anchor.
+        Parameters
+        ----------
+        embeddings : torch.Tensor
+            Batch embeddings, shape ``(N, D)``, or ``(N, S, D)`` when
+            ``pool_sequence=False``.
+        knn_indices, neg_indices : torch.Tensor
+            Positive and negative neighbor indices, shape ``(A, k)``; row ``i``
+            belongs to the anchor ``anchor_indices[i]``.
+        anchor_indices : torch.Tensor, optional
+            Batch rows used as anchors, shape ``(A,)``. ``None`` uses every row.
+
+        Returns
+        -------
+        torch.Tensor
+            Scalar loss (summed over sequence positions when
+            ``pool_sequence=False``).
         """
         if not self.pool_sequence:
             N, S, D = embeddings.shape

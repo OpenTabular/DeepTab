@@ -240,12 +240,14 @@ def test_get_knn_classification_all_same_class_raises():
 
 def test_class_singleton_is_dropped_from_anchors_not_from_pairs():
     """A class with a single row in the batch has no positive neighbor: that row
-    is no anchor, but it still serves as a negative for the other rows."""
-    pt = _make_pretrainer(regression=False, k_neighbors=2)
+    is not used as an anchor, but it still serves as a negative for the other rows."""
+    pt = _make_pretrainer(regression=False, k_neighbors=4)
     labels = torch.tensor([0, 0, 0, 1, 1, 1, 2])
     knn_indices, neg_indices, anchor_indices = pt._pair_indices(labels)
     assert anchor_indices.tolist() == [0, 1, 2, 3, 4, 5]
-    assert knn_indices.shape == neg_indices.shape == (6, 2)
+    assert knn_indices.shape == neg_indices.shape == (6, 4)
+    # Each anchor has 4 different-class rows (3 of the other class and the singleton), so all are drawn.
+    assert all(6 in row for row in neg_indices.tolist())
 
     loss = pt.contrastive_loss(torch.randn(7, 8), knn_indices, neg_indices, anchor_indices)
     assert torch.isfinite(torch.as_tensor(loss))
