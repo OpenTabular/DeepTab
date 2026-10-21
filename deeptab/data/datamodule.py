@@ -70,7 +70,7 @@ class TabularDataModule(pl.LightningDataModule):
     val_size : float, default=0.2
         Default validation fraction for automatic splits. An explicit
         :meth:`preprocess_data` argument overrides it.
-    random_state : int or None, default=101
+    random_state : int, numpy.integer or None, default=101
         Seed for training-loader ordering and weighted sampling. The split
         seed is supplied separately to :meth:`preprocess_data`. ``None`` uses
         the generators' unseeded behavior. NumPy integers are accepted; other
@@ -107,7 +107,7 @@ class TabularDataModule(pl.LightningDataModule):
         X_val=None,
         y_val=None,
         val_size=0.2,
-        random_state: int | None = 101,
+        random_state: int | np.integer | None = 101,
         stratify=True,
         sampler=None,
         vector_targets=False,
