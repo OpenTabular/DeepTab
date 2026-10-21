@@ -82,6 +82,10 @@ def _encode_labels(y, classes: np.ndarray, *, name: str = "y") -> np.ndarray:
     return indices
 
 
+# Metric names that work on probability scores
+_PROBA_NAMES = frozenset({"auroc", "auprc", "log_loss", "brier", "ece"})
+
+
 class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
     _task = "classification"
 
@@ -641,9 +645,6 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         if metrics is None:
             metrics = get_default_metrics_dict("classification")
 
-        # Metric names that work on probability scores
-        _PROBA_NAMES = {"auroc", "auprc", "log_loss", "brier", "ece"}
-
         # Determine which prediction types are actually needed
         needs_proba = any((getattr(fn, "name", None) in _PROBA_NAMES) for fn in metrics.values())
         needs_labels = any((getattr(fn, "name", None) not in _PROBA_NAMES) for fn in metrics.values())
@@ -651,16 +652,7 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         probabilities = self.predict_proba(X, embeddings) if needs_proba else None
         predictions = self.predict(X, embeddings) if needs_labels else None
 
-        # predict_proba columns follow ``classes_``, so probability-based metrics
-        # receive the labels encoded the same way (0..K-1). Raw string or
-        # non-contiguous integer labels would not line up with the columns.
-        proba_targets = y_true
-        classes = getattr(self, "classes_", None)
-        if needs_proba and classes is not None:
-            try:
-                proba_targets = _encode_labels(np.asarray(y_true).ravel(), classes, name="y_true")
-            except ValueError:
-                proba_targets = y_true
+        proba_targets = self._probability_metric_targets(y_true) if needs_proba else y_true
 
         scores = {}
         for metric_name, metric_func in metrics.items():
@@ -690,6 +682,10 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             A tuple containing the metric function and a boolean indicating whether
             the metric requires probability scores (True) or class labels (False).
             If omitted, accuracy is used to match scikit-learn classifier behavior.
+            Probability-based :class:`~deeptab.metrics.DeepTabMetric` instances
+            (``auroc``, ``auprc``, ``log_loss``, ``brier``, ``ece``) receive ``y``
+            encoded to the column indices ``0..K-1`` of ``classes_``, as in
+            :meth:`evaluate`; other callables receive the original labels.
 
         Returns
         -------
@@ -706,10 +702,27 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
 
         if use_proba:
             probabilities = self.predict_proba(X, embeddings)
+            if getattr(metric_func, "name", None) in _PROBA_NAMES:
+                y = self._probability_metric_targets(y)
             return metric_func(y, probabilities)
         else:
             predictions = self.predict(X, embeddings)
             return metric_func(y, predictions)
+
+    def _probability_metric_targets(self, y_true):
+        """Encode *y_true* to the ``classes_`` column indices of ``predict_proba``.
+
+        Raw string or non-contiguous integer labels would not line up with the
+        probability columns. Labels that cannot be encoded (for example a label
+        unseen during fit) are returned unchanged, so the metric reports them.
+        """
+        classes = getattr(self, "classes_", None)
+        if classes is None:
+            return y_true
+        try:
+            return _encode_labels(np.asarray(y_true).ravel(), classes, name="y_true")
+        except (TypeError, ValueError):
+            return y_true
 
     def pretrain(
         self,

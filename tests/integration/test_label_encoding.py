@@ -134,8 +134,24 @@ class TestClassifierLabelEncoding:
         probabilities = model.predict_proba(features)
         encoded = _encode_labels(targets, model.classes_)
         for name, metric in metrics.items():
+            expected = metric(encoded, probabilities)
             assert np.isfinite(scores[name]), name
-            assert scores[name] == pytest.approx(metric(encoded, probabilities)), name
+            assert scores[name] == pytest.approx(expected), name
+            assert model.score(features, targets, metric=(metric, True)) == pytest.approx(expected), name
+
+    def test_evaluate_reports_nan_for_labels_that_cannot_be_encoded(self, tmp_path):
+        features = np.random.default_rng(RANDOM_STATE).normal(size=(24, 3)).astype(np.float32)
+        targets = np.asarray(["no", "yes"])[np.arange(24) % 2]
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[8]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=12, checkpoint_path=str(tmp_path)),
+            random_state=RANDOM_STATE,
+        )
+        model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+        with_missing_label = targets.astype(object)
+        with_missing_label[0] = None
+        scores = model.evaluate(features, with_missing_label, metrics={"auroc": AUROC()})
+        assert np.isnan(scores["auroc"])
 
     def test_string_binary_labels_round_trip(self):
         X, y = _separable_binary_data(("no", "yes"))
