@@ -10,6 +10,8 @@ import pytest
 import torch
 import torch.nn as nn
 
+from deeptab.configs import FTTransformerConfig, TabRConfig
+from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
 from deeptab.nn.blocks.common import (
     BatchNorm,
     BlockDiagonal,
@@ -352,7 +354,7 @@ def _emb_cfg(embedding_type="linear", **kw):
         embedding_type=embedding_type,
         embedding_bias=False,
         n_frequencies=8,
-        frequency_init_scale=0.01,
+        frequencies_init_scale=0.01,
         plr_lite=False,
     )
     for k, v in kw.items():
@@ -395,6 +397,21 @@ class TestEmbeddingLayer:
         layer = EmbeddingLayer(_num_info(3), {}, {}, _emb_cfg(embedding_type="plr"))
         out = layer([torch.randn(B, 1)] * 3, [], [])
         assert out.shape == (B, 3, 16)
+
+    @pytest.mark.parametrize(
+        "config_factory",
+        [
+            lambda: FTTransformerConfig(d_model=16, n_heads=2, embedding_type="plr", frequencies_init_scale=5.0),
+            lambda: TabRConfig(d_model=16, use_embeddings=True),
+            lambda: ModernNCAConfig(d_model=16, use_embeddings=True),
+        ],
+        ids=["fttransformer", "tabr", "modernnca"],
+    )
+    def test_plr_uses_configured_frequency_scale(self, config_factory):
+        config = config_factory()
+        embeddings = EmbeddingLayer(_num_info(3), {}, {}, config).num_embeddings
+        assert isinstance(embeddings, PeriodicEmbeddings)
+        assert embeddings.periodic._sigma == config.frequencies_init_scale
 
     def test_ndt_embedding(self):
         # d_model=16 is a power of 2, required by NeuralEmbeddingTree

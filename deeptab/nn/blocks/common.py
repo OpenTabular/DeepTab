@@ -675,7 +675,7 @@ class EmbeddingLayer(nn.Module):
                 n_features=len(num_feature_info),
                 d_embedding=self.d_model,
                 n_frequencies=getattr(config, "n_frequencies", 48),
-                frequency_init_scale=getattr(config, "frequency_init_scale", 0.01),
+                frequency_init_scale=getattr(config, "frequencies_init_scale", 0.01),
                 activation=True,
                 lite=getattr(config, "plr_lite", False),
             )
