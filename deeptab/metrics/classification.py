@@ -197,14 +197,25 @@ class AUPRC(DeepTabMetric):
 
 
 class LogLoss(DeepTabMetric):
-    """Cross-Entropy / Log Loss -- delegates to :func:`sklearn.metrics.log_loss`."""
+    """Cross-Entropy / Log Loss -- delegates to :func:`sklearn.metrics.log_loss`.
+
+    For a 2-D probability matrix and integer class indices, the classes are
+    taken from the matrix columns ``0..K-1``, so the score is defined even when
+    ``y_true`` does not contain every class (e.g. a small or imbalanced
+    evaluation set).
+    """
 
     name = "log_loss"
     higher_is_better = False
     input_space = "probabilities"
 
     def __call__(self, y_true: np.ndarray, y_pred: np.ndarray) -> float:
-        return float(_log_loss(np.asarray(y_true).ravel(), np.asarray(y_pred)))
+        y_true = np.asarray(y_true).ravel()
+        y_pred = np.asarray(y_pred)
+        labels = None
+        if y_pred.ndim == 2 and y_pred.shape[1] > 1 and np.issubdtype(y_true.dtype, np.integer):
+            labels = np.arange(y_pred.shape[1])
+        return float(_log_loss(y_true, y_pred, labels=labels))
 
 
 class BrierScore(DeepTabMetric):
