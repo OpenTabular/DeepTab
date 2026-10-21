@@ -27,19 +27,14 @@ class DeepTabMetric(ABC):
         Examples: ``"rmse"``, ``"crps"``, ``"auroc"``.
 
     higher_is_better : bool
-        Tells the framework whether a *larger* or *smaller* value is
-        preferable.  This matters in two places:
+        Describes how to read the score. ``False`` (default) means *lower is
+        better*, appropriate for losses and error metrics (MSE, MAE, NLL,
+        CRPS, deviances). ``True`` means *higher is better*, appropriate for
+        scores such as R², accuracy, AUROC and the log-score.
 
-        * **HPO** — hyperparameter search uses it to set the optimisation
-          direction (maximise vs. minimise) when a metric is chosen as the
-          objective.
-        * **Early stopping / model selection** — callbacks can use it to
-          decide whether a new checkpoint is an improvement.
-
-        ``False`` (default) means *lower is better* — appropriate for loss
-        functions and error metrics (MSE, MAE, NLL, deviances).
-        ``True`` means *higher is better* — appropriate for scores like R²,
-        accuracy, AUROC, and CRPS variants where a higher value is desirable.
+        It is descriptive metadata only: the built-in hyperparameter search
+        always minimises ``val_loss``, and early stopping and checkpoint
+        selection follow the ``monitor`` and ``mode`` settings.
 
     needs_raw : bool
         Controls *which* form of ``y_pred`` the training loop passes to this
