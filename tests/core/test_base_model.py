@@ -140,7 +140,9 @@ class TestRecurrentAndConvolutionalPooling:
         torch.testing.assert_close(model.pool_sequence(sequence), expected)
 
     @pytest.mark.parametrize("pooling_method", ["rnn", "conv"])
-    @pytest.mark.parametrize("architecture_name", ["FTTransformer", "Mambular", "SAINT", "TabulaRNN"])
+    @pytest.mark.parametrize(
+        "architecture_name", ["FTTransformer", "MambAttention", "Mambular", "SAINT", "TabTransformer", "TabulaRNN"]
+    )
     def test_forward_trains_pooling_layer(self, architecture_name, pooling_method):
         import deeptab.architectures as architectures
         import deeptab.configs as configs
