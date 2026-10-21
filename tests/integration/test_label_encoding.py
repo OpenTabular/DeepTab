@@ -12,7 +12,7 @@ import pytest
 from sklearn.metrics import accuracy_score, f1_score
 
 from deeptab.configs import MLPConfig, TrainerConfig
-from deeptab.metrics import Accuracy, F1Score
+from deeptab.metrics import AUPRC, AUROC, Accuracy, BrierScore, ExpectedCalibrationError, F1Score, LogLoss
 from deeptab.models import MLPClassifier
 from deeptab.models.classifier_base import _encode_labels
 
@@ -110,6 +110,32 @@ class TestClassifierLabelEncoding:
         if len(classes) == 2:
             expected = f1_score(targets[36:], predictions, pos_label=classes[1])
             assert scores["f1_binary"] == pytest.approx(expected)
+
+    @pytest.mark.parametrize(
+        "classes",
+        [("no", "yes"), (1, 2), (10, 20), ("blue", "green", "red")],
+        ids=["string-binary", "one-two-binary", "non-contiguous-binary", "string-multiclass"],
+    )
+    def test_probability_metrics_receive_encoded_labels(self, classes, tmp_path):
+        generator = np.random.default_rng(RANDOM_STATE)
+        features = generator.normal(size=(48, 3)).astype(np.float32)
+        targets = np.asarray(classes)[np.arange(48) % len(classes)]
+        model = MLPClassifier(
+            model_config=MLPConfig(layer_sizes=[8]),
+            trainer_config=TrainerConfig(max_epochs=1, batch_size=12, checkpoint_path=str(tmp_path)),
+            random_state=RANDOM_STATE,
+        )
+        model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+        metrics = {"auroc": AUROC(), "log_loss": LogLoss(), "ece": ExpectedCalibrationError()}
+        if len(classes) == 2:
+            # AUPRC and Brier score are binary-only metrics.
+            metrics.update({"auprc": AUPRC(), "brier": BrierScore()})
+        scores = model.evaluate(features, targets, metrics=metrics)
+        probabilities = model.predict_proba(features)
+        encoded = _encode_labels(targets, model.classes_)
+        for name, metric in metrics.items():
+            assert np.isfinite(scores[name]), name
+            assert scores[name] == pytest.approx(metric(encoded, probabilities)), name
 
     def test_string_binary_labels_round_trip(self):
         X, y = _separable_binary_data(("no", "yes"))

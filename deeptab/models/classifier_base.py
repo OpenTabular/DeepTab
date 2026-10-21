@@ -625,8 +625,10 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             For :class:`~deeptab.metrics.DeepTabMetric` instances, the method
             inspects the ``name`` attribute to decide which prediction format
             to supply: probability-based metrics (``auroc``, ``auprc``,
-            ``log_loss``, ``brier``, ``ece``) receive ``predict_proba`` output;
-            all others receive ``predict`` output.
+            ``log_loss``, ``brier``, ``ece``) receive ``predict_proba`` output
+            together with ``y_true`` encoded to the column indices
+            ``0..K-1`` of ``classes_``; all others receive ``predict`` output
+            and the original labels.
 
             If ``None``, defaults to the registry defaults for
             ``"classification"`` (Accuracy, AUROC, LogLoss).
@@ -649,6 +651,17 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         probabilities = self.predict_proba(X, embeddings) if needs_proba else None
         predictions = self.predict(X, embeddings) if needs_labels else None
 
+        # predict_proba columns follow ``classes_``, so probability-based metrics
+        # receive the labels encoded the same way (0..K-1). Raw string or
+        # non-contiguous integer labels would not line up with the columns.
+        proba_targets = y_true
+        classes = getattr(self, "classes_", None)
+        if needs_proba and classes is not None:
+            try:
+                proba_targets = _encode_labels(np.asarray(y_true).ravel(), classes, name="y_true")
+            except ValueError:
+                proba_targets = y_true
+
         scores = {}
         for metric_name, metric_func in metrics.items():
             use_proba = getattr(metric_func, "name", None) in _PROBA_NAMES
@@ -657,7 +670,7 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
                 scores[metric_name] = float("nan")
                 continue
             try:
-                scores[metric_name] = metric_func(y_true, preds)
+                scores[metric_name] = metric_func(proba_targets if use_proba else y_true, preds)
             except Exception as exc:
                 warnings.warn(f"Metric '{metric_name}' failed: {exc}", RuntimeWarning, stacklevel=2)
                 scores[metric_name] = float("nan")
