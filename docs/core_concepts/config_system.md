@@ -152,18 +152,18 @@ preprocessing_config = PreprocessingConfig(
 
 Valid fields:
 
-| Field                                           | Purpose                                                                                                                                                                                        |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. `None` keeps the default (`"ple"`); `"none"` disables it.     |
-| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
-| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                           |
-| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
-| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                  |
-| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                          |
-| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                        |
-| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                    |
-| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                |
-| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                        |
+| Field                                           | Purpose                                                                                                                                                                                                              |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. `None` keeps the default (`"ple"`, or the `preset`'s choice); `"none"` disables it. |
+| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                                      |
+| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                                                 |
+| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`.                       |
+| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                                        |
+| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                                                |
+| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                                              |
+| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                                          |
+| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                                      |
+| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                                              |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
@@ -233,7 +233,7 @@ To see which representations PreTab supports before choosing `numerical_method` 
 
 ### Running with no numerical preprocessing
 
-Set `numerical_method="none"` to skip the scaling, binning and PLE transforms and feed near-raw numerical values to the network. Leaving `numerical_method` at `None` does not do this: `None` keeps PreTab's default representation, which is PLE.
+Set `numerical_method="none"` to skip the scaling, binning and PLE transforms and feed near-raw numerical values to the network. Leaving `numerical_method` at `None` does not do this: `None` keeps PreTab's default representation, which is PLE unless a `preset` chooses another.
 
 ```python
 prep = PreprocessingConfig(
@@ -252,7 +252,7 @@ Don't confuse the string `"none"` above with Python `None`, which means "use the
 ```
 
 ```{note}
-Most deep tabular models train better with a numerical transform than without one. `None` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
+Most deep tabular models train better with a numerical transform than without one. `"none"` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
 ```
 
 ## Trainer Config
