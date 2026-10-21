@@ -78,24 +78,25 @@ class ResNet(BaseModel):
 
         self.initial_layer = nn.Linear(input_dim, self.hparams.layer_sizes[0])
 
+        # Block i maps layer_sizes[i] to layer_sizes[i + 1]. Once the width
+        # schedule is exhausted, later blocks stay at the final width, and the
+        # output layer reads whatever width the last block produces.
+        layer_sizes = self.hparams.layer_sizes
+        width = layer_sizes[0]
         self.blocks = nn.ModuleList()
         for i in range(self.hparams.num_blocks):
-            input_dim = self.hparams.layer_sizes[i]
-            output_dim = (
-                self.hparams.layer_sizes[i + 1]
-                if i + 1 < len(self.hparams.layer_sizes)
-                else self.hparams.layer_sizes[-1]
-            )
+            output_dim = layer_sizes[min(i + 1, len(layer_sizes) - 1)]
             block = ResidualBlock(
-                input_dim,
+                width,
                 output_dim,
                 self.hparams.activation,
                 self.hparams.norm,
                 self.hparams.dropout,
             )
             self.blocks.append(block)
+            width = output_dim
 
-        self.output_layer = nn.Linear(self.hparams.layer_sizes[-1], num_classes)
+        self.output_layer = nn.Linear(width, num_classes)
 
     def forward(self, *data):
         """Forward pass of the ResNet model.
