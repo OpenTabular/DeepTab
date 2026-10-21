@@ -1084,6 +1084,16 @@ class TestEnsureDataframe:
         result = ensure_dataframe(df)
         assert result.shape == (2, 2)
 
+    def test_string_dtype_with_na_becomes_object_with_nan(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "cat": pd.array(["a", pd.NA, "b"], dtype="string")})
+        result = ensure_dataframe(df)
+        assert result["cat"].dtype == object
+        assert result["cat"].tolist()[0] == "a"
+        assert result["cat"].tolist()[1] is np.nan
+        assert df["cat"].dtype == "string"  # the caller's frame is not modified
+
     def test_all_nan_column_warns(self):
         from deeptab.core.sklearn_compat import ensure_dataframe
 
