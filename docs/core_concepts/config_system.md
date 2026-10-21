@@ -75,12 +75,12 @@ from deeptab.models import MambularClassifier
 # TrainerConfig accidentally passed where the model config belongs
 MambularClassifier(model_config=TrainerConfig())
 # ConfigWarning: TrainerConfig was passed as 'model_config', but 'model_config'
-# expects a BaseModelConfig. Configs are not reordered for you, so this one will
-# be misused or silently ignored. Pass it as its matching argument instead.
+# expects a BaseModelConfig. Configs are not reordered for you, so fit() cannot
+# use this one in 'model_config'. Pass it as its matching argument instead.
 ```
 
 ```{warning}
-The check warns rather than raises, so construction still succeeds. A misplaced config is then misused or silently ignored: for example a wrong `preprocessing_config` falls back to default preprocessing, and a wrong `trainer_config` falls back to the default optimizer. Treat this warning as an error in your own code and fix the argument it points to.
+The check warns rather than raises, so construction still succeeds. `fit()` then fails with an `AttributeError`, because the misplaced object lacks the fields its slot needs: for example an `MLPConfig` passed as `preprocessing_config` has no `to_preprocessor_kwargs()`, and a `PreprocessingConfig` passed as `trainer_config` has no `batch_size`. Treat this warning as an error in your own code and fix the argument it points to.
 ```
 
 ```{note}

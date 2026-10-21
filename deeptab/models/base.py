@@ -45,7 +45,8 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
 
     The constructor duck-types each config, so a misplaced config (for example a
     ``TrainerConfig`` handed to ``model_config``) would otherwise be accepted
-    silently and then quietly ignored. This emits an advisory ``ConfigWarning``
+    silently and only fail later, inside ``fit()``, with an ``AttributeError``
+    about a missing field. This emits an advisory ``ConfigWarning``
     when a recognisably wrong config type is detected, without raising, so that
     legitimate duck-typed test doubles keep working.
     """
@@ -64,7 +65,7 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
             warn_config(
                 f"{type(value).__name__} was passed as '{slot_name}', but '{slot_name}' "
                 f"expects a {expected_cls.__name__}. Configs are not reordered for you, "
-                f"so this one will be misused or silently ignored. Pass it as its matching "
+                f"so fit() cannot use this one in '{slot_name}'. Pass it as its matching "
                 f"argument instead.",
                 stacklevel=4,
             )
