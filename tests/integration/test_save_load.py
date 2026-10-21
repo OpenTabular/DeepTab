@@ -394,6 +394,25 @@ def test_lss_save_load_predictions(regression_data):
     )
 
 
+@pytest.mark.parametrize(
+    "saved_class, caller",
+    [(MLPLSS, MLPRegressor), (MLPLSS, MLPClassifier), (MLPRegressor, MLPLSS), (MLPClassifier, MLPLSS)],
+    ids=["lss-via-regressor", "lss-via-classifier", "regressor-via-lss", "classifier-via-lss"],
+)
+def test_load_returns_the_saved_class_whichever_class_is_called(saved_class, caller, regression_data, tmp_path):
+    X_train, X_test, y_train, _ = regression_data
+    options = {"family": "normal"} if saved_class is MLPLSS else {}
+    targets = (y_train > np.median(y_train)).astype(int) if saved_class is MLPClassifier else y_train
+    model = saved_class(trainer_config=TrainerConfig(max_epochs=1, checkpoint_path=str(tmp_path)), random_state=0)
+    model.fit(X_train, targets, **options, **FIT_KWARGS)
+    path = str(tmp_path / "model.deeptab")
+    model.save(path)
+
+    loaded = caller.load(path, device="auto")
+    assert type(loaded) is saved_class
+    np.testing.assert_array_equal(loaded.predict(X_test), model.predict(X_test))
+
+
 def test_preprocessing_metadata_survives_save_load_round_trip(regression_data):
     """spec/fingerprint/feature_widths are unchanged after a save/load round-trip."""
     X_train, _X_test, y_train, _y_test = regression_data
