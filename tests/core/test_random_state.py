@@ -65,14 +65,16 @@ class TestSetSeedPrimitives:
         with pytest.raises(ValueError, match="non-negative integer"):
             set_seed(-1)
 
-    @pytest.mark.parametrize("seed", [np.int64(SEED), np.uint32(SEED), np.int32(SEED)])
+    @pytest.mark.parametrize(
+        "seed", [np.int64(SEED), np.uint32(SEED), np.int32(SEED)], ids=["int64", "uint32", "int32"]
+    )
     def test_numpy_integer_seed_matches_python_int(self, seed):
         set_seed(SEED)
         expected = torch.randn(5)
         set_seed(seed)
         torch.testing.assert_close(torch.randn(5), expected)
 
-    @pytest.mark.parametrize("seed", [1.0, "7", np.float64(7.0)])
+    @pytest.mark.parametrize("seed", [1.0, "7", np.float64(7.0)], ids=["float", "str", "float64"])
     def test_non_integer_seed_is_still_rejected(self, seed):
         with pytest.raises(ValueError, match="non-negative integer"):
             set_seed(seed)
@@ -120,3 +122,21 @@ def test_estimator_accepts_numpy_integer_random_state():
         model = MLPRegressor(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=seed)
         predictions.append(model.fit(features, targets, **fit_kwargs).predict(features))
     np.testing.assert_array_equal(predictions[0], predictions[1])
+
+
+@pytest.mark.parametrize("seed", [1.5, "7"], ids=["float", "str"])
+def test_datamodule_rejects_non_integer_random_state(seed):
+    from deeptab.data import TabularDataModule
+
+    with pytest.raises(TypeError, match="random_state must be an integer"):
+        TabularDataModule(preprocessor=None, batch_size=16, shuffle=False, regression=True, random_state=seed)
+
+
+def test_datamodule_converts_numpy_integer_random_state():
+    from deeptab.data import TabularDataModule
+
+    datamodule = TabularDataModule(
+        preprocessor=None, batch_size=16, shuffle=False, regression=True, random_state=np.int64(SEED)
+    )
+    assert type(datamodule.random_state) is int
+    assert datamodule.random_state == SEED

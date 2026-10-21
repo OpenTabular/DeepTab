@@ -104,7 +104,7 @@ def set_seed(seed: int, *, deterministic: bool = False) -> None:
     """
     if not isinstance(seed, numbers.Integral) or seed < 0:
         raise ValueError(f"seed must be a non-negative integer, got {seed!r}")
-    # NumPy integer scalars are valid seeds, but torch.manual_seed() needs a Python int.
+    # random.seed() rejects NumPy integer scalars, so seed every RNG with the equivalent Python int.
     seed = int(seed)
 
     # Python / NumPy
