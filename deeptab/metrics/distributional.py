@@ -186,6 +186,24 @@ class LogScore(DeepTabMetric):
         return f"LogScore(distribution={self._nll.distribution!r})"
 
 
+def _lognormal_crps(y: np.ndarray, loc: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    """Closed-form CRPS of a log-normal predictive distribution (Baran & Lerch, 2015).
+
+    ``loc`` and ``scale`` are the mean and standard deviation of ``log(X)``.
+    Observations ``y <= 0`` lie below the support, where the CRPS reduces to
+    ``E[X] - y - E|X - X'| / 2``.
+    """
+    from scipy.stats import norm
+
+    mean = np.exp(loc + scale**2 / 2.0)
+    half_spread = mean * (2.0 * norm.cdf(scale / np.sqrt(2.0)) - 1.0)
+    positive = y > 0
+    z = (np.log(np.where(positive, y, 1.0)) - loc) / scale
+    inside = y * (2.0 * norm.cdf(z) - 1.0) - 2.0 * mean * (norm.cdf(z - scale) + norm.cdf(scale / np.sqrt(2.0)) - 1.0)
+    below = mean - y - half_spread
+    return np.where(positive, inside, below)
+
+
 class CRPS(DeepTabMetric):
     """Continuous Ranked Probability Score (CRPS) for univariate distributions.
 
@@ -205,7 +223,9 @@ class CRPS(DeepTabMetric):
     With ``properscoring`` installed, the exact Gaussian CRPS is computed for
     ``normal``. Student-T and Johnson SU use a Gaussian location/scale
     approximation, and mixtures use a moment-matched Gaussian. Without that
-    dependency, all families fall back to mean absolute error.
+    dependency, these families fall back to mean absolute error. ``lognormal``
+    always uses the exact closed-form log-normal CRPS, where ``loc`` and
+    ``scale`` are the mean and standard deviation of ``log(y)``.
 
     Notes
     -----
@@ -240,7 +260,11 @@ class CRPS(DeepTabMetric):
         y_true = np.asarray(y_true, dtype=float).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
 
-        if self.family in ("normal", "lognormal", "studentt", "johnsonsu"):
+        if self.family == "lognormal":
+            loc = _col(y_pred, self.loc_col if self.loc_col is not None else 0)
+            scale = np.clip(_col(y_pred, self.scale_col if self.scale_col is not None else 1), 1e-9, None)
+            return float(np.mean(_lognormal_crps(y_true, loc, scale)))
+        if self.family in ("normal", "studentt", "johnsonsu"):
             default_columns = {"studentt": (1, 2), "johnsonsu": (2, 3)}
             loc_col, scale_col = default_columns.get(self.family, (0, 1))
             loc = _col(y_pred, self.loc_col if self.loc_col is not None else loc_col)
