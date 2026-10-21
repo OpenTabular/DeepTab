@@ -104,7 +104,8 @@ class ObservabilityConfig:
         Root directory for TensorBoard event files.  Resolved to
         ``<root_dir>/tensorboard`` when empty.
     tensorboard_name : str, default="deeptab"
-        Sub-directory / experiment label inside ``tensorboard_save_dir``.
+        Reserved; currently unused. TensorBoard event files go to
+        ``<tensorboard_save_dir>/<experiment_name>/<run_dir_name>/``.
     mlflow_experiment_name : str, default="deeptab"
         Name of the MLflow experiment.
     mlflow_tracking_uri : str, default=""
