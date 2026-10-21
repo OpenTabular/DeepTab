@@ -885,6 +885,17 @@ class _CategoricalAsContinuous(nn.Module):
         return x
 
 
+def _random_signs_(tensor: torch.Tensor) -> torch.Tensor:
+    """Fill *tensor* in place with random ``-1``/``+1`` values.
+
+    Used as the ``"random-signs"`` scaling initialization of the batch-ensemble
+    layers. Like the ``torch.nn.init`` functions it modifies its argument, so the
+    ensemble scaling parameters do not keep the memory they were allocated with.
+    """
+    with torch.no_grad():
+        return tensor.copy_(torch.bernoulli(torch.full_like(tensor, 0.5)) * 2 - 1)
+
+
 class LinearBatchEnsembleLayer(nn.Module):
     """A configurable BatchEnsemble layer that supports optional input scaling, output scaling,
     and output bias terms as per the 'BatchEnsemble' paper.
@@ -928,7 +939,7 @@ class LinearBatchEnsembleLayer(nn.Module):
         # Initialize scaling factors r and s based on selected initialization
         scaling_init_fn = {
             "ones": nn.init.ones_,
-            "random-signs": lambda x: torch.sign(torch.randn_like(x)),
+            "random-signs": _random_signs_,
             "normal": lambda x: nn.init.normal_(x, mean=0.0, std=1.0),
         }
 
@@ -1028,7 +1039,7 @@ class RNNBatchEnsembleLayer(nn.Module):
         # Initialize scaling factors r and s based on selected initialization
         scaling_init_fn = {
             "ones": nn.init.ones_,
-            "random-signs": lambda x: torch.sign(torch.randn_like(x)),
+            "random-signs": _random_signs_,
             "normal": lambda x: nn.init.normal_(x, mean=0.0, std=1.0),
         }
 
@@ -1287,7 +1298,7 @@ class MultiHeadAttentionBatchEnsemble(nn.Module):
         # Initialize scaling factors r and s based on selected initialization
         scaling_init_fn = {
             "ones": nn.init.ones_,
-            "random-signs": lambda x: torch.sign(torch.randn_like(x)),
+            "random-signs": _random_signs_,
             "normal": lambda x: nn.init.normal_(x, mean=0.0, std=1.0),
         }
 
