@@ -1,7 +1,7 @@
 """Metric utilities for tabular model evaluation.
 
 Every metric is a :class:`~deeptab.metrics.DeepTabMetric` subclass that
-exposes three attributes the framework reads automatically:
+exposes three metadata attributes:
 
 * **``name``** -- short string identifier used as the dict key in
   ``model.evaluate()`` results and as the suffix in training-log entries
