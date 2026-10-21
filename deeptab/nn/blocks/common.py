@@ -659,8 +659,11 @@ class EmbeddingLayer(nn.Module):
         self.embedding_bias = getattr(config, "embedding_bias", False)
         self.cat_encoding = getattr(config, "cat_encoding", "int")
 
-        # Sequence length
-        self.seq_len = len(num_feature_info) + len(cat_feature_info)
+        # Sequence length: one token per numerical, categorical, and external
+        # embedding feature. n_tokens additionally counts the CLS token, so it
+        # matches the sequence length returned by forward().
+        self.seq_len = len(num_feature_info) + len(cat_feature_info) + len(emb_feature_info)
+        self.n_tokens = self.seq_len + int(self.use_cls)
 
         # Initialize numerical embeddings based on embedding_type
         if self.embedding_type == "ndt":
@@ -849,6 +852,25 @@ class EmbeddingLayer(nn.Module):
             x = self.embedding_dropout(x)
 
         return x
+
+    def feature_permutation(self):
+        """Draw a random permutation of the feature tokens returned by :meth:`forward`.
+
+        Every feature token (numerical, categorical, and external embedding
+        features) is shuffled, while the CLS token, when enabled, keeps its
+        configured position so that ``"cls"`` pooling still finds it.
+
+        Returns
+        -------
+        Tensor
+            Index tensor of length ``n_tokens`` for the sequence dimension.
+        """
+        perm = torch.randperm(self.seq_len)
+        if not self.use_cls:
+            return perm
+        if self.cls_position == 0:
+            return torch.cat([torch.zeros(1, dtype=perm.dtype), perm + 1])
+        return torch.cat([perm, torch.full((1,), self.seq_len, dtype=perm.dtype)])
 
     def check_plr_embedding_compatibility(self, feature_info: tuple):
         # List of incompatible preprocessing terms for PLR embedding

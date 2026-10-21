@@ -199,6 +199,71 @@ def test_shuffled_embeddings_permutation_is_checkpointed(architecture_name):
     torch.testing.assert_close(restored(features, [], []), model(features, [], []), rtol=0, atol=0)
 
 
+def _small_sequence_config(architecture_name, **options):
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == architecture_name)
+    config = get_model_config(model_class)
+    for name, value in {"d_model": 8, "n_layers": 1, "d_state": 4, "n_heads": 2, "dim_feedforward": 8}.items():
+        if hasattr(config, name):
+            setattr(config, name, value)
+    for name, value in options.items():
+        setattr(config, name, value)
+    return model_class, config
+
+
+_NUM_AND_EMB_INFO = (
+    {f"value_{index}": {"dimension": 1} for index in range(3)},
+    {},
+    {"text": {"dimension": 5}},
+)
+
+
+@pytest.mark.parametrize("architecture_name", ["Mambular", "MambAttention"])
+@pytest.mark.parametrize(
+    "options, feature_info",
+    [
+        pytest.param({"use_cls": True, "cls_position": 0}, (*_NUM_AND_EMB_INFO[:2], {}), id="cls-first"),
+        pytest.param({"use_cls": True, "cls_position": 1}, (*_NUM_AND_EMB_INFO[:2], {}), id="cls-last"),
+        pytest.param({}, _NUM_AND_EMB_INFO, id="external-embeddings"),
+    ],
+)
+def test_shuffled_embeddings_keep_every_token(architecture_name, options, feature_info):
+    model_class, config = _small_sequence_config(architecture_name, shuffle_embeddings=True, **options)
+    model = model_class(feature_info, config=config).eval()
+    embeddings = [torch.randn(4, 5)] if feature_info[2] else []
+    tokens = model.embedding_layer([torch.randn(4, 1) for _ in range(3)], [], embeddings)
+
+    assert model.embedding_layer.n_tokens == tokens.shape[1]
+    assert sorted(model.perm.tolist()) == list(range(tokens.shape[1]))
+    if options.get("use_cls"):
+        cls_index = 0 if options["cls_position"] == 0 else tokens.shape[1] - 1
+        assert model.perm[cls_index].item() == cls_index
+
+
+@pytest.mark.parametrize("architecture_name", ["Mambular", "MambAttention"])
+def test_shuffled_embeddings_use_external_embeddings(architecture_name):
+    model_class, config = _small_sequence_config(architecture_name, shuffle_embeddings=True)
+    model = model_class(_NUM_AND_EMB_INFO, config=config).eval()
+    features = [torch.randn(4, 1) for _ in range(3)]
+    with torch.no_grad():
+        first = model(features, [], [torch.randn(4, 5)])
+        second = model(features, [], [torch.randn(4, 5)])
+    assert not torch.allclose(first, second)
+
+
+@pytest.mark.parametrize(
+    "architecture_name", ["FTTransformer", "Mambular", "MambAttention", "TabTransformer", "TabulaRNN"]
+)
+@pytest.mark.parametrize("cls_position", [0, 1])
+def test_learned_flatten_pooling_counts_cls_token(architecture_name, cls_position):
+    model_class, config = _small_sequence_config(
+        architecture_name, use_cls=True, cls_position=cls_position, pooling_method="learned_flatten"
+    )
+    feature_info = ({"value": {"dimension": 1}}, {"color": {"dimension": 1, "categories": 3}}, {})
+    model = model_class(feature_info, num_classes=2, config=config)
+    output = model([torch.randn(4, 1)], [torch.randint(0, 3, (4, 1))], [])
+    assert output.shape == (4, 2)
+
+
 @pytest.mark.parametrize("model_type", ["mLSTM", "sLSTM"])
 def test_tabularnn_recurrent_options_preserve_rows(model_type):
     from deeptab.architectures.tabularnn import TabulaRNN

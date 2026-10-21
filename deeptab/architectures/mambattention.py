@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 
 from deeptab.core import BaseModel
@@ -100,10 +99,10 @@ class MambAttention(BaseModel):
         )
 
         if self.shuffle_embeddings:
-            self.register_buffer("perm", torch.randperm(self.embedding_layer.seq_len))
+            self.register_buffer("perm", self.embedding_layer.feature_permutation())
 
         # pooling
-        n_inputs = np.sum([len(info) for info in feature_information])
+        n_inputs = self.embedding_layer.n_tokens
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.d_model)
 
     def forward(self, *data):
