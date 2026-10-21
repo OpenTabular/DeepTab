@@ -67,3 +67,11 @@ def test_forest_backward_has_finite_gradients(device, with_penalty):
     for parameter in model.parameters():
         assert parameter.grad is not None
         assert torch.isfinite(parameter.grad).all()
+
+
+@pytest.mark.parametrize("min_depth, max_depth", [(6, 6), (8, 4)])
+def test_config_rejects_empty_depth_range(min_depth, max_depth):
+    from deeptab.core.exceptions import IncompatibleParamsError
+
+    with pytest.raises(IncompatibleParamsError, match="max_depth"):
+        NDTFConfig(min_depth=min_depth, max_depth=max_depth)
