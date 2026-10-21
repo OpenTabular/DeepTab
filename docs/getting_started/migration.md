@@ -180,7 +180,7 @@ A find and replace covers it.
 
 ```python
 # v1
-from deeptab.models import DefaultMambularConfig
+from deeptab.configs import DefaultMambularConfig
 
 # v2
 from deeptab.configs import MambularConfig
