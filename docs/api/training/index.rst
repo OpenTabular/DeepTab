@@ -102,16 +102,20 @@ pushing apart rows that are far. Pairs are built from the labels: same-class row
 rest form negatives. It is most useful on **small or label-scarce datasets**,
 where good embeddings are hard to learn from the supervised signal alone.
 
-Only embedding-based architectures support it. The backbone must expose
-``embedding_layer``, ``encode()``, ``pool_sequence()``, and
-``get_embedding_state_dict()`` (for example ``FTTransformerClassifier``,
-``TabTransformerClassifier``, ``MambularClassifier``). Architectures without an
-embedding layer (MLP, ResNet) raise ``ArchitectureRequirementError``.
+Only architectures with an embedding layer *and* a contextual encoder (a
+``mamba``, ``rnn``/``lstm`` or ``encoder`` block) support it: Mambular,
+MambAttention, FTTransformer, TabTransformer, SAINT and TabulaRNN. The
+high-level ``pretrain()`` raises ``ValueError`` for models without an embedding
+layer (for example MLP, ResNet, NODE, TabM) and for embedding models without a
+contextual encoder (AutoInt, ENODE). The low-level :func:`pretrain_embeddings`
+raises ``ArchitectureRequirementError`` when the backbone has no
+``embedding_layer``.
 
 High-level API (recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Every embedding-based estimator exposes ``pretrain()``. Build the model first so
+``pretrain()`` is available on the ``*Classifier`` and ``*Regressor``
+estimators; the ``*LSS`` estimators do not expose it. Build the model first so
 the backbone and data pipeline exist, warm-start the embeddings in place, then
 fit as usual:
 
