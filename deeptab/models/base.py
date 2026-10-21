@@ -408,6 +408,10 @@ class SklearnBase(
     def set_params(self, **parameters):
         """Set the parameters of this estimator.
 
+        Assigning ``model_config``, ``preprocessing_config`` or ``trainer_config``
+        (a config object or ``None``) also updates the configuration ``fit()``
+        trains with, so ``fit()`` and ``clone()`` follow ``get_params()``.
+
         Raises
         ------
         ValueError
@@ -450,25 +454,8 @@ class SklearnBase(
                 )
 
             for k, v in direct_params.items():
-                if k == "model_config":
-                    self.model_config = v
-                    if v is not None and hasattr(v, "get_params"):
-                        self.config = v
-                        self._config_kwargs = v.get_params(deep=False)
-                elif k == "preprocessing_config":
-                    self.preprocessing_config = v
-                    if v is not None and hasattr(v, "to_preprocessor_kwargs"):
-                        self._preprocessor_kwargs = v.to_preprocessor_kwargs()
-                        self._preprocessor = build_preprocessor(
-                            v,
-                            task=type(self)._task,
-                            random_state=self.random_state,
-                            observability_config=getattr(self, "_observability_config", None),
-                        )
-                elif k == "trainer_config":
-                    self.trainer_config = v
-                    if v is not None and hasattr(v, "optimizer_type"):
-                        self._optimizer_type = v.optimizer_type
+                if k in ("model_config", "preprocessing_config", "trainer_config"):
+                    self._set_config_param(k, v)
                 elif k == "random_state":
                     self.random_state = v
                 elif k == "observability_config":
@@ -517,9 +504,13 @@ class SklearnBase(
         if "observability_config" in parameters:
             self._apply_observability_config(parameters["observability_config"])
 
-        for k in direct_keys:
+        if "random_state" in parameters:
+            self.random_state = parameters["random_state"]
+        # A config object set here is what fit() should train with, so the state
+        # fit() reads from it is updated exactly as in the split-config branch.
+        for k in ("model_config", "preprocessing_config", "trainer_config"):
             if k in parameters:
-                setattr(self, k, parameters[k])
+                self._set_config_param(k, parameters[k])
 
         config_params = {k: v for k, v in parameters.items() if k in valid_config_fields}
         preprocessor_params = {k: v for k, v in parameters.items() if k in self._preprocessor_arg_names}
@@ -534,6 +525,40 @@ class SklearnBase(
             self._preprocessor.set_params(**self._preprocessor_kwargs)  # type: ignore[attr-defined]
 
         return self
+
+    def _set_config_param(self, name, value):
+        """Assign a config parameter and update the state ``fit()`` reads from it.
+
+        ``__init__`` derives ``config``, ``_preprocessor``/``_preprocessor_kwargs``
+        and ``_optimizer_type`` from ``model_config``, ``preprocessing_config`` and
+        ``trainer_config``. A new config object re-derives that state; setting a
+        config back to ``None`` restores the defaults of an estimator constructed
+        without it. Objects that are not DeepTab configs are stored as they are.
+        """
+        previous = getattr(self, name)
+        setattr(self, name, value)
+        if value is None and previous is None:
+            return
+        if name == "model_config":
+            if value is None:
+                self.config = type(self)._config_cls()  # type: ignore[misc]
+                self._config_kwargs = {}
+            elif hasattr(value, "get_params"):
+                self.config = value
+                self._config_kwargs = value.get_params(deep=False)
+        elif name == "preprocessing_config":
+            if value is None or hasattr(value, "to_preprocessor_kwargs"):
+                self._preprocessor_kwargs = value.to_preprocessor_kwargs() if value is not None else {}
+                self._preprocessor = build_preprocessor(
+                    value,
+                    task=type(self)._task,
+                    random_state=self.random_state,
+                    observability_config=getattr(self, "_observability_config", None),
+                )
+        elif value is None:
+            self._optimizer_type = "Adam"
+        elif hasattr(value, "optimizer_type"):
+            self._optimizer_type = value.optimizer_type
 
     def __sklearn_is_fitted__(self) -> bool:
         """sklearn hook: return True only after fit() has completed.
