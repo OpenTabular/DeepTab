@@ -651,6 +651,8 @@ class TrainerConfig(BaseEstimator):
         exceeded.
     weight_decay : float, default=1e-6
         L2 regularisation coefficient (weight decay) for the optimizer.
+        Ignored, with a ``ConfigWarning``, by optimizers that have no
+        ``weight_decay`` argument (``LBFGS``, ``Rprop``, ``SparseAdam``).
     optimizer_type : str, default="Adam"
         Optimizer class name.  Must be a valid ``torch.optim`` class name or a
         name registered in the project's optimizer registry.

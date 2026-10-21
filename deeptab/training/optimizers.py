@@ -464,7 +464,10 @@ def build_optimizer(
     weight_decay : float, default=1e-6
         L2 weight-decay coefficient.  When *no_weight_decay_for_bias_and_norm*
         is ``True``, this value applies only to the decay parameter group (see
-        :func:`build_parameter_groups`).
+        :func:`build_parameter_groups`).  Optimizers whose constructor has no
+        ``weight_decay`` argument (``LBFGS``, ``Rprop``, ``SparseAdam``) are
+        built without it and without parameter groups; a non-zero value is then
+        ignored with a :class:`~deeptab.core.exceptions.ConfigWarning`.
     optimizer_kwargs : dict or None, default=None
         Extra keyword arguments forwarded verbatim to the optimizer constructor
         after ``lr`` and ``weight_decay``.  Keys that start with
@@ -480,13 +483,19 @@ def build_optimizer(
     Returns
     -------
     torch.optim.Optimizer
-        A ready-to-use optimizer with ``lr`` and ``weight_decay`` set on the
-        appropriate parameter groups.
+        A ready-to-use optimizer with ``lr`` and, when the optimizer supports
+        it, ``weight_decay`` set on the appropriate parameter groups.
 
     Raises
     ------
     ~deeptab.core.exceptions.InvalidParamError
         If *optimizer_type* is not registered.
+
+    Warns
+    -----
+    ~deeptab.core.exceptions.ConfigWarning
+        If *weight_decay* is non-zero but the optimizer has no ``weight_decay``
+        argument; the value is ignored.
 
     Examples
     --------
