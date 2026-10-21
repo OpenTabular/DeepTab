@@ -2,6 +2,7 @@
 
 import lightning as pl
 import numpy as np
+import pandas as pd
 import torch
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, WeightedRandomSampler
@@ -41,6 +42,27 @@ def _prepare_regression_labels(y, *, vector_targets: bool = False) -> torch.Tens
     elif not (y_arr.ndim == 2 and (y_arr.shape[1] == 1 or vector_targets)):
         raise multi_output_regression_error(y_arr.shape)
     return torch.as_tensor(y_arr, dtype=torch.float32)
+
+
+def _positional_columns(X):
+    """Relabel non-string DataFrame columns by position before they reach PreTab.
+
+    PreTab selects integer-labelled columns by *position* but detects their type
+    by *label*. Integer labels that are not ``0..n-1`` in order (e.g. after
+    ``df.drop(columns=0)`` on a headerless CSV) therefore crash or encode the
+    wrong column. Following scikit-learn, non-string column labels carry no
+    feature names, so such frames are relabelled ``0..n-1`` in column order.
+    String labels and positional integer labels (as produced for NumPy input)
+    are returned unchanged.
+    """
+    if not isinstance(X, pd.DataFrame):
+        return X
+    labels = list(X.columns)
+    if all(isinstance(label, str) for label in labels):
+        return X
+    if all(isinstance(label, int | np.integer) for label in labels) and labels == list(range(len(labels))):
+        return X
+    return X.set_axis(range(len(labels)), axis=1)
 
 
 class TabularDataModule(pl.LightningDataModule):
@@ -252,6 +274,9 @@ class TabularDataModule(pl.LightningDataModule):
                 self.embeddings_train = None
                 self.embeddings_val = None
 
+        self.X_train = _positional_columns(self.X_train)
+        self.X_val = _positional_columns(self.X_val)
+
         if fit_preprocessing:
             self.preprocessor = fit_preprocessor(self.preprocessor, self.X_train, self.y_train, self.embeddings_train)
 
@@ -445,7 +470,7 @@ class TabularDataModule(pl.LightningDataModule):
         cat_tensors = []
         num_tensors = []
         emb_tensors = []
-        preprocessed_data = self.preprocessor.transform(X, embeddings)
+        preprocessed_data = self.preprocessor.transform(_positional_columns(X), embeddings)
 
         # Populate tensors for categorical features, if present in processed data
         for key in self.cat_feature_info:  # type: ignore
