@@ -29,7 +29,7 @@
 - **A broad model zoo.** 15 stable architectures plus experimental models, all behind the same interface, with [selection guidance](https://deeptab.readthedocs.io/en/latest/model_zoo/index.html).
 - **Built for real data.** Mixed feature types, class imbalance, GPU acceleration, and early stopping work out of the box.
 
-## What's New in v2.1 (Upcoming)
+## What's New in v2.1
 
 v2.1 updates preprocessing to PreTab 1.0 and improves estimator, architecture, and persistence behavior.
 
