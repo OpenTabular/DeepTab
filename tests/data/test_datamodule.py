@@ -1,5 +1,6 @@
 """Tests for datamodule."""
 
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -39,6 +40,32 @@ def test_drop_last_only_applies_to_training(sample_count, drop_last):
         assert loader.pin_memory is False
         torch.testing.assert_close(torch.cat([batch[1] for batch in loader]), torch.arange(sample_count))
     assert datamodule.dataloader_kwargs["drop_last"] is drop_last
+
+
+@pytest.mark.parametrize(
+    "train_rows, loader_options, expected_rows",
+    [(33, {}, 32), (34, {}, 34), (32, {}, 32), (1, {}, 1), (33, {"drop_last": False}, 33)],
+    ids=["one-row-tail", "two-row-tail", "no-tail", "single-row-dataset", "explicit-drop-last-false"],
+)
+def test_single_row_trailing_training_batch_is_dropped(train_rows, loader_options, expected_rows):
+    datamodule = TabularDataModule(preprocessor=None, batch_size=16, shuffle=False, regression=True, **loader_options)
+    datamodule.train_dataset = TabularDataset([], [torch.arange(train_rows).unsqueeze(1)], [], torch.arange(train_rows))
+    batch_sizes = [len(batch[1]) for batch in datamodule.train_dataloader()]
+    assert sum(batch_sizes) == expected_rows
+    assert datamodule.dataloader_kwargs == loader_options
+
+
+@pytest.mark.parametrize(
+    "train_rows, drop_last",
+    [(66, True), (33, False)],
+    ids=["one-row-tail-per-process", "one-row-tail-overall-only"],
+)
+def test_single_row_tail_check_uses_rows_per_process(train_rows, drop_last, monkeypatch):
+    """With two processes, each one receives ceil(train_rows / 2) rows from the distributed sampler."""
+    datamodule = TabularDataModule(preprocessor=None, batch_size=32, shuffle=False, regression=True)
+    datamodule.train_dataset = TabularDataset([], [torch.arange(train_rows).unsqueeze(1)], [], torch.arange(train_rows))
+    monkeypatch.setattr(datamodule, "trainer", SimpleNamespace(world_size=2))
+    assert datamodule.train_dataloader().drop_last is drop_last
 
 
 @pytest.fixture

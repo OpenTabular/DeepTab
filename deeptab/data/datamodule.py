@@ -1,5 +1,7 @@
 """Prepare tabular features, labels, and data loaders for Lightning workflows."""
 
+import math
+
 import lightning as pl
 import numpy as np
 import torch
@@ -88,6 +90,8 @@ class TabularDataModule(pl.LightningDataModule):
         Additional keyword arguments forwarded to PyTorch ``DataLoader``,
         such as ``num_workers`` or ``pin_memory``. ``drop_last`` applies only
         to training; validation, test, and prediction retain partial batches.
+        When ``drop_last`` is not given, a single-row trailing training batch
+        is dropped; pass ``drop_last=False`` to keep it.
 
     Notes
     -----
@@ -568,9 +572,29 @@ class TabularDataModule(pl.LightningDataModule):
         Notes
         -----
         A non-null ``random_state`` seeds the loader's generator. Additional
-        loader options come from ``dataloader_kwargs``.
+        loader options come from ``dataloader_kwargs``. Unless ``drop_last`` is
+        set there, a trailing batch that would contain a single row is dropped:
+        layers that need batch statistics in training mode, such as
+        ``BatchNorm1d``, cannot train on one row. Under distributed training the
+        check uses the rows each process receives.
         """
         if hasattr(self, "train_dataset"):
+            loader_kwargs = dict(self.dataloader_kwargs)
+            n_rows = len(self.train_dataset)
+            world_size = getattr(self.trainer, "world_size", 1)
+            if world_size > 1:
+                # Lightning's distributed sampler gives every process ceil(n / world_size) rows.
+                n_rows = math.ceil(n_rows / world_size)
+            batch_size = self.batch_size
+            # Invalid batch sizes are left for DataLoader to reject with its own error.
+            valid_batch_size = isinstance(batch_size, int) and batch_size > 0
+            if (
+                "drop_last" not in loader_kwargs
+                and valid_batch_size
+                and n_rows > batch_size
+                and n_rows % batch_size == 1
+            ):
+                loader_kwargs["drop_last"] = True
             sampler = self._build_train_sampler()
             # Build a seeded Generator for worker-process batch ordering when
             # num_workers > 0; falls back to None (global RNG) otherwise.
@@ -585,14 +609,14 @@ class TabularDataModule(pl.LightningDataModule):
                     batch_size=self.batch_size,
                     sampler=sampler,
                     generator=generator,
-                    **self.dataloader_kwargs,
+                    **loader_kwargs,
                 )
             return DataLoader(
                 self.train_dataset,
                 batch_size=self.batch_size,
                 shuffle=self.shuffle,
                 generator=generator,
-                **self.dataloader_kwargs,
+                **loader_kwargs,
             )
         else:
             raise ValueError("No training dataset provided!")
