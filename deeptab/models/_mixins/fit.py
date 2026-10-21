@@ -1095,7 +1095,7 @@ class _FitMixin:
                     except Exception:  # noqa: S110
                         pass
             ckpt_dir = os.path.join(_run_dir, "checkpoints")
-            if os.path.isdir(ckpt_dir):
+            if obs.mlflow_log_model and os.path.isdir(ckpt_dir):
                 for ckpt in os.listdir(ckpt_dir):
                     try:
                         client.log_artifact(run_id, os.path.join(ckpt_dir, ckpt), artifact_path="checkpoints")
