@@ -1091,7 +1091,8 @@ class TestEnsureDataframe:
         result = ensure_dataframe(df)
         assert result["cat"].dtype == object
         assert result["cat"].tolist()[0] == "a"
-        assert result["cat"].tolist()[1] is np.nan
+        missing = result["cat"].tolist()[1]
+        assert isinstance(missing, float) and np.isnan(missing)
         assert df["cat"].dtype == "string"  # the caller's frame is not modified
 
     def test_all_nan_column_warns(self):
