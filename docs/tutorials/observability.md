@@ -582,8 +582,9 @@ show_tree(WORKDIR / "09_logger_only", "09_logger_only/   (no csv/, logger was ig
 
 Any keyword argument `fit()` does not recognise is forwarded to `pl.Trainer`, and an explicit
 `logger=` overrides DeepTab's default. This is the lightest-weight option: no `ObservabilityConfig`
-at all, just your logger driving training. There is no DeepTab run directory in this mode, only
-whatever your logger writes.
+at all, just your logger driving training. There is no DeepTab run directory in this mode: besides
+whatever your logger writes, only the checkpoint is saved, which we again keep in the scratch folder
+with `checkpoint_path`.
 
 ```python
 direct = MLPClassifier(trainer_config=TRAINER, random_state=42)
@@ -592,12 +593,15 @@ with focused_output():
         X_train, y_train,
         enable_progress_bar=False,
         logger=CSVLogger(save_dir=str(WORKDIR / "10_direct_logger"), name="mlp"),
+        checkpoint_path=str(WORKDIR / "10_direct_logger" / "checkpoints"),
     )
 show_tree(WORKDIR / "10_direct_logger", "10_direct_logger/")
 ```
 
 ```text
 10_direct_logger/
+    checkpoints/
+        best_model.ckpt
     mlp/
         version_0/
             hparams.yaml
