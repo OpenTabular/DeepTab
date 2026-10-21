@@ -5,6 +5,26 @@ from collections.abc import Callable
 import torch
 
 
+# Parameter transforms are module-level functions rather than lambdas so that
+# distribution families (and the estimators and Lightning modules that hold
+# them) can be pickled, e.g. for pickle.dumps() or the ddp_spawn strategy.
+def _identity(x: torch.Tensor) -> torch.Tensor:
+    return x
+
+
+def _square(x: torch.Tensor) -> torch.Tensor:
+    return x**2
+
+
+def _softmax_last_dim(x: torch.Tensor) -> torch.Tensor:
+    return torch.softmax(x, dim=-1)
+
+
+def _stable_log(x: torch.Tensor) -> torch.Tensor:
+    # Adding a small constant for numerical stability
+    return torch.log(x + 1e-6)
+
+
 class BaseDistribution(torch.nn.Module):
     """
     The base class for various statistical distributions, providing a common interface and utilities.
@@ -35,14 +55,13 @@ class BaseDistribution(torch.nn.Module):
         # Predefined transformation functions accessible to all subclasses
         self.predefined_transforms: dict[str, Callable[[torch.Tensor], torch.Tensor]] = {
             "positive": torch.nn.functional.softplus,
-            "none": lambda x: x,
-            "square": lambda x: x**2,
+            "none": _identity,
+            "square": _square,
             "exp": torch.exp,
             "sqrt": torch.sqrt,
             "sigmoid": torch.sigmoid,
-            "probabilities": lambda x: torch.softmax(x, dim=-1),
-            # Adding a small constant for numerical stability
-            "log": lambda x: torch.log(x + 1e-6),
+            "probabilities": _softmax_last_dim,
+            "log": _stable_log,
         }
 
     @property
@@ -63,7 +82,7 @@ class BaseDistribution(torch.nn.Module):
             # Custom transformation function provided
             return transform_name
         # Default to 'none'
-        return self.predefined_transforms.get(transform_name, lambda x: x)
+        return self.predefined_transforms.get(transform_name, _identity)
 
     def compute_loss(self, predictions, y_true):
         """
