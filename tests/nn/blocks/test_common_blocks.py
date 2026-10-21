@@ -627,6 +627,50 @@ class TestRNNBatchEnsembleLayer:
         assert out.shape == (B, S, E, 16)
 
 
+class TestRandomSignsScalingInit:
+    """``scaling_init="random-signs"`` must fill the ensemble scaling factors in
+    place instead of leaving the memory they were allocated with."""
+
+    @staticmethod
+    def _scaling_tensors(layer):
+        tensors = []
+        for scaling in (layer.r, layer.s):
+            if isinstance(scaling, nn.ParameterDict):
+                tensors.extend(scaling.values())
+            elif scaling is not None:
+                tensors.append(scaling)
+        return tensors
+
+    @pytest.mark.parametrize(
+        "make_layer",
+        [
+            lambda: LinearBatchEnsembleLayer(
+                in_features=64, out_features=64, ensemble_size=E, scaling_init="random-signs"
+            ),
+            lambda: RNNBatchEnsembleLayer(input_size=64, hidden_size=64, ensemble_size=E, scaling_init="random-signs"),
+            lambda: MultiHeadAttentionBatchEnsemble(
+                embed_dim=64, num_heads=2, ensemble_size=E, scaling_init="random-signs"
+            ),
+        ],
+        ids=["linear", "rnn", "attention"],
+    )
+    def test_scaling_factors_are_random_signs(self, make_layer, monkeypatch):
+        # Allocate float tensors as NaN so uninitialized memory cannot pass as a valid init.
+        empty = torch.empty
+
+        def nan_empty(*size, **kwargs):
+            tensor = empty(*size, **kwargs)
+            return tensor.fill_(float("nan")) if tensor.is_floating_point() else tensor
+
+        monkeypatch.setattr(torch, "empty", nan_empty)
+        layer = make_layer()
+        tensors = self._scaling_tensors(layer)
+        assert tensors
+        for tensor in tensors:
+            values = set(tensor.detach().unique().tolist())
+            assert values == {-1.0, 1.0}
+
+
 class TestmLSTMblock:
     def test_forward_shape(self):
         # hidden_size and num_layers: BlockDiagonal needs hidden_size % num_layers == 0

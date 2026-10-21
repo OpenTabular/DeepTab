@@ -32,7 +32,9 @@ class TabMConfig(BaseModelConfig):
     ensemble_bias : bool, default=True
         Whether to use a unique bias term for each ensemble member.
     scaling_init : Literal['ones', 'random-signs', 'normal'], default='ones'
-        Initialization method for scaling weights.
+        Initialization of the ensemble scaling factors: ``'ones'`` sets them
+        to 1, ``'random-signs'`` draws each from {-1, +1} with equal
+        probability, and ``'normal'`` draws them from N(0, 1).
     average_ensembles : bool, default=False
         Whether to average the outputs of the ensembles.
     model_type : Literal['mini', 'full'], default='mini'

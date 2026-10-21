@@ -148,6 +148,23 @@ def test_tabm_normalization_keeps_ensemble_members_independent(norm):
     torch.testing.assert_close(perturbed[:, 1:], baseline[:, 1:])
 
 
+def test_tabm_random_signs_scaling_init_trains_first_layer():
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == "TabM")
+    config = get_model_config(model_class)
+    config.layer_sizes = [16, 8]
+    config.ensemble_size = 4
+    config.dropout = 0.0
+    config.scaling_init = "random-signs"
+    model = model_class(({f"value_{index}": {"dimension": 1} for index in range(3)}, {}, {}), config=config)
+    first_layer = model.layers[0]
+    # Every factor is -1 or +1 (a 4 x 3 tensor can draw a single sign by chance, so only |r| is checked).
+    assert torch.all(first_layer.r.detach().abs() == 1)
+    assert torch.all(first_layer.s.detach().abs() == 1)
+    model([torch.randn(8, 1) for _ in range(3)], [], []).sum().backward()
+    assert first_layer.W.grad is not None
+    assert first_layer.W.grad.abs().sum() > 0
+
+
 @pytest.mark.parametrize("norm", ["InstanceNorm", "GroupNorm"])
 def test_tabm_rejects_normalization_across_ensemble_members(norm):
     from deeptab.architectures.tabm import TabM
