@@ -210,6 +210,14 @@ class TestDistributionalMetrics:
         expected = -np.mean(t.logpdf(y_true, df=y_pred[:, 0], loc=y_pred[:, 1], scale=y_pred[:, 2]))
         assert metric(y_true, y_pred) == pytest.approx(expected)
 
+    @pytest.mark.parametrize("df", [0.5, 1.5, 4.0])
+    def test_student_t_loss_matches_scipy_for_any_positive_df(self, df):
+        from scipy import stats
+
+        targets = np.asarray(stats.t.rvs(df, size=500, random_state=0))
+        parameters = np.column_stack([np.full(500, df), np.zeros(500), np.ones(500)])
+        assert StudentTLoss()(targets, parameters) == pytest.approx(-stats.t.logpdf(targets, df).mean())
+
     def test_default_zip_deviance_uses_expected_count(self):
         y_true = np.array([0.5, 2.0])
         y_pred = np.array([[0.5, 1.0], [0.2, 2.5]])

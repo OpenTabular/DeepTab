@@ -561,7 +561,7 @@ class StudentTLoss(DeepTabMetric):
         if y_pred.ndim == 2 and y_pred.shape[1] >= 3:
             mu = _col(y_pred, self.loc_col)
             scale = np.clip(_col(y_pred, self.scale_col), 1e-9, None)
-            df = np.clip(_col(y_pred, self.df_col), 2.0 + 1e-6, None)
+            df = np.clip(_col(y_pred, self.df_col), 1e-6, None)
         else:
             mu = _col(y_pred, 0)
             scale = np.clip(_col(y_pred, 1), 1e-9, None)
