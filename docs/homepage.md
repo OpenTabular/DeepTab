@@ -53,7 +53,7 @@ v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API stays
 - **Observability**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, opt-in and silent by default.
 - **Deployment-safe inference**: `InferenceModel` exposes a read-only prediction surface with schema validation, so a served model cannot be re-fitted by accident.
 - **Self-describing artifacts**: a single `.deeptab` save format bundles the architecture, feature schema, preprocessing, and versions with the weights.
-- **Registry-driven training**: optimizers, schedulers, and losses are selectable by name through `TrainerConfig` and extensible at runtime.
+- **Registry-driven training**: optimizers and schedulers are selectable by name through `TrainerConfig` (`optimizer_type`, `scheduler_type`), classification losses by name through `fit(loss_fct=...)` (e.g. `"focal"`), and all three registries are extensible at runtime.
 - **Unified metrics**: 25+ metric classes auto-selected per task across regression, classification, and distributional models.
 - **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the pipeline an inspectable contract.
 - **Reproducibility**: cross-platform seeding across CPU, CUDA, and MPS.
