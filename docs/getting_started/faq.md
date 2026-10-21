@@ -451,7 +451,7 @@ search = GridSearchCV(
 search.fit(X_train, y_train)
 ```
 
-Nested keys such as `model_config__d_model` require the corresponding config object. Keep `n_jobs=1` when sharing one accelerator to avoid concurrent fits competing for its memory.
+Nested keys such as `model_config__d_model` need an estimator constructed with config objects. If only `model_config` is omitted, `model_config__*` keys tune the estimator's default model config, which `get_params()` then reports as `model_config`. Keep `n_jobs=1` when sharing one accelerator to avoid concurrent fits competing for its memory.
 
 ### Can I deploy DeepTab models?
 
