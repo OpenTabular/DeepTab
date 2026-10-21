@@ -10,7 +10,7 @@ refitting. Use :meth:`save` / :meth:`load` for fitted-model persistence.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import lightning as pl
 import torch
@@ -108,10 +108,14 @@ class _SerializationMixin:
 
         self._emit_event("save_started", path=path)
         _warn_extension(path)
-        bundle = build_save_bundle(self, lss=False, family=None)
+        bundle = self._build_save_bundle()
         torch.save(bundle, path)
         self._emit_event("save_completed", path=path)
         return path
+
+    def _build_save_bundle(self) -> dict[str, Any]:
+        """Return the artifact bundle written by :meth:`save`."""
+        return build_save_bundle(self, lss=False, family=None)
 
     @classmethod
     def load(cls, path: str, device: str = "cpu"):
