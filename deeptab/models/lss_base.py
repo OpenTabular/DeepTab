@@ -844,10 +844,11 @@ class SklearnBaseLSS(SklearnBase):
         Returns
         -------
         estimator
-            A fully reconstructed, ready-to-predict estimator. Exposes
-            ``artifact_metadata_``, ``architecture_metadata_``,
-            ``feature_schema_``, ``input_columns_``, ``task_info_``,
-            ``classes_``, and ``versions_`` attributes after loading.
+            A fully reconstructed, ready-to-predict estimator of the same type
+            that was saved. Exposes ``artifact_metadata_``,
+            ``architecture_metadata_``, ``feature_schema_``, ``input_columns_``,
+            ``task_info_``, ``classes_``, and ``versions_`` attributes after
+            loading.
 
         Raises
         ------
