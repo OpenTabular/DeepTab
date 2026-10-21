@@ -70,10 +70,11 @@ class TabularDataModule(pl.LightningDataModule):
     val_size : float, default=0.2
         Default validation fraction for automatic splits. An explicit
         :meth:`preprocess_data` argument overrides it.
-    random_state : int or None, default=101
+    random_state : int, numpy.integer or None, default=101
         Seed for training-loader ordering and weighted sampling. The split
         seed is supplied separately to :meth:`preprocess_data`. ``None`` uses
-        the generators' unseeded behavior.
+        the generators' unseeded behavior. NumPy integers are accepted; other
+        types raise ``TypeError``.
     stratify : bool, default=True
         Preserve class proportions in automatic validation splits. Ignored
         for regression and when explicit validation data are supplied.
@@ -106,7 +107,7 @@ class TabularDataModule(pl.LightningDataModule):
         X_val=None,
         y_val=None,
         val_size=0.2,
-        random_state: int | None = 101,
+        random_state: int | np.integer | None = 101,
         stratify=True,
         sampler=None,
         vector_targets=False,
@@ -127,7 +128,11 @@ class TabularDataModule(pl.LightningDataModule):
         self._initial_X_val = X_val
         self._initial_y_val = y_val
         self.val_size = val_size
-        self.random_state = random_state
+        # torch.Generator.manual_seed() needs a Python int, so NumPy integers are
+        # converted; floats and strings are still rejected instead of truncated.
+        if random_state is not None and not isinstance(random_state, int | np.integer):
+            raise TypeError(f"random_state must be an integer or None, got {random_state!r}")
+        self.random_state = None if random_state is None else int(random_state)
         self.regression = regression
         self.num_classes = None
         self.stratify = stratify
