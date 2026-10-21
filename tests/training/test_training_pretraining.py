@@ -252,22 +252,40 @@ def test_constructor_stores_attributes():
 
 
 # ---------------------------------------------------------------------------
-# single-row batches
+# batches too small to form pairs
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("regression", [True, False])
-def test_single_row_batch_is_skipped(regression):
+@pytest.mark.parametrize(
+    "regression, labels",
+    [
+        (True, torch.tensor([[0.3]])),
+        (False, torch.tensor([1])),
+        (False, torch.tensor([0, 1])),
+        (False, torch.tensor([1, 1])),
+    ],
+    ids=["regression-one-row", "classification-one-row", "classification-two-classes", "classification-one-class"],
+)
+def test_batch_too_small_to_form_pairs_is_skipped(regression, labels):
     pt = _make_pretrainer(regression=regression, k_neighbors=2)
-    labels = torch.tensor([[0.3]]) if regression else torch.tensor([1])
-    batch = (torch.randn(1, 4), labels)
+    batch = (torch.randn(labels.size(0), 4), labels)
     assert pt.training_step(batch, 0) is None
     assert pt.validation_step(batch, 0) is None
     assert pt.test_step(batch, 0) is None
 
 
-@pytest.mark.parametrize("task", ["regression", "classification"])
-def test_estimator_pretraining_completes_with_a_single_row_last_batch(task, tmp_path, monkeypatch):
+def test_three_row_batch_without_same_class_neighbors_still_raises():
+    pt = _make_pretrainer(regression=False, k_neighbors=2)
+    with pytest.raises(ValueError, match="larger batch size"):
+        pt.validation_step((torch.randn(3, 4), torch.tensor([0, 1, 2])), 0)
+
+
+@pytest.mark.parametrize(
+    "task, n_train, n_val",
+    [("regression", 32, 17), ("classification", 32, 17), ("classification", 34, 15)],
+    ids=["regression-one-row-val-batch", "classification-one-row-val-batch", "classification-two-row-train-batch"],
+)
+def test_estimator_pretraining_completes_with_a_tiny_last_batch(task, n_train, n_val, tmp_path, monkeypatch):
     import numpy as np
     import pandas as pd
 
@@ -276,14 +294,17 @@ def test_estimator_pretraining_completes_with_a_single_row_last_batch(task, tmp_
 
     monkeypatch.chdir(tmp_path)
     rng = np.random.default_rng(0)
-    features = pd.DataFrame({"a": rng.normal(size=43), "b": rng.normal(size=43)})
+    n_rows = n_train + n_val
+    features = pd.DataFrame({"a": rng.normal(size=n_rows), "b": rng.normal(size=n_rows)})
     if task == "regression":
         targets, model_class = features["a"].to_numpy(), FTTransformerRegressor
     else:
-        targets, model_class = np.arange(43) % 2, FTTransformerClassifier
+        targets, model_class = np.arange(n_rows) % 2, FTTransformerClassifier
     model = model_class(model_config=FTTransformerConfig(d_model=8, n_layers=1, n_heads=2), random_state=0)
-    # 33 training rows with batch_size=16 leave a final batch of one row.
-    model.build_model(features[:33], targets[:33], X_val=features[33:], y_val=targets[33:], batch_size=16)
+    # With batch_size=16, 17 validation rows end in a one-row batch and 34 training rows in a two-row batch.
+    model.build_model(
+        features[:n_train], targets[:n_train], X_val=features[n_train:], y_val=targets[n_train:], batch_size=16
+    )
     model.pretrain(pretrain_epochs=1, k_neighbors=2, save_path=str(tmp_path / "pretrained.pth"))
     assert (tmp_path / "pretrained.pth").is_file()
 

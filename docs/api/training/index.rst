@@ -171,6 +171,11 @@ pooling), use :class:`ContrastivePretrainer` directly.
    sample has no same-class or no different-class neighbor. Use a batch size
    large enough to cover the classes, or a stratified sampler.
 
+   Batches too small to form any pair are skipped rather than raising: a
+   one-row batch (for example the last batch of an epoch) and, for
+   classification, a two-row batch, where no sample can have both a same-class
+   and a different-class neighbor.
+
 See Also
 --------
 

@@ -265,15 +265,15 @@ class ContrastivePretrainer(pl.LightningModule):
             loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
             return loss
 
-    @staticmethod
-    def _cannot_form_pairs(batch) -> bool:
-        """Whether *batch* has too few rows to pair an anchor with a neighbor.
+    def _cannot_form_pairs(self, batch) -> bool:
+        """Whether *batch* is too small for any row to be an anchor.
 
-        A single-row batch (e.g. the last batch of an epoch) has no neighbors,
-        so the step skips it instead of failing.
+        Regression needs two rows. Classification needs three, because an
+        anchor needs both a same-class and a different-class neighbor. Such a
+        batch (e.g. the last batch of an epoch) is skipped instead of failing.
         """
         _, labels = batch
-        return labels.size(0) < 2
+        return labels.size(0) < (2 if self.regression else 3)
 
     def training_step(self, batch, batch_idx):
         if self._cannot_form_pairs(batch):
