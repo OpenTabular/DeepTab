@@ -28,18 +28,23 @@ from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
-def _same_family_options(options: dict, stored: dict) -> bool:
-    """Compare family options, treating NumPy arrays (e.g. quantile levels) by value.
+def _as_numpy(value):
+    """Return *value* as a NumPy array; tensors are moved to the CPU first."""
+    return value.detach().cpu().numpy() if isinstance(value, torch.Tensor) else np.asarray(value)
 
-    A plain ``options != stored`` raises for array values, because NumPy cannot
-    turn an element-wise comparison into a single truth value.
+
+def _same_family_options(options: dict, stored: dict) -> bool:
+    """Compare family options, treating arrays and tensors (e.g. quantile levels) by value.
+
+    A plain ``options != stored`` raises for array values, because NumPy and
+    torch cannot turn an element-wise comparison into a single truth value.
     """
     if options.keys() != stored.keys():
         return False
     for key, value in options.items():
         other = stored[key]
-        if isinstance(value, np.ndarray) or isinstance(other, np.ndarray):
-            if not np.array_equal(value, other):
+        if isinstance(value, np.ndarray | torch.Tensor) or isinstance(other, np.ndarray | torch.Tensor):
+            if not np.array_equal(_as_numpy(value), _as_numpy(other)):
                 return False
         elif value != other:
             return False

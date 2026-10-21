@@ -532,9 +532,11 @@ def test_reused_build_rejects_changed_options_without_mutating_family():
     assert model.family_name == "normal"
 
 
-def test_reused_build_accepts_numpy_array_options():
+@pytest.mark.parametrize(
+    "quantiles", [np.array([0.1, 0.5, 0.9]), torch.tensor([0.1, 0.5, 0.9], dtype=torch.float64)], ids=["numpy", "torch"]
+)
+def test_reused_build_accepts_array_options(quantiles):
     model = _small_lss()
-    quantiles = np.array([0.1, 0.5, 0.9])
     model.build_model(_X[:24], _Y[:24], family="quantile", distributional_kwargs={"quantiles": quantiles})
     model.fit(_X[:24], _Y[:24], family="quantile", rebuild=False)
     model.fit(_X[:24], _Y[:24], family="quantile", distributional_kwargs={"quantiles": [0.1, 0.5, 0.9]}, rebuild=False)
