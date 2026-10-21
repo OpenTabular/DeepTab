@@ -710,7 +710,9 @@ class TaskModel(pl.LightningModule):
         Returns
         -------
         Tensor
-            Predictions.
+            Predictions. Half-precision outputs (``float16``/``bfloat16``, as
+            produced under a mixed-precision Trainer) are returned as
+            ``float32``.
         """
         if hasattr(self.estimator, "predict_with_candidates"):
             self._require_candidate_bank()
@@ -722,6 +724,11 @@ class TaskModel(pl.LightningModule):
         else:
             preds = self(*batch)
 
+        # Under a mixed-precision Trainer (e.g. precision="bf16-mixed") the
+        # outputs come back in half precision. NumPy has no bfloat16, and the
+        # estimators turn predictions into NumPy arrays, so return float32.
+        if isinstance(preds, torch.Tensor) and preds.dtype in (torch.float16, torch.bfloat16):
+            preds = preds.float()
         return preds
 
     def on_validation_epoch_end(self):
