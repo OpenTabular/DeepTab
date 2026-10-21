@@ -265,7 +265,19 @@ class ContrastivePretrainer(pl.LightningModule):
             loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
             return loss
 
+    @staticmethod
+    def _cannot_form_pairs(batch) -> bool:
+        """Whether *batch* has too few rows to pair an anchor with a neighbor.
+
+        A single-row batch (e.g. the last batch of an epoch) has no neighbors,
+        so the step skips it instead of failing.
+        """
+        _, labels = batch
+        return labels.size(0) < 2
+
     def training_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         self.estimator.embedding_layer.train()
 
         data, labels = batch
@@ -277,6 +289,8 @@ class ContrastivePretrainer(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         data, labels = batch
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)
@@ -285,6 +299,8 @@ class ContrastivePretrainer(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         data, labels = batch
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)

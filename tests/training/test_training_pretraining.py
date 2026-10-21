@@ -252,6 +252,43 @@ def test_constructor_stores_attributes():
 
 
 # ---------------------------------------------------------------------------
+# single-row batches
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("regression", [True, False])
+def test_single_row_batch_is_skipped(regression):
+    pt = _make_pretrainer(regression=regression, k_neighbors=2)
+    labels = torch.tensor([[0.3]]) if regression else torch.tensor([1])
+    batch = (torch.randn(1, 4), labels)
+    assert pt.training_step(batch, 0) is None
+    assert pt.validation_step(batch, 0) is None
+    assert pt.test_step(batch, 0) is None
+
+
+@pytest.mark.parametrize("task", ["regression", "classification"])
+def test_estimator_pretraining_completes_with_a_single_row_last_batch(task, tmp_path, monkeypatch):
+    import numpy as np
+    import pandas as pd
+
+    from deeptab.configs import FTTransformerConfig
+    from deeptab.models import FTTransformerClassifier, FTTransformerRegressor
+
+    monkeypatch.chdir(tmp_path)
+    rng = np.random.default_rng(0)
+    features = pd.DataFrame({"a": rng.normal(size=43), "b": rng.normal(size=43)})
+    if task == "regression":
+        targets, model_class = features["a"].to_numpy(), FTTransformerRegressor
+    else:
+        targets, model_class = np.arange(43) % 2, FTTransformerClassifier
+    model = model_class(model_config=FTTransformerConfig(d_model=8, n_layers=1, n_heads=2), random_state=0)
+    # 33 training rows with batch_size=16 leave a final batch of one row.
+    model.build_model(features[:33], targets[:33], X_val=features[33:], y_val=targets[33:], batch_size=16)
+    model.pretrain(pretrain_epochs=1, k_neighbors=2, save_path=str(tmp_path / "pretrained.pth"))
+    assert (tmp_path / "pretrained.pth").is_file()
+
+
+# ---------------------------------------------------------------------------
 # contrastive_loss anchor/pair alignment
 # ---------------------------------------------------------------------------
 
