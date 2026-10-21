@@ -7,7 +7,7 @@ from copy import deepcopy
 import lightning as pl
 import numpy as np
 import torch
-from lightning.pytorch.callbacks import Callback, EarlyStopping, ModelCheckpoint, ModelSummary
+from lightning.pytorch.callbacks import EarlyStopping, ModelCheckpoint
 
 from deeptab.configs import TrainerConfig
 from deeptab.core.exceptions import invalid_data_error, not_fitted_error, unsupported_param_error
@@ -24,6 +24,7 @@ from deeptab.core.sklearn_compat import ensure_dataframe, set_input_feature_attr
 from deeptab.data.datamodule import TabularDataModule
 from deeptab.distributions import get_distribution
 from deeptab.metrics import get_default_metrics_dict
+from deeptab.models._mixins.fit import _build_trainer_callbacks
 from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training import TaskModel
 
@@ -533,24 +534,12 @@ class SklearnBaseLSS(SklearnBase):
             filename="best_model",
         )
 
-        # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
-        # Optuna pruning callback) with the built-in ones instead of colliding
-        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
-        # single Callback instance is accepted too, matching Lightning's own
-        # `callbacks` contract.
-        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
-        if isinstance(_user_callbacks, Callback):
-            _user_callbacks = [_user_callbacks]
-
-        # Initialize the trainer and train the model
+        # Initialize the trainer and train the model. Any caller-supplied
+        # `callbacks=` (e.g. a custom LR logger, an Optuna pruning callback)
+        # are merged with the built-in ones.
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
-            callbacks=[
-                early_stop_callback,
-                checkpoint_callback,
-                ModelSummary(max_depth=2),
-                *_user_callbacks,
-            ],
+            callbacks=_build_trainer_callbacks([early_stop_callback, checkpoint_callback], trainer_kwargs),
             **trainer_kwargs,
         )
 

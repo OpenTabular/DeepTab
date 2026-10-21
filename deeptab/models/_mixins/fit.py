@@ -48,6 +48,31 @@ def _build_trainer_loggers(
     return loggers if loggers else False
 
 
+def _build_trainer_callbacks(builtin_callbacks: list[Callback], trainer_kwargs: dict[str, Any]) -> list[Callback]:
+    """Merge DeepTab's built-in callbacks with the caller's ``callbacks=``.
+
+    Caller-supplied callbacks are popped from *trainer_kwargs* so they do not
+    collide with the built-in list as a duplicate ``pl.Trainer(callbacks=...)``
+    keyword. A single ``Callback`` instance is accepted too, matching
+    Lightning's own ``callbacks`` contract.
+
+    A ``ModelSummary(max_depth=2)`` is added unless the caller disabled model
+    summaries with Lightning's ``enable_model_summary=False`` or supplied a
+    summary callback of their own. Lightning only skips its *default* summary
+    for that flag, so an explicitly added one would otherwise always print.
+    """
+    user_callbacks = trainer_kwargs.pop("callbacks", None) or []
+    if isinstance(user_callbacks, Callback):
+        user_callbacks = [user_callbacks]
+    callbacks = list(builtin_callbacks)
+    enable_model_summary = trainer_kwargs.get("enable_model_summary")
+    if (enable_model_summary is None or enable_model_summary) and not any(
+        isinstance(callback, ModelSummary) for callback in user_callbacks
+    ):
+        callbacks.append(ModelSummary(max_depth=2))
+    return [*callbacks, *user_callbacks]
+
+
 class _FitMixin:
     # ---------------------------------------------------------------------------
     # Attributes provided by SklearnBase when this mixin is composed.
@@ -860,21 +885,10 @@ class _FitMixin:
         )
 
         # Merge any caller-supplied `callbacks=` (e.g. a custom LR logger, an
-        # Optuna pruning callback) with the built-in ones instead of colliding
-        # with them as a duplicate `pl.Trainer(callbacks=...)` keyword. A
-        # single Callback instance is accepted too, matching Lightning's own
-        # `callbacks` contract.
-        _user_callbacks = trainer_kwargs.pop("callbacks", None) or []
-        if isinstance(_user_callbacks, Callback):
-            _user_callbacks = [_user_callbacks]
+        # Optuna pruning callback) with the built-in ones.
         self._trainer = pl.Trainer(
             max_epochs=max_epochs,
-            callbacks=[
-                early_stop_callback,
-                checkpoint_callback,
-                ModelSummary(max_depth=2),
-                *_user_callbacks,
-            ],
+            callbacks=_build_trainer_callbacks([early_stop_callback, checkpoint_callback], trainer_kwargs),
             # Let an explicit `logger=` in trainer_kwargs override our default.
             logger=trainer_kwargs.pop(
                 "logger",
