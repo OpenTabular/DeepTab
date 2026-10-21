@@ -102,14 +102,15 @@ pushing apart rows that are far. Pairs are built from the labels: same-class row
 rest form negatives. It is most useful on **small or label-scarce datasets**,
 where good embeddings are hard to learn from the supervised signal alone.
 
-Only architectures with an embedding layer *and* a contextual encoder (a
-``mamba``, ``rnn``/``lstm`` or ``encoder`` block) support it: Mambular,
+Only architectures with an embedding layer *and* a contextualizing block
+(``mamba``, ``rnn``/``lstm`` or ``encoder``) support it: Mambular,
 MambAttention, FTTransformer, TabTransformer, SAINT and TabulaRNN. The
 high-level ``pretrain()`` raises ``ValueError`` for models without an embedding
 layer (for example MLP, ResNet, NODE, TabM) and for embedding models without a
-contextual encoder (AutoInt, ENODE). The low-level :func:`pretrain_embeddings`
+contextualizing block (AutoInt, ENODE). The low-level :func:`pretrain_embeddings`
 raises ``ArchitectureRequirementError`` when the backbone has no
-``embedding_layer``.
+``embedding_layer``, and the same ``ValueError`` as ``pretrain()`` when it has
+no contextualizing block.
 
 High-level API (recommended)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
