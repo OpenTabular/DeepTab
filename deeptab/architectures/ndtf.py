@@ -84,7 +84,8 @@ class NDTF(BaseModel):
         if input_dimensions is None:
             input_dimensions = [input_dim]
             for _ in range(self.hparams.n_ensembles - 1):
-                input_dimensions.append(np.random.randint(1, input_dim))
+                # A one-dimensional input has no smaller prefix to sample.
+                input_dimensions.append(np.random.randint(1, input_dim) if input_dim > 1 else 1)
         if depths is None:
             depths = [
                 np.random.randint(self.hparams.min_depth, self.hparams.max_depth)
