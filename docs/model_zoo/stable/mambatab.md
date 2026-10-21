@@ -41,7 +41,7 @@ The Mamba-related config fields (`d_state`, `d_conv`, `expand_factor`, `mamba_ve
 
 `mamba_version="mamba-torch"` (the default) selects DeepTab's local `Mamba` block; any other value selects `MambaOriginal`.
 
-DeepTab 2.0.x skipped the Mamba block in `forward`, so MambaTab results from those versions describe a projected-feature network rather than a state-space model. Report the DeepTab version with research comparisons.
+DeepTab releases before 2.1.0 (and the earlier `mambular` package) skipped the Mamba block in `forward`, so MambaTab results from those versions describe a projected-feature network rather than a state-space model. Report the DeepTab version with research comparisons.
 
 ## Practical Config
 
@@ -62,19 +62,22 @@ model = MambaTabRegressor(
 )
 ```
 
-Key settings in the current forward path:
+Key settings:
 
-| Setting                | Typical range              | Effect                                         |
-| ---------------------- | -------------------------- | ---------------------------------------------- |
-| `d_model`              | `32` to `128`              | Width of the projected representation.         |
-| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm.              |
-| `head_layer_sizes`     | `[]` to `[256, 128]`       | Extra MLPhead capacity.                        |
-| `head_dropout`         | `0.0` to `0.3`             | Head regularization.                           |
-| `axis`                 | `1` or `0`                 | Temporary unsqueeze axis before normalization. |
+| Setting                | Typical range              | Effect                                                                                                                                                                                          |
+| ---------------------- | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `d_model`              | `32` to `128`              | Width of the projected representation.                                                                                                                                                          |
+| `embedding_activation` | `Identity`, `ReLU`, `SiLU` | Activation after projection/norm.                                                                                                                                                               |
+| `n_layers`             | `1` to `4`                 | Number of stacked Mamba layers (default `1`).                                                                                                                                                   |
+| `d_state`              | `16` to `128`              | State size of each Mamba layer (default `128`).                                                                                                                                                 |
+| `expand_factor`        | `1` to `4`                 | Inner-width multiplier of each Mamba layer (default `2`).                                                                                                                                       |
+| `head_layer_sizes`     | `[]` to `[256, 128]`       | Extra MLPhead capacity.                                                                                                                                                                         |
+| `head_dropout`         | `0.0` to `0.3`             | Head regularization.                                                                                                                                                                            |
+| `axis`                 | `1` or `0`                 | Sequence layout for the Mamba block: `1` gives each row a length-one sequence; `0` scans the rows of a batch as one sequence, so a row's prediction depends on the rows before it in the batch. |
 
 ## When To Use
 
-Use MambaTab when you want a lightweight projection baseline from the Mamba-family API. Use Mambular for sequence modeling experiments where the Mamba block must be active.
+Use MambaTab when you want a compact Mamba baseline over one projected token per row. Use Mambular or MambAttention for sequence modeling over per-feature tokens.
 
 ## References
 
