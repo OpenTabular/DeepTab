@@ -5,7 +5,6 @@
 ![PyPI - Downloads](https://img.shields.io/pypi/dm/deeptab)
 [![Python](https://img.shields.io/pypi/pyversions/deeptab)](https://pypi.org/project/deeptab)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/OpenTabular/DeepTab/blob/main/LICENSE)
-[![docs build](https://readthedocs.org/projects/deeptab/badge/?version=latest)](https://deeptab.readthedocs.io/en/latest/?badge=latest)
 [![docs](https://img.shields.io/badge/docs-latest-blue)](https://deeptab.readthedocs.io/en/latest/)
 [![open issues](https://img.shields.io/badge/contributions-welcome-brightgreen.svg?style=flat)](https://github.com/OpenTabular/DeepTab/issues)
 
