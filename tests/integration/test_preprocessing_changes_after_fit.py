@@ -30,7 +30,7 @@ def _fitted(model_class, tmp_path, **fit_options):
 def test_save_after_set_params_keeps_the_fitted_preprocessor(model_class, fit_options, tmp_path):
     model, features = _fitted(model_class, tmp_path, **fit_options)
     expected = model.predict(features)
-    model.set_params(preprocessing_config__n_bins=10)
+    model.set_params(preprocessing_config__cat_cutoff=0.2)
     path = str(tmp_path / "model.deeptab")
     model.save(path)
     np.testing.assert_allclose(model_class.load(path).predict(features), expected, rtol=1e-6)
@@ -39,7 +39,7 @@ def test_save_after_set_params_keeps_the_fitted_preprocessor(model_class, fit_op
 @pytest.mark.parametrize("model_class, fit_options", [(MLPRegressor, {}), (MLPLSS, {"family": "normal"})])
 def test_continuation_after_set_params_uses_the_fitted_preprocessor(model_class, fit_options, tmp_path):
     model, features = _fitted(model_class, tmp_path, **fit_options)
-    model.set_params(preprocessing_config__n_bins=10)
+    model.set_params(preprocessing_config__cat_cutoff=0.2)
     model.fit(features, features[:, 0] * 2, rebuild=False, **fit_options, **FIT_KWARGS)
     assert model.is_fitted_
     assert np.isfinite(model.predict(features)).all()
