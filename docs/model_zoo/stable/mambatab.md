@@ -4,41 +4,44 @@
 
 ## Overview
 
-MambaTab is exposed as a stable Mamba-family model, but the current DeepTab forward path behaves as a lightweight projected-feature network: it concatenates input features, projects them to `d_model`, normalizes and activates the representation, then predicts with `MLPhead`.
+MambaTab is a compact Mamba-family model. It concatenates the input features into one vector, projects it to `d_model`, normalizes and activates it, runs the Mamba block over the resulting length-one sequence (or over the batch, see `axis` below), and predicts with `MLPhead`.
 
-Use it as a compact baseline in the current release. For an active Mamba sequence model over feature tokens, prefer [Mambular](mambular) or [MambAttention](mambattention).
+Because the whole row becomes a single token, MambaTab doesn't model interactions between feature tokens. For a Mamba sequence model over per-feature tokens, prefer [Mambular](mambular) or [MambAttention](mambattention).
 
 ## Architectural Details
 
-The current `MambaTab` forward path is:
+The `MambaTab` forward path is:
 
 1. Concatenate all input tensors.
 2. Apply `initial_layer` from input dimension to `d_model`.
-3. Temporarily unsqueeze along `axis`, apply `LayerNorm`, and apply `embedding_activation`.
-4. Squeeze back to a row representation.
-5. Predict with `MLPhead`.
+3. Unsqueeze along `axis`, apply `LayerNorm`, and apply `embedding_activation`.
+4. Apply the Mamba block (`self.mamba`).
+5. Squeeze back to a row representation.
+6. Predict with `MLPhead`.
 
 ```text
-features -> concat -> Linear(input_dim, d_model) -> LayerNorm -> activation -> MLPhead
+features -> concat -> Linear(input_dim, d_model) -> LayerNorm -> activation -> Mamba -> MLPhead
 ```
+
+With the default `axis=1`, each row is a sequence of length one. With `axis=0`, the batch dimension becomes the sequence axis, so the rows of a batch are scanned as one sequence.
 
 ## Main Building Blocks
 
-| Component     | DeepTab implementation                            | Role                                                                 |
-| ------------- | ------------------------------------------------- | -------------------------------------------------------------------- |
-| Input path    | `torch.cat(...)`                                  | Uses raw/preprocessed feature tensors directly.                      |
-| Projection    | `initial_layer`                                   | Maps input vector to `d_model`.                                      |
-| Normalization | `LayerNorm`                                       | Stabilizes projected representation.                                 |
-| Head          | `MLPhead`                                         | Produces predictions.                                                |
-| Mamba block   | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Instantiated in `__init__`, but not called in the current `forward`. |
+| Component     | DeepTab implementation                            | Role                                                     |
+| ------------- | ------------------------------------------------- | -------------------------------------------------------- |
+| Input path    | `torch.cat(...)`                                  | Uses raw/preprocessed feature tensors directly.          |
+| Projection    | `initial_layer`                                   | Maps input vector to `d_model`.                          |
+| Normalization | `LayerNorm`                                       | Stabilizes projected representation.                     |
+| Head          | `MLPhead`                                         | Produces predictions.                                    |
+| Mamba block   | `self.mamba = Mamba(...)` or `MambaOriginal(...)` | Applied to the projected representation before the head. |
 
 ## Implementation Notes
 
-The presence of Mamba-related config fields (`d_state`, `d_conv`, `expand_factor`, `mamba_version`, `bidirectional`) does not mean they affect the current forward pass. They configure the instantiated `self.mamba` module, but that module is not applied before the head.
+The Mamba-related config fields (`d_state`, `d_conv`, `expand_factor`, `mamba_version`, `bidirectional`) configure `self.mamba`, which `forward` applies before the head.
 
-`mamba_version="mamba-torch"` (the default) selects DeepTab's local `Mamba` block; any other value selects `MambaOriginal`. Either way, the chosen block is built in `__init__` but skipped by `forward`, so this setting has no effect in the current release.
+`mamba_version="mamba-torch"` (the default) selects DeepTab's local `Mamba` block; any other value selects `MambaOriginal`.
 
-This distinction matters for research comparisons: document the DeepTab version and verify the forward path if you report MambaTab as a state-space model.
+DeepTab 2.0.x skipped the Mamba block in `forward`, so MambaTab results from those versions describe a projected-feature network rather than a state-space model. Report the DeepTab version with research comparisons.
 
 ## Practical Config
 
