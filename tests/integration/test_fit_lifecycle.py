@@ -92,3 +92,33 @@ class TestFitAcceptsCustomCallbacks:
         cb = _RecordingCallback()
         reg.fit(X, y, random_state=RANDOM_STATE, callbacks=[cb], **FIT_KWARGS)
         assert reg._best_model_path, "ModelCheckpoint callback must still have produced a checkpoint"
+
+
+class TestBuildModelResetsFittedState:
+    """build_model() replaces the network with untrained weights, so the estimator
+    must not keep counting as fitted from an earlier fit()."""
+
+    def test_regressor_is_unfitted_after_rebuilding(self):
+        X, y = _make_reg_data()
+        reg = MLPRegressor().fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
+        assert reg.is_fitted_ is True
+
+        reg.build_model(X, y)
+        assert reg.is_fitted_ is False
+        with pytest.raises(NotFittedError):
+            reg.predict(X)
+
+        reg.fit(X, y, rebuild=False, **FIT_KWARGS)
+        assert reg.is_fitted_ is True
+
+    def test_lss_is_unfitted_after_rebuilding(self):
+        from deeptab.models import MLPLSS
+
+        X, y = _make_reg_data()
+        model = MLPLSS().fit(X, y, family="normal", random_state=RANDOM_STATE, **FIT_KWARGS)
+        assert model.is_fitted_ is True
+
+        model.build_model(X, y, family="normal")
+        assert model.is_fitted_ is False
+        with pytest.raises(NotFittedError):
+            model.predict(X)

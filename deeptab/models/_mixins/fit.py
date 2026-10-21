@@ -113,6 +113,10 @@ class _FitMixin:
         mode: str | None = None,
     ):
         """Builds the model using the provided training data."""
+        # The rebuilt network has untrained weights, so a previous fit() no
+        # longer describes this estimator until it is fitted again.
+        if getattr(self, "is_fitted_", False):
+            self.is_fitted_ = False
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
 

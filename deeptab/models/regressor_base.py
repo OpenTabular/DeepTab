@@ -92,7 +92,9 @@ class SklearnBaseRegressor(RegressorMixin, SklearnBase):
         Returns
         -------
         self : object
-            The built regressor.
+            The built regressor. Its weights are untrained, so the estimator
+            counts as unfitted (``is_fitted_`` is ``False``) until ``fit()``
+            completes.
         """
 
         return super()._build_model(

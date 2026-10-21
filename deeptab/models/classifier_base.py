@@ -193,7 +193,9 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         Returns
         -------
         self : object
-            The built classifier.
+            The built classifier. Its weights are untrained, so the estimator
+            counts as unfitted (``is_fitted_`` is ``False``) until ``fit()``
+            completes.
         """
 
         classes = np.unique(y)
