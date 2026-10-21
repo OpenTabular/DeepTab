@@ -210,13 +210,14 @@ work.
 
 ## Data layer renames
 
-The data classes were renamed to give the pipeline a clear, typed contract. The old
-`Mambular*` aliases are deprecated.
+The data classes were renamed to give the pipeline a clear, typed contract. The v1
+names were removed rather than deprecated: importing `MambularDataModule` or
+`MambularDataset` raises `ImportError`.
 
-| v1                              | v2                  |
-| ------------------------------- | ------------------- |
-| `Mambular*` data module aliases | `TabularDataModule` |
-| `Mambular*` dataset aliases     | `TabularDataset`    |
+| v1                                      | v2                               |
+| --------------------------------------- | -------------------------------- |
+| `deeptab.data_utils.MambularDataModule` | `deeptab.data.TabularDataModule` |
+| `deeptab.data_utils.MambularDataset`    | `deeptab.data.TabularDataset`    |
 
 v2 also adds `FeatureSchema`, an inspectable description of the columns a model
 expects, their order, and their types. You rarely build one by hand: DeepTab derives

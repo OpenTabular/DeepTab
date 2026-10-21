@@ -67,8 +67,9 @@ things changed that affect existing code:
 2. **Config classes** lost their `Default` prefix, so `DefaultMambularConfig` is now
    `MambularConfig`. Settings are also split across `MambularConfig` (architecture),
    `PreprocessingConfig` (feature handling), and `TrainerConfig` (optimisation).
-3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset`; the old
-   `Mambular*` aliases are deprecated.
+3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset` (in
+   `deeptab.data`); the v1 `MambularDataModule` and `MambularDataset` names were removed,
+   so importing them raises `ImportError`.
 
 If you need to stay on v1 for now, pin `deeptab<2.0`. Note that the v1 branch receives
 no bug fixes or security updates. See the [migration guide](getting_started/migration)
