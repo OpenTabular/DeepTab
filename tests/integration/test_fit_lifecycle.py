@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
 import numpy as np
@@ -98,16 +99,36 @@ def _summary_callbacks(model):
     return [callback for callback in model._trainer.callbacks if isinstance(callback, ModelSummary)]
 
 
+class _RecordingHandler(logging.Handler):
+    def __init__(self):
+        super().__init__()
+        self.messages: list[str] = []
+
+    def emit(self, record):
+        self.messages.append(record.getMessage())
+
+
+@pytest.fixture
+def summary_messages():
+    """Messages of the logger Lightning prints the summary table through (not stdout)."""
+    handler = _RecordingHandler()
+    summary_logger = logging.getLogger("lightning.pytorch.callbacks.model_summary")
+    summary_logger.addHandler(handler)
+    yield handler.messages
+    summary_logger.removeHandler(handler)
+
+
 @pytest.mark.parametrize(
     "model_class, extra", [(MLPRegressor, {}), (MLPLSS, {"family": "normal"})], ids=["regressor", "lss"]
 )
 class TestModelSummaryFollowsTrainerFlag:
-    def test_summary_is_added_by_default(self, model_class, extra):
+    def test_summary_is_added_by_default(self, model_class, extra, summary_messages):
         X, y = _make_reg_data()
         model = model_class().fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS, **extra)
         assert [callback._max_depth for callback in _summary_callbacks(model)] == [2]
+        assert any("Trainable params" in message for message in summary_messages)
 
-    def test_enable_model_summary_false_disables_summary(self, model_class, extra, capsys):
+    def test_enable_model_summary_false_disables_summary(self, model_class, extra, summary_messages):
         X, y = _make_reg_data()
         model = model_class().fit(
             X,
@@ -119,7 +140,7 @@ class TestModelSummaryFollowsTrainerFlag:
             **extra,
         )
         assert _summary_callbacks(model) == []
-        assert "Trainable params" not in capsys.readouterr().out
+        assert not any("Trainable params" in message for message in summary_messages)
 
     def test_user_summary_callback_replaces_builtin(self, model_class, extra):
         X, y = _make_reg_data()
