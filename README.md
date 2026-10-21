@@ -304,7 +304,7 @@ deeptab_runs/
     config.yaml       # estimator hyperparameters
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
-    checkpoints/best.ckpt
+    checkpoints/best_model.ckpt
   tensorboard/...
   mlflow/...
 ```
