@@ -1,5 +1,7 @@
 """Prepare tabular features, labels, and data loaders for Lightning workflows."""
 
+import math
+
 import lightning as pl
 import numpy as np
 import torch
@@ -88,7 +90,8 @@ class TabularDataModule(pl.LightningDataModule):
         Additional keyword arguments forwarded to PyTorch ``DataLoader``,
         such as ``num_workers`` or ``pin_memory``. ``drop_last`` applies only
         to training; validation, test, and prediction retain partial batches.
-        Without ``drop_last``, a single-row trailing training batch is dropped.
+        When ``drop_last`` is not given, a single-row trailing training batch
+        is dropped; pass ``drop_last=False`` to keep it.
 
     Notes
     -----
@@ -572,11 +575,16 @@ class TabularDataModule(pl.LightningDataModule):
         loader options come from ``dataloader_kwargs``. Unless ``drop_last`` is
         set there, a trailing batch that would contain a single row is dropped:
         layers that need batch statistics in training mode, such as
-        ``BatchNorm1d``, cannot train on one row.
+        ``BatchNorm1d``, cannot train on one row. Under distributed training the
+        check uses the rows each process receives.
         """
         if hasattr(self, "train_dataset"):
             loader_kwargs = dict(self.dataloader_kwargs)
             n_rows = len(self.train_dataset)
+            world_size = getattr(self.trainer, "world_size", 1)
+            if world_size > 1:
+                # Lightning's distributed sampler gives every process ceil(n / world_size) rows.
+                n_rows = math.ceil(n_rows / world_size)
             batch_size = self.batch_size
             # Invalid batch sizes are left for DataLoader to reject with its own error.
             valid_batch_size = isinstance(batch_size, int) and batch_size > 0

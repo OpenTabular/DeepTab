@@ -1,5 +1,6 @@
 """Tests for datamodule."""
 
+from types import SimpleNamespace
 from typing import Any
 
 import numpy as np
@@ -52,6 +53,19 @@ def test_single_row_trailing_training_batch_is_dropped(train_rows, loader_option
     batch_sizes = [len(batch[1]) for batch in datamodule.train_dataloader()]
     assert sum(batch_sizes) == expected_rows
     assert datamodule.dataloader_kwargs == loader_options
+
+
+@pytest.mark.parametrize(
+    "train_rows, drop_last",
+    [(66, True), (33, False)],
+    ids=["one-row-tail-per-process", "one-row-tail-overall-only"],
+)
+def test_single_row_tail_check_uses_rows_per_process(train_rows, drop_last, monkeypatch):
+    """With two processes, each one receives ceil(train_rows / 2) rows from the distributed sampler."""
+    datamodule = TabularDataModule(preprocessor=None, batch_size=32, shuffle=False, regression=True)
+    datamodule.train_dataset = TabularDataset([], [torch.arange(train_rows).unsqueeze(1)], [], torch.arange(train_rows))
+    monkeypatch.setattr(datamodule, "trainer", SimpleNamespace(world_size=2))
+    assert datamodule.train_dataloader().drop_last is drop_last
 
 
 @pytest.fixture
