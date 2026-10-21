@@ -166,9 +166,10 @@ pooling), use :class:`ContrastivePretrainer` directly.
 
 .. note::
 
-   Pairs are formed **within each batch**. For classification, a batch must
-   contain at least two classes; pretraining raises a ``ValueError`` if any
-   sample has no same-class or no different-class neighbor. Use a batch size
+   Pairs are formed **within each batch**. For classification, a sample acts as
+   an anchor only when its batch holds at least one same-class and one
+   different-class neighbor; other samples are skipped, and pretraining raises a
+   ``ValueError`` only when no sample in a batch qualifies. Use a batch size
    large enough to cover the classes, or a stratified sampler.
 
 See Also
