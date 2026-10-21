@@ -370,9 +370,18 @@ def build_structlog_logger(config: ObservabilityConfig, run_dir: str | None = No
                     return int(o)
                 if isinstance(o, _np.floating):
                     return float(o)
+                if isinstance(o, _np.bool_):
+                    return bool(o)
+                if isinstance(o, _np.ndarray):
+                    return o.tolist()
             except ImportError:
                 pass
-            return super().default(o)
+            if isinstance(o, os.PathLike):
+                return os.fspath(o)
+            # Logging an event must never make the operation that emitted it
+            # fail, so any other value is recorded by its string form, as in
+            # write_run_summary() and write_run_config().
+            return str(o)
 
     # -----------------------------------------------------------------------
     # File handle — opened once per run, line-buffered
