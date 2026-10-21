@@ -33,16 +33,20 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
       input used.
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
-    - Columns where every value is NaN are filled with a constant (0 for numeric
-      columns, a sentinel category for object columns) and issue a
-      :class:`~deeptab.core.exceptions.DataWarning`.
+    - For training data (``context="fit"``), columns where every value is NaN are
+      filled with a constant (0 for numeric columns, a sentinel category for object
+      columns) and issue a :class:`~deeptab.core.exceptions.DataWarning`. Validation
+      and prediction inputs keep their NaN values so the imputer fitted on the
+      training data fills them; a single-row prediction with a missing value would
+      otherwise count as an all-NaN column.
 
     Parameters
     ----------
     X:
         Input data.  Converted to :class:`pandas.DataFrame` if necessary.
     context:
-        Name of the calling method (used in error messages).
+        Name of the calling method (used in error messages). Only ``"fit"``
+        applies the all-NaN column fill.
     """
     # Reject 1-D input early: sklearn convention requires 2-D feature arrays.
     _arr = np.asarray(X) if not isinstance(X, pd.DataFrame | pd.Series) else X
@@ -102,7 +106,7 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     # them with a constant here rather than leaving it to PreTab's own imputer, which
     # cannot compute a mean/median from zero observed values and simply drops the
     # column instead.
-    all_nan_cols = [c for c in df.columns if bool(df[c].isna().all())]
+    all_nan_cols = [c for c in df.columns if bool(df[c].isna().all())] if context == "fit" else []
     if all_nan_cols:
         df = df.copy()
         for c in all_nan_cols:
