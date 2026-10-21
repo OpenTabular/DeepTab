@@ -75,8 +75,8 @@ from deeptab.models import MambularClassifier
 # TrainerConfig accidentally passed where the model config belongs
 MambularClassifier(model_config=TrainerConfig())
 # ConfigWarning: TrainerConfig was passed as 'model_config', but 'model_config'
-# expects a BaseModelConfig. Configs are not reordered for you, and fit() cannot
-# use it in this slot. Pass it as its matching argument instead.
+# expects a BaseModelConfig. Configs are not reordered for you, so fit() cannot
+# use this one in 'model_config'. Pass it as its matching argument instead.
 ```
 
 ```{warning}

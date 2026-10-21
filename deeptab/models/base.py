@@ -65,7 +65,7 @@ def _warn_on_misplaced_configs(model_config, preprocessing_config, trainer_confi
             warn_config(
                 f"{type(value).__name__} was passed as '{slot_name}', but '{slot_name}' "
                 f"expects a {expected_cls.__name__}. Configs are not reordered for you, "
-                f"and fit() cannot use it in this slot. Pass it as its matching "
+                f"so fit() cannot use this one in '{slot_name}'. Pass it as its matching "
                 f"argument instead.",
                 stacklevel=4,
             )
