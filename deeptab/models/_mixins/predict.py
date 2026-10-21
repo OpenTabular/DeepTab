@@ -28,8 +28,8 @@ class _PredictMixin:
       the input columns match those seen during ``fit``.
     * ``encode`` — returns dense embedding vectors from the model backbone
       for a given input DataFrame.
-    * ``_score`` — internal helper used by ``optimize_hparams`` to evaluate
-      validation loss with the best checkpoint loaded.
+    * ``_score`` — internal helper behind the regressors' ``score()``; it
+      applies a metric to the ``predict`` output of the current model.
     """
 
     if TYPE_CHECKING:
