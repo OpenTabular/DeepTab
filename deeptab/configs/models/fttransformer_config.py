@@ -48,7 +48,8 @@ class FTTransformerConfig(BaseModelConfig):
     head_use_batch_norm : bool, default=False
         Whether to use batch normalization in the head layers.
     pooling_method : str, default='avg'
-        Pooling method to be used ('cls', 'avg', etc.).
+        Pooling method to be used: 'avg', 'max', 'sum', 'last', 'cls', 'learned_flatten',
+        'attention', 'gated', 'rnn' or 'conv'.
     use_cls : bool, default=False
         Whether to use a CLS token for pooling.
     """
