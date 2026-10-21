@@ -494,6 +494,9 @@ Use `runtime_info()` in benchmark notebooks and experiment logs. It records the 
 DeepTab implements `get_params` and `set_params`, including nested config parameters:
 
 ```python
+from deeptab.configs import MambularConfig, TrainerConfig
+
+model = MambularClassifier(model_config=MambularConfig(), trainer_config=TrainerConfig())
 model.get_params()
 
 model.set_params(
@@ -501,6 +504,10 @@ model.set_params(
     trainer_config__lr=3e-4,
 )
 ```
+
+Nested `<config>__<field>` keys need an estimator constructed with config
+objects. A default-constructed estimator stores `None` for every config, so
+there they raise `ValueError`.
 
 This enables `GridSearchCV`:
 
