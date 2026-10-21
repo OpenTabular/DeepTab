@@ -194,9 +194,12 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         -------
         self : object
             The built classifier. Its weights are untrained, so the estimator
-            counts as unfitted (``is_fitted_`` is ``False``) until ``fit()``
-            completes.
+            counts as unfitted (``predict()`` raises ``NotFittedError``) until
+            ``fit()`` completes.
         """
+        # Forget the previous fit before classes_ changes, so that a build that
+        # fails below doesn't leave a fitted-looking estimator behind.
+        self._mark_unfitted()
 
         classes = np.unique(y)
         num_classes = len(classes)

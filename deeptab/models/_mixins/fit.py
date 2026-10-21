@@ -85,6 +85,12 @@ class _FitMixin:
     # Model construction
     # ------------------------------------------------------------------
 
+    def _mark_unfitted(self) -> None:
+        """Forget a previous ``fit()``: its fitted flag and its best checkpoint."""
+        if getattr(self, "is_fitted_", False):
+            self.is_fitted_ = False
+        self._best_model_path = None
+
     def _build_model(
         self,
         X,
@@ -115,8 +121,7 @@ class _FitMixin:
         """Builds the model using the provided training data."""
         # The rebuilt network has untrained weights, so a previous fit() no
         # longer describes this estimator until it is fitted again.
-        if getattr(self, "is_fitted_", False):
-            self.is_fitted_ = False
+        self._mark_unfitted()
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
 
