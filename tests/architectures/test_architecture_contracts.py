@@ -376,8 +376,10 @@ def test_model_defines_key_attributes(model_class):
         (1, [(16, 8)]),
         (2, [(16, 8), (8, 4)]),
         (3, [(16, 8), (8, 4), (4, 4)]),
+        (4, [(16, 8), (8, 4), (4, 4), (4, 4)]),
         (5, [(16, 8), (8, 4), (4, 4), (4, 4), (4, 4)]),
     ],
+    ids=["0-blocks", "1-block", "2-blocks", "3-blocks", "4-blocks", "5-blocks"],
 )
 def test_resnet_blocks_follow_layer_sizes_for_any_num_blocks(num_blocks, expected_widths):
     model_class = next(model_class for model_class in model_classes if model_class.__name__ == "ResNet")
