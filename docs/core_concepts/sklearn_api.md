@@ -495,6 +495,7 @@ DeepTab implements `get_params` and `set_params`, including nested config parame
 
 ```python
 from deeptab.configs import MambularConfig, TrainerConfig
+from deeptab.models import MambularClassifier
 
 model = MambularClassifier(model_config=MambularConfig(), trainer_config=TrainerConfig())
 model.get_params()
@@ -506,10 +507,10 @@ model.set_params(
 ```
 
 Nested `<config>__<field>` keys need an estimator constructed with config
-objects. A default-constructed estimator stores `None` for every config, so
-there they raise `ValueError`.
+objects, as above. On a default-constructed estimator, which stores `None` for
+every config, they raise `ValueError`.
 
-This enables `GridSearchCV`:
+The same nested keys work in `GridSearchCV`:
 
 ```python
 from sklearn.model_selection import GridSearchCV
