@@ -844,10 +844,11 @@ class SklearnBaseLSS(SklearnBase):
         Returns
         -------
         estimator
-            A fully reconstructed, ready-to-predict estimator. Exposes
-            ``artifact_metadata_``, ``architecture_metadata_``,
-            ``feature_schema_``, ``input_columns_``, ``task_info_``,
-            ``classes_``, and ``versions_`` attributes after loading.
+            A fully reconstructed, ready-to-predict estimator of the same type
+            that was saved. Exposes ``artifact_metadata_``,
+            ``architecture_metadata_``, ``feature_schema_``, ``input_columns_``,
+            ``task_info_``, ``classes_``, and ``versions_`` attributes after
+            loading.
 
         Raises
         ------
@@ -875,7 +876,9 @@ class SklearnBaseLSS(SklearnBase):
         _warn_extension(path)
         map_location = resolve_inference_accelerator(device)[2]
         bundle = torch.load(path, weights_only=False, map_location=map_location)
-        return cls._load_from_bundle(bundle, device=device, path=path)
+        # Rebuild with the saved class's own loader, whichever class load() is
+        # called on: an LSS artifact needs the LSS reconstruction and vice versa.
+        return bundle.get("_class", cls)._load_from_bundle(bundle, device=device, path=path)
 
     @classmethod
     def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
