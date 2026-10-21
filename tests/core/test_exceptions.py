@@ -1122,6 +1122,25 @@ class TestEnsureDataframe:
             result = ensure_dataframe(df)
         assert (result["all_nan"] == "missing").all()
 
+    @pytest.mark.parametrize("context", ["predict", "validation"])
+    def test_all_nan_column_is_left_to_fitted_imputer_outside_fit(self, context):
+        import warnings
+
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0],
+                "num": [np.nan],
+                "cat": pd.Series([None], dtype="object"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DataWarning)
+            result = ensure_dataframe(df, context=context)
+        assert bool(result["num"].isna().all())
+        assert bool(result["cat"].isna().all())
+
     def test_duplicate_columns_raise_duplicate_columns_error(self):
         from deeptab.core.sklearn_compat import ensure_dataframe
 
