@@ -175,17 +175,27 @@ Configs can be deep-copied with ``sklearn.base.clone``:
 Sharing and versioning configs
 -------------------------------
 
-Because configs are plain dataclasses they serialise trivially:
+Model configs hold ``nn.Module`` activations (``activation``,
+``embedding_activation``, …), so ``dataclasses.asdict`` output is not
+JSON-serialisable. Serialise the plain-valued fields; the module-valued fields
+restore to their defaults:
 
 .. code-block:: python
 
-    import dataclasses, json
+    import json
+
+    import torch.nn as nn
 
     cfg = MLPConfig(d_model=128, dropout=0.1)
-    # serialise
-    blob = json.dumps(dataclasses.asdict(cfg))
+    # serialise the plain-valued fields
+    blob = json.dumps({k: v for k, v in cfg.get_params().items() if not isinstance(v, nn.Module)})
     # restore
     cfg2 = MLPConfig(**json.loads(blob))
+
+``TrainerConfig`` and ``PreprocessingConfig`` hold only plain values, so
+``json.dumps(dataclasses.asdict(cfg))`` round-trips them unchanged. Use
+``sklearn.base.clone`` or ``pickle`` for an exact copy of a model config that
+includes the activations.
 
 ----
 
