@@ -154,7 +154,7 @@ Valid fields:
 
 | Field                                           | Purpose                                                                                                                                                                                        |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform.                                 |
+| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. `None` keeps the default (`"ple"`); `"none"` disables it.     |
 | `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
 | `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                           |
 | `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
@@ -233,22 +233,22 @@ To see which representations PreTab supports before choosing `numerical_method` 
 
 ### Running with no numerical preprocessing
 
-Set `numerical_method=None` (and `categorical_method=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
+Set `numerical_method="none"` to skip the scaling, binning and PLE transforms and feed near-raw numerical values to the network. Leaving `numerical_method` at `None` does not do this: `None` keeps PreTab's default representation, which is PLE.
 
 ```python
 prep = PreprocessingConfig(
-    numerical_method=None,    # no scaling, binning, or PLE on numeric columns
+    numerical_method="none",  # no scaling, binning, or PLE on numeric columns
     categorical_method=None,  # leave categorical encoding at its default
 )
 model = MambularClassifier(preprocessing_config=prep)
 ```
 
 ```{important}
-`None` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
+`"none"` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
 ```
 
 ```{warning}
-Don't confuse Python `None` above with the string `"none"`, which PreTab also accepts as a literal representation name for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
+Don't confuse the string `"none"` above with Python `None`, which means "use the default" for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
 ```
 
 ```{note}
