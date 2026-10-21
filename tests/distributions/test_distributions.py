@@ -288,6 +288,20 @@ class TestTweedieDistribution:
         for key in ("NLL", "mse", "mae", "rmse", "tweedie_deviance"):
             assert key in metrics
 
+    @pytest.mark.parametrize("p", [1.5, 1.9])
+    def test_evaluate_nll_deviance_matches_sklearn_with_zero_targets(self, p):
+        import numpy as np
+        from sklearn.metrics import mean_tweedie_deviance
+
+        from deeptab.distributions import TweedieDistribution
+
+        family = TweedieDistribution(p=p)
+        raw = self.torch.tensor([[-0.5], [0.3], [1.8], [-0.1]])
+        targets = np.array([0.0, 0.0, 3.0, 1.0])
+        means = family(raw)[:, 0].detach().numpy()
+        deviance = float(family.evaluate_nll(targets, raw.numpy())["tweedie_deviance"])
+        assert deviance == pytest.approx(mean_tweedie_deviance(targets, means, power=p), rel=1e-5)
+
     @pytest.mark.parametrize("p", [1.1, 1.5, 1.9])
     def test_various_p_values(self, p):
         from deeptab.distributions import TweedieDistribution
