@@ -112,6 +112,12 @@ returns lowercase strings. Lookups are case insensitive, so
 `optimizer_type="AdamW"` and `optimizer_type="adamw"` resolve to the same class.
 ```
 
+`lbfgs`, `rprop`, and `sparseadam` have no `weight_decay` argument. DeepTab
+builds them without one and emits a `ConfigWarning` when `weight_decay` is not
+zero, so set `weight_decay=0.0` in `TrainerConfig` when you select them.
+`sparseadam` additionally needs sparse gradients, which DeepTab's dense models
+do not produce.
+
 ### Using AdamW instead of the default Adam
 
 Pass `optimizer_type` to `TrainerConfig`. Any additional optimizer constructor

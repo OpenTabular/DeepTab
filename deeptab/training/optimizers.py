@@ -7,6 +7,7 @@ and :func:`unregister_optimizer` (extension points), and
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import torch
@@ -422,6 +423,17 @@ def build_parameter_groups(
     return groups
 
 
+def _accepts_weight_decay(cls: type) -> bool:
+    """Return ``True`` when the optimizer constructor accepts a ``weight_decay`` argument."""
+    try:
+        parameters = inspect.signature(cls).parameters
+    except (TypeError, ValueError):  # pragma: no cover - signature not introspectable
+        return True
+    return "weight_decay" in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()
+    )
+
+
 def build_optimizer(
     module_or_params: Any,
     *,
@@ -529,6 +541,19 @@ def build_optimizer(
     """
     cls = get_optimizer(optimizer_type)
     extra: dict[str, Any] = optimizer_kwargs or {}
+
+    if not _accepts_weight_decay(cls):
+        # e.g. LBFGS, Rprop and SparseAdam: passing weight_decay would raise a TypeError.
+        if weight_decay:
+            from deeptab.core.exceptions import warn_config
+
+            warn_config(
+                f"{cls.__name__} has no weight_decay option, so weight_decay={weight_decay} is ignored. "
+                "Set weight_decay=0 to silence this warning.",
+                stacklevel=3,
+            )
+        raw_params = module_or_params.parameters() if isinstance(module_or_params, nn.Module) else module_or_params
+        return cls(raw_params, lr=lr, **extra)  # type: ignore[call-arg]
 
     has_no_decay_markers = isinstance(module_or_params, nn.Module) and any(
         getattr(p, "_no_weight_decay", False) for p in module_or_params.parameters()
