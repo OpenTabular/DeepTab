@@ -100,3 +100,42 @@ def test_configure_observability_post_construction(monkeypatch):
     assert clf._event_logger is None
     clf.configure_observability(ObservabilityConfig(structured_logging=True))
     assert clf._event_logger is not None
+
+
+@pytest.mark.parametrize(
+    "model_cls, fit_options", [(MLPRegressor, {}), (MLPLSS, {"family": "normal"})], ids=["regressor", "lss"]
+)
+def test_point_and_lss_estimators_write_the_same_run_artifacts(model_cls, fit_options, tmp_path):
+    pytest.importorskip("tensorboard")
+    observability = ObservabilityConfig(
+        root_dir=str(tmp_path), experiment_name="parity", experiment_trackers=["tensorboard"]
+    )
+    model = model_cls(observability_config=observability, random_state=42)
+    rng = np.random.default_rng(42)
+    features = rng.standard_normal((60, 4))
+    targets = features[:, 0] + rng.normal(scale=0.1, size=60)
+    model.fit(
+        features, targets, max_epochs=1, batch_size=16, accelerator="cpu", enable_progress_bar=False, **fit_options
+    )
+
+    run_dir = Path(model._run_dir)
+    assert run_dir.parent == tmp_path / "runs" / "parity"
+    assert (run_dir / "config.yaml").is_file()
+    assert (run_dir / "summary.json").is_file()
+    assert Path(model._best_model_path) == run_dir / "checkpoints" / "best_model.ckpt"
+    assert list((tmp_path / "tensorboard" / "parity").rglob("events.out.tfevents.*"))
+
+
+def test_lss_fit_without_trackers_writes_no_lightning_logs(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    features = np.random.default_rng(0).standard_normal((60, 4))
+    MLPLSS().fit(
+        features,
+        features[:, 0],
+        family="normal",
+        max_epochs=1,
+        accelerator="cpu",
+        enable_progress_bar=False,
+        checkpoint_path=str(tmp_path / "checkpoints"),
+    )
+    assert not (tmp_path / "lightning_logs").exists()

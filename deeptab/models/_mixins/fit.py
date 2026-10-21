@@ -187,20 +187,7 @@ class _FitMixin:
             val_size=val_size,
             random_state=random_state,
         )
-        _dm = self._data_module
-        _n_train = len(_dm.y_train) if getattr(_dm, "y_train", None) is not None else None  # type: ignore[union-attr]
-        _n_val = len(_dm.y_val) if getattr(_dm, "y_val", None) is not None else None  # type: ignore[union-attr]
-        _n_num = len(_dm.num_feature_info) if getattr(_dm, "num_feature_info", None) is not None else None  # type: ignore[union-attr]
-        _n_cat = len(_dm.cat_feature_info) if getattr(_dm, "cat_feature_info", None) is not None else None  # type: ignore[union-attr]
-        self._emit_event(
-            "data.created",
-            n_train=_n_train,
-            n_val=_n_val,
-            n_num_features=_n_num,
-            n_cat_features=_n_cat,
-            val_size=val_size,
-            duration_min=round((time.monotonic() - _t_data) / 60, 4),
-        )
+        self._emit_data_created(val_size=val_size, started=_t_data)
 
         _t_model = time.monotonic()
         # After the first build, self._estimator holds the model *instance*
@@ -241,17 +228,42 @@ class _FitMixin:
         self._built = True
         self._is_pretrained = False
         self._estimator = self._task_model.estimator
-        _n_params_build = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)
+        self._emit_model_created(started=_t_model)
+
+        return self
+
+    def _feature_group_counts(self) -> tuple[int | None, int | None]:
+        """Return the numbers of numerical and categorical features of the data module."""
+        dm = self._data_module
+        n_num = len(dm.num_feature_info) if getattr(dm, "num_feature_info", None) is not None else None  # type: ignore[union-attr]
+        n_cat = len(dm.cat_feature_info) if getattr(dm, "cat_feature_info", None) is not None else None  # type: ignore[union-attr]
+        return n_num, n_cat
+
+    def _emit_data_created(self, val_size: Any, started: float) -> None:
+        """Emit the ``data.created`` lifecycle event for the freshly prepared data module."""
+        dm = self._data_module
+        n_num, n_cat = self._feature_group_counts()
+        self._emit_event(
+            "data.created",
+            n_train=len(dm.y_train) if getattr(dm, "y_train", None) is not None else None,  # type: ignore[union-attr]
+            n_val=len(dm.y_val) if getattr(dm, "y_val", None) is not None else None,  # type: ignore[union-attr]
+            n_num_features=n_num,
+            n_cat_features=n_cat,
+            val_size=val_size,
+            duration_min=round((time.monotonic() - started) / 60, 4),
+        )
+
+    def _emit_model_created(self, started: float) -> None:
+        """Emit the ``model.created`` lifecycle event for the freshly built task model."""
+        n_num, n_cat = self._feature_group_counts()
         self._emit_event(
             "model.created",
             backbone=type(self._estimator).__name__,
-            n_params=_n_params_build,
-            n_num_features=_n_num,
-            n_cat_features=_n_cat,
-            duration_min=round((time.monotonic() - _t_model) / 60, 4),
+            n_params=sum(p.numel() for p in self._task_model.parameters() if p.requires_grad),  # type: ignore[union-attr]
+            n_num_features=n_num,
+            n_cat_features=n_cat,
+            duration_min=round((time.monotonic() - started) / 60, 4),
         )
-
-        return self
 
     def get_number_of_params(self, requires_grad=True):
         """Calculate the number of parameters in the model.
@@ -726,45 +738,7 @@ class _FitMixin:
 
             set_seed(random_state)
 
-        # Generate a short unique run id for this fit() call so that
-        # concurrent/repeated runs are distinguishable in the event log.
-        self._run_id = uuid.uuid4().hex[:8]
-        self._fit_start_ms = time.monotonic()
-
-        # ---------------------------------------------------------------
-        # Per-run output directory
-        # Create a run directory whenever an ObservabilityConfig is present
-        # so that ModelCheckpoint always writes into <run_dir>/checkpoints/
-        # instead of the fallback global 'model_checkpoints/' directory.
-        # ---------------------------------------------------------------
-        _obs_config = getattr(self, "_observability_config", None)
-        _run_dir_name: str | None = None
-        self._run_dir = None
-        if _obs_config is not None:
-            from deeptab.core.observability import create_run_dir, write_run_config
-
-            self._run_dir, _run_dir_name = create_run_dir(_obs_config, self._run_id)
-            # Write config.yaml to the run directory.
-            try:
-                write_run_config(self._run_dir, self.get_params())  # type: ignore[attr-defined]
-            except Exception:  # noqa: S110
-                pass
-            # (Re-)build the per-run structured logger so lifecycle.jsonl
-            # lands inside this run's directory.
-            if _obs_config.structured_logging:
-                from deeptab.core.observability import build_structlog_logger
-
-                self._event_logger = build_structlog_logger(_obs_config, run_dir=self._run_dir)
-
-        self._emit_event(
-            "fit.started",
-            model_class=type(self).__name__,
-            n_samples=len(X),
-            n_features=(
-                X.shape[1] if hasattr(X, "shape") else (len(X.columns) if hasattr(X, "columns") else len(X[0]))
-            ),
-            random_state=getattr(self, "random_state", None),
-        )
+        _run_dir_name = self._start_fit_run(X)
 
         if rebuild is None:
             rebuild = not self._is_pretrained
@@ -835,27 +809,12 @@ class _FitMixin:
             check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
-        # An explicit checkpoint_path always wins and is used as-is. Otherwise,
-        # prefer the observability run directory when one exists; failing that,
-        # isolate each run under its own unique sub-directory of the default
-        # checkpoint_path (rather than writing directly into it) so that
-        # parametrized/back-to-back fits across different estimator classes
-        # never collide on the same "best_model" filename.
-        if _checkpoint_path_explicit:
-            _checkpoint_dir = checkpoint_path
-        elif self._run_dir:
-            _checkpoint_dir = os.path.join(self._run_dir, "checkpoints")
-        else:
-            from deeptab.core.observability import timestamped_run_label
-
-            _checkpoint_dir = os.path.join(checkpoint_path, timestamped_run_label(self._run_id))
-
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
             save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
-            dirpath=_checkpoint_dir,
+            dirpath=self._checkpoint_dir(checkpoint_path, explicit=_checkpoint_path_explicit),
             filename="best_model",
         )
 
@@ -897,14 +856,8 @@ class _FitMixin:
             self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
 
         _t_train = time.monotonic()
-        self._emit_event(
-            "train.started",
-            max_epochs=max_epochs,
-            batch_size=batch_size,
-            lr=lr,
-            optimizer=getattr(self.trainer_config, "optimizer_type", None) if self.trainer_config is not None else None,
-            patience=patience,
-            val_size=val_size,
+        self._emit_train_started(
+            max_epochs=max_epochs, batch_size=batch_size, lr=lr, patience=patience, val_size=val_size
         )
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
@@ -918,16 +871,109 @@ class _FitMixin:
             # to come from the checkpoint payload itself rather than its name.
             _best_epoch = checkpoint.get("epoch")
 
+        self._finish_fit_run(X, checkpoint_callback, best_epoch=_best_epoch, train_started=_t_train)
+        return self
+
+    def _start_fit_run(self, X: Any) -> str | None:
+        """Start the run of one ``fit()`` call and emit ``fit.started``.
+
+        Assigns a fresh run id and, when an ``ObservabilityConfig`` is attached,
+        creates the per-run directory, writes ``config.yaml`` into it and
+        (re-)builds the structured event logger so ``lifecycle.jsonl`` lands in
+        that directory.
+
+        Returns
+        -------
+        str or None
+            The run-directory name used to group tracker output, or ``None``
+            when no ``ObservabilityConfig`` is attached.
+        """
+        # Generate a short unique run id for this fit() call so that
+        # concurrent/repeated runs are distinguishable in the event log.
+        self._run_id = uuid.uuid4().hex[:8]
+        self._fit_start_ms = time.monotonic()
+
+        # Create a run directory whenever an ObservabilityConfig is present
+        # so that ModelCheckpoint always writes into <run_dir>/checkpoints/
+        # instead of the fallback global 'model_checkpoints/' directory.
+        _obs_config = getattr(self, "_observability_config", None)
+        _run_dir_name: str | None = None
+        self._run_dir = None
+        if _obs_config is not None:
+            from deeptab.core.observability import create_run_dir, write_run_config
+
+            self._run_dir, _run_dir_name = create_run_dir(_obs_config, self._run_id)
+            # Write config.yaml to the run directory.
+            try:
+                write_run_config(self._run_dir, self.get_params())  # type: ignore[attr-defined]
+            except Exception:  # noqa: S110
+                pass
+            # (Re-)build the per-run structured logger so lifecycle.jsonl
+            # lands inside this run's directory.
+            if _obs_config.structured_logging:
+                from deeptab.core.observability import build_structlog_logger
+
+                self._event_logger = build_structlog_logger(_obs_config, run_dir=self._run_dir)
+
+        self._emit_event(
+            "fit.started",
+            model_class=type(self).__name__,
+            n_samples=len(X),
+            n_features=(
+                X.shape[1] if hasattr(X, "shape") else (len(X.columns) if hasattr(X, "columns") else len(X[0]))
+            ),
+            random_state=getattr(self, "random_state", None),
+        )
+        return _run_dir_name
+
+    def _checkpoint_dir(self, checkpoint_path: str, explicit: bool) -> str:
+        """Return the directory ``ModelCheckpoint`` writes this run's best model to.
+
+        An explicit checkpoint_path always wins and is used as-is. Otherwise,
+        prefer the observability run directory when one exists; failing that,
+        isolate each run under its own unique sub-directory of the default
+        checkpoint_path (rather than writing directly into it) so that
+        parametrized/back-to-back fits across different estimator classes
+        never collide on the same "best_model" filename.
+        """
+        if explicit:
+            return checkpoint_path
+        if self._run_dir:
+            return os.path.join(self._run_dir, "checkpoints")
+        from deeptab.core.observability import timestamped_run_label
+
+        return os.path.join(checkpoint_path, timestamped_run_label(self._run_id))
+
+    def _emit_train_started(self, *, max_epochs: Any, batch_size: Any, lr: Any, patience: Any, val_size: Any) -> None:
+        """Emit the ``train.started`` lifecycle event right before ``Trainer.fit``."""
+        self._emit_event(
+            "train.started",
+            max_epochs=max_epochs,
+            batch_size=batch_size,
+            lr=lr,
+            optimizer=getattr(self.trainer_config, "optimizer_type", None) if self.trainer_config is not None else None,
+            patience=patience,
+            val_size=val_size,
+        )
+
+    def _finish_fit_run(
+        self, X: Any, checkpoint_callback: ModelCheckpoint, best_epoch: int | None, train_started: float
+    ) -> None:
+        """Complete a successful fit: lifecycle events, ``summary.json`` and MLflow metadata.
+
+        Marks the estimator as fitted. Called once the best checkpoint has been
+        restored into the task model.
+        """
         _best_val_loss = (
             checkpoint_callback.best_model_score.item() if checkpoint_callback.best_model_score is not None else None
         )
         _n_params = sum(p.numel() for p in self._task_model.parameters() if p.requires_grad)  # type: ignore[union-attr]
         self._emit_event(
             "train.completed",
-            best_epoch=_best_epoch,
+            best_epoch=best_epoch,
             best_val_loss=_best_val_loss,
             n_epochs_run=getattr(self._trainer, "current_epoch", None),
-            duration_min=round((time.monotonic() - _t_train) / 60, 4),
+            duration_min=round((time.monotonic() - train_started) / 60, 4),
         )
 
         _total_duration_min = round((time.monotonic() - self._fit_start_ms) / 60, 4)
@@ -945,7 +991,7 @@ class _FitMixin:
                     "n_params": _n_params,
                     "n_samples": len(X) if hasattr(X, "__len__") else None,
                     "best_val_loss": _best_val_loss,
-                    "best_epoch": _best_epoch,
+                    "best_epoch": best_epoch,
                     "n_epochs_run": getattr(self._trainer, "current_epoch", None),
                     "duration_min": _total_duration_min,
                 },
@@ -959,7 +1005,7 @@ class _FitMixin:
             n_val=getattr(getattr(self, "_data_module", None), "y_val", None),
             n_params=_n_params,
             best_val_loss=_best_val_loss,
-            best_epoch=_best_epoch,
+            best_epoch=best_epoch,
         )
         self._emit_event(
             "fit.completed",
@@ -969,7 +1015,6 @@ class _FitMixin:
             best_val_loss=_best_val_loss,
             duration_min=_total_duration_min,
         )
-        return self
 
     def _log_run_metadata_to_mlflow(
         self,

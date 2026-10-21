@@ -1,5 +1,4 @@
-import os
-import uuid
+import time
 import warnings
 from collections.abc import Callable
 from copy import deepcopy
@@ -202,7 +201,10 @@ class SklearnBaseLSS(SklearnBase):
         )
         self._data_module.input_columns_ = self.input_columns_
 
+        _t_data = time.monotonic()
         self._data_module.preprocess_data(X, y, X_val, y_val, val_size=val_size, random_state=random_state)
+        self._emit_data_created(val_size=val_size, started=_t_data)
+        _t_model = time.monotonic()
 
         # After the first build, self._estimator holds the model *instance*
         # (assigned below). Resolve back to the class so repeated builds
@@ -247,6 +249,7 @@ class SklearnBaseLSS(SklearnBase):
 
         self._built = True
         self._estimator = self._task_model.estimator
+        self._emit_model_created(started=_t_model)
 
         return self
 
@@ -473,6 +476,7 @@ class SklearnBaseLSS(SklearnBase):
 
         self._configure_distribution(y, family, distributional_kwargs, allow_change=rebuild)
         self.is_fitted_ = False
+        _run_dir_name = self._start_fit_run(X)
 
         if rebuild:
             self.build_model(
@@ -506,6 +510,16 @@ class SklearnBaseLSS(SklearnBase):
                 mode=mode,
             )
 
+        # Attach the experiment-tracker loggers of the ObservabilityConfig (or
+        # no logger at all, so Lightning writes no stray lightning_logs/),
+        # unless the caller passed `logger=` explicitly.
+        if "logger" not in trainer_kwargs:
+            from deeptab.models._mixins.fit import _build_trainer_loggers
+
+            trainer_kwargs["logger"] = _build_trainer_loggers(
+                getattr(self, "_observability_config", None), _run_dir_name
+            )
+
         early_stop_callback = EarlyStopping(
             monitor=monitor,
             min_delta=0.00,
@@ -515,21 +529,12 @@ class SklearnBaseLSS(SklearnBase):
             check_on_train_epoch_end=True if monitor.startswith("train_") else None,
         )
 
-        # An explicit checkpoint_path is used as-is. Otherwise, isolate each run
-        # under its own unique, timestamped sub-directory of the default
-        # checkpoint_path (rather than writing directly into it) so that
-        # parametrized/back-to-back fits across different estimator classes
-        # never collide on the same "best_model" filename.
-        from deeptab.core.observability import timestamped_run_label
-
         checkpoint_callback = ModelCheckpoint(
             monitor=monitor,
             mode=mode,
             save_on_train_epoch_end=True if monitor.startswith("train_") else None,
             save_top_k=1,
-            dirpath=checkpoint_path
-            if _checkpoint_path_explicit
-            else os.path.join(checkpoint_path, timestamped_run_label(uuid.uuid4().hex[:8])),
+            dirpath=self._checkpoint_dir(checkpoint_path, explicit=_checkpoint_path_explicit),
             filename="best_model",
         )
 
@@ -566,15 +571,21 @@ class SklearnBaseLSS(SklearnBase):
             _warmup_feats, _ = next(iter(self._data_module.train_dataloader()))  # type: ignore[union-attr]
             self._task_model.estimator(*_warmup_feats)  # type: ignore[union-attr]
 
+        _t_train = time.monotonic()
+        self._emit_train_started(
+            max_epochs=max_epochs, batch_size=batch_size, lr=lr, patience=patience, val_size=val_size
+        )
         self._trainer.fit(self._task_model, self._data_module)  # type: ignore
 
         self._best_model_path = checkpoint_callback.best_model_path
+        _best_epoch: int | None = None
         if self._best_model_path:
             torch.serialization.add_safe_globals([type(self.config)])
             checkpoint = torch.load(self._best_model_path, weights_only=False)
             self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
+            _best_epoch = checkpoint.get("epoch")
 
-        self.is_fitted_ = True
+        self._finish_fit_run(X, checkpoint_callback, best_epoch=_best_epoch, train_started=_t_train)
         return self
 
     def predict(self, X, raw=False, device=None):
