@@ -65,6 +65,18 @@ class TestSetSeedPrimitives:
         with pytest.raises(ValueError, match="non-negative integer"):
             set_seed(-1)
 
+    @pytest.mark.parametrize("seed", [np.int64(SEED), np.uint32(SEED), np.int32(SEED)])
+    def test_numpy_integer_seed_matches_python_int(self, seed):
+        set_seed(SEED)
+        expected = torch.randn(5)
+        set_seed(seed)
+        torch.testing.assert_close(torch.randn(5), expected)
+
+    @pytest.mark.parametrize("seed", [1.0, "7", np.float64(7.0)])
+    def test_non_integer_seed_is_still_rejected(self, seed):
+        with pytest.raises(ValueError, match="non-negative integer"):
+            set_seed(seed)
+
 
 class TestSeedContext:
     """seed_context is a functional equivalent of set_seed used as a 'with' block."""
@@ -92,3 +104,19 @@ _has_mps = hasattr(torch, "mps") and hasattr(torch.backends, "mps") and torch.ba
 _skip_no_cuda = pytest.mark.skipif(not _has_cuda, reason="CUDA not available on this host")
 
 _skip_no_mps = pytest.mark.skipif(not _has_mps, reason="MPS not available on this host")
+
+
+def test_estimator_accepts_numpy_integer_random_state():
+    import pandas as pd
+
+    from deeptab.configs import TrainerConfig
+    from deeptab.models import MLPRegressor
+
+    features = pd.DataFrame({"a": np.linspace(-1.0, 1.0, 64), "b": np.linspace(1.0, -1.0, 64)})
+    targets = features["a"].to_numpy()
+    fit_kwargs: dict[str, Any] = {"accelerator": "cpu", "logger": False, "enable_progress_bar": False}
+    predictions = []
+    for seed in (np.int64(SEED), SEED):
+        model = MLPRegressor(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=seed)
+        predictions.append(model.fit(features, targets, **fit_kwargs).predict(features))
+    np.testing.assert_array_equal(predictions[0], predictions[1])

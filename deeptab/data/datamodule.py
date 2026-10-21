@@ -127,7 +127,8 @@ class TabularDataModule(pl.LightningDataModule):
         self._initial_X_val = X_val
         self._initial_y_val = y_val
         self.val_size = val_size
-        self.random_state = random_state
+        # torch.Generator.manual_seed() only accepts Python ints, not NumPy integers.
+        self.random_state = None if random_state is None else int(random_state)
         self.regression = regression
         self.num_classes = None
         self.stratify = stratify
