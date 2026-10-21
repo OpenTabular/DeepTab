@@ -192,9 +192,10 @@ restore to their defaults:
     # restore
     cfg2 = MLPConfig(**json.loads(blob))
 
-``TrainerConfig`` and ``PreprocessingConfig`` hold only plain values and
-round-trip directly. Use ``sklearn.base.clone`` or ``pickle`` for an exact copy
-that includes the activations.
+``TrainerConfig`` and ``PreprocessingConfig`` hold only plain values, so
+``json.dumps(dataclasses.asdict(cfg))`` round-trips them unchanged. Use
+``sklearn.base.clone`` or ``pickle`` for an exact copy of a model config that
+includes the activations.
 
 ----
 
