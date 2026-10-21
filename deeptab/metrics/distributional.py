@@ -153,9 +153,9 @@ class NegativeLogLikelihood(DeepTabMetric):
 
         y_true_t = torch.tensor(np.asarray(y_true, dtype=np.float32))
         if y_true_t.ndim == 2 and y_true_t.shape[1] == 1:
-            # Column-vector targets, as passed by the training loop and by
-            # evaluate(), would otherwise broadcast against the batch of
-            # distributions into an (N, N) grid of log-probabilities.
+            # Column-vector targets, as passed by the training loop, would
+            # otherwise broadcast against the batch of distributions into an
+            # (N, N) grid of log-probabilities.
             y_true_t = y_true_t.squeeze(1)
         y_pred_t = torch.tensor(np.asarray(y_pred, dtype=np.float32))
         with torch.no_grad():
