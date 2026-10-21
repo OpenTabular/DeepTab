@@ -105,7 +105,7 @@ class ObservabilityConfig:
         ``<root_dir>/tensorboard`` when empty.
     tensorboard_name : str, default="deeptab"
         Reserved; currently unused. TensorBoard event files go to
-        ``<tensorboard_save_dir>/<experiment_name>/<run_dir_name>/``.
+        ``<tensorboard_save_dir>/<experiment_name>/<YYYYMMDD_HHMMSS>_<run_id>/``.
     mlflow_experiment_name : str, default="deeptab"
         Name of the MLflow experiment.
     mlflow_tracking_uri : str, default=""
