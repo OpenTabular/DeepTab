@@ -200,14 +200,14 @@ class MyEmbeddedModel(BaseModel):
         self.save_hyperparameters(ignore=["feature_information"])
 
         self.embedding_layer = EmbeddingLayer(*feature_information, config=config)
-        n_features = sum(len(info) for info in feature_information)
-        input_dim = n_features * self.hparams.d_model
+        # n_tokens counts every token the layer returns, including a CLS token if enabled.
+        input_dim = self.embedding_layer.n_tokens * self.hparams.d_model
 
         self.head = nn.Linear(input_dim, num_classes)
 
     def forward(self, *data):
-        x = self.embedding_layer(*data)   # (batch, n_features, d_model)
-        x = x.reshape(x.shape[0], -1)     # flatten to (batch, n_features * d_model)
+        x = self.embedding_layer(*data)   # (batch, n_tokens, d_model)
+        x = x.reshape(x.shape[0], -1)     # flatten to (batch, n_tokens * d_model)
         return self.head(x)
 ```
 

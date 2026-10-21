@@ -639,8 +639,19 @@ class EmbeddingLayer(nn.Module):
         cat_feature_info : dict
             Dictionary where keys are categorical feature names and values are the number of categories
             for each feature.
+        emb_feature_info : dict
+            Dictionary where keys are external embedding feature names and values describe their
+            dimensions.
         config : Config
             Configuration object containing all required settings.
+
+        Attributes
+        ----------
+        seq_len : int
+            Number of feature tokens: one per numerical, categorical and external embedding feature.
+        n_tokens : int
+            Length of the token sequence returned by :meth:`forward`: ``seq_len``, plus one when
+            ``use_cls`` adds a CLS token.
         """
         super().__init__()
 
