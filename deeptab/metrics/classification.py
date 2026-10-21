@@ -199,10 +199,12 @@ class AUPRC(DeepTabMetric):
 class LogLoss(DeepTabMetric):
     """Cross-Entropy / Log Loss -- delegates to :func:`sklearn.metrics.log_loss`.
 
-    For a 2-D probability matrix and integer class indices, the classes are
-    taken from the matrix columns ``0..K-1``, so the score is defined even when
-    ``y_true`` does not contain every class (e.g. a small or imbalanced
-    evaluation set).
+    For a 2-D probability matrix and integer class indices ``0..K-1`` (the
+    column order of ``predict_proba()``), the classes are taken from the matrix
+    columns, so the score is defined even when ``y_true`` does not contain every
+    class (e.g. a small or imbalanced evaluation set). Other labels, such as
+    strings or integers outside ``0..K-1``, are passed to scikit-learn, which
+    infers the classes from ``y_true``.
     """
 
     name = "log_loss"
@@ -213,7 +215,14 @@ class LogLoss(DeepTabMetric):
         y_true = np.asarray(y_true).ravel()
         y_pred = np.asarray(y_pred)
         labels = None
-        if y_pred.ndim == 2 and y_pred.shape[1] > 1 and np.issubdtype(y_true.dtype, np.integer):
+        if (
+            y_pred.ndim == 2
+            and y_pred.shape[1] > 1
+            and np.issubdtype(y_true.dtype, np.integer)
+            and y_true.size > 0
+            and y_true.min() >= 0
+            and y_true.max() < y_pred.shape[1]
+        ):
             labels = np.arange(y_pred.shape[1])
         return float(_log_loss(y_true, y_pred, labels=labels))
 

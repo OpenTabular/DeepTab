@@ -200,7 +200,31 @@ class TestLogLossWithMissingClasses:
         targets = np.array([0, 0, 0])
         assert LogLoss()(targets, probabilities) == pytest.approx(log_loss(targets, probabilities, labels=[0, 1]))
 
-    def test_evaluate_and_validation_metrics_on_data_without_one_class(self):
+    def test_labels_outside_the_column_indices_are_inferred_by_sklearn(self):
+        from sklearn.metrics import log_loss
+
+        probabilities = np.array([[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.2, 0.2, 0.6]])
+        targets = np.array([1, 2, 3])
+        assert LogLoss()(targets, probabilities) == pytest.approx(log_loss(targets, probabilities))
+
+    def test_evaluate_with_labels_other_than_column_indices(self, tmp_path):
+        import pandas as pd
+        from sklearn.metrics import log_loss
+
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        rng = np.random.default_rng(0)
+        features = pd.DataFrame({"a": rng.normal(size=90), "b": rng.normal(size=90)})
+        targets = np.tile([1, 2, 3], 30)
+        model = MLPClassifier(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=0)
+        model.fit(
+            features, targets, checkpoint_path=str(tmp_path), accelerator="cpu", logger=False, enable_progress_bar=False
+        )
+        expected = log_loss(targets, model.predict_proba(features), labels=model.classes_)
+        assert model.evaluate(features, targets, metrics={"log_loss": LogLoss()})["log_loss"] == pytest.approx(expected)
+
+    def test_evaluate_and_validation_metrics_on_data_without_one_class(self, tmp_path):
         import pandas as pd
 
         from deeptab.configs import TrainerConfig
@@ -217,6 +241,7 @@ class TestLogLossWithMissingClasses:
             X_val=features[60:][without_class_two[60:]],
             y_val=targets[60:][without_class_two[60:]],
             val_metrics={"log_loss": LogLoss()},
+            checkpoint_path=str(tmp_path),
             accelerator="cpu",
             logger=False,
             enable_progress_bar=False,
