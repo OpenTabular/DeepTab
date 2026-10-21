@@ -207,9 +207,10 @@ def _lognormal_crps(y: np.ndarray, loc: np.ndarray, scale: np.ndarray) -> np.nda
 class CRPS(DeepTabMetric):
     """Continuous Ranked Probability Score (CRPS) for univariate distributions.
 
-    Uses vectorised Gaussian ``properscoring`` routines for supported
-    parameter layouts when available. Otherwise returns a mean absolute
-    error fallback without estimating predictive spread from observed targets.
+    Uses the closed-form log-normal CRPS for ``lognormal`` and, when
+    available, vectorised Gaussian ``properscoring`` routines for the other
+    supported parameter layouts. Otherwise returns a mean absolute error
+    fallback without estimating predictive spread from observed targets.
 
     Expected ``y_pred`` format (2-D array, columns are distribution parameters):
 
