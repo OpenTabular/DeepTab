@@ -28,6 +28,24 @@ from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
+def _same_family_options(options: dict, stored: dict) -> bool:
+    """Compare family options, treating NumPy arrays (e.g. quantile levels) by value.
+
+    A plain ``options != stored`` raises for array values, because NumPy cannot
+    turn an element-wise comparison into a single truth value.
+    """
+    if options.keys() != stored.keys():
+        return False
+    for key, value in options.items():
+        other = stored[key]
+        if isinstance(value, np.ndarray) or isinstance(other, np.ndarray):
+            if not np.array_equal(value, other):
+                return False
+        elif value != other:
+            return False
+    return True
+
+
 class SklearnBaseLSS(SklearnBase):
     """Distributional regression base class (LSS variant of SklearnBase).
 
@@ -59,7 +77,9 @@ class SklearnBaseLSS(SklearnBase):
                 raise ValueError("Dirichlet num_classes must match the number of target components")
             options["num_classes"] = count
         if not allow_change:
-            if family != getattr(self, "family_name", None) or options != getattr(self, "distributional_kwargs_", {}):
+            if family != getattr(self, "family_name", None) or not _same_family_options(
+                options, getattr(self, "distributional_kwargs_", {})
+            ):
                 raise ValueError("Changing the distribution family or options requires rebuild=True")
             return
         self.family = get_distribution(family, **options)

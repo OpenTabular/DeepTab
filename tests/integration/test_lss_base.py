@@ -532,6 +532,31 @@ def test_reused_build_rejects_changed_options_without_mutating_family():
     assert model.family_name == "normal"
 
 
+def test_reused_build_accepts_numpy_array_options():
+    model = _small_lss()
+    quantiles = np.array([0.1, 0.5, 0.9])
+    model.build_model(_X[:24], _Y[:24], family="quantile", distributional_kwargs={"quantiles": quantiles})
+    model.fit(_X[:24], _Y[:24], family="quantile", rebuild=False)
+    model.fit(_X[:24], _Y[:24], family="quantile", distributional_kwargs={"quantiles": [0.1, 0.5, 0.9]}, rebuild=False)
+    assert model.is_fitted_
+    assert model.predict(_X[:4]).shape == (4, 3)
+
+
+def test_reused_build_rejects_different_numpy_array_options():
+    model = _small_lss()
+    model.build_model(
+        _X[:24], _Y[:24], family="quantile", distributional_kwargs={"quantiles": np.array([0.1, 0.5, 0.9])}
+    )
+    with pytest.raises(ValueError, match="requires rebuild=True"):
+        model.fit(
+            _X[:24],
+            _Y[:24],
+            family="quantile",
+            distributional_kwargs={"quantiles": np.array([0.2, 0.5, 0.8])},
+            rebuild=False,
+        )
+
+
 def test_legacy_lss_bundle_loads_without_distributional_kwargs(tmp_path, fitted_mlplss):
     path = str(tmp_path / "legacy.deeptab")
     fitted_mlplss.save(path)
