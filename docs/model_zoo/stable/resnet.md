@@ -25,16 +25,16 @@ features -> optional embeddings -> initial Linear -> ResidualBlock x num_blocks 
 
 ## Main Building Blocks
 
-| Component            | DeepTab implementation                    | Role                                        |
-| -------------------- | ----------------------------------------- | ------------------------------------------- |
-| Input representation | Raw concatenation or `EmbeddingLayer`     | Converts heterogeneous columns to a tensor. |
-| Initial projection   | `nn.Linear(input_dim, layer_sizes[0])`    | Sets hidden width.                          |
-| Residual body        | `ResidualBlock`                           | Learns transformations with skip paths.     |
-| Output layer         | `nn.Linear(layer_sizes[-1], num_classes)` | Produces task outputs.                      |
+| Component            | DeepTab implementation                            | Role                                        |
+| -------------------- | ------------------------------------------------- | ------------------------------------------- |
+| Input representation | Raw concatenation or `EmbeddingLayer`             | Converts heterogeneous columns to a tensor. |
+| Initial projection   | `nn.Linear(input_dim, layer_sizes[0])`            | Sets hidden width.                          |
+| Residual body        | `ResidualBlock`                                   | Learns transformations with skip paths.     |
+| Output layer         | `nn.Linear(width of the last block, num_classes)` | Produces task outputs.                      |
 
 ## Implementation Notes
 
-`num_blocks` controls how many residual blocks are instantiated. Each block uses `layer_sizes[i]` as input width and `layer_sizes[i + 1]` when available, otherwise the last width is reused. Keep `num_blocks` aligned with the length of `layer_sizes`; if `num_blocks` exceeds the number of transitions, later blocks stay at the final width.
+`num_blocks` controls how many residual blocks are instantiated. Block `i` maps `layer_sizes[i]` to `layer_sizes[i + 1]`. If `num_blocks` exceeds the number of transitions, later blocks stay at the final width; with fewer blocks, the output layer reads the width of the last block.
 
 ## Practical Config
 
