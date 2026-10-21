@@ -9,8 +9,9 @@ exposes three attributes the framework reads automatically:
 
 * **``higher_is_better``** -- ``True`` when a *larger* value is better
   (accuracy, AUROC, R2, log-score), ``False`` when a *smaller* value is
-  better (MSE, MAE, NLL, deviances).  The training loop and HPO use this
-  to set the optimisation direction automatically.
+  better (MSE, MAE, NLL, CRPS, deviances).  This is descriptive metadata:
+  HPO always minimises ``val_loss``, and early stopping and checkpointing
+  follow ``monitor`` and ``mode``.
 
 * **``needs_raw``** -- ``False`` (default) means the metric receives
   *already-transformed* distribution parameters from
