@@ -208,8 +208,12 @@ class TabularDataModule(pl.LightningDataModule):
         if not self.regression:
             self.num_classes = len(np.unique(y_train))
 
+        train_positions = None
         if X_val is None:
-            split_data = [X_train, y_train]
+            # Row positions are split alongside the data so that per-row sampling
+            # weights can be aligned with the training partition exactly, even
+            # when random_state is None and a second split would differ.
+            split_data = [X_train, y_train, np.arange(len(y_train))]
 
             # Stratify classification splits on the labels when enabled; a
             # continuous regression target cannot be stratified.
@@ -226,11 +230,11 @@ class TabularDataModule(pl.LightningDataModule):
                     *split_data, test_size=val_size, random_state=random_state, stratify=stratify
                 )
 
-                self.X_train, self.X_val, self.y_train, self.y_val = split_result[:4]
-                self.embeddings_train = split_result[4::2]
-                self.embeddings_val = split_result[5::2]
+                self.X_train, self.X_val, self.y_train, self.y_val, train_positions = split_result[:5]
+                self.embeddings_train = split_result[6::2]
+                self.embeddings_val = split_result[7::2]
             else:
-                self.X_train, self.X_val, self.y_train, self.y_val = train_test_split(
+                self.X_train, self.X_val, self.y_train, self.y_val, train_positions, _ = train_test_split(
                     *split_data, test_size=val_size, random_state=random_state, stratify=stratify
                 )
                 self.embeddings_train = None
@@ -257,9 +261,7 @@ class TabularDataModule(pl.LightningDataModule):
 
         # Align explicit per-row sampling weights with the (possibly auto-split) train set.
         self._train_sample_weights = self._resolve_train_sample_weights(
-            y_train if X_val is None else None,
-            val_size=val_size,
-            random_state=random_state,
+            train_positions, n_rows=len(y_train) if X_val is None else None
         )
 
         # Update feature info based on the actual processed data.
@@ -273,18 +275,19 @@ class TabularDataModule(pl.LightningDataModule):
             self.embedding_feature_info,
         ) = self.preprocessor.get_feature_info(verbose=False)
 
-    def _resolve_train_sample_weights(self, y_full, val_size, random_state):
+    def _resolve_train_sample_weights(self, train_positions, n_rows):
         """Align explicit sampling weights with the training partition.
 
         Parameters
         ----------
-        y_full : array-like or None
-            Targets before an automatic split. ``None`` indicates an explicit
-            validation set, so weights already correspond to training rows.
-        val_size : float
-            Validation fraction used when splitting the original targets.
-        random_state : int or None
-            Seed used for the feature and target split.
+        train_positions : numpy.ndarray or None
+            Positions of the training rows within the data passed to
+            :meth:`preprocess_data`, as produced by the automatic split.
+            ``None`` indicates an explicit validation set, so weights already
+            correspond to training rows.
+        n_rows : int or None
+            Number of rows before the automatic split, or ``None`` with an
+            explicit validation set.
 
         Returns
         -------
@@ -303,7 +306,7 @@ class TabularDataModule(pl.LightningDataModule):
             return None
 
         weights = np.asarray(sampler, dtype=np.float64)
-        if y_full is None:
+        if train_positions is None:
             # Explicit validation set was provided -> no split, weights map 1:1 onto X_train.
             if len(weights) != len(self.y_train):  # type: ignore[arg-type]
                 raise ValueError(
@@ -311,12 +314,9 @@ class TabularDataModule(pl.LightningDataModule):
                 )
             return weights
 
-        if len(weights) != len(y_full):
-            raise ValueError(f"sample_weight has length {len(weights)} but X has {len(y_full)} rows.")
-        # Same random_state + stratify + test_size reproduce the X/y partition exactly.
-        stratify = y_full if (self.stratify and not self.regression) else None
-        train_weights, _ = train_test_split(weights, test_size=val_size, random_state=random_state, stratify=stratify)
-        return train_weights
+        if len(weights) != n_rows:
+            raise ValueError(f"sample_weight has length {len(weights)} but X has {n_rows} rows.")
+        return weights[train_positions]
 
     def setup(self, stage: str):
         """Transform training and validation data into tensor-backed datasets.
