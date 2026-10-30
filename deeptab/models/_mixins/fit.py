@@ -156,7 +156,7 @@ class _FitMixin:
         if hasattr(y, "values"):
             y = y.values
         if X_val is not None:
-            X_val = ensure_dataframe(X_val)
+            X_val = ensure_dataframe(X_val, context="validation")
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
