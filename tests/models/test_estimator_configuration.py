@@ -144,6 +144,32 @@ class TestEstimatorSetParams:
         model.set_params(preprocessing_config__numerical_preprocessing="quantile")
         assert model.preprocessing_config.numerical_preprocessing == "quantile"
 
+    def test_set_params_nested_preprocessing_config_reaches_fit(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[8]),
+            preprocessing_config=PreprocessingConfig(numerical_method="ple", output_dim=5),
+            trainer_config=_FAST_TRAINER,
+            random_state=0,
+        )
+        model.set_params(preprocessing_config__numerical_method="quantile", preprocessing_config__output_dim=3)
+        assert model._preprocessor_kwargs["numerical_method"] == "quantile"
+        assert model._preprocessor_kwargs["output_dim"] == 3
+
+        model.fit(X_reg, y_reg, accelerator="cpu", logger=False, enable_progress_bar=False)
+        feature_info = model._data_module.num_feature_info
+        assert all(info["preprocessing"].endswith("quantile") for info in feature_info.values())
+
+    def test_preprocessing_config_attribute_mutation_reaches_fit(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[8]),
+            preprocessing_config=PreprocessingConfig(numerical_method="ple", output_dim=5),
+            trainer_config=_FAST_TRAINER,
+            random_state=0,
+        )
+        model.preprocessing_config.output_dim = 3
+        model.fit(X_reg, y_reg, accelerator="cpu", logger=False, enable_progress_bar=False)
+        assert all(info["dimension"] == 3 for info in model._data_module.num_feature_info.values())
+
     def test_set_params_replace_whole_config(self):
         model = MLPClassifier(
             model_config=MLPConfig(),
