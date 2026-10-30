@@ -106,10 +106,18 @@ def _validate_target_array(y, *, name: str, regression: bool, family: str | None
             raise invalid_data_error(str(error), "supply discrete classification labels.") from error
     if family is not None and numeric is not None:
         family_lower = family.lower()
-        if family_lower in {"poisson", "negativebinom"} and (numeric < 0).any():
+        # Count families evaluate a Poisson/negative-binomial log-probability,
+        # whose support is the non-negative integers.
+        if family_lower in {"poisson", "negativebinom", "zip"} and (
+            (numeric < 0).any() or (numeric != np.floor(numeric)).any()
+        ):
+            raise target_range_error(family, "non-negative integer")
+        if family_lower == "tweedie" and (numeric < 0).any():
             raise target_range_error(family, "non-negative")
         if family_lower in {"gamma", "inversegamma", "lognormal"} and (numeric <= 0).any():
             raise target_range_error(family, "strictly positive")
+        if family_lower == "beta" and ((numeric <= 0) | (numeric >= 1)).any():
+            raise target_range_error(family, "unit-interval (0 < y < 1)")
     return targets
 
 
