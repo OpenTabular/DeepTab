@@ -803,3 +803,22 @@ class TestDataLoaderGeneratorSeeding:
         sampler = dm._build_train_sampler()
         assert isinstance(sampler, WeightedRandomSampler)
         assert sampler.generator is None
+
+
+@pytest.mark.parametrize(
+    "columns, expected",
+    [
+        (["a", "b", "c"], ["a", "b", "c"]),
+        ([0, 1, 2], [0, 1, 2]),
+        ([1, 2, 3], [0, 1, 2]),
+        ([2, 0, 1], [0, 1, 2]),
+        (["a", 0, "c"], [0, 1, 2]),
+    ],
+)
+def test_positional_columns_relabels_only_non_positional_integer_labels(columns, expected):
+    from deeptab.data.datamodule import _positional_columns
+
+    frame = pd.DataFrame(np.arange(6).reshape(2, 3), columns=columns)
+    result = _positional_columns(frame)
+    assert list(result.columns) == expected
+    np.testing.assert_array_equal(result.to_numpy(), frame.to_numpy())

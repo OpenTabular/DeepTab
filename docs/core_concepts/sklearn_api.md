@@ -100,6 +100,10 @@ X = np.random.randn(1000, 10)
 
 For mixed numerical/categorical data, DataFrames are strongly preferred.
 
+A DataFrame whose column labels are not all strings, for example the integer
+labels of `pd.read_csv(path, header=None)`, is treated like an array: its
+columns are used by position, and `feature_names_in_` is not set.
+
 Targets are required and must be finite. Classifiers require discrete labels;
 point regressors accept one numeric target column. Distributional models retain
 their task-specific target dimensions, including Dirichlet component columns.
