@@ -28,9 +28,12 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
     - ``category`` columns are silently cast to ``object`` so they are detected and
       preprocessed as categorical features (the underlying categories are kept).
-    - Python ``None`` in object columns is silently replaced with ``np.nan`` so
-      missing values are recognized consistently regardless of which sentinel the
-      input used.
+    - pandas ``string`` columns (e.g. from ``DataFrame.convert_dtypes()``) are
+      silently cast to ``object``, since scikit-learn's imputer cannot handle the
+      ``pd.NA`` missing-value marker they use.
+    - Python ``None`` and ``pd.NA`` in object columns are silently replaced with
+      ``np.nan`` so missing values are recognized consistently regardless of which
+      sentinel the input used.
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
     - For training data (``context="fit"``), columns where every value is NaN are
@@ -81,6 +84,13 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
         if not bool_cols:
             df = df.copy()
         df = df.astype(dict.fromkeys(cat_cols, "object"))
+
+    # string → object: pandas "string" columns mark missing values with pd.NA,
+    # which SimpleImputer cannot compare. As object columns, the None → NaN step
+    # below normalizes their missing values like any other categorical column.
+    string_cols = [c for c, dt in df.dtypes.items() if isinstance(dt, pd.StringDtype)]
+    if string_cols:
+        df = df.astype(dict.fromkeys(string_cols, "object"))
 
     # None → NaN: object columns may mix Python's None and np.nan as missing-value
     # markers. SimpleImputer only recognizes np.nan by default, so a stray None

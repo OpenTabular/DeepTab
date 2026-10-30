@@ -63,7 +63,7 @@ By default DeepTab lets Lightning auto-select the best available accelerator, bu
 DeepTab automatically handles:
 
 - **Numerical**: `int`, `float` dtypes
-- **Categorical**: `object`, `category`, `bool` dtypes
+- **Categorical**: `object`, pandas `string` (for example from `DataFrame.convert_dtypes()`), `category`, `bool` dtypes
 - **Embeddings**: Pass pre-computed embeddings via the `embeddings` parameter of `fit()`
 
 ### How do I handle missing values?
