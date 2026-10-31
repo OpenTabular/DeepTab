@@ -40,7 +40,7 @@ Start with **TabM**, **MLP**, or **ResNet** when building a baseline suite. Thes
 
 Use **FTTransformer** when you want a standard feature-token Transformer that embeds both numerical and categorical columns. Use **TabTransformer** when categorical interactions are central; DeepTab's implementation requires categorical features and concatenates normalized numerical features after the categorical Transformer.
 
-Use **Mambular** or **MambAttention** when you want to evaluate state-space sequence modeling over feature tokens. Use **MambaTab** mainly as a lightweight projected-feature baseline in the current implementation; the model object defines a Mamba block, but the current forward path does not apply it.
+Use **Mambular** or **MambAttention** when you want to evaluate state-space sequence modeling over feature tokens. Use **MambaTab** as a compact Mamba baseline: it applies a Mamba block to a single projected token per row, so it doesn't model interactions between feature tokens.
 
 Use **TabR** when train-set neighbors are expected to carry useful local signal and you can afford candidate retrieval. Use **NODE**, **ENODE**, or **NDTF** when you want differentiable tree/forest inductive bias inside a neural training loop.
 

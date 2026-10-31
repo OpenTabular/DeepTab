@@ -288,8 +288,9 @@ from deeptab.models import MambularClassifier
 
 obs = ObservabilityConfig(
     experiment_name="churn_baseline",
-    structured_logging=True,          # human-readable console + JSON event log
-    experiment_trackers=["mlflow"],   # also supports "tensorboard"
+    structured_logging=True,                       # human-readable lifecycle events on the console
+    log_to_file=True,                              # also write them to lifecycle.jsonl per run
+    experiment_trackers=["mlflow", "tensorboard"],
 )
 
 model = MambularClassifier(observability_config=obs)
@@ -304,7 +305,7 @@ deeptab_runs/
     config.yaml       # estimator hyperparameters
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
-    checkpoints/best.ckpt
+    checkpoints/best_model.ckpt
   tensorboard/...
   mlflow/...
 ```

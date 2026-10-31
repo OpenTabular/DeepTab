@@ -577,7 +577,7 @@ deeptab_runs/
     config.yaml       # estimator hyperparameters, including the focal loss
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
-    checkpoints/best.ckpt
+    checkpoints/best_model.ckpt
   tensorboard/imbalance_focal_sampler/...
 ```
 

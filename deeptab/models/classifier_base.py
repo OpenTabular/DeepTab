@@ -771,7 +771,8 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         -----
         - This function requires that `self.build_model()` has been called beforehand.
         - The pretraining method uses `self.task_model.estimator.embedding_layer`.
-        - The method invokes `super()._pretrain()` with regression mode enabled.
+        - The method invokes `super()._pretrain()` with regression mode disabled, so class labels
+          define the positive and negative pairs.
 
         """
         if not self._built:
