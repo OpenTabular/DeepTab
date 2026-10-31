@@ -440,7 +440,10 @@ class NegativeBinomialDeviance(DeepTabMetric):
     Expected ``y_pred``: 2-D array where column 0 is the predicted mean ``mu``
     and column 1 (optional) is the overdispersion parameter ``alpha``.  If
     only one column is present, ``alpha`` falls back to the ``default_alpha``
-    constructor argument.
+    constructor argument. As in
+    :class:`~deeptab.distributions.NegativeBinomialDistribution`, ``alpha`` is
+    the dispersion, so the variance is ``mu + alpha * mu**2`` and the size
+    parameter is ``r = 1 / alpha``.
 
     Parameters
     ----------
@@ -462,11 +465,10 @@ class NegativeBinomialDeviance(DeepTabMetric):
         if y_pred.ndim == 2 and y_pred.shape[1] >= 2:
             alpha = np.clip(y_pred[:, 1], 1e-9, None)
         else:
-            alpha = self.default_alpha
+            alpha = max(float(self.default_alpha), 1e-9)
+        size = 1.0 / alpha
         log_ratio = np.where(y_true > 0, np.log(np.where(y_true > 0, y_true / mu, 1.0)), 0.0)
-        return float(
-            2.0 * np.mean(y_true * log_ratio + (y_true + alpha) * np.log((mu + alpha) / (y_true + alpha + 1e-9)))
-        )
+        return float(2.0 * np.mean(y_true * log_ratio + (y_true + size) * np.log((mu + size) / (y_true + size))))
 
     def __repr__(self) -> str:
         return f"NegativeBinomialDeviance(default_alpha={self.default_alpha})"
@@ -561,7 +563,7 @@ class StudentTLoss(DeepTabMetric):
         if y_pred.ndim == 2 and y_pred.shape[1] >= 3:
             mu = _col(y_pred, self.loc_col)
             scale = np.clip(_col(y_pred, self.scale_col), 1e-9, None)
-            df = np.clip(_col(y_pred, self.df_col), 2.0 + 1e-6, None)
+            df = np.clip(_col(y_pred, self.df_col), 1e-6, None)
         else:
             mu = _col(y_pred, 0)
             scale = np.clip(_col(y_pred, 1), 1e-9, None)

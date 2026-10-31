@@ -63,7 +63,7 @@ class ObservabilityConfig:
         │           ├── lifecycle.jsonl ← structured event log
         │           ├── summary.json    ← final metrics
         │           └── checkpoints/
-        │               └── best.ckpt
+        │               └── best_model.ckpt
         ├── tensorboard/
         │   └── <experiment_name>/
         │       └── <YYYYMMDD_HHMMSS>_<run_id>/
