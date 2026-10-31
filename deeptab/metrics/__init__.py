@@ -44,7 +44,7 @@ Pass metrics to ``model.fit()`` for live training logging::
 
     model = MambularLSS()
     model.fit(
-        X_train, y_train,
+        X_train, y_train, family="normal",
         val_metrics={
             "crps": CRPS(family="normal"),   # logged as "val_crps"
             "mae":  MeanAbsoluteError(),      # logged as "val_mae"

@@ -94,7 +94,9 @@ class DeepTabMetric(ABC):
     Passing metrics to ``model.fit()`` for live training logging:
 
     >>> from deeptab.metrics import CRPS, MeanAbsoluteError
-    >>> model.fit(X_train, y_train,
+    >>> from deeptab.models import MambularLSS
+    >>> model = MambularLSS()
+    >>> model.fit(X_train, y_train, family="normal",
     ...           val_metrics={"crps": CRPS(family="normal"),
     ...                        "mae": MeanAbsoluteError()})
     # Logs val_crps and val_mae each epoch.
