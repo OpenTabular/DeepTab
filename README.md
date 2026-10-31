@@ -276,7 +276,7 @@ model.fit(X_train, y_train, max_epochs=50)
 
 > **Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
 
-> **Note:** Duplicate column names raise a `DuplicateColumnsError`, and a column that is entirely missing is imputed with a constant rather than passed through untouched. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html#data-and-preprocessing) for details.
+> **Note:** Duplicate column names raise a `DuplicateColumnsError`, and a training column that is entirely missing is imputed with a constant rather than passed through untouched. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html#data-and-preprocessing) for details.
 
 ### Observability & Experiment Tracking
 
