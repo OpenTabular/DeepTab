@@ -178,6 +178,30 @@ class TestDistributionalMetrics:
         # Should not raise TypeError
         NegativeBinomialDeviance()(y_true, y_pred)
 
+    @staticmethod
+    def _nb_deviance_reference(targets, means, dispersion):
+        from scipy import stats
+
+        size = 1.0 / dispersion
+
+        def log_pmf(values, mean):
+            return stats.nbinom.logpmf(values, size, size / (size + mean))
+
+        return float(np.mean(2.0 * (log_pmf(targets, np.maximum(targets, 1e-300)) - log_pmf(targets, means))))
+
+    def test_nb_deviance_reads_dispersion_column(self):
+        means = np.array([2.0, 5.0, 10.0, 3.0])
+        dispersion = np.array([0.25, 0.5, 0.1, 2.0])
+        targets = np.array([0.0, 7.0, 4.0, 3.0])
+        result = NegativeBinomialDeviance()(targets, np.column_stack([means, dispersion]))
+        assert result == pytest.approx(self._nb_deviance_reference(targets, means, dispersion))
+
+    def test_nb_deviance_default_alpha_is_dispersion(self):
+        means = np.array([2.0, 5.0, 10.0])
+        targets = np.array([1.0, 6.0, 12.0])
+        result = NegativeBinomialDeviance(default_alpha=0.5)(targets, means)
+        assert result == pytest.approx(self._nb_deviance_reference(targets, means, 0.5))
+
     def test_beta_brier_nonneg(self, proportion_data):
         y_true, y_pred = proportion_data
         assert BetaBrierScore()(y_true, y_pred) >= 0.0

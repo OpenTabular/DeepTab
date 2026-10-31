@@ -34,6 +34,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -48,7 +49,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-lint-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
+          key: venv-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --with dev
@@ -67,6 +68,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -81,7 +83,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-typecheck-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
+          key: venv-typecheck-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --with dev
@@ -97,6 +99,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -111,7 +114,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-build-${{ runner.os }}-3.11-${{ hashFiles('poetry.lock') }}
+          key: venv-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install --only main
@@ -205,6 +208,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
@@ -219,7 +223,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-tests-core-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('poetry.lock') }}
+          key: venv-tests-core-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry sync --only main,dev
@@ -238,6 +242,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -252,7 +257,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-tests-extras-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+          key: venv-tests-extras-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry sync --only main,dev --extras "logs tracking"
@@ -275,6 +280,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -289,7 +295,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-tests-tabr-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+          key: venv-tests-tabr-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry sync --only main,dev --extras "logs tracking tabr"
@@ -309,6 +315,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -323,7 +330,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-smoke-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+          key: venv-smoke-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry install
@@ -340,6 +347,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        id: setup-python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -354,7 +362,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: .venv
-          key: venv-coverage-${{ runner.os }}-3.12-${{ hashFiles('poetry.lock') }}
+          key: venv-coverage-${{ runner.os }}-${{ runner.arch }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('poetry.lock') }}
 
       - name: Install dependencies
         run: poetry sync --only main,dev --extras "logs tracking tabr"
