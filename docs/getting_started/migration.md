@@ -169,8 +169,8 @@ The [Config System](../core_concepts/config_system) guide is the full field refe
 
 ## Config class renames
 
-Configuration classes dropped their `Default` prefix and moved to `deeptab.configs`.
-A find and replace covers it.
+Configuration classes dropped their `Default` prefix. They are still imported from
+`deeptab.configs`, so a find and replace covers it.
 
 | v1                           | v2                    |
 | ---------------------------- | --------------------- |
@@ -180,7 +180,7 @@ A find and replace covers it.
 
 ```python
 # v1
-from deeptab.models import DefaultMambularConfig
+from deeptab.configs import DefaultMambularConfig
 
 # v2
 from deeptab.configs import MambularConfig
