@@ -186,7 +186,7 @@ predictions = model.predict(X_test)
 DeepTab automatically:
 
 - Detects feature types from DataFrame dtypes
-- Standardizes numerical features (`age`, `income`, `years_experience`)
+- Scales and encodes numerical features (`age`, `income`, `years_experience`); the default is min-max scaling followed by piecewise-linear encoding (PLE)
 - Encodes and embeds categorical features (`city`, `education`, `employment_type`, `has_degree`)
 - Handles missing values if present
 
