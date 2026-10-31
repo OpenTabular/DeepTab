@@ -28,21 +28,28 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
       features but sklearn's ``SimpleImputer`` rejects the ``bool`` dtype.
     - ``category`` columns are silently cast to ``object`` so they are detected and
       preprocessed as categorical features (the underlying categories are kept).
-    - Python ``None`` in object columns is silently replaced with ``np.nan`` so
-      missing values are recognized consistently regardless of which sentinel the
-      input used.
+    - pandas ``string`` columns (e.g. from ``DataFrame.convert_dtypes()``) are
+      silently cast to ``object``, since scikit-learn's imputer cannot handle the
+      ``pd.NA`` missing-value marker they use.
+    - Python ``None`` and ``pd.NA`` in object columns are silently replaced with
+      ``np.nan`` so missing values are recognized consistently regardless of which
+      sentinel the input used.
     - Any remaining non-numeric, non-object column dtype raises
       :exc:`~deeptab.core.exceptions.ColumnDtypeError` naming each offending column.
-    - Columns where every value is NaN are filled with a constant (0 for numeric
-      columns, a sentinel category for object columns) and issue a
-      :class:`~deeptab.core.exceptions.DataWarning`.
+    - For training data (``context="fit"``), columns where every value is NaN are
+      filled with a constant (0 for numeric columns, a sentinel category for object
+      columns) and issue a :class:`~deeptab.core.exceptions.DataWarning`. Validation
+      and prediction inputs keep their NaN values so the imputer fitted on the
+      training data fills them; a single-row prediction with a missing value would
+      otherwise count as an all-NaN column.
 
     Parameters
     ----------
     X:
         Input data.  Converted to :class:`pandas.DataFrame` if necessary.
     context:
-        Name of the calling method (used in error messages).
+        Name of the calling method (used in error messages). Only ``"fit"``
+        applies the all-NaN column fill.
     """
     # Reject 1-D input early: sklearn convention requires 2-D feature arrays.
     _arr = np.asarray(X) if not isinstance(X, pd.DataFrame | pd.Series) else X
@@ -78,6 +85,13 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
             df = df.copy()
         df = df.astype(dict.fromkeys(cat_cols, "object"))
 
+    # string → object: pandas "string" columns mark missing values with pd.NA,
+    # which SimpleImputer cannot compare. As object columns, the None → NaN step
+    # below normalizes their missing values like any other categorical column.
+    string_cols = [c for c, dt in df.dtypes.items() if isinstance(dt, pd.StringDtype)]
+    if string_cols:
+        df = df.astype(dict.fromkeys(string_cols, "object"))
+
     # None → NaN: object columns may mix Python's None and np.nan as missing-value
     # markers. SimpleImputer only recognizes np.nan by default, so a stray None
     # competes as if it were a real category value instead of being imputed.
@@ -102,7 +116,7 @@ def ensure_dataframe(X: Any, context: str = "fit") -> pd.DataFrame:
     # them with a constant here rather than leaving it to PreTab's own imputer, which
     # cannot compute a mean/median from zero observed values and simply drops the
     # column instead.
-    all_nan_cols = [c for c in df.columns if bool(df[c].isna().all())]
+    all_nan_cols = [c for c in df.columns if bool(df[c].isna().all())] if context == "fit" else []
     if all_nan_cols:
         df = df.copy()
         for c in all_nan_cols:
