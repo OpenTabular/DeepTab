@@ -63,7 +63,7 @@ By default DeepTab lets Lightning auto-select the best available accelerator, bu
 DeepTab automatically handles:
 
 - **Numerical**: `int`, `float` dtypes
-- **Categorical**: `object`, `category`, `bool` dtypes
+- **Categorical**: `object`, pandas `string` (for example from `DataFrame.convert_dtypes()`), `category`, `bool` dtypes
 - **Embeddings**: Pass pre-computed embeddings via the `embeddings` parameter of `fit()`
 
 ### How do I handle missing values?
@@ -89,7 +89,7 @@ model.fit(df, y, max_epochs=50)
 The internal [PreTab](https://github.com/OpenTabular/PreTab) preprocessor imputes missing values as part of fitting, so you do not need a separate imputation step. The exact strategy follows the configured `PreprocessingConfig`; with the defaults it uses PreTab's built-in imputation for numerical and categorical features.
 
 ```{note}
-A column that is entirely missing (every row is `NaN`/`None`) has nothing for PreTab to learn a strategy from, so DeepTab fills it with a constant instead (`0` for numeric columns, `"missing"` for object/categorical columns) and emits a `DataWarning`. Consider dropping such columns before calling `fit()`.
+A training column that is entirely missing (every row is `NaN`/`None`) has nothing for PreTab to learn a strategy from, so DeepTab fills it with a constant instead (`0` for numeric columns, `"missing"` for object/categorical columns) and emits a `DataWarning`. Consider dropping such columns before calling `fit()`. Validation and prediction inputs are never filled this way: their missing values, including a single-row request with a missing value, are imputed with the strategy learned during `fit()`.
 ```
 
 ### What if my column names have duplicates?
@@ -451,7 +451,7 @@ search = GridSearchCV(
 search.fit(X_train, y_train)
 ```
 
-Nested keys such as `model_config__d_model` require the corresponding config object. Keep `n_jobs=1` when sharing one accelerator to avoid concurrent fits competing for its memory.
+Nested keys such as `model_config__d_model` need an estimator constructed with config objects. If only `model_config` is omitted, `model_config__*` keys tune the estimator's default model config, which `get_params()` then reports as `model_config`. Keep `n_jobs=1` when sharing one accelerator to avoid concurrent fits competing for its memory.
 
 ### Can I deploy DeepTab models?
 

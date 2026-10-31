@@ -1084,6 +1084,17 @@ class TestEnsureDataframe:
         result = ensure_dataframe(df)
         assert result.shape == (2, 2)
 
+    def test_string_dtype_with_na_becomes_object_with_nan(self):
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame({"num": [1.0, 2.0, 3.0], "cat": pd.array(["a", pd.NA, "b"], dtype="string")})
+        result = ensure_dataframe(df)
+        assert result["cat"].dtype == object
+        assert result["cat"].tolist()[0] == "a"
+        missing = result["cat"].tolist()[1]
+        assert isinstance(missing, float) and np.isnan(missing)
+        assert df["cat"].dtype == "string"  # the caller's frame is not modified
+
     def test_all_nan_column_warns(self):
         from deeptab.core.sklearn_compat import ensure_dataframe
 
@@ -1121,6 +1132,25 @@ class TestEnsureDataframe:
         with pytest.warns(DataWarning):
             result = ensure_dataframe(df)
         assert (result["all_nan"] == "missing").all()
+
+    @pytest.mark.parametrize("context", ["predict", "validation"])
+    def test_all_nan_column_is_left_to_fitted_imputer_outside_fit(self, context):
+        import warnings
+
+        from deeptab.core.sklearn_compat import ensure_dataframe
+
+        df = pd.DataFrame(
+            {
+                "good": [1.0],
+                "num": [np.nan],
+                "cat": pd.Series([None], dtype="object"),
+            }
+        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DataWarning)
+            result = ensure_dataframe(df, context=context)
+        assert bool(result["num"].isna().all())
+        assert bool(result["cat"].isna().all())
 
     def test_duplicate_columns_raise_duplicate_columns_error(self):
         from deeptab.core.sklearn_compat import ensure_dataframe
@@ -1291,6 +1321,42 @@ class TestValidateFitInputs:
         from deeptab.models.base import _validate_fit_inputs
 
         _validate_fit_inputs(self._X(3), np.array([0.1, 1.0, 2.0]), regression=True, family=family)
+
+    @pytest.mark.parametrize("family", ["poisson", "negativebinom", "zip"])
+    @pytest.mark.parametrize("invalid_target", [-1.0, 0.5, 2.25])
+    def test_count_families_reject_negative_or_fractional_targets(self, family, invalid_target):
+        from deeptab.models.base import _validate_fit_inputs
+
+        targets = np.array([0.0, invalid_target, 3.0])
+        with pytest.raises(DataError, match="non-negative integer"):
+            _validate_fit_inputs(self._X(3), targets, regression=True, family=family)
+
+    @pytest.mark.parametrize("family", ["poisson", "negativebinom", "zip"])
+    @pytest.mark.parametrize("targets", [np.array([0, 1, 4]), np.array([0.0, 1.0, 4.0])])
+    def test_count_families_accept_integer_valued_targets(self, family, targets):
+        from deeptab.models.base import _validate_fit_inputs
+
+        _validate_fit_inputs(self._X(3), targets, regression=True, family=family)
+
+    def test_tweedie_rejects_negative_and_accepts_zero_targets(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        with pytest.raises(DataError, match="tweedie"):
+            _validate_fit_inputs(self._X(3), np.array([0.0, -0.5, 2.0]), regression=True, family="tweedie")
+        _validate_fit_inputs(self._X(3), np.array([0.0, 0.5, 2.0]), regression=True, family="tweedie")
+
+    @pytest.mark.parametrize("invalid_target", [0.0, 1.0, -0.2, 1.5])
+    def test_beta_rejects_targets_outside_open_unit_interval(self, invalid_target):
+        from deeptab.models.base import _validate_fit_inputs
+
+        targets = np.array([0.2, invalid_target, 0.7])
+        with pytest.raises(DataError, match="unit-interval"):
+            _validate_fit_inputs(self._X(3), targets, regression=True, family="beta")
+
+    def test_beta_accepts_targets_inside_open_unit_interval(self):
+        from deeptab.models.base import _validate_fit_inputs
+
+        _validate_fit_inputs(self._X(3), np.array([0.01, 0.5, 0.99]), regression=True, family="beta")
 
     def test_high_nan_columns_warns(self):
         from deeptab.models.base import _validate_fit_inputs

@@ -510,8 +510,16 @@ save/load. Categorical output width is inferred from the training labels;
 Dirichlet width is inferred from a target matrix of shape `(n_samples, K)`.
 Dirichlet targets must be positive proportions whose rows sum to one.
 
-Targets for `gamma`, `inversegamma`, and `lognormal` must be strictly positive.
-Zero or negative targets raise `DataError` before preprocessing or model construction.
+Targets must lie in the support of the selected family:
+
+| Family                               | Valid targets             |
+| ------------------------------------ | ------------------------- |
+| `poisson`, `negativebinom`, `zip`    | Non-negative integers     |
+| `tweedie`                            | Non-negative values       |
+| `gamma`, `inversegamma`, `lognormal` | Strictly positive values  |
+| `beta`                               | Values strictly in (0, 1) |
+
+Targets outside the support raise `DataError` before preprocessing or model construction.
 
 LSS `fit()` seeds Python, NumPy, and PyTorch using the resolved `random_state`
 before model construction. Equal seeds support repeatable fits on the same

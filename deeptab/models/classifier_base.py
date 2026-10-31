@@ -82,6 +82,10 @@ def _encode_labels(y, classes: np.ndarray, *, name: str = "y") -> np.ndarray:
     return indices
 
 
+# Metric names that work on probability scores
+_PROBA_NAMES = frozenset({"auroc", "auprc", "log_loss", "brier", "ece"})
+
+
 class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
     _task = "classification"
 
@@ -625,8 +629,10 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             For :class:`~deeptab.metrics.DeepTabMetric` instances, the method
             inspects the ``name`` attribute to decide which prediction format
             to supply: probability-based metrics (``auroc``, ``auprc``,
-            ``log_loss``, ``brier``, ``ece``) receive ``predict_proba`` output;
-            all others receive ``predict`` output.
+            ``log_loss``, ``brier``, ``ece``) receive ``predict_proba`` output
+            together with ``y_true`` encoded to the column indices
+            ``0..K-1`` of ``classes_``; all others receive ``predict`` output
+            and the original labels.
 
             If ``None``, defaults to the registry defaults for
             ``"classification"`` (Accuracy, AUROC, LogLoss).
@@ -639,15 +645,14 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
         if metrics is None:
             metrics = get_default_metrics_dict("classification")
 
-        # Metric names that work on probability scores
-        _PROBA_NAMES = {"auroc", "auprc", "log_loss", "brier", "ece"}
-
         # Determine which prediction types are actually needed
         needs_proba = any((getattr(fn, "name", None) in _PROBA_NAMES) for fn in metrics.values())
         needs_labels = any((getattr(fn, "name", None) not in _PROBA_NAMES) for fn in metrics.values())
 
         probabilities = self.predict_proba(X, embeddings) if needs_proba else None
         predictions = self.predict(X, embeddings) if needs_labels else None
+
+        proba_targets = self._probability_metric_targets(y_true) if needs_proba else y_true
 
         scores = {}
         for metric_name, metric_func in metrics.items():
@@ -657,7 +662,7 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
                 scores[metric_name] = float("nan")
                 continue
             try:
-                scores[metric_name] = metric_func(y_true, preds)
+                scores[metric_name] = metric_func(proba_targets if use_proba else y_true, preds)
             except Exception as exc:
                 warnings.warn(f"Metric '{metric_name}' failed: {exc}", RuntimeWarning, stacklevel=2)
                 scores[metric_name] = float("nan")
@@ -677,6 +682,10 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
             A tuple containing the metric function and a boolean indicating whether
             the metric requires probability scores (True) or class labels (False).
             If omitted, accuracy is used to match scikit-learn classifier behavior.
+            Probability-based :class:`~deeptab.metrics.DeepTabMetric` instances
+            (``auroc``, ``auprc``, ``log_loss``, ``brier``, ``ece``) receive ``y``
+            encoded to the column indices ``0..K-1`` of ``classes_``, as in
+            :meth:`evaluate`; other callables receive the original labels.
 
         Returns
         -------
@@ -693,10 +702,27 @@ class SklearnBaseClassifier(ClassifierMixin, SklearnBase):
 
         if use_proba:
             probabilities = self.predict_proba(X, embeddings)
+            if getattr(metric_func, "name", None) in _PROBA_NAMES:
+                y = self._probability_metric_targets(y)
             return metric_func(y, probabilities)
         else:
             predictions = self.predict(X, embeddings)
             return metric_func(y, predictions)
+
+    def _probability_metric_targets(self, y_true):
+        """Encode *y_true* to the ``classes_`` column indices of ``predict_proba``.
+
+        Raw string or non-contiguous integer labels would not line up with the
+        probability columns. Labels that cannot be encoded (for example a label
+        unseen during fit) are returned unchanged, so the metric reports them.
+        """
+        classes = getattr(self, "classes_", None)
+        if classes is None:
+            return y_true
+        try:
+            return _encode_labels(np.asarray(y_true).ravel(), classes, name="y_true")
+        except (TypeError, ValueError):
+            return y_true
 
     def pretrain(
         self,
