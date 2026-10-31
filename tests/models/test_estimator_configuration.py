@@ -268,6 +268,23 @@ class TestSplitConfigSetParams:
         with pytest.raises(ValueError, match="abc"):
             model.set_params(abc=123)
 
+    def test_nested_model_config_keys_without_model_config_tune_the_default_config(self):
+        model = MLPRegressor(trainer_config=_FAST_TRAINER).set_params(model_config__layer_sizes=[4])
+        assert model.config.layer_sizes == [4]
+        assert model.get_params()["model_config__layer_sizes"] == [4]
+        assert clone(model).config.layer_sizes == [4]
+
+    def test_grid_search_over_nested_model_config_keys_without_model_config(self, tmp_path):
+        from sklearn.model_selection import GridSearchCV
+
+        estimator = MLPRegressor(trainer_config=_FAST_TRAINER, random_state=0)
+        search = GridSearchCV(estimator, {"model_config__layer_sizes": [[4], [16]]}, cv=2)
+        search.fit(
+            X_reg, y_reg, checkpoint_path=str(tmp_path), accelerator="cpu", logger=False, enable_progress_bar=False
+        )
+        best_width = search.best_params_["model_config__layer_sizes"][0]
+        assert search.best_estimator_._task_model.estimator.layers[0].out_features == best_width
+
 
 _TRAINING_FIELDS = {"lr", "lr_patience", "lr_factor", "weight_decay"}
 

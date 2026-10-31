@@ -469,6 +469,11 @@ class SklearnBase(
                 elif k == "observability_config":
                     self._apply_observability_config(v)
 
+            if model_config_params and self.model_config is None:
+                # No model_config yet: tune the default config that fit() builds
+                # from, and expose it as model_config so that get_params() and
+                # clone() report the tuned values.
+                self.model_config = self.config
             if model_config_params and self.model_config is not None and hasattr(self.model_config, "set_params"):
                 self.model_config.set_params(**model_config_params)
                 self._config_kwargs = self.model_config.get_params(deep=False)
