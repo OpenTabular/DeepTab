@@ -25,7 +25,9 @@ class FTTransformerConfig(BaseModelConfig):
     attn_dropout : float, default=0.2
         Dropout rate for the attention mechanism.
     ff_dropout : float, default=0.1
-        Dropout rate for the feed-forward layers.
+        Not used by this architecture's encoder layers: the feed-forward hidden
+        activations are not dropped out. Kept for config compatibility; use
+        ``attn_dropout`` to regularise the encoder.
     norm : str, default='LayerNorm'
         Type of normalization to be used ('LayerNorm', 'RMSNorm', etc.).
     transformer_activation : Callable, default=ReGLU()

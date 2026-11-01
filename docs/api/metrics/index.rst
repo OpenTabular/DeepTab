@@ -375,7 +375,7 @@ implement ``__call__``:
             return float(np.median(np.abs(np.asarray(y_true).ravel() - mean_pred)))
 
     # Use it anywhere a standard metric is accepted
-    model.fit(X_train, y_train, val_metrics={"mdae": MedianAbsoluteError()})
+    model.fit(X_train, y_train, family="normal", val_metrics={"mdae": MedianAbsoluteError()})
     scores = model.evaluate(X_test, y_test, metrics={"mdae": MedianAbsoluteError()})
 
 See Also

@@ -75,12 +75,12 @@ from deeptab.models import MambularClassifier
 # TrainerConfig accidentally passed where the model config belongs
 MambularClassifier(model_config=TrainerConfig())
 # ConfigWarning: TrainerConfig was passed as 'model_config', but 'model_config'
-# expects a BaseModelConfig. Configs are not reordered for you, so this one will
-# be misused or silently ignored. Pass it as its matching argument instead.
+# expects a BaseModelConfig. Configs are not reordered for you, so fit() cannot
+# use this one in 'model_config'. Pass it as its matching argument instead.
 ```
 
 ```{warning}
-The check warns rather than raises, so construction still succeeds. A misplaced config is then misused or silently ignored: for example a wrong `preprocessing_config` falls back to default preprocessing, and a wrong `trainer_config` falls back to the default optimizer. Treat this warning as an error in your own code and fix the argument it points to.
+The check warns rather than raises, so construction still succeeds. `fit()` then fails with an `AttributeError`, because the misplaced object lacks the fields its slot needs: for example an `MLPConfig` passed as `preprocessing_config` has no `to_preprocessor_kwargs()`, and a `PreprocessingConfig` passed as `trainer_config` has no `batch_size`. Treat this warning as an error in your own code and fix the argument it points to.
 ```
 
 ```{note}
@@ -152,18 +152,18 @@ preprocessing_config = PreprocessingConfig(
 
 Valid fields:
 
-| Field                                           | Purpose                                                                                                                                                                                        |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. Pass `None` for no transform.                                 |
-| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                |
-| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                           |
-| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`. |
-| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                  |
-| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                          |
-| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                        |
-| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                    |
-| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                |
-| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                        |
+| Field                                           | Purpose                                                                                                                                                                                                              |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `numerical_method`                              | Main numerical transform, e.g. `"standardization"`, `"quantile"`, `"ple"`, `"minmax"`, `"robust"`, `"box-cox"`, `"yeo-johnson"`. `None` keeps the default (`"ple"`, or the `preset`'s choice); `"none"` disables it. |
+| `categorical_method`                            | Categorical encoding strategy, such as `"int"`, `"one-hot"`, or `"pretrained"`.                                                                                                                                      |
+| `output_dim`                                    | Requested numerical expansion width; fitted widths can differ. Ignored by representations that do not use it, such as plain scaling.                                                                                 |
+| `target_aware`, `placement_strategy`            | Whether bin/knot placement uses the target, and the strategy used to place it. `target_aware=False` pairs with `"uniform"`/`"quantile"`; `target_aware=True` pairs with `"cart"`/`"lightgbm"`.                       |
+| `feature_preprocessing`                         | General feature-level preprocessing override.                                                                                                                                                                        |
+| `task`                                          | Optional task hint; the estimator's own task always takes precedence.                                                                                                                                                |
+| `cat_cutoff`, `treat_all_integers_as_numerical` | Controls integer-column type inference.                                                                                                                                                                              |
+| `degree`                                        | Polynomial / spline degree for numerical feature expansion.                                                                                                                                                          |
+| `scaling`                                       | Post-transform scaling: `"standardization"`, `"minmax"`, `"robust"`, or `None`.                                                                                                                                      |
+| `preset`                                        | Named configuration bundle: `"standard"`, `"expanded"`, or `"adaptive"`. See [Presets](#presets) below.                                                                                                              |
 
 Embedding width is not a `PreprocessingConfig` field in the current API. It is controlled by model config fields such as `d_model` when an architecture uses `EmbeddingLayer`.
 
@@ -233,26 +233,26 @@ To see which representations PreTab supports before choosing `numerical_method` 
 
 ### Running with no numerical preprocessing
 
-Set `numerical_method=None` (and `categorical_method=None`) to skip the scaling and encoding transforms and feed near-raw values to the network.
+Set `numerical_method="none"` to skip the scaling, binning and PLE transforms and feed near-raw numerical values to the network. Leaving `numerical_method` at `None` does not do this: `None` keeps PreTab's default representation, which is PLE unless a `preset` chooses another.
 
 ```python
 prep = PreprocessingConfig(
-    numerical_method=None,    # no scaling, binning, or PLE on numeric columns
+    numerical_method="none",  # no scaling, binning, or PLE on numeric columns
     categorical_method=None,  # leave categorical encoding at its default
 )
 model = MambularClassifier(preprocessing_config=prep)
 ```
 
 ```{important}
-`None` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
+`"none"` turns off the numerical transform, not the data layer. DeepTab still detects feature types, turns categorical columns into the integer indices the embedding layers expect, handles missing values, and assembles batched tensors. There is no setting that sends a raw, unconverted DataFrame straight into an `nn.Module`, because the model needs typed, numeric tensors to run.
 ```
 
 ```{warning}
-Don't confuse Python `None` above with the string `"none"`, which PreTab also accepts as a literal representation name for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
+Don't confuse the string `"none"` above with Python `None`, which means "use the default" for both `numerical_method` and `categorical_method`. `numerical_method="none"` is safe: it skips scaling/binning and keeps the column numeric. `categorical_method="none"` (and the legacy `categorical_preprocessing="none"`) is rejected with `InvalidParamError`, because it returns raw, unencoded string values that DeepTab's tensor pipeline cannot consume. Use `"int"`, `"one-hot"`, or `"pretrained"` for categorical features instead.
 ```
 
 ```{note}
-Most deep tabular models train better with a numerical transform than without one. `None` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
+Most deep tabular models train better with a numerical transform than without one. `"none"` is useful when your features are already scaled, or when you want a clean baseline to measure a transform against. For skewed or heavy-tailed inputs, `"quantile"` or `"ple"` are usually stronger starting points.
 ```
 
 ## Trainer Config

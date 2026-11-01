@@ -169,8 +169,8 @@ The [Config System](../core_concepts/config_system) guide is the full field refe
 
 ## Config class renames
 
-Configuration classes dropped their `Default` prefix and moved to `deeptab.configs`.
-A find and replace covers it.
+Configuration classes dropped their `Default` prefix. They are still imported from
+`deeptab.configs`, so a find and replace covers it.
 
 | v1                           | v2                    |
 | ---------------------------- | --------------------- |
@@ -180,7 +180,7 @@ A find and replace covers it.
 
 ```python
 # v1
-from deeptab.models import DefaultMambularConfig
+from deeptab.configs import DefaultMambularConfig
 
 # v2
 from deeptab.configs import MambularConfig
@@ -210,13 +210,14 @@ work.
 
 ## Data layer renames
 
-The data classes were renamed to give the pipeline a clear, typed contract. The old
-`Mambular*` aliases are deprecated.
+The data classes were renamed to give the pipeline a clear, typed contract. The v1
+names were removed rather than deprecated: importing `MambularDataModule` or
+`MambularDataset` raises `ImportError`.
 
-| v1                              | v2                  |
-| ------------------------------- | ------------------- |
-| `Mambular*` data module aliases | `TabularDataModule` |
-| `Mambular*` dataset aliases     | `TabularDataset`    |
+| v1                                      | v2                               |
+| --------------------------------------- | -------------------------------- |
+| `deeptab.data_utils.MambularDataModule` | `deeptab.data.TabularDataModule` |
+| `deeptab.data_utils.MambularDataset`    | `deeptab.data.TabularDataset`    |
 
 v2 also adds `FeatureSchema`, an inspectable description of the columns a model
 expects, their order, and their types. You rarely build one by hand: DeepTab derives

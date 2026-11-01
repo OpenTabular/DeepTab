@@ -184,12 +184,13 @@ Observability is entirely opt-in. An estimator created **without** an `Observabi
 exactly as before and emits no events. There is no run directory, no `config.yaml`, and no event
 log. This is why notebooks stay quiet by default.
 
-The only artifact a plain `fit()` leaves behind is the Lightning checkpoint that restores the best
-weights. We point its `default_root_dir` at our scratch folder so it does not clutter the working
-directory.
+The only artifact a plain `fit()` leaves behind is the checkpoint that restores the best weights.
+Without an `ObservabilityConfig` it is written to `model_checkpoints/<timestamp>_<run_id>/` under the
+current working directory (Lightning's `default_root_dir` does not move it), so we pass an explicit
+`checkpoint_path` to keep it in our scratch folder.
 
 ```python
-baseline = train(default_root_dir=str(WORKDIR / "01_no_observability"))
+baseline = train(checkpoint_path=str(WORKDIR / "01_no_observability" / "checkpoints"))
 print("Fitted:", type(baseline).__name__)
 print("Test accuracy:", round((baseline.predict(X_test) == y_test).mean(), 3))
 
@@ -581,8 +582,9 @@ show_tree(WORKDIR / "09_logger_only", "09_logger_only/   (no csv/, logger was ig
 
 Any keyword argument `fit()` does not recognise is forwarded to `pl.Trainer`, and an explicit
 `logger=` overrides DeepTab's default. This is the lightest-weight option: no `ObservabilityConfig`
-at all, just your logger driving training. There is no DeepTab run directory in this mode, only
-whatever your logger writes.
+at all, just your logger driving training. There is no DeepTab run directory in this mode: besides
+whatever your logger writes, only the checkpoint is saved, which we again keep in the scratch folder
+with `checkpoint_path`.
 
 ```python
 direct = MLPClassifier(trainer_config=TRAINER, random_state=42)
@@ -591,12 +593,15 @@ with focused_output():
         X_train, y_train,
         enable_progress_bar=False,
         logger=CSVLogger(save_dir=str(WORKDIR / "10_direct_logger"), name="mlp"),
+        checkpoint_path=str(WORKDIR / "10_direct_logger" / "checkpoints"),
     )
 show_tree(WORKDIR / "10_direct_logger", "10_direct_logger/")
 ```
 
 ```text
 10_direct_logger/
+    checkpoints/
+        best_model.ckpt
     mlp/
         version_0/
             hparams.yaml
@@ -631,7 +636,7 @@ sink = CollectingSink()
 model = MLPClassifier(trainer_config=TRAINER, random_state=42)
 model._event_logger = sink   # attach a custom in-process event consumer
 with focused_output():
-    model.fit(X_train, y_train, enable_progress_bar=False, default_root_dir=str(WORKDIR / "11_custom_sink"))
+    model.fit(X_train, y_train, enable_progress_bar=False, checkpoint_path=str(WORKDIR / "11_custom_sink"))
 
 print("Captured events:")
 for record in sink.events:
