@@ -152,6 +152,11 @@ class NegativeLogLikelihood(DeepTabMetric):
         import torch
 
         y_true_t = torch.tensor(np.asarray(y_true, dtype=np.float32))
+        if y_true_t.ndim == 2 and y_true_t.shape[1] == 1:
+            # Column-vector targets, as passed by the training loop, would
+            # otherwise broadcast against the batch of distributions into an
+            # (N, N) grid of log-probabilities.
+            y_true_t = y_true_t.squeeze(1)
         y_pred_t = torch.tensor(np.asarray(y_pred, dtype=np.float32))
         with torch.no_grad():
             loss = self.distribution.compute_loss(y_pred_t, y_true_t)
@@ -186,12 +191,31 @@ class LogScore(DeepTabMetric):
         return f"LogScore(distribution={self._nll.distribution!r})"
 
 
+def _lognormal_crps(y: np.ndarray, loc: np.ndarray, scale: np.ndarray) -> np.ndarray:
+    """Closed-form CRPS of a log-normal predictive distribution (Baran & Lerch, 2015).
+
+    ``loc`` and ``scale`` are the mean and standard deviation of ``log(X)``.
+    Observations ``y <= 0`` lie below the support, where the CRPS reduces to
+    ``E[X] - y - E|X - X'| / 2``.
+    """
+    from scipy.stats import norm
+
+    mean = np.exp(loc + scale**2 / 2.0)
+    half_spread = mean * (2.0 * norm.cdf(scale / np.sqrt(2.0)) - 1.0)
+    positive = y > 0
+    z = (np.log(np.where(positive, y, 1.0)) - loc) / scale
+    inside = y * (2.0 * norm.cdf(z) - 1.0) - 2.0 * mean * (norm.cdf(z - scale) + norm.cdf(scale / np.sqrt(2.0)) - 1.0)
+    below = mean - y - half_spread
+    return np.where(positive, inside, below)
+
+
 class CRPS(DeepTabMetric):
     """Continuous Ranked Probability Score (CRPS) for univariate distributions.
 
-    Uses vectorised Gaussian ``properscoring`` routines for supported
-    parameter layouts when available. Otherwise returns a mean absolute
-    error fallback without estimating predictive spread from observed targets.
+    Uses the closed-form log-normal CRPS for ``lognormal`` and, when
+    available, vectorised Gaussian ``properscoring`` routines for the other
+    supported parameter layouts. Otherwise returns a mean absolute error
+    fallback without estimating predictive spread from observed targets.
 
     Expected ``y_pred`` format (2-D array, columns are distribution parameters):
 
@@ -205,7 +229,9 @@ class CRPS(DeepTabMetric):
     With ``properscoring`` installed, the exact Gaussian CRPS is computed for
     ``normal``. Student-T and Johnson SU use a Gaussian location/scale
     approximation, and mixtures use a moment-matched Gaussian. Without that
-    dependency, all families fall back to mean absolute error.
+    dependency, these families fall back to mean absolute error. ``lognormal``
+    always uses the exact closed-form log-normal CRPS, where ``loc`` and
+    ``scale`` are the mean and standard deviation of ``log(y)``.
 
     Notes
     -----
@@ -240,7 +266,11 @@ class CRPS(DeepTabMetric):
         y_true = np.asarray(y_true, dtype=float).ravel()
         y_pred = np.asarray(y_pred, dtype=float)
 
-        if self.family in ("normal", "lognormal", "studentt", "johnsonsu"):
+        if self.family == "lognormal":
+            loc = _col(y_pred, self.loc_col if self.loc_col is not None else 0)
+            scale = np.clip(_col(y_pred, self.scale_col if self.scale_col is not None else 1), 1e-9, None)
+            return float(np.mean(_lognormal_crps(y_true, loc, scale)))
+        if self.family in ("normal", "studentt", "johnsonsu"):
             default_columns = {"studentt": (1, 2), "johnsonsu": (2, 3)}
             loc_col, scale_col = default_columns.get(self.family, (0, 1))
             loc = _col(y_pred, self.loc_col if self.loc_col is not None else loc_col)
@@ -440,7 +470,10 @@ class NegativeBinomialDeviance(DeepTabMetric):
     Expected ``y_pred``: 2-D array where column 0 is the predicted mean ``mu``
     and column 1 (optional) is the overdispersion parameter ``alpha``.  If
     only one column is present, ``alpha`` falls back to the ``default_alpha``
-    constructor argument.
+    constructor argument. As in
+    :class:`~deeptab.distributions.NegativeBinomialDistribution`, ``alpha`` is
+    the dispersion, so the variance is ``mu + alpha * mu**2`` and the size
+    parameter is ``r = 1 / alpha``.
 
     Parameters
     ----------
@@ -462,11 +495,10 @@ class NegativeBinomialDeviance(DeepTabMetric):
         if y_pred.ndim == 2 and y_pred.shape[1] >= 2:
             alpha = np.clip(y_pred[:, 1], 1e-9, None)
         else:
-            alpha = self.default_alpha
+            alpha = max(float(self.default_alpha), 1e-9)
+        size = 1.0 / alpha
         log_ratio = np.where(y_true > 0, np.log(np.where(y_true > 0, y_true / mu, 1.0)), 0.0)
-        return float(
-            2.0 * np.mean(y_true * log_ratio + (y_true + alpha) * np.log((mu + alpha) / (y_true + alpha + 1e-9)))
-        )
+        return float(2.0 * np.mean(y_true * log_ratio + (y_true + size) * np.log((mu + size) / (y_true + size))))
 
     def __repr__(self) -> str:
         return f"NegativeBinomialDeviance(default_alpha={self.default_alpha})"
@@ -561,7 +593,7 @@ class StudentTLoss(DeepTabMetric):
         if y_pred.ndim == 2 and y_pred.shape[1] >= 3:
             mu = _col(y_pred, self.loc_col)
             scale = np.clip(_col(y_pred, self.scale_col), 1e-9, None)
-            df = np.clip(_col(y_pred, self.df_col), 2.0 + 1e-6, None)
+            df = np.clip(_col(y_pred, self.df_col), 1e-6, None)
         else:
             mu = _col(y_pred, 0)
             scale = np.clip(_col(y_pred, 1), 1e-9, None)

@@ -429,7 +429,7 @@ After `load()` the estimator exposes several read-only metadata attributes:
 loaded.artifact_metadata_      # full metadata dict
 loaded.architecture_metadata_  # architecture sub-block
 loaded.feature_schema_         # feature schema sub-block
-loaded.task_info_              # {"task": "classification", "num_classes": 2, ...}
+loaded.task_info_              # {"task": "classification", "num_classes": 1, ...}  (binary: one output logit)
 loaded.classes_                # class labels
 loaded.versions_               # package version snapshot
 loaded.n_features_in_          # number of input features

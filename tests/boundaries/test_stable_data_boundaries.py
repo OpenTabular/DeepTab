@@ -110,3 +110,26 @@ def test_external_embedding_preprocessing_and_normalization_reload(
     np.testing.assert_allclose(
         model.predict(query.iloc[:1], embeddings=query_vectors[:1]), expected[:1], rtol=1e-5, atol=1e-6
     )
+
+
+@pytest.mark.parametrize("dtype", ["string", "convert_dtypes"])
+def test_pandas_string_columns_with_missing_values(dtype):
+    import pandas as pd
+
+    from deeptab.configs import TrainerConfig
+    from deeptab.models import MLPRegressor
+
+    rng = np.random.default_rng(0)
+    values = rng.choice(["berlin", "paris", "rome"], 80).astype(object)
+    values[::7] = None
+    reference = pd.DataFrame({"a": rng.normal(size=80), "city": values})
+    targets = reference["a"].to_numpy() * 2
+    features = reference.convert_dtypes() if dtype == "convert_dtypes" else reference.astype({"city": "string"})
+    assert isinstance(features["city"].dtype, pd.StringDtype)
+    fit_kwargs = {"accelerator": "cpu", "logger": False, "enable_progress_bar": False}
+
+    predictions = []
+    for frame in (features, reference):
+        model = MLPRegressor(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=0)
+        predictions.append(model.fit(frame, targets, **fit_kwargs).predict(frame.iloc[:10]))
+    np.testing.assert_allclose(predictions[0], predictions[1], rtol=1e-6)

@@ -289,7 +289,37 @@ def test_release_checks_use_minimum_supported_python(name, job):
     assert setup["with"]["python-version"] == "3.11"
     for step in steps:
         if step.get("uses") == "actions/cache@v4":
-            assert "-3.11-" in step["with"]["key"]
+            assert "${{ steps.setup-python.outputs.python-version }}" in step["with"]["key"]
+
+
+@pytest.mark.parametrize(
+    "name,job",
+    [
+        ("ci.yml", "lint"),
+        ("ci.yml", "typecheck"),
+        ("ci.yml", "build"),
+        ("ci.yml", "tests"),
+        ("ci.yml", "tests-extras"),
+        ("ci.yml", "tests-tabr"),
+        ("ci.yml", "smoke"),
+        ("ci.yml", "coverage"),
+        ("docs.yml", "build-docs"),
+        ("build-check.yml", "build-check"),
+    ],
+)
+def test_virtualenv_caches_track_the_selected_interpreter(name, job):
+    steps = _workflow(name)["jobs"][job]["steps"]
+    setup = next(step for step in steps if step.get("uses") == "actions/setup-python@v5")
+    cache = next(step for step in steps if step.get("uses") == "actions/cache@v4")
+    assert setup["id"] == "setup-python"
+    assert steps.index(setup) < steps.index(cache)
+    assert cache["with"]["path"] == ".venv"
+    key = cache["with"]["key"]
+    assert "${{ runner.os }}" in key
+    assert "${{ runner.arch }}" in key
+    assert "${{ steps.setup-python.outputs.python-version }}" in key
+    assert "${{ hashFiles('poetry.lock') }}" in key
+    assert "restore-keys" not in cache["with"]
 
 
 def test_ci_triggers_select_main_and_release_branches_and_preserve_release_invocations():

@@ -31,6 +31,7 @@ from deeptab.configs import (
     TabulaRNNConfig,
     TrainerConfig,
 )
+from deeptab.core.exceptions import InvalidParamError
 
 
 class TestTrainerConfig:
@@ -219,6 +220,28 @@ class TestPreprocessingConfig:
         cloned = clone(cfg)
         cloned.set_params(n_bins=999)
         assert cfg.n_bins == 32
+
+    def test_set_params_is_reflected_in_preprocessor_kwargs(self):
+        cfg = PreprocessingConfig(numerical_method="ple", output_dim=7)
+        cfg.set_params(numerical_method="standardization", output_dim=12, scaling="minmax")
+        kwargs = cfg.to_preprocessor_kwargs()
+        assert kwargs["numerical_method"] == "standardization"
+        assert kwargs["output_dim"] == 12
+        assert kwargs["scaling"] == "minmax"
+
+    def test_attribute_assignment_is_reflected_in_preprocessor_kwargs(self):
+        cfg = PreprocessingConfig(numerical_method="ple", output_dim=7)
+        cfg.output_dim = 3
+        cfg.categorical_method = "one-hot"
+        kwargs = cfg.to_preprocessor_kwargs()
+        assert kwargs["output_dim"] == 3
+        assert kwargs["categorical_method"] == "one-hot"
+
+    def test_set_params_values_are_validated_on_use(self):
+        cfg = PreprocessingConfig(output_dim=7)
+        cfg.set_params(output_dim=0)
+        with pytest.raises(InvalidParamError, match="output_dim"):
+            cfg.to_preprocessor_kwargs()
 
 
 N = 120

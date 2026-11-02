@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import warnings
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from typing import Any
 
 import torch.nn as nn
@@ -513,6 +513,14 @@ class PreprocessingConfig(BaseEstimator):
                 "placement instead.",
             )
 
+        # Remember which field values the resolved fields above were derived
+        # from, so `to_preprocessor_kwargs` can tell when they went stale.
+        self._resolved_from = self._field_values()
+
+    def _field_values(self) -> tuple:
+        """Return the current values of all public fields, in declaration order."""
+        return tuple(getattr(self, f.name) for f in fields(self))
+
     def _resolve_output_dim(self) -> int | None:
         """Resolve `n_bins`/`n_knots` into `output_dim`, defaulting to 7 when unset."""
         legacy_values = {v for v in (self.n_bins, self.n_knots) if v is not None}
@@ -587,12 +595,19 @@ class PreprocessingConfig(BaseEstimator):
         equivalents in ``__post_init__``; only canonical names are ever
         returned here, since PreTab 1.0 no longer accepts the legacy ones.
 
+        Fields changed after construction, through ``set_params`` (e.g. the
+        ``preprocessing_config__*`` parameters of a scikit-learn search) or by
+        direct attribute assignment, are validated and resolved again first,
+        so the returned kwargs always reflect the current field values.
+
         Returns
         -------
         dict
             Mapping of canonical PreTab field name → value for every resolved
             field that is not ``None``.
         """
+        if self._field_values() != getattr(self, "_resolved_from", None):
+            self.__post_init__()
         kwargs = {
             "numerical_method": self._resolved_numerical_method,
             "categorical_method": self._resolved_categorical_method,

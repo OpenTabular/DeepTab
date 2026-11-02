@@ -156,7 +156,7 @@ class _FitMixin:
         if hasattr(y, "values"):
             y = y.values
         if X_val is not None:
-            X_val = ensure_dataframe(X_val)
+            X_val = ensure_dataframe(X_val, context="validation")
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
@@ -346,8 +346,12 @@ class _FitMixin:
         from deeptab.core.default_factories import DefaultDataModuleFactory
 
         factory = getattr(self, "_data_module_factory", None) or DefaultDataModuleFactory()
+        # Continuation reuses the fitted representation, which lives on the
+        # previous data module; self._preprocessor may already be an unfitted
+        # replacement created by set_params() for the next full fit.
+        fitted_preprocessor = getattr(previous, "preprocessor", None)
         prepared = factory.create(
-            preprocessor=self._preprocessor,
+            preprocessor=fitted_preprocessor if fitted_preprocessor is not None else self._preprocessor,
             batch_size=batch_size,
             shuffle=shuffle,
             regression=regression,

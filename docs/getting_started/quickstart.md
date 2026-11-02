@@ -68,29 +68,29 @@ Regression follows the same workflow with a different model class:
 from sklearn.datasets import make_regression
 from deeptab.models import FTTransformerRegressor
 
-# Generate regression data
-X, y = make_regression(
+# Generate regression data (kept separate from the classification split above)
+X_reg, y_reg = make_regression(
     n_samples=1000,
     n_features=10,
     noise=0.1,
     random_state=42,
 )
 
-X = pd.DataFrame(X, columns=[f"feature_{i}" for i in range(X.shape[1])])
+X_reg = pd.DataFrame(X_reg, columns=[f"feature_{i}" for i in range(X_reg.shape[1])])
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+X_train_reg, X_test_reg, y_train_reg, y_test_reg = train_test_split(
+    X_reg, y_reg, test_size=0.2, random_state=42
 )
 
 # Use a different architecture
 model = FTTransformerRegressor()
-model.fit(X_train, y_train, max_epochs=50)
+model.fit(X_train_reg, y_train_reg, max_epochs=50)
 
-metrics = model.evaluate(X_test, y_test)
+metrics = model.evaluate(X_test_reg, y_test_reg)
 print(f"Test RMSE: {metrics['rmse']:.3f}")
 
 # Predict continuous values
-predictions = model.predict(X_test)
+predictions = model.predict(X_test_reg)
 ```
 
 The only changes are the model class (`*Regressor`) and the interpretation of outputs.
@@ -186,7 +186,7 @@ predictions = model.predict(X_test)
 DeepTab automatically:
 
 - Detects feature types from DataFrame dtypes
-- Standardizes numerical features (`age`, `income`, `years_experience`)
+- Scales and encodes numerical features (`age`, `income`, `years_experience`); the default is min-max scaling followed by piecewise-linear encoding (PLE)
 - Encodes and embeds categorical features (`city`, `education`, `employment_type`, `has_degree`)
 - Handles missing values if present
 
@@ -197,17 +197,14 @@ For uncertainty quantification, use `LSS` models:
 ```python
 from deeptab.models import MambularLSS
 
-# Same data as regression example
-X_train, X_test, y_train, y_test = ...
-
-# Initialize LSS model
+# Reuse the train/test split from the regression example
 model = MambularLSS()
 
 # Fit with a parametric family
-model.fit(X_train, y_train, family="normal", max_epochs=50)
+model.fit(X_train_reg, y_train_reg, family="normal", max_epochs=50)
 
 # Predict distribution parameters
-params = model.predict(X_test)
+params = model.predict(X_test_reg)
 
 # For family="normal", params has shape (n_samples, 2) with columns [mean, std]
 mean_predictions = params[:, 0]

@@ -450,6 +450,17 @@ class TestWeightedSampling:
         assert clf._data_module is not None
         assert len(train_weights) == len(clf._data_module.y_train)  # type: ignore[union-attr]
 
+    @pytest.mark.parametrize("random_state", [None, RANDOM_STATE])
+    def test_explicit_sample_weight_stays_with_its_row(self, random_state):
+        X, y = _imbalanced_binary_data()
+        X["row_id"] = np.arange(len(y), dtype=float)
+        sample_weight = np.linspace(1.0, 2.0, num=len(y))
+        clf = MLPClassifier(random_state=random_state)
+        clf.fit(X, y, sample_weight=sample_weight, **FIT_KWARGS)
+        assert clf._data_module is not None
+        row_ids = clf._data_module.X_train["row_id"].to_numpy().astype(int)  # type: ignore[index]
+        np.testing.assert_array_equal(clf._data_module._train_sample_weights, sample_weight[row_ids])  # type: ignore[union-attr]
+
     def test_sample_weight_wrong_length_raises(self):
         X, y = _imbalanced_binary_data()
         clf = MLPClassifier()
