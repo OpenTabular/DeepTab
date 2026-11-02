@@ -198,14 +198,16 @@ Distributional / LSS Metrics
 
 .. warning::
 
-  ``CRPS`` uses predicted location and scale for normal and lognormal layouts,
-  Gaussian approximations for Student's t and Johnson SU, and a moment-matched
-  Gaussian for mixtures. Other family layouts return mean absolute error of
-  the first predicted column, even when ``properscoring`` is installed.
-  That column must contain a predicted mean, not an arbitrary raw family
-  parameter. Missing ``properscoring`` also produces an MAE fallback for the
-  supported layouts. MAE does not assess predictive uncertainty; use a
-  family-specific metric or raw-output NLL when that distinction matters.
+  ``CRPS`` is exact for the normal layout and for the lognormal layout, whose
+  location and scale are the mean and standard deviation of ``log(y)``. It
+  uses Gaussian approximations for Student's t and Johnson SU, and a
+  moment-matched Gaussian for mixtures. Other family layouts return mean
+  absolute error of the first predicted column, even when ``properscoring``
+  is installed. That column must contain a predicted mean, not an arbitrary
+  raw family parameter. Missing ``properscoring`` also produces an MAE
+  fallback for the Gaussian-based layouts. MAE does not assess predictive
+  uncertainty; use a family-specific metric or raw-output NLL when that
+  distinction matters.
 
 .. list-table::
    :header-rows: 1
@@ -230,7 +232,7 @@ Distributional / LSS Metrics
      - ``crps``
      - ``False``
      - ``False``
-     - Gaussian CRPS for supported layouts; otherwise a documented MAE fallback
+     - Exact for normal and lognormal; Gaussian approximation for other supported layouts; otherwise a documented MAE fallback
    * - :class:`IntervalScore`
      - ``interval_score``
      - ``False``

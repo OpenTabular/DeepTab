@@ -122,6 +122,23 @@ class TestDistributionalMetrics:
         bad = np.column_stack([rng.normal(0, 1, 200), np.ones(200) * 2.0])
         assert CRPS(family="normal")(y_true, good) < CRPS(family="normal")(y_true, bad)
 
+    def test_lognormal_crps_matches_numerical_integration(self):
+        from scipy import integrate, stats
+
+        loc = np.log([100.0, 50.0, 20.0, 5.0])
+        scale = np.array([0.1, 0.2, 0.3, 0.5])
+        targets = np.array([105.0, 45.0, 22.0, -1.0])
+
+        def reference(target, mean_log, sd_log):
+            cdf = stats.lognorm(sd_log, scale=np.exp(mean_log)).cdf
+            above = integrate.quad(lambda x: (1.0 - cdf(x)) ** 2, max(target, 0.0), np.inf, limit=200)[0]
+            below = integrate.quad(lambda x: cdf(x) ** 2, 0.0, target, limit=200)[0] if target > 0 else -target
+            return above + below
+
+        expected = np.mean([reference(*row) for row in zip(targets, loc, scale, strict=True)])
+        result = CRPS(family="lognormal")(targets, np.column_stack([loc, scale]))
+        assert result == pytest.approx(expected, rel=1e-6)
+
     def test_poisson_deviance_nonneg(self, count_data):
         y_true, y_pred = count_data
         assert PoissonDeviance()(y_true, y_pred) >= 0.0
