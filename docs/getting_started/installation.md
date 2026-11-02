@@ -231,6 +231,8 @@ are missing or incompatible; it does not silently fall back. Keep
 
 ```python
 from deeptab.configs import TrainerConfig
+from deeptab.models import FTTransformerClassifier
+
 model = FTTransformerClassifier(
     trainer_config=TrainerConfig(batch_size=64)
 )

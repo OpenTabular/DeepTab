@@ -122,6 +122,23 @@ class TestDistributionalMetrics:
         bad = np.column_stack([rng.normal(0, 1, 200), np.ones(200) * 2.0])
         assert CRPS(family="normal")(y_true, good) < CRPS(family="normal")(y_true, bad)
 
+    def test_lognormal_crps_matches_numerical_integration(self):
+        from scipy import integrate, stats
+
+        loc = np.log([100.0, 50.0, 20.0, 5.0])
+        scale = np.array([0.1, 0.2, 0.3, 0.5])
+        targets = np.array([105.0, 45.0, 22.0, -1.0])
+
+        def reference(target, mean_log, sd_log):
+            cdf = stats.lognorm(sd_log, scale=np.exp(mean_log)).cdf
+            above = integrate.quad(lambda x: (1.0 - cdf(x)) ** 2, max(target, 0.0), np.inf, limit=200)[0]
+            below = integrate.quad(lambda x: cdf(x) ** 2, 0.0, target, limit=200)[0] if target > 0 else -target
+            return above + below
+
+        expected = np.mean([reference(*row) for row in zip(targets, loc, scale, strict=True)])
+        result = CRPS(family="lognormal")(targets, np.column_stack([loc, scale]))
+        assert result == pytest.approx(expected, rel=1e-6)
+
     def test_poisson_deviance_nonneg(self, count_data):
         y_true, y_pred = count_data
         assert PoissonDeviance()(y_true, y_pred) >= 0.0
@@ -178,6 +195,30 @@ class TestDistributionalMetrics:
         # Should not raise TypeError
         NegativeBinomialDeviance()(y_true, y_pred)
 
+    @staticmethod
+    def _nb_deviance_reference(targets, means, dispersion):
+        from scipy import stats
+
+        size = 1.0 / dispersion
+
+        def log_pmf(values, mean):
+            return stats.nbinom.logpmf(values, size, size / (size + mean))
+
+        return float(np.mean(2.0 * (log_pmf(targets, np.maximum(targets, 1e-300)) - log_pmf(targets, means))))
+
+    def test_nb_deviance_reads_dispersion_column(self):
+        means = np.array([2.0, 5.0, 10.0, 3.0])
+        dispersion = np.array([0.25, 0.5, 0.1, 2.0])
+        targets = np.array([0.0, 7.0, 4.0, 3.0])
+        result = NegativeBinomialDeviance()(targets, np.column_stack([means, dispersion]))
+        assert result == pytest.approx(self._nb_deviance_reference(targets, means, dispersion))
+
+    def test_nb_deviance_default_alpha_is_dispersion(self):
+        means = np.array([2.0, 5.0, 10.0])
+        targets = np.array([1.0, 6.0, 12.0])
+        result = NegativeBinomialDeviance(default_alpha=0.5)(targets, means)
+        assert result == pytest.approx(self._nb_deviance_reference(targets, means, 0.5))
+
     def test_beta_brier_nonneg(self, proportion_data):
         y_true, y_pred = proportion_data
         assert BetaBrierScore()(y_true, y_pred) >= 0.0
@@ -209,6 +250,14 @@ class TestDistributionalMetrics:
 
         expected = -np.mean(t.logpdf(y_true, df=y_pred[:, 0], loc=y_pred[:, 1], scale=y_pred[:, 2]))
         assert metric(y_true, y_pred) == pytest.approx(expected)
+
+    @pytest.mark.parametrize("df", [0.5, 1.5, 4.0])
+    def test_student_t_loss_matches_scipy_for_any_positive_df(self, df):
+        from scipy import stats
+
+        targets = np.asarray(stats.t.rvs(df, size=500, random_state=0))
+        parameters = np.column_stack([np.full(500, df), np.zeros(500), np.ones(500)])
+        assert StudentTLoss()(targets, parameters) == pytest.approx(-stats.t.logpdf(targets, df).mean())
 
     def test_default_zip_deviance_uses_expected_count(self):
         y_true = np.array([0.5, 2.0])

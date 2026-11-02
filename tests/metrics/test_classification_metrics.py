@@ -180,3 +180,71 @@ class TestClassificationMetrics:
         proba = np.array([[0.9, 0.1], [0.1, 0.9]])
         with pytest.raises(ValueError, match="class indices"):
             ExpectedCalibrationError()(y_true, proba)
+
+
+class TestLogLossWithMissingClasses:
+    """Class indices absent from y_true must not make the log loss undefined."""
+
+    def test_multiclass_matrix_uses_all_columns_as_classes(self):
+        from sklearn.metrics import log_loss
+
+        probabilities = np.array([[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.6, 0.3, 0.1], [0.2, 0.7, 0.1]])
+        targets = np.array([0, 1, 0, 1])
+        expected = log_loss(targets, probabilities, labels=[0, 1, 2])
+        assert LogLoss()(targets, probabilities) == pytest.approx(expected)
+
+    def test_binary_matrix_with_a_single_observed_class(self):
+        from sklearn.metrics import log_loss
+
+        probabilities = np.array([[0.9, 0.1], [0.6, 0.4], [0.8, 0.2]])
+        targets = np.array([0, 0, 0])
+        assert LogLoss()(targets, probabilities) == pytest.approx(log_loss(targets, probabilities, labels=[0, 1]))
+
+    def test_labels_outside_the_column_indices_are_inferred_by_sklearn(self):
+        from sklearn.metrics import log_loss
+
+        probabilities = np.array([[0.7, 0.2, 0.1], [0.1, 0.8, 0.1], [0.2, 0.2, 0.6]])
+        targets = np.array([1, 2, 3])
+        assert LogLoss()(targets, probabilities) == pytest.approx(log_loss(targets, probabilities))
+
+    def test_evaluate_with_labels_other_than_column_indices(self, tmp_path):
+        import pandas as pd
+        from sklearn.metrics import log_loss
+
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        rng = np.random.default_rng(0)
+        features = pd.DataFrame({"a": rng.normal(size=90), "b": rng.normal(size=90)})
+        targets = np.tile([1, 2, 3], 30)
+        model = MLPClassifier(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=0)
+        model.fit(
+            features, targets, checkpoint_path=str(tmp_path), accelerator="cpu", logger=False, enable_progress_bar=False
+        )
+        expected = log_loss(targets, model.predict_proba(features), labels=model.classes_)
+        assert model.evaluate(features, targets, metrics={"log_loss": LogLoss()})["log_loss"] == pytest.approx(expected)
+
+    def test_evaluate_and_validation_metrics_on_data_without_one_class(self, tmp_path):
+        import pandas as pd
+
+        from deeptab.configs import TrainerConfig
+        from deeptab.models import MLPClassifier
+
+        rng = np.random.default_rng(0)
+        features = pd.DataFrame({"a": rng.normal(size=90), "b": rng.normal(size=90)})
+        targets = np.tile([0, 1, 2], 30)
+        without_class_two = targets != 2
+        model = MLPClassifier(trainer_config=TrainerConfig(max_epochs=1, batch_size=16), random_state=0)
+        model.fit(
+            features[:60],
+            targets[:60],
+            X_val=features[60:][without_class_two[60:]],
+            y_val=targets[60:][without_class_two[60:]],
+            val_metrics={"log_loss": LogLoss()},
+            checkpoint_path=str(tmp_path),
+            accelerator="cpu",
+            logger=False,
+            enable_progress_bar=False,
+        )
+        scores = model.evaluate(features[without_class_two], targets[without_class_two])
+        assert np.isfinite(scores["log_loss"])

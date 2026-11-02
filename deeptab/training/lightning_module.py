@@ -50,7 +50,7 @@ class TaskModel(pl.LightningModule):
     Parameters
     ----------
     model_class : type[nn.Module]
-        Architecture class to instantiate (e.g. ``ResNetModel``).
+        Architecture class to instantiate (e.g. ``ResNet``).
     config : dataclass
         Architecture configuration dataclass (e.g. ``ResNetConfig``).
     feature_information : tuple
@@ -155,20 +155,20 @@ class TaskModel(pl.LightningModule):
     --------
     ``TaskModel`` is normally created via the sklearn-compatible API::
 
-        from deeptab.models import MLP
+        from deeptab.models import MLPClassifier
         from deeptab.configs import TrainerConfig
 
-        model = MLP(trainer_config=TrainerConfig(optimizer_type="AdamW", lr=3e-4))
+        model = MLPClassifier(trainer_config=TrainerConfig(optimizer_type="AdamW", lr=3e-4))
         model.fit(X_train, y_train)
 
     For advanced use (e.g. custom Lightning ``Trainer``)::
 
         from deeptab.training import TaskModel
-        from deeptab.architectures import ResNetModel
+        from deeptab.architectures import ResNet
         from deeptab.configs import ResNetConfig
 
         task_model = TaskModel(
-            model_class=ResNetModel,
+            model_class=ResNet,
             config=ResNetConfig(d_model=64),
             feature_information=(num_info, cat_info, emb_info),
             num_classes=1,

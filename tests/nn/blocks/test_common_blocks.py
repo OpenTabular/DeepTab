@@ -10,6 +10,8 @@ import pytest
 import torch
 import torch.nn as nn
 
+from deeptab.configs import FTTransformerConfig, TabRConfig
+from deeptab.configs.experimental.modernnca_config import ModernNCAConfig
 from deeptab.nn.blocks.common import (
     BatchNorm,
     BlockDiagonal,
@@ -352,7 +354,7 @@ def _emb_cfg(embedding_type="linear", **kw):
         embedding_type=embedding_type,
         embedding_bias=False,
         n_frequencies=8,
-        frequency_init_scale=0.01,
+        frequencies_init_scale=0.01,
         plr_lite=False,
     )
     for k, v in kw.items():
@@ -395,6 +397,21 @@ class TestEmbeddingLayer:
         layer = EmbeddingLayer(_num_info(3), {}, {}, _emb_cfg(embedding_type="plr"))
         out = layer([torch.randn(B, 1)] * 3, [], [])
         assert out.shape == (B, 3, 16)
+
+    @pytest.mark.parametrize(
+        "config_factory",
+        [
+            lambda: FTTransformerConfig(d_model=16, n_heads=2, embedding_type="plr", frequencies_init_scale=5.0),
+            lambda: TabRConfig(d_model=16, use_embeddings=True),
+            lambda: ModernNCAConfig(d_model=16, use_embeddings=True),
+        ],
+        ids=["fttransformer", "tabr", "modernnca"],
+    )
+    def test_plr_uses_configured_frequency_scale(self, config_factory):
+        config = config_factory()
+        embeddings = EmbeddingLayer(_num_info(3), {}, {}, config).num_embeddings
+        assert isinstance(embeddings, PeriodicEmbeddings)
+        assert embeddings.periodic._sigma == config.frequencies_init_scale
 
     def test_ndt_embedding(self):
         # d_model=16 is a power of 2, required by NeuralEmbeddingTree
@@ -625,6 +642,50 @@ class TestRNNBatchEnsembleLayer:
         rnn = RNNBatchEnsembleLayer(input_size=8, hidden_size=16, ensemble_size=E, ensemble_bias=True)
         out, _ = rnn(torch.randn(B, S, 8))
         assert out.shape == (B, S, E, 16)
+
+
+class TestRandomSignsScalingInit:
+    """``scaling_init="random-signs"`` must fill the ensemble scaling factors in
+    place instead of leaving the memory they were allocated with."""
+
+    @staticmethod
+    def _scaling_tensors(layer):
+        tensors = []
+        for scaling in (layer.r, layer.s):
+            if isinstance(scaling, nn.ParameterDict):
+                tensors.extend(scaling.values())
+            elif scaling is not None:
+                tensors.append(scaling)
+        return tensors
+
+    @pytest.mark.parametrize(
+        "make_layer",
+        [
+            lambda: LinearBatchEnsembleLayer(
+                in_features=64, out_features=64, ensemble_size=E, scaling_init="random-signs"
+            ),
+            lambda: RNNBatchEnsembleLayer(input_size=64, hidden_size=64, ensemble_size=E, scaling_init="random-signs"),
+            lambda: MultiHeadAttentionBatchEnsemble(
+                embed_dim=64, num_heads=2, ensemble_size=E, scaling_init="random-signs"
+            ),
+        ],
+        ids=["linear", "rnn", "attention"],
+    )
+    def test_scaling_factors_are_random_signs(self, make_layer, monkeypatch):
+        # Allocate float tensors as NaN so uninitialized memory cannot pass as a valid init.
+        empty = torch.empty
+
+        def nan_empty(*size, **kwargs):
+            tensor = empty(*size, **kwargs)
+            return tensor.fill_(float("nan")) if tensor.is_floating_point() else tensor
+
+        monkeypatch.setattr(torch, "empty", nan_empty)
+        layer = make_layer()
+        tensors = self._scaling_tensors(layer)
+        assert tensors
+        for tensor in tensors:
+            values = set(tensor.detach().unique().tolist())
+            assert values == {-1.0, 1.0}
 
 
 class TestmLSTMblock:

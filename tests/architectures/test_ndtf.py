@@ -45,6 +45,13 @@ def test_feature_projection_matches_convolution_outputs_and_gradients(width, bat
     torch.testing.assert_close(model.conv_layer.bias.grad, convolution.bias.grad)
 
 
+def test_one_dimensional_input_builds_every_tree_on_that_input():
+    num_info = {"feature": {"preprocessing": "none", "dimension": 1, "categories": None}}
+    model = NDTF(feature_information=(num_info, {}, {}), num_classes=1, config=NDTFConfig(n_ensembles=3))
+    assert model.input_dimensions == [1, 1, 1]
+    assert model([torch.randn(5, 1)], [], []).shape == (5, 1)
+
+
 @pytest.mark.parametrize("device", ["cpu", "mps"])
 @pytest.mark.parametrize("with_penalty", [False, True])
 def test_forest_backward_has_finite_gradients(device, with_penalty):
@@ -67,3 +74,11 @@ def test_forest_backward_has_finite_gradients(device, with_penalty):
     for parameter in model.parameters():
         assert parameter.grad is not None
         assert torch.isfinite(parameter.grad).all()
+
+
+@pytest.mark.parametrize("min_depth, max_depth", [(6, 6), (8, 4)])
+def test_config_rejects_empty_depth_range(min_depth, max_depth):
+    from deeptab.core.exceptions import IncompatibleParamsError
+
+    with pytest.raises(IncompatibleParamsError, match="max_depth"):
+        NDTFConfig(min_depth=min_depth, max_depth=max_depth)

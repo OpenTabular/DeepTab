@@ -276,7 +276,7 @@ model.fit(X_train, y_train, max_epochs=50)
 
 > **Learn more:** Preprocessing is driven by `PreprocessingConfig`; see the [Config System](https://deeptab.readthedocs.io/en/latest/core_concepts/config_system.html) guide and the [PreTab](https://github.com/OpenTabular/PreTab) project.
 
-> **Note:** Duplicate column names raise a `DuplicateColumnsError`, and a column that is entirely missing is imputed with a constant rather than passed through untouched. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html#data-and-preprocessing) for details.
+> **Note:** Duplicate column names raise a `DuplicateColumnsError`, and a training column that is entirely missing is imputed with a constant rather than passed through untouched. See the [FAQ](https://deeptab.readthedocs.io/en/latest/getting_started/faq.html#data-and-preprocessing) for details.
 
 ### Observability & Experiment Tracking
 
@@ -288,8 +288,9 @@ from deeptab.models import MambularClassifier
 
 obs = ObservabilityConfig(
     experiment_name="churn_baseline",
-    structured_logging=True,          # human-readable console + JSON event log
-    experiment_trackers=["mlflow"],   # also supports "tensorboard"
+    structured_logging=True,                       # human-readable lifecycle events on the console
+    log_to_file=True,                              # also write them to lifecycle.jsonl per run
+    experiment_trackers=["mlflow", "tensorboard"],
 )
 
 model = MambularClassifier(observability_config=obs)
@@ -304,7 +305,7 @@ deeptab_runs/
     config.yaml       # estimator hyperparameters
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
-    checkpoints/best.ckpt
+    checkpoints/best_model.ckpt
   tensorboard/...
   mlflow/...
 ```

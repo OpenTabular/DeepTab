@@ -67,7 +67,9 @@ After fitting a model, inspect how features were preprocessed:
 Working with TabularBatch
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The new ``TabularBatch`` replaces raw tuples for cleaner code:
+``TabularBatch`` wraps the batches DeepTab's loaders yield in a typed
+container. With PyTorch's default collation, those batches arrive as a
+``[features, labels]`` list rather than a tuple:
 
 .. code-block:: python
 
@@ -75,8 +77,8 @@ The new ``TabularBatch`` replaces raw tuples for cleaner code:
 
     # In custom training loops
     for batch in dataloader:
-        if isinstance(batch, tuple):
-            # Convert legacy format
+        if not isinstance(batch, TabularBatch):
+            # Convert the legacy [features, labels] format
             batch = TabularBatch.from_tuple(batch)
 
         # Move to device

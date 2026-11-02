@@ -1,6 +1,8 @@
 from collections.abc import Callable  # inherited by sphinx-autodoc-typehints
 from dataclasses import dataclass
 
+from deeptab.core.exceptions import incompatible_params_error
+
 from ..core import BaseModelConfig
 
 
@@ -14,8 +16,9 @@ class NDTFConfig(BaseModelConfig):
         Minimum depth of trees in the forest. Controls the simplest model
         structure.
     max_depth : int, default=16
-        Maximum depth of trees in the forest. Controls the maximum complexity
-        of the trees.
+        Exclusive upper bound of the tree depths: depths are drawn from
+        ``min_depth`` up to ``max_depth - 1``, so ``max_depth`` must be greater
+        than ``min_depth``. Controls the maximum complexity of the trees.
     temperature : float, default=0.1
         Temperature parameter for softening the node decisions during path
         probability calculation.
@@ -38,3 +41,12 @@ class NDTFConfig(BaseModelConfig):
     lamda: float = 0.3
     n_ensembles: int = 12
     penalty_factor: float = 1e-8
+
+    def __post_init__(self) -> None:  # type: ignore[override]
+        super().__post_init__()
+        if self.max_depth <= self.min_depth:
+            raise incompatible_params_error(
+                "NDTFConfig",
+                f"max_depth ({self.max_depth}) must be greater than min_depth ({self.min_depth}): "
+                "tree depths are drawn from min_depth up to, but excluding, max_depth.",
+            )

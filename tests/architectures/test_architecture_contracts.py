@@ -124,6 +124,18 @@ def test_tabm_normalization_uses_hidden_width(norm, average_ensembles):
     predictions.sum().backward()
 
 
+def test_tabm_averaged_ensemble_forward_prints_nothing(capsys):
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == "TabM")
+    config = get_model_config(model_class)
+    config.layer_sizes = [8, 4]
+    config.ensemble_size = 3
+    config.average_ensembles = True
+    model = model_class(({f"value_{index}": {"dimension": 1} for index in range(2)}, {}, {}), config=config)
+    output = model([torch.randn(4, 1) for _ in range(2)], [], [])
+    assert output.shape == (4, 1)
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.parametrize("norm", ["LayerNorm", "RMSNorm", "BatchNorm", "LearnableLayerScaling"])
 def test_tabm_normalization_keeps_ensemble_members_independent(norm):
     from deeptab.architectures.tabm import TabM
@@ -146,6 +158,23 @@ def test_tabm_normalization_keeps_ensemble_members_independent(norm):
 
     assert not torch.allclose(perturbed[:, 0], baseline[:, 0])
     torch.testing.assert_close(perturbed[:, 1:], baseline[:, 1:])
+
+
+def test_tabm_random_signs_scaling_init_trains_first_layer():
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == "TabM")
+    config = get_model_config(model_class)
+    config.layer_sizes = [16, 8]
+    config.ensemble_size = 4
+    config.dropout = 0.0
+    config.scaling_init = "random-signs"
+    model = model_class(({f"value_{index}": {"dimension": 1} for index in range(3)}, {}, {}), config=config)
+    first_layer = model.layers[0]
+    # Every factor is -1 or +1 (a 4 x 3 tensor can draw a single sign by chance, so only |r| is checked).
+    assert torch.all(first_layer.r.detach().abs() == 1)
+    assert torch.all(first_layer.s.detach().abs() == 1)
+    model([torch.randn(8, 1) for _ in range(3)], [], []).sum().backward()
+    assert first_layer.W.grad is not None
+    assert first_layer.W.grad.abs().sum() > 0
 
 
 @pytest.mark.parametrize("norm", ["InstanceNorm", "GroupNorm"])
@@ -367,3 +396,31 @@ def test_model_defines_key_attributes(model_class):
     expected_attrs = ["returns_ensemble"]
     for attr in expected_attrs:
         assert hasattr(model, attr), f"{model_class.__name__} should define '{attr}'."
+
+
+@pytest.mark.parametrize(
+    "num_blocks, expected_widths",
+    [
+        (0, []),
+        (1, [(16, 8)]),
+        (2, [(16, 8), (8, 4)]),
+        (3, [(16, 8), (8, 4), (4, 4)]),
+        (4, [(16, 8), (8, 4), (4, 4), (4, 4)]),
+        (5, [(16, 8), (8, 4), (4, 4), (4, 4), (4, 4)]),
+    ],
+    ids=["0-blocks", "1-block", "2-blocks", "3-blocks", "4-blocks", "5-blocks"],
+)
+def test_resnet_blocks_follow_layer_sizes_for_any_num_blocks(num_blocks, expected_widths):
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == "ResNet")
+    config = get_model_config(model_class)
+    config.layer_sizes = [16, 8, 4]
+    config.num_blocks = num_blocks
+    model = model_class(
+        ({f"value_{index}": {"dimension": 1} for index in range(3)}, {}, {}), num_classes=2, config=config
+    )
+    widths = [(block.linear1.in_features, block.linear1.out_features) for block in model.blocks]
+    assert widths == expected_widths
+    assert model.output_layer.in_features == (expected_widths[-1][1] if expected_widths else 16)
+    output = model([torch.randn(5, 1) for _ in range(3)], [], [])
+    assert output.shape == (5, 2)
+    output.sum().backward()

@@ -429,7 +429,7 @@ model.fit(
 | `X_val`, `y_val`               | `None`   | Explicit validation set. Skips the internal split when supplied.                                                                                                                                                                                                                      |
 | `embeddings`, `embeddings_val` | `None`   | External feature embeddings for train and validation data.                                                                                                                                                                                                                            |
 | `max_epochs`                   | `None`   | Maximum number of training epochs. Falls back to `TrainerConfig.max_epochs`, then `100`.                                                                                                                                                                                              |
-| `random_state`                 | `101`    | Seed applied before model build and training for reproducibility.                                                                                                                                                                                                                     |
+| `random_state`                 | `None`   | Seed applied before model build and training. Falls back to the estimator's `random_state`; when both are `None`, nothing is reseeded.                                                                                                                                                |
 | `batch_size`                   | `None`   | Samples per gradient update. Falls back to `TrainerConfig.batch_size`, then `128`.                                                                                                                                                                                                    |
 | `shuffle`                      | `None`   | Shuffle training data each epoch. Falls back to `TrainerConfig.shuffle`, then `True`.                                                                                                                                                                                                 |
 | `patience`                     | `None`   | Early-stopping patience on the monitored metric. Falls back to `TrainerConfig.patience`, then `15`.                                                                                                                                                                                   |
@@ -510,8 +510,16 @@ save/load. Categorical output width is inferred from the training labels;
 Dirichlet width is inferred from a target matrix of shape `(n_samples, K)`.
 Dirichlet targets must be positive proportions whose rows sum to one.
 
-Targets for `gamma`, `inversegamma`, and `lognormal` must be strictly positive.
-Zero or negative targets raise `DataError` before preprocessing or model construction.
+Targets must lie in the support of the selected family:
+
+| Family                               | Valid targets             |
+| ------------------------------------ | ------------------------- |
+| `poisson`, `negativebinom`, `zip`    | Non-negative integers     |
+| `tweedie`                            | Non-negative values       |
+| `gamma`, `inversegamma`, `lognormal` | Strictly positive values  |
+| `beta`                               | Values strictly in (0, 1) |
+
+Targets outside the support raise `DataError` before preprocessing or model construction.
 
 LSS `fit()` seeds Python, NumPy, and PyTorch using the resolved `random_state`
 before model construction. Equal seeds support repeatable fits on the same
