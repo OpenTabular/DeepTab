@@ -137,8 +137,13 @@ class SklearnBaseLSS(SklearnBase):
         Returns
         -------
         self : object
-            The built distributional regressor.
+            The built distributional regressor. Its weights are untrained, so
+            the estimator counts as unfitted (``predict()`` raises
+            ``NotFittedError``) until ``fit()`` completes.
         """
+        # The rebuilt network has untrained weights, so a previous fit() no
+        # longer describes this estimator until it is fitted again.
+        self._mark_unfitted()
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
         self._configure_distribution(y, family, distributional_kwargs)
