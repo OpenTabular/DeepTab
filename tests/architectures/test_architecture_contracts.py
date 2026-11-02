@@ -124,6 +124,18 @@ def test_tabm_normalization_uses_hidden_width(norm, average_ensembles):
     predictions.sum().backward()
 
 
+def test_tabm_averaged_ensemble_forward_prints_nothing(capsys):
+    model_class = next(model_class for model_class in model_classes if model_class.__name__ == "TabM")
+    config = get_model_config(model_class)
+    config.layer_sizes = [8, 4]
+    config.ensemble_size = 3
+    config.average_ensembles = True
+    model = model_class(({f"value_{index}": {"dimension": 1} for index in range(2)}, {}, {}), config=config)
+    output = model([torch.randn(4, 1) for _ in range(2)], [], [])
+    assert output.shape == (4, 1)
+    assert capsys.readouterr().out == ""
+
+
 @pytest.mark.parametrize("norm", ["LayerNorm", "RMSNorm", "BatchNorm", "LearnableLayerScaling"])
 def test_tabm_normalization_keeps_ensemble_members_independent(norm):
     from deeptab.architectures.tabm import TabM
