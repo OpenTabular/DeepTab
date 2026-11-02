@@ -77,7 +77,7 @@ class TweedieDistribution(BaseDistribution):
         # Tweedie deviance: D(y, mu) = 2 * [y^(2-p)/((1-p)(2-p)) - y*mu^(1-p)/(1-p) + mu^(2-p)/(2-p)]
         p = self.p
         d = 2.0 * (
-            torch.pow(y_true_tensor.clamp(min=1e-8), 2.0 - p) / ((1.0 - p) * (2.0 - p))
+            torch.pow(y_true_tensor.clamp(min=0.0), 2.0 - p) / ((1.0 - p) * (2.0 - p))
             - y_true_tensor * torch.pow(mu, 1.0 - p) / (1.0 - p)
             + torch.pow(mu, 2.0 - p) / (2.0 - p)
         )
