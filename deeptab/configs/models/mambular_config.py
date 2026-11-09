@@ -51,7 +51,8 @@ class MambularConfig(BaseModelConfig):
     BC_layer_norm : bool, default=False
         Whether to use layer norm on the B and C matrices
     shuffle_embeddings : bool, default=False
-        Whether to shuffle embeddings before being passed to Mamba layers.
+        Whether to shuffle the feature tokens before passing them to the Mamba layers. The CLS token,
+        if used, keeps its position.
     head_layer_sizes : list, default=[]
         Sizes of the layers in the model's head.
     head_dropout : float, default=0.5

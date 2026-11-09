@@ -1,4 +1,3 @@
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -113,10 +112,10 @@ class TabTransformer(BaseModel):
         )
 
         # pooling
-        # Only cat/embedding features pass through the encoder whose output
-        # gets pooled (numerical features are concatenated in separately),
-        # so n_inputs excludes num_feature_info.
-        n_inputs = int(np.sum([len(info) for info in feature_information[1:]]))
+        # Only cat/embedding features (plus the CLS token, if enabled) pass
+        # through the encoder whose output gets pooled (numerical features are
+        # concatenated in separately), so n_inputs excludes num_feature_info.
+        n_inputs = self.embedding_layer.n_tokens
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.d_model)
 
     def forward(self, *data):

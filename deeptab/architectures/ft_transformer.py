@@ -1,4 +1,3 @@
-import numpy as np
 import torch.nn as nn
 
 from deeptab.core import BaseModel
@@ -85,7 +84,7 @@ class FTTransformer(BaseModel):
         )
 
         # pooling
-        n_inputs = np.sum([len(info) for info in feature_information])
+        n_inputs = self.embedding_layer.n_tokens
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.d_model)
 
     def forward(self, *data):
