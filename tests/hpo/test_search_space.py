@@ -72,3 +72,34 @@ def test_get_search_space_custom_overrides():
     if "lr" in names:
         idx = names.index("lr")
         assert isinstance(space[idx], Real)
+
+
+def test_boolean_norm_is_searched_over_on_and_off():
+    """ResNet's ``norm`` is a bool: searching layer names would always mean True."""
+    from skopt.space import Categorical
+
+    from deeptab.configs import ResNetConfig
+    from deeptab.hpo import get_search_space
+
+    names, space = get_search_space(ResNetConfig())
+    dimension = space[names.index("norm")]
+    assert isinstance(dimension, Categorical)
+    assert set(dimension.categories) == {True, False}
+
+
+def test_named_norm_is_still_searched_over_layer_names():
+    from deeptab.configs import MambularConfig
+    from deeptab.hpo import get_search_space
+
+    names, space = get_search_space(MambularConfig())
+    assert set(space[names.index("norm")].categories) == {"LayerNorm", "RMSNorm"}
+
+
+def test_custom_norm_dimension_overrides_the_boolean_default():
+    from skopt.space import Categorical
+
+    from deeptab.configs import ResNetConfig
+    from deeptab.hpo import get_search_space
+
+    names, space = get_search_space(ResNetConfig(), custom_search_space={"norm": Categorical([True])})
+    assert space[names.index("norm")].categories == (True,)
