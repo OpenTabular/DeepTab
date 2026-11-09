@@ -117,6 +117,50 @@ class TestPoolingHiddenSizeFix:
         assert out.shape == (4, 2)
 
 
+class TestRecurrentAndConvolutionalPooling:
+    """The "rnn" and "conv" pooling layers built by initialize_pooling_layers
+    must also be applied by pool_sequence instead of raising at forward time."""
+
+    def test_rnn_pooling_returns_last_lstm_step(self):
+        from deeptab.architectures.ft_transformer import FTTransformer
+
+        config = FTTransformerConfig(d_model=8, n_layers=1, n_heads=2, pooling_method="rnn")
+        model = FTTransformer(feature_information=(NUM_INFO, {}, {}), config=config)
+        sequence = torch.randn(4, 3, 8)
+        expected, _ = model.pooling_rnn(sequence)
+        torch.testing.assert_close(model.pool_sequence(sequence), expected[:, -1, :])
+
+    def test_conv_pooling_returns_global_max_of_convolution(self):
+        from deeptab.architectures.ft_transformer import FTTransformer
+
+        config = FTTransformerConfig(d_model=8, n_layers=1, n_heads=2, pooling_method="conv")
+        model = FTTransformer(feature_information=(NUM_INFO, {}, {}), config=config)
+        sequence = torch.randn(4, 3, 8)
+        expected = model.conv1d_pooling(sequence.transpose(1, 2)).amax(dim=2)
+        torch.testing.assert_close(model.pool_sequence(sequence), expected)
+
+    @pytest.mark.parametrize("pooling_method", ["rnn", "conv"])
+    @pytest.mark.parametrize(
+        "architecture_name", ["FTTransformer", "MambAttention", "Mambular", "SAINT", "TabTransformer", "TabulaRNN"]
+    )
+    def test_forward_trains_pooling_layer(self, architecture_name, pooling_method):
+        import deeptab.architectures as architectures
+        import deeptab.configs as configs
+
+        config = getattr(configs, f"{architecture_name}Config")(d_model=8, pooling_method=pooling_method)
+        for name, value in {"n_layers": 1, "n_heads": 2, "dim_feedforward": 8}.items():
+            if hasattr(config, name):
+                setattr(config, name, value)
+        model = getattr(architectures, architecture_name)(
+            feature_information=(NUM_INFO, CAT_INFO, {}), num_classes=2, config=config
+        )
+        out = model([torch.randn(4, 1)], [torch.randint(0, 5, (4, 1))], [])
+        assert out.shape == (4, 2)
+        out.sum().backward()
+        pooling = model.pooling_rnn if pooling_method == "rnn" else model.conv1d_pooling
+        assert all(parameter.grad is not None for parameter in pooling.parameters())
+
+
 class TestEncodingAndClsPooling:
     @pytest.mark.parametrize("cls_position", [0, 1])
     def test_pooling_respects_embedding_cls_position(self, cls_position):
