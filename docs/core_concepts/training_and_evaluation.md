@@ -180,6 +180,11 @@ every input row. A validation set smaller than `batch_size` still yields one
 batch. Other loader options, such as `num_workers` and `pin_memory`, remain in
 effect.
 
+Without an explicit `drop_last`, DeepTab drops a trailing training batch only
+when it would contain a single row, because layers such as `BatchNorm1d` cannot
+train on one row. With shuffling, a different row is left out in each epoch.
+Pass `dataloader_kwargs={"drop_last": False}` to keep that batch.
+
 ```{warning}
 If the training partition itself is smaller than one batch, `drop_last=True`
 still leaves the training loader empty. Reduce `batch_size` or disable
