@@ -3,6 +3,7 @@ import uuid
 import warnings
 from collections.abc import Callable
 from copy import deepcopy
+from typing import Any
 
 import lightning as pl
 import numpy as np
@@ -784,7 +785,7 @@ class SklearnBaseLSS(SklearnBase):
     # Persistence
     # ------------------------------------------------------------------
 
-    def save(self, path: str) -> None:
+    def save(self, path: str | None = None) -> str:
         """Save the fitted model to *path*.
 
         The bundle written by this method can be restored with
@@ -804,26 +805,38 @@ class SklearnBaseLSS(SklearnBase):
 
         Parameters
         ----------
-        path : str
-            Destination file path (e.g. ``"model.pt"``).
+        path : str or None, default=None
+            Destination file path (e.g. ``"model.pt"``).  When ``None``
+            and a run directory is active (i.e. an ``ObservabilityConfig``
+            that creates a run dir was attached before ``fit()``), the model is
+            saved to ``<run_dir>/artifacts/model.deeptab`` automatically.
+            When no run dir is active either, raises ``ValueError``.
+
+        Returns
+        -------
+        str
+            The resolved path the bundle was written to.
 
         Raises
         ------
         ValueError
-            If the model has not been fitted yet or a required candidate bank
-            is missing or incompatible.
+            If the model has not been fitted yet, or *path* is ``None``
+            and no run directory is active.
+            Also raised if a required candidate bank is missing or incompatible.
 
         Examples
         --------
         >>> model = MLPLSS()
         >>> model.fit(X_train, y_train, family="normal")
-        >>> model.save("my_lss_model.deeptab")
-        >>> loaded = MLPLSS.load("my_lss_model.deeptab")
+        >>> saved_path = model.save("my_lss_model.deeptab")
+        >>> loaded = MLPLSS.load(saved_path)
         >>> predictions = loaded.predict(X_test)
         """
-        _warn_extension(path)
-        bundle = build_save_bundle(self, lss=True, family=self.family_name)
-        torch.save(bundle, path)
+        return super().save(path)
+
+    def _build_save_bundle(self) -> dict[str, Any]:
+        """Return the artifact bundle written by :meth:`save`, including the distribution family."""
+        return build_save_bundle(self, lss=True, family=self.family_name)
 
     @classmethod
     def load(cls, path: str, device: str = "cpu"):
