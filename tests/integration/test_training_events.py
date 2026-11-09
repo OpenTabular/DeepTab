@@ -106,3 +106,16 @@ class TestEventInventoryViaFastTrainer:
         clf.predict(X)
         kw = predict_logger.kwargs_for("predict_started")
         assert kw["n_samples"] == len(X)
+
+
+def test_lss_fit_emits_the_same_lifecycle_events():
+    from deeptab.configs import TrainerConfig
+    from deeptab.models import MLPLSS
+
+    model = MLPLSS(trainer_config=TrainerConfig(max_epochs=2, patience=2, lr_patience=2))
+    logger = _RecordingLogger()
+    model._event_logger = logger
+    features = np.random.default_rng(42).standard_normal((60, 4))
+    model.fit(features, features[:, 0], family="normal", accelerator="cpu", enable_progress_bar=False)
+    assert [event for event in logger.events() if event in _EXPECTED_FIT_EVENTS] == _EXPECTED_FIT_EVENTS
+    assert logger.kwargs_for("fit.completed")["status"] == "success"
