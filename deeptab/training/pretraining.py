@@ -265,7 +265,19 @@ class ContrastivePretrainer(pl.LightningModule):
             loss = self.loss_fn(embeddings_s, all_pairs, all_pair_labels)
             return loss
 
+    def _cannot_form_pairs(self, batch) -> bool:
+        """Whether *batch* is too small for any row to be an anchor.
+
+        Regression needs two rows. Classification needs three, because an
+        anchor needs both a same-class and a different-class neighbor. Such a
+        batch (e.g. the last batch of an epoch) is skipped instead of failing.
+        """
+        _, labels = batch
+        return labels.size(0) < (2 if self.regression else 3)
+
     def training_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         self.estimator.embedding_layer.train()
 
         data, labels = batch
@@ -277,6 +289,8 @@ class ContrastivePretrainer(pl.LightningModule):
         return loss
 
     def test_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         data, labels = batch
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)
@@ -285,6 +299,8 @@ class ContrastivePretrainer(pl.LightningModule):
         return loss
 
     def validation_step(self, batch, batch_idx):
+        if self._cannot_form_pairs(batch):
+            return None
         data, labels = batch
         embeddings = self(data)
         knn_indices, neg_indices = self.get_knn(labels)
