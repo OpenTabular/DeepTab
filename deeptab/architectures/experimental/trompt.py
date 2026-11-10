@@ -77,7 +77,11 @@ class Trompt(BaseModel):
         Tensor
             The output predictions of the model.
         """
-        O = self.init_rec.unsqueeze(0).repeat(data[0][0].shape[0], 1, 1)  # noqa: E741
+        # The prompt records are repeated once per row. Any feature group may be
+        # empty (e.g. a categorical-only table has no numerical tensors), so the
+        # batch size comes from the first tensor of whichever group is present.
+        batch_size = next(tensor.shape[0] for group in data if group for tensor in group)
+        O = self.init_rec.unsqueeze(0).repeat(batch_size, 1, 1)  # noqa: E741
         outputs = []
 
         for i in range(self.n_cycles):
