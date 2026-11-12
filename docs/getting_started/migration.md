@@ -260,7 +260,7 @@ from deeptab.models.experimental import ModernNCAClassifier, TangosRegressor, Tr
 
 ```{warning}
 Experimental models may change in minor releases. Pin an exact version such as
-`deeptab==2.0.0` if you depend on one in production.
+`deeptab==2.1.0` if you depend on one in production.
 ```
 
 ## What did not change
