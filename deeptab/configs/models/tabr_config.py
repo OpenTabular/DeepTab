@@ -11,12 +11,12 @@ class TabRConfig(BaseModelConfig):
     """Architecture-only configuration for TabR models (DeepTab 2.0 API).
 
     Training fields (``lr``, ``weight_decay``, ``lr_factor``) are configured
-    via :class:`~deeptab.configs.trainer_config.TrainerConfig`.
+    via :class:`~deeptab.configs.TrainerConfig`.
 
     Parameters
     ----------
     embedding_type : str, default='plr'
-        Type of feature embedding to use (e.g., 'plr', 'ple').
+        Type of feature embedding to use (e.g., 'plr', 'linear').
     plr_lite : bool, default=True
         Whether to use the lightweight PLR embedding variant.
     n_frequencies : int, default=75
