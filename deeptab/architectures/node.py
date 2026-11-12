@@ -16,10 +16,9 @@ class NODE(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : NODEConfig, optional
@@ -30,10 +29,6 @@ class NODE(BaseModel):
 
     Attributes
     ----------
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
     use_embeddings : bool
         Flag indicating if embeddings should be used for categorical and numerical features.
     embedding_layer : EmbeddingLayer, optional
