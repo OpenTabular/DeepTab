@@ -60,7 +60,7 @@ guide.
 ```{note}
 **Version pinning.** For stable-only projects, pin a compatible range such as
 `deeptab>=2.0,<3.0`. For projects that use experimental models, pin the exact
-version (`deeptab==2.0.0`), since their APIs may change between releases.
+version (`deeptab==2.1.0`), since their APIs may change between releases.
 ```
 
 ## Next Steps
