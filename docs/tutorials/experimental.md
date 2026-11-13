@@ -33,7 +33,7 @@ DeepTab sorts every model into one of two tiers. The tier is a contract about AP
 | ------------------- | -------------------------------------------------- | ------------------------------------------------------- |
 | **Import path**     | `deeptab.models.experimental`                      | `deeptab.models`                                        |
 | **API stability**   | May change without a deprecation cycle             | Frozen under semantic versioning                        |
-| **Recommended pin** | Exact version (`deeptab==2.0.0`)                   | Range (`deeptab>=2.0,<3.0`)                             |
+| **Recommended pin** | Exact version (`deeptab==2.1.0`)                   | Range (`deeptab>=2.0,<3.0`)                             |
 | **Best for**        | Evaluating recent architectures, research feedback | Production, long-running baselines, reproducible suites |
 
 Before an experimental model graduates to the stable zoo it has to clear a documented bar: a conventional public API, a model-zoo page with a limitations section, a runnable end-to-end example, working `save`/`load` with a prediction round-trip test, passing behavioural tests in CI, no open correctness bugs, and registration in the model registry. Until then, treat its defaults as provisional.
