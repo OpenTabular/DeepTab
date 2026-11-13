@@ -15,6 +15,7 @@ from packaging.requirements import Requirement
 from packaging.specifiers import SpecifierSet
 
 from deeptab.configs import MLPConfig, TrainerConfig
+from deeptab.core.observability import ObservabilityConfig, build_lightning_loggers
 from deeptab.core.optional_deps import require_mlflow, require_structlog, require_tensorboard
 from deeptab.models import MLPClassifier
 
@@ -59,6 +60,21 @@ def test_security_dependency_minima(package, minimum, older):
         )
         assert "2.21.0" in tensorboard.specifier
         assert "2.20.0" not in tensorboard.specifier
+
+
+@pytest.mark.parametrize("extra", ["mlflow", "tracking", "all"])
+def test_mlflow_extra_minimum_supports_sqlalchemy_2_1(extra):
+    path = Path(__file__).resolve().parents[2] / "pyproject.toml"
+    with path.open("rb") as stream:
+        config = tomllib.load(stream)
+    mlflow = next(
+        Requirement(value)
+        for value in config["project"]["optional-dependencies"][extra]
+        if Requirement(value).name == "mlflow"
+    )
+    # MLflow < 3.9 imports sqlalchemy.pool.FallbackAsyncAdaptedQueuePool, which SQLAlchemy 2.1 removed.
+    assert "3.9.0" in mlflow.specifier
+    assert "3.8.1" not in mlflow.specifier
 
 
 def test_readthedocs_html_cleaner_matches_patched_lock():
@@ -263,6 +279,12 @@ def test_declared_dependency_profile(pytestconfig, tmp_path, package, extra, req
             with require_tensorboard()(log_dir=str(tmp_path)) as writer:
                 writer.add_hparams({"learning_rate": 0.001}, {"accuracy": 0.75})
             assert any(tmp_path.rglob("events.out.tfevents.*"))
+        elif package == "mlflow":
+            assert dependency.__name__ == package
+            config = ObservabilityConfig(root_dir=str(tmp_path), experiment_trackers=["mlflow"])
+            (logger,) = build_lightning_loggers(config)
+            assert logger.run_id is not None
+            assert (tmp_path / "mlflow" / "backend" / "mlflow.db").is_file()
         else:
             assert dependency.__name__ == package
 
