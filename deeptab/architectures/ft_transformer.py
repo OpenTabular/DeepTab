@@ -16,10 +16,9 @@ class FTTransformer(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : FTTransformerConfig, optional
@@ -32,10 +31,6 @@ class FTTransformer(BaseModel):
     ----------
     pooling_method : str
         The pooling method to aggregate features after transformer encoding.
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
     embedding_layer : EmbeddingLayer
         Layer for embedding categorical and numerical features.
     norm_f : nn.Module
