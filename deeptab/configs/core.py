@@ -100,9 +100,9 @@ class BaseModelConfig(BaseEstimator):
 
     This class contains only architectural / structural configuration.
     Training-related parameters (``lr``, ``weight_decay``, ``max_epochs``, …)
-    belong in :class:`~deeptab.configs.trainer_config.TrainerConfig`.
+    belong in :class:`~deeptab.configs.TrainerConfig`.
     Preprocessing parameters belong in
-    :class:`~deeptab.configs.preprocessing_config.PreprocessingConfig`.
+    :class:`~deeptab.configs.PreprocessingConfig`.
 
     Parameters
     ----------
