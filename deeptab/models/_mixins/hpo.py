@@ -6,6 +6,7 @@ import math
 from sys import float_info
 from typing import TYPE_CHECKING, Any, cast
 
+import numpy as np
 from lightning.pytorch.callbacks import Callback
 from skopt import gp_minimize
 
@@ -122,6 +123,15 @@ class _HyperparameterMixin:
         # LSS fit() signature does not accept them.
         base_fit_kwargs = {"X_val": X_val, "y_val": y_val, **optimize_kwargs}
         base_fit_kwargs.pop("rebuild", None)
+        # Without X_val, every fit() splits off its own validation rows. One seed
+        # for all fits of the search scores every trial on the same rows.
+        if X_val is None and base_fit_kwargs.get("random_state") is None and self.random_state is None:
+            base_fit_kwargs["random_state"] = int(np.random.randint(0, 2**31 - 1))
+        # A seeded fit() resets NumPy's global generator. Drawing the optimizer's
+        # seed before the first fit keeps gp_minimize from repeating its points.
+        search_seed = self.random_state
+        if search_seed is None:
+            search_seed = int(np.random.randint(0, 2**31 - 1))
         if embeddings is not None:
             base_fit_kwargs["embeddings"] = embeddings
         if embeddings_val is not None:
@@ -212,7 +222,7 @@ class _HyperparameterMixin:
                 print(f"Error encountered during fit with hyperparameters {hyperparams}: {e}")
                 return min(abs(best_val_loss) * 100 + 1_000_000, float_info.max)
 
-        gp_minimize(_objective, param_space, n_calls=time, random_state=self.random_state)
+        gp_minimize(_objective, param_space, n_calls=time, random_state=search_seed)
         if best_hparams is None:
             raise RuntimeError("No hyperparameter trial completed successfully")
 

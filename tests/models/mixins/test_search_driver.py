@@ -130,7 +130,20 @@ def test_search_applies_same_head_shape_and_refits_winner(search_driver, length)
 def test_search_honors_estimator_seed(search_driver, seed):
     model = _SearchEstimator({0.1: -3.0}, random_state=seed)
     _, observed = search_driver(model, [[0.1]])
-    assert observed["random_state"] == seed
+    if seed is None:
+        # Without any seed, the optimizer and the fits each get one seed drawn up front.
+        assert isinstance(observed["random_state"], int)
+        assert len({fit["kwargs"]["random_state"] for fit in model.fits}) == 1
+    else:
+        assert observed["random_state"] == seed
+        assert all("random_state" not in fit["kwargs"] for fit in model.fits)
+
+
+@pytest.mark.parametrize("seed", [None, 73])
+def test_search_with_validation_data_passes_no_seed_to_fit(search_driver, seed):
+    model = _SearchEstimator({0.1: -3.0}, random_state=seed)
+    search_driver(model, [[0.1]], X_val=[[1.0]], y_val=[1.0])
+    assert all("random_state" not in fit["kwargs"] for fit in model.fits)
 
 
 @pytest.mark.parametrize("container", ["single", "list", "tuple"])

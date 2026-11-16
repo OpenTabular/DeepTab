@@ -179,3 +179,84 @@ def test_public_search_refits_and_predicts_without_another_fit(monkeypatch, tmp_
     assert np.isfinite(predictions).all()
     if task == "lss":
         assert model.family_name == "normal"
+
+
+@pytest.mark.parametrize("task", ["regression", "classification", "lss"])
+def test_search_without_validation_data_scores_every_trial_on_one_split(monkeypatch, tmp_path, task):
+    from skopt.space import Categorical
+
+    import deeptab.models._mixins.hpo as hpo_module
+    from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+    from deeptab.models import MLPLSS, MLPClassifier, MLPRegressor
+
+    estimator_class = {"regression": MLPRegressor, "classification": MLPClassifier, "lss": MLPLSS}[task]
+    model = estimator_class(
+        model_config=MLPConfig(d_model=16, dropout=0.0),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=7),
+        trainer_config=TrainerConfig(max_epochs=1, patience=1, lr_patience=1, batch_size=16),
+    )
+    features = np.random.default_rng(5).normal(size=(40, 4)).astype(np.float32)
+    targets = (features[:, 0] > 0).astype(int) if task == "classification" else features[:, 0]
+    monkeypatch.setattr(hpo_module, "get_search_space", lambda *args, **kwargs: (["d_model"], [Categorical([16, 32])]))
+    monkeypatch.setattr(
+        hpo_module,
+        "gp_minimize",
+        lambda objective, space, **kwargs: SimpleNamespace(x=min([[16], [32], [16]], key=objective)),
+    )
+    validation_sets = []
+    original_fit = model.fit
+
+    def fit(*args, **kwargs):
+        result = original_fit(*args, **kwargs)
+        validation_sets.append(tuple(sorted(map(tuple, np.asarray(model._data_module.X_val).tolist()))))
+        return result
+
+    monkeypatch.setattr(model, "fit", fit)
+    fit_options: dict[str, Any] = {
+        "accelerator": "cpu",
+        "enable_progress_bar": False,
+        "enable_model_summary": False,
+        "default_root_dir": str(tmp_path),
+    }
+    if task == "lss":
+        fit_options["family"] = "normal"
+    model.optimize_hparams(features, targets, time=3, max_epochs=1, **fit_options)
+    assert len(validation_sets) == 5
+    assert len(set(validation_sets)) == 1
+
+
+@pytest.mark.parametrize("seed_source", ["none", "fit_argument"])
+def test_seeded_search_still_draws_different_starting_points(monkeypatch, tmp_path, seed_source):
+    from skopt.space import Real
+
+    import deeptab.models._mixins.hpo as hpo_module
+    from deeptab.configs import MLPConfig, PreprocessingConfig, TrainerConfig
+    from deeptab.models import MLPRegressor
+
+    model = MLPRegressor(
+        model_config=MLPConfig(d_model=16),
+        preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=7),
+        trainer_config=TrainerConfig(max_epochs=1, patience=1, lr_patience=1, batch_size=16),
+    )
+    features = np.random.default_rng(5).normal(size=(40, 4)).astype(np.float32)
+    monkeypatch.setattr(hpo_module, "get_search_space", lambda *args, **kwargs: (["dropout"], [Real(0.0, 0.5)]))
+    tried = []
+    real_gp_minimize = hpo_module.gp_minimize
+
+    def recording_gp_minimize(*args, **kwargs):
+        result = real_gp_minimize(*args, **kwargs)
+        assert result is not None
+        tried.extend(point[0] for point in result.x_iters)
+        return result
+
+    monkeypatch.setattr(hpo_module, "gp_minimize", recording_gp_minimize)
+    fit_options: dict[str, Any] = {
+        "accelerator": "cpu",
+        "enable_progress_bar": False,
+        "enable_model_summary": False,
+        "default_root_dir": str(tmp_path),
+    }
+    if seed_source == "fit_argument":
+        fit_options["random_state"] = 7
+    model.optimize_hparams(features, features[:, 0], time=11, max_epochs=1, **fit_options)
+    assert len(set(tried[:10])) == 10
