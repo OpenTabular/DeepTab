@@ -1,6 +1,5 @@
 from dataclasses import replace
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -84,7 +83,7 @@ class TabulaRNN(BaseModel):
         self.norm_f = get_normalization_layer(temp_config)
 
         # pooling
-        n_inputs = int(np.sum([len(info) for info in feature_information]))
+        n_inputs = self.embedding_layer.n_tokens
         self.initialize_pooling_layers(config=config, n_inputs=n_inputs, hidden_size=self.hparams.dim_feedforward)
 
     def forward(self, *data):
