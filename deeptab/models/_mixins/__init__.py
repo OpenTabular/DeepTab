@@ -16,6 +16,11 @@ MRO (outermost → innermost)::
         BaseEstimator,         # sklearn get_params / set_params / clone
     )
 
+``_PointEstimatorMixin`` is not part of ``SklearnBase``. The classifier and
+regressor bases list it in front of ``SklearnBase`` for the public methods
+they share but the LSS base does not have (``pretrain``, and
+``optimize_hparams`` with external embeddings).
+
 Note
 ----
 These classes are internal implementation details. Import from
@@ -26,6 +31,7 @@ directly.
 from deeptab.models._mixins.fit import _FitMixin
 from deeptab.models._mixins.hpo import _HyperparameterMixin
 from deeptab.models._mixins.observability import _ObservabilityMixin
+from deeptab.models._mixins.point import _PointEstimatorMixin
 from deeptab.models._mixins.predict import _PredictMixin
 from deeptab.models._mixins.serialization import _SerializationMixin
 
@@ -33,6 +39,7 @@ __all__ = [
     "_FitMixin",
     "_HyperparameterMixin",
     "_ObservabilityMixin",
+    "_PointEstimatorMixin",
     "_PredictMixin",
     "_SerializationMixin",
 ]
