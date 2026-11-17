@@ -20,6 +20,8 @@ class _PointEstimatorMixin:
     Responsibilities
     ----------------
     * ``pretrain`` — public contrastive pre-training of the embedding layer.
+    * ``optimize_hparams`` — hyperparameter search that also takes external
+      embeddings.
     """
 
     if TYPE_CHECKING:
@@ -108,3 +110,63 @@ class _PointEstimatorMixin:
             pool_sequence=pool_sequence,
         )
         self._is_pretrained = True
+
+    def optimize_hparams(
+        self,
+        X,
+        y,
+        X_val=None,
+        y_val=None,
+        embeddings=None,
+        embeddings_val=None,
+        time=100,
+        max_epochs=200,
+        prune_by_epoch=True,
+        prune_epoch=5,
+        fixed_params=None,
+        custom_search_space=None,
+        **optimize_kwargs,
+    ):
+        """Optimizes hyperparameters using Bayesian optimization with optional pruning.
+
+        Parameters
+        ----------
+        X : array-like
+            Training data.
+        y : array-like
+            Training labels.
+        X_val, y_val : array-like, optional
+            Validation data and labels.
+        time : int
+            The number of optimization trials to run.
+        max_epochs : int
+            Maximum number of epochs for training.
+        prune_by_epoch : bool
+            Whether to prune based on a specific epoch (True) or the best validation loss (False).
+        prune_epoch : int
+            The specific epoch to prune by when prune_by_epoch is True.
+        **optimize_kwargs : dict
+            Additional keyword arguments passed to the fit method.
+
+        Returns
+        -------
+        best_hparams : list
+            Best hyperparameters found during optimization.
+        """
+
+        return super().optimize_hparams(  # type: ignore[misc]
+            X,
+            y,
+            regression=type(self)._task == "regression",
+            X_val=X_val,
+            y_val=y_val,
+            embeddings=embeddings,
+            embeddings_val=embeddings_val,
+            time=time,
+            max_epochs=max_epochs,
+            prune_by_epoch=prune_by_epoch,
+            prune_epoch=prune_epoch,
+            fixed_params=fixed_params,
+            custom_search_space=custom_search_space,
+            **optimize_kwargs,
+        )

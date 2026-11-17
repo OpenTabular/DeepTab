@@ -18,7 +18,8 @@ MRO (outermost → innermost)::
 
 ``_PointEstimatorMixin`` is not part of ``SklearnBase``. The classifier and
 regressor bases list it in front of ``SklearnBase`` for the public methods
-they share but the LSS base does not have (``pretrain``).
+they share but the LSS base does not have (``pretrain``, and
+``optimize_hparams`` with external embeddings).
 
 Note
 ----
