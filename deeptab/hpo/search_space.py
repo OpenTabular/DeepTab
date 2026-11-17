@@ -114,8 +114,13 @@ def get_search_space(
 
         if field in search_space_mapping:
             # Add to search space if not fixed
+            dimension = search_space_mapping[field]
+            if field == "norm" and field not in custom_search_space and isinstance(getattr(config, field), bool):
+                # ResNet's ``norm`` is an on/off switch rather than a normalization-layer
+                # name, so search it over True/False instead of layer names.
+                dimension = Categorical([True, False])
             param_names.append(field)
-            param_space.append(search_space_mapping[field])
+            param_space.append(dimension)
 
     # Handle dynamic head_layer_sizes based on head_layer_size_length
     if "head_layer_sizes" in config.__dataclass_fields__:
