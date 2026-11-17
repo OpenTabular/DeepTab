@@ -62,6 +62,37 @@ class TestFailedFitLeavesIsFittedFalse:
             reg.predict(X)
 
 
+class TestRegressorScoreUsesCurrentModel:
+    """score() must evaluate the in-memory model, like predict(), without
+    reloading the training checkpoint from disk."""
+
+    def test_score_works_after_checkpoint_directory_is_removed(self, tmp_path):
+        import shutil
+
+        from sklearn.metrics import r2_score
+
+        X, y = _make_reg_data()
+        checkpoint_dir = tmp_path / "checkpoints"
+        reg = MLPRegressor().fit(X, y, random_state=RANDOM_STATE, checkpoint_path=str(checkpoint_dir), **FIT_KWARGS)
+        assert reg._best_model_path
+        shutil.rmtree(checkpoint_dir)
+        assert reg.score(X, y) == pytest.approx(r2_score(y, reg.predict(X)))
+
+    def test_score_does_not_replace_current_weights(self):
+        import torch
+        from sklearn.metrics import r2_score
+
+        X, y = _make_reg_data()
+        reg = MLPRegressor().fit(X, y, random_state=RANDOM_STATE, **FIT_KWARGS)
+        assert reg._task_model is not None
+        with torch.no_grad():
+            for parameter in reg._task_model.parameters():
+                parameter.add_(0.5)
+        predictions = reg.predict(X)
+        assert reg.score(X, y) == pytest.approx(r2_score(y, predictions))
+        np.testing.assert_array_equal(reg.predict(X), predictions)
+
+
 class _RecordingCallback(Callback):
     def __init__(self):
         self.epoch_ends = 0

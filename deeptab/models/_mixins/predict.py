@@ -28,8 +28,8 @@ class _PredictMixin:
       the input columns match those seen during ``fit``.
     * ``encode`` — returns dense embedding vectors from the model backbone
       for a given input DataFrame.
-    * ``_score`` — internal helper used by ``optimize_hparams`` to evaluate
-      validation loss with the best checkpoint loaded.
+    * ``_score`` — internal helper behind the regressors' ``score()``; it
+      applies a metric to the ``predict`` output of the current model.
     """
 
     if TYPE_CHECKING:
@@ -135,11 +135,12 @@ class _PredictMixin:
         return validate_input_features(self, X)
 
     def _score(self, X, y, embeddings, metric):
-        """Evaluate *metric* on *X* / *y* using the best-checkpoint weights.
+        """Evaluate *metric* on *X* / *y* using the estimator's current weights.
 
-        Reloads the best model checkpoint before running ``predict`` so that
-        the score reflects the best validation state rather than the last
-        epoch's weights.
+        ``fit()`` already restores the best checkpoint before returning, so the
+        score reflects the same model that ``predict`` uses. The checkpoint file
+        is not read again, so scoring neither depends on it still existing nor
+        discards changes made to the model after fitting.
 
         Parameters
         ----------
@@ -159,13 +160,6 @@ class _PredictMixin:
         float
             The metric value computed on the predictions.
         """
-        # Explicitly load the best model state if needed
-        best_model_path = getattr(self, "_best_model_path", None)
-        if hasattr(self, "_trainer") and best_model_path:
-            torch.serialization.add_safe_globals([type(self.config)])
-            checkpoint = torch.load(best_model_path, weights_only=False)
-            self._task_model.load_state_dict(checkpoint["state_dict"])  # type: ignore
-
         predictions = self.predict(X, embeddings)
 
         return metric(y, predictions)
