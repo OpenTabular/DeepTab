@@ -164,7 +164,9 @@ class _SerializationMixin:
         _warn_extension(path)
         map_location = resolve_inference_accelerator(device)[2]
         bundle = torch.load(path, weights_only=False, map_location=map_location)
-        return cls._load_from_bundle(bundle, device=device, path=path)
+        # Rebuild with the saved class's own loader, whichever class load() is
+        # called on: an LSS artifact needs the LSS reconstruction and vice versa.
+        return bundle.get("_class", cls)._load_from_bundle(bundle, device=device, path=path)
 
     @classmethod
     def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):
