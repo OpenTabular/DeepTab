@@ -63,7 +63,8 @@ class MambularConfig(BaseModelConfig):
     head_use_batch_norm : bool, default=False
         Whether to use batch normalization in the head layers.
     pooling_method : str, default='avg'
-        Pooling method to use ('avg', 'max', etc.).
+        Pooling method to be used: 'avg', 'max', 'sum', 'last', 'cls', 'learned_flatten',
+        'attention', 'gated', 'rnn' or 'conv'.
     bidirectional : bool, default=False
         Whether to process data bidirectionally.
     use_learnable_interaction : bool, default=False

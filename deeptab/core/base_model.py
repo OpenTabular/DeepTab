@@ -201,7 +201,25 @@ class BaseModel(nn.Module):
             )
 
     def pool_sequence(self, out):
-        """Pools the sequence dimension based on self.hparams.pooling_method."""
+        """Pools the sequence dimension based on self.hparams.pooling_method.
+
+        Parameters
+        ----------
+        out : Tensor
+            Sequence of shape (batch_size, seq_len, hidden_size).
+
+        Returns
+        -------
+        Tensor
+            Pooled tensor of shape (batch_size, hidden_size).
+
+        Notes
+        -----
+        Supported methods are ``"avg"``, ``"max"``, ``"sum"``, ``"last"``,
+        ``"cls"``, and the learnable ``"learned_flatten"``, ``"attention"``,
+        ``"gated"``, ``"rnn"`` (LSTM output at the last step), and ``"conv"``
+        (1-D convolution followed by global max pooling).
+        """
 
         if self.hparams.pooling_method == "avg":
             # Shape: (batch_size, ensemble_size, hidden_size) or (batch_size, hidden_size)
@@ -238,6 +256,16 @@ class BaseModel(nn.Module):
             gates = torch.sigmoid(self.gate_layer(out))
             out = (out * gates).sum(dim=1)  # Shape: (batch_size, hidden_size)
             return out
+        elif self.hparams.pooling_method == "rnn":
+            # RNN-based pooling: summarize the sequence with the LSTM output
+            # at the last step. Shape: (batch_size, hidden_size)
+            out, _ = self.pooling_rnn(out)
+            return out[:, -1, :]
+        elif self.hparams.pooling_method == "conv":
+            # Conv1D over the sequence followed by global max pooling
+            # Shape: (batch_size, hidden_size, seq_len) -> (batch_size, hidden_size)
+            out = self.conv1d_pooling(out.transpose(1, 2))
+            return out.max(dim=2)[0]
         else:
             raise ValueError(f"Invalid pooling method: {self.hparams.pooling_method}")
 
