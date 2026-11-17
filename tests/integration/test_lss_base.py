@@ -209,6 +209,31 @@ class TestSaveLoad:
         assert hasattr(loaded, "input_columns_")
         assert hasattr(loaded, "versions_")
 
+    def test_save_returns_the_written_path(self, fitted_mlplss, tmp_path):
+        path = fitted_mlplss.save(str(tmp_path / "model.deeptab"))
+        assert path == str(tmp_path / "model.deeptab")
+        np.testing.assert_allclose(MLPLSS.load(path).predict(_X), fitted_mlplss.predict(_X), rtol=1e-4)
+
+    def test_save_without_path_uses_the_run_directory(self, fitted_mlplss, tmp_path):
+        with pytest.raises(ValueError, match="path is required"):
+            fitted_mlplss.save()
+        fitted_mlplss._run_dir = str(tmp_path / "run")
+        path = fitted_mlplss.save()
+        assert Path(path) == tmp_path / "run" / "artifacts" / "model.deeptab"
+        assert Path(path).is_file()
+
+    def test_save_emits_lifecycle_events(self, fitted_mlplss, tmp_path):
+        events = []
+
+        class _Recorder:
+            def info(self, event, **kwargs):
+                events.append((event, kwargs))
+
+        fitted_mlplss._event_logger = _Recorder()
+        path = fitted_mlplss.save(str(tmp_path / "model.deeptab"))
+        assert [event for event, _ in events] == ["save_started", "save_completed"]
+        assert events[-1][1]["path"] == path
+
 
 # ---------------------------------------------------------------------------
 # 4. get_params / set_params (inherited from SklearnBase)
