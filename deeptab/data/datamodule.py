@@ -44,6 +44,40 @@ def _prepare_regression_labels(y, *, vector_targets: bool = False) -> torch.Tens
     return torch.as_tensor(y_arr, dtype=torch.float32)
 
 
+def _preprocessing_target(y):
+    """Reduce vector regression targets to the scalar target preprocessing expects.
+
+    Target-aware representations (PLE, the default, and target-aware spline
+    placement) grow their decision trees on a single target column, and PreTab
+    flattens whatever it receives. A target matrix of shape
+    ``(n_samples, n_targets)``, such as the component columns of a Dirichlet
+    family, would therefore be read as ``n_samples * n_targets`` scalar targets
+    and rejected as misaligned with the features.
+
+    Placement only needs a scalar signal that varies with the target, so a
+    target matrix is projected onto its first principal axis: the direction
+    along which the targets vary most. For two components this is equivalent to
+    using either column, since they differ only by sign and offset.
+
+    Parameters
+    ----------
+    y : array-like of shape (n_samples,) or (n_samples, n_targets)
+        Training targets.
+
+    Returns
+    -------
+    array-like
+        ``y`` unchanged when it is one-dimensional or a single column, otherwise
+        a float64 array of shape ``(n_samples,)``.
+    """
+    targets = np.asarray(y)
+    if targets.ndim != 2 or targets.shape[1] == 1:
+        return y
+    centered = targets.astype(np.float64) - targets.mean(axis=0, dtype=np.float64)
+    _, _, axes = np.linalg.svd(centered, full_matrices=False)
+    return centered @ axes[0]
+
+
 def _positional_columns(X):
     """Relabel non-string DataFrame columns by position before they reach PreTab.
 
@@ -287,7 +321,12 @@ class TabularDataModule(pl.LightningDataModule):
         self.X_val = _positional_columns(self.X_val)
 
         if fit_preprocessing:
-            self.preprocessor = fit_preprocessor(self.preprocessor, self.X_train, self.y_train, self.embeddings_train)
+            # Classification labels are passed through untouched; only a
+            # regression target matrix needs reducing to a single column.
+            preprocessing_target = _preprocessing_target(self.y_train) if self.regression else self.y_train
+            self.preprocessor = fit_preprocessor(
+                self.preprocessor, self.X_train, preprocessing_target, self.embeddings_train
+            )
 
         # Align explicit per-row sampling weights with the (possibly auto-split) train set.
         self._train_sample_weights = self._resolve_train_sample_weights(

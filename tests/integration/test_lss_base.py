@@ -413,6 +413,42 @@ def test_multivariate_families_build_and_fit_three_outputs(tmp_path, family):
     assert loaded.score(_X[:6], targets[:6]) == pytest.approx(model.score(_X[:6], targets[:6]))
 
 
+@pytest.mark.parametrize(
+    "preprocessing",
+    [
+        {"numerical_method": "ple"},
+        {"numerical_method": "cubicspline", "target_aware": True, "placement_strategy": "cart"},
+    ],
+    ids=["ple", "target-aware-spline"],
+)
+@pytest.mark.parametrize("explicit_validation", [False, True])
+def test_dirichlet_fits_with_target_aware_preprocessing(tmp_path, preprocessing, explicit_validation):
+    """A Dirichlet target matrix must not reach the preprocessor as flattened scalars."""
+    from deeptab.configs import MLPConfig, PreprocessingConfig
+
+    targets = np.random.default_rng(7).dirichlet([2, 3, 4], size=_N)
+    model = MLPLSS(
+        model_config=MLPConfig(d_model=16, dropout=0.0),
+        preprocessing_config=PreprocessingConfig(output_dim=7, **preprocessing),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=16),
+        random_state=42,
+    )
+    validation = {"X_val": _X[64:], "y_val": targets[64:]} if explicit_validation else {}
+    model.fit(
+        _X[:64],
+        targets[:64],
+        family="dirichlet",
+        accelerator="cpu",
+        enable_progress_bar=False,
+        default_root_dir=str(tmp_path),
+        **validation,
+    )
+    predictions = model.predict(_X[:6])
+    assert predictions.shape == (6, 3)
+    assert (predictions > 0).all()
+    assert np.isfinite(model.score(_X[:6], targets[:6]))
+
+
 @pytest.mark.parametrize("model_name", ["TabM", "TabM-averaged", "Trompt"])
 @pytest.mark.parametrize(
     "family,options",

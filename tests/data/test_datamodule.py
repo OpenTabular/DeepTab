@@ -822,3 +822,38 @@ def test_positional_columns_relabels_only_non_positional_integer_labels(columns,
     result = _positional_columns(frame)
     assert list(result.columns) == expected
     np.testing.assert_array_equal(result.to_numpy(), frame.to_numpy())
+
+
+@pytest.mark.parametrize("shape", [(12,), (12, 1)])
+def test_preprocessing_target_leaves_scalar_targets_unchanged(shape):
+    from deeptab.data.datamodule import _preprocessing_target
+
+    targets = np.arange(12, dtype=np.float32).reshape(shape)
+    assert _preprocessing_target(targets) is targets
+
+
+def test_preprocessing_target_projects_a_target_matrix_onto_one_aligned_column():
+    from deeptab.data.datamodule import _preprocessing_target
+
+    targets = np.random.default_rng(0).dirichlet([2, 3, 4], size=40)
+    reduced = _preprocessing_target(targets)
+    assert reduced.shape == (40,)
+    assert np.isfinite(reduced).all()
+    # The projection keeps the variance of the dominant target direction.
+    centered = targets - targets.mean(axis=0)
+    assert reduced.var() == pytest.approx(np.linalg.eigvalsh(np.cov(centered.T, bias=True))[-1])
+
+
+def test_preprocessing_target_matches_either_column_of_a_two_component_target():
+    from deeptab.data.datamodule import _preprocessing_target
+
+    share = np.random.default_rng(1).uniform(0.1, 0.9, size=30)
+    reduced = _preprocessing_target(np.column_stack([share, 1 - share]))
+    assert abs(np.corrcoef(reduced, share)[0, 1]) == pytest.approx(1.0)
+
+
+def test_preprocessing_target_handles_constant_target_rows():
+    from deeptab.data.datamodule import _preprocessing_target
+
+    reduced = _preprocessing_target(np.tile([0.2, 0.3, 0.5], (8, 1)))
+    np.testing.assert_allclose(reduced, np.zeros(8), atol=1e-12)
