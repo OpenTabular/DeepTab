@@ -120,6 +120,36 @@ class TestEdgeCaseInputs:
         preds = model.predict(X)
         assert preds.shape == (40,)
 
+    @pytest.mark.parametrize("estimator_name", ["MLPClassifier", "MLPRegressor", "MLPLSS"])
+    def test_unnamed_validation_features_for_named_frame_are_rejected_before_building(self, estimator_name):
+        """An array X_val for a DataFrame X used to pass preflight and crash inside the
+        fitted preprocessor's column transformer after the model had been rebuilt."""
+        import deeptab.models as models
+        from deeptab.core.exceptions import ColumnNameError
+
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.standard_normal((48, 3)), columns=pd.Index(["a", "b", "c"]))
+        y = rng.integers(0, 2, 48) if estimator_name == "MLPClassifier" else rng.standard_normal(48)
+        options = {"family": "normal"} if estimator_name == "MLPLSS" else {}
+
+        model = getattr(models, estimator_name)()
+        with pytest.raises(ColumnNameError, match=r"Missing : \['a', 'b', 'c'\]"):
+            model.fit(X.iloc[:32], y[:32], X_val=X.iloc[32:].to_numpy(), y_val=y[32:], max_epochs=1, **options)
+        assert model._data_module is None
+        assert model._task_model is None
+        assert not model._built
+
+    def test_named_validation_frame_for_array_training_data_fits(self):
+        from deeptab.models import MLPRegressor
+
+        rng = np.random.default_rng(0)
+        X = pd.DataFrame(rng.standard_normal((48, 3)), columns=pd.Index(["a", "b", "c"]))
+        y = rng.standard_normal(48)
+
+        model = MLPRegressor()
+        model.fit(X.iloc[:32].to_numpy(), y[:32], X_val=X.iloc[32:], y_val=y[32:], max_epochs=1, batch_size=16)
+        assert model.predict(X.iloc[:5].to_numpy()).shape == (5,)
+
 
 class TestIntegerColumnLabels:
     """Integer column labels that are not 0..n-1 used to be read by position for

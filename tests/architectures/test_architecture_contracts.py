@@ -297,6 +297,33 @@ def test_tabtransformer_categorical_only_forward_and_backward(num_classes, with_
     assert all(torch.isfinite(gradient).all() for gradient in gradients)
 
 
+@pytest.mark.parametrize("num_classes", [1, 3])
+@pytest.mark.parametrize("feature_groups", ["categorical", "categorical+embeddings", "embeddings"])
+def test_trompt_forward_without_numerical_features(num_classes, feature_groups):
+    from deeptab.architectures.experimental.trompt import Trompt
+    from deeptab.configs import TromptConfig
+
+    categorical_info = (
+        {"city": {"dimension": 1, "categories": 2, "preprocessing": "int"}} if "categorical" in feature_groups else {}
+    )
+    embedding_info = {"text": {"dimension": 3}} if "embeddings" in feature_groups else {}
+    model = Trompt(
+        feature_information=({}, categorical_info, embedding_info),
+        num_classes=num_classes,
+        config=TromptConfig(d_model=8, P=4, n_cycles=2),
+    )
+    categories = [torch.tensor([[0], [1], [0], [1]])] if categorical_info else []
+    embeddings = [torch.ones(4, 3)] if embedding_info else []
+    predictions = model([], categories, embeddings)
+
+    expected_shape = (4, 2, num_classes) if num_classes > 1 else (4, 2)
+    assert predictions.shape == expected_shape
+    assert torch.isfinite(predictions).all()
+    predictions.sum().backward()
+    assert model.init_rec.grad is not None
+    assert torch.isfinite(model.init_rec.grad).all()
+
+
 @pytest.mark.smoke
 @pytest.mark.parametrize("model_class", model_classes)
 def test_model_inherits_base_model(model_class):

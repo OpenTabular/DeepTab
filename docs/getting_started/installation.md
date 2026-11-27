@@ -73,6 +73,9 @@ TensorBoard extras require >=2.21,<3. Earlier versions can fail hyperparameter
 event writing with NumPy 2 or import the removed `pkg_resources` module with
 patched setuptools.
 
+MLflow extras require >=3.9,<4. Earlier versions fail at the start of `fit()`
+with SQLAlchemy 2.1.
+
 ```{important}
 DeepTab 2.1 no longer supports Python 3.10. Recreate your environment with Python
 3.11, 3.12 or 3.13 before upgrading; an older DeepTab release is not a security

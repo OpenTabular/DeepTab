@@ -109,7 +109,12 @@ point regressors accept one numeric target column. Distributional models retain
 their task-specific target dimensions, including Dirichlet component columns.
 When supplying an explicit validation set, provide both `X_val` and `y_val`.
 Feature widths, ordered DataFrame columns, and target widths must match training
-data; classifier validation labels must occur in the training classes.
+data; classifier validation labels must occur in the training classes. When `X`
+is a DataFrame with string column names, `X_val` must carry the same names in
+the same order: an unnamed array, a list of rows, or a frame with positional
+labels is rejected with a `ColumnNameError` before any fitted state changes.
+Training on an array and validating on a named frame remains possible, because
+array columns are used by position.
 
 Preflight input rejection leaves a previously fitted estimator unchanged,
 including classes, preprocessing, weights, and predictions. A failure during

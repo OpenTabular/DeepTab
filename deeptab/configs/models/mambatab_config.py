@@ -27,19 +27,19 @@ class MambaTabConfig(BaseModelConfig):
     dropout : float, default=0.05
         Dropout rate for regularization.
     dt_rank : str, default='auto'
-        Rank of the decision tree used in the model.
+        Rank of the dynamic time components used in the model.
     d_state : int, default=128
         Dimensionality of the state in recurrent layers.
     dt_scale : float, default=1.0
-        Scaling factor for the decision tree.
+        Scaling factor for the dynamic time components.
     dt_init : str, default='random'
-        Initialization method for the decision tree.
+        Initialization method for the dynamic time components.
     dt_max : float, default=0.1
-        Maximum value for decision tree initialization.
+        Maximum value for dynamic time component initialization.
     dt_min : float, default=0.0001
-        Minimum value for decision tree initialization.
+        Minimum value for dynamic time component initialization.
     dt_init_floor : float, default=0.0001
-        Floor value for decision tree initialization.
+        Floor value for dynamic time component initialization.
     axis : int, default=1
         Axis along which operations are applied, if applicable.
     head_layer_sizes : list, default=[]

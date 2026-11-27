@@ -126,7 +126,11 @@ def _validate_fit_inputs(X, y, regression: bool, family: str | None = None, X_va
     """Validate training and paired validation inputs before estimator mutation.
 
     Targets must be finite and valid for the task. Explicit validation features
-    must match training width and, for named DataFrames, ordered columns.
+    must match training width and, when the training frame carries string column
+    names, the same ordered columns. Unnamed validation input (an array or a
+    frame with positional labels) is rejected for a named training frame here,
+    before any fitted state is replaced, rather than failing inside the fitted
+    preprocessor once the model has been rebuilt.
     """
     from deeptab.core.sklearn_compat import ensure_dataframe
 
@@ -152,10 +156,12 @@ def _validate_fit_inputs(X, y, regression: bool, family: str | None = None, X_va
             )
         if validation_features.shape[1] != features.shape[1]:
             raise column_count_error(features.shape[1], validation_features.shape[1])
-        if hasattr(X, "columns") and hasattr(X_val, "columns") and list(X.columns) != list(X_val.columns):
+        training_columns = list(features.columns)
+        validation_columns = list(validation_features.columns)
+        if all(isinstance(name, str) for name in training_columns) and validation_columns != training_columns:
             raise column_name_error(
-                missing=[str(name) for name in X.columns if name not in X_val.columns],
-                extra=[str(name) for name in X_val.columns if name not in X.columns],
+                missing=[name for name in training_columns if name not in validation_columns],
+                extra=[str(name) for name in validation_columns if name not in training_columns],
             )
         if not regression or family == "categorical":
             classes = np.unique(targets)

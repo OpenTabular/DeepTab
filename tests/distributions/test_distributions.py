@@ -141,7 +141,7 @@ def test_get_distribution_unknown_raises():
     from deeptab.core.exceptions import InvalidParamError
     from deeptab.distributions import get_distribution
 
-    with pytest.raises(InvalidParamError):
+    with pytest.raises(InvalidParamError, match=r"^get_distribution\.family = 'not_a_family' is invalid"):
         get_distribution("not_a_family")
 
 
