@@ -153,7 +153,7 @@ FIT_KWARGS = dict(X_val=X_val, y_val=y_val, random_state=RANDOM_STATE)
 piecewise-linear vector. This gives attention-based models like FT-Transformer a
 much richer numerical representation than raw standardisation, and it is one of
 the cheapest accuracy wins available for tabular deep learning. Other strong
-options are `"quantile"` and `"splines"`.
+options are `"quantile"` and `"bspline"`.
 ```
 
 ## Helper: report
@@ -435,7 +435,7 @@ deeptab_runs/
     config.yaml       # estimator hyperparameters
     lifecycle.jsonl   # structured event log
     summary.json      # final metrics
-    checkpoints/best.ckpt
+    checkpoints/best_model.ckpt
   tensorboard/regression_fttransformer/...
 ```
 

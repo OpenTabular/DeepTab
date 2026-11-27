@@ -13,7 +13,7 @@ class ModernNCAConfig(BaseModelConfig):
     Parameters
     ----------
     embedding_type : str, default='plr'
-        Type of feature embedding to use (e.g., 'plr', 'ple').
+        Type of feature embedding to use (e.g., 'plr', 'linear').
     plr_lite : bool, default=True
         Whether to use the lightweight PLR embedding variant.
     n_frequencies : int, default=75

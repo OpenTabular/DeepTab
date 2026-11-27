@@ -17,10 +17,9 @@ class TabTransformer(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features.
-    num_feature_info : dict
-        Dictionary containing information about numerical features.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         Number of output classes (default is 1).
     config : TabTransformerConfig, optional
@@ -40,10 +39,6 @@ class TabTransformer(BaseModel):
         Factor by which the learning rate will be reduced.
     pooling_method : str
         Method to pool the features.
-    cat_feature_info : dict
-        Dictionary containing information about categorical features.
-    num_feature_info : dict
-        Dictionary containing information about numerical features.
     embedding_activation : callable
         Activation function for embeddings.
     encoder: callable

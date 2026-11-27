@@ -211,7 +211,6 @@ class TabM(BaseModel):
 
         if self.hparams.average_ensembles:
             x = x.mean(axis=1)  # Shape (batch_size, num_classes)
-            print(x.shape)
         # Shape (batch_size, (ensemble_size), num_classes) if not averaged
         x = self.final_layer(x)
 
