@@ -15,10 +15,9 @@ class MLP(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : MLPConfig, optional
@@ -31,10 +30,6 @@ class MLP(BaseModel):
     ----------
     layer_sizes : list of int
         List specifying the number of units in each layer of the MLP.
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
     layers : nn.ModuleList
         List containing the layers of the MLP, including linear layers, normalization layers, and activations.
     skip_connections : bool

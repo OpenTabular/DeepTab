@@ -167,12 +167,12 @@ trainer_cfg = TrainerConfig(lr=3e-4, batch_size=256, max_epochs=150, patience=20
 
 Use when feature interactions are central and the feature-token count is not too large.
 
-| Model          | Good Starting Config                                                           | When to Prefer                                   |
-| -------------- | ------------------------------------------------------------------------------ | ------------------------------------------------ |
-| FTTransformer  | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1`, `ff_dropout=0.1` | General feature-token attention                  |
-| TabTransformer | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1`                   | Categorical-heavy tables                         |
-| AutoInt        | `d_model=128`, `n_layers=3-4`, `n_heads=4-8`, `kv_compression=0.5`             | Interaction modeling with optional compression   |
-| SAINT          | `d_model=128`, `n_layers=1-2`, `n_heads=2-4`, `batch_size=32-128`              | Row-context or semi-supervised-style experiments |
+| Model          | Good Starting Config                                               | When to Prefer                                   |
+| -------------- | ------------------------------------------------------------------ | ------------------------------------------------ |
+| FTTransformer  | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1`       | General feature-token attention                  |
+| TabTransformer | `d_model=128`, `n_layers=4`, `n_heads=8`, `attn_dropout=0.1`       | Categorical-heavy tables                         |
+| AutoInt        | `d_model=128`, `n_layers=3-4`, `n_heads=4-8`, `kv_compression=0.5` | Interaction modeling with optional compression   |
+| SAINT          | `d_model=128`, `n_layers=1-2`, `n_heads=2-4`, `batch_size=32-128`  | Row-context or semi-supervised-style experiments |
 
 ```python
 from deeptab.configs import AutoIntConfig, FTTransformerConfig, SAINTConfig, TabTransformerConfig
@@ -182,7 +182,6 @@ ft_cfg = FTTransformerConfig(
     n_layers=4,
     n_heads=8,
     attn_dropout=0.1,
-    ff_dropout=0.1,
 )
 
 tabtransformer_cfg = TabTransformerConfig(
@@ -190,7 +189,6 @@ tabtransformer_cfg = TabTransformerConfig(
     n_layers=4,
     n_heads=8,
     attn_dropout=0.1,
-    ff_dropout=0.1,
 )
 
 autoint_cfg = AutoIntConfig(
@@ -210,7 +208,7 @@ saint_cfg = SAINTConfig(
 )
 ```
 
-**Tune first:** `d_model`, `n_layers`, `n_heads`, `attn_dropout`, and `ff_dropout` where available.
+**Tune first:** `d_model`, `n_layers`, `n_heads`, `attn_dropout`, and `ff_dropout` for SAINT (FTTransformer and TabTransformer don't use `ff_dropout`).
 
 ```{tip}
 Choose `n_heads` so that `d_model` is divisible by `n_heads`. Common pairs are `(64, 4)`, `(128, 8)`, and `(256, 8 or 16)`.
@@ -391,7 +389,6 @@ param_grid = {
     "model_config__n_layers": [2, 4, 6],
     "model_config__n_heads": [4, 8],
     "model_config__attn_dropout": [0.0, 0.1, 0.2],
-    "model_config__ff_dropout": [0.0, 0.1, 0.2],
     "trainer_config__lr": [1e-4, 3e-4, 5e-4],
     "trainer_config__batch_size": [128, 256],
 }

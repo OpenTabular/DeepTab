@@ -108,9 +108,13 @@ model.task          # "classification" | "regression" | "distributional_regressi
 model.n_features    # 10
 model.feature_names # ["age", "income", "score", ...]  (None when artifact has no column names)
 model.classes_      # array([0, 1])  (None for regression)
-model.task_info     # {"task": "classification", "regression": False, "num_classes": 2, ...}
+model.task_info     # {"task": "classification", "regression": False, "lss": False, "family": None, "num_classes": 1, "classes_": [0, 1]}
 model.feature_schema  # full feature-schema dict from the artifact
 ```
+
+`num_classes` is the width of the network's output, so a binary classifier
+reports `1` (a single logit); use `len(model.classes_)` for the number of
+classes.
 
 ### Structured summary
 

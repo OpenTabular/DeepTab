@@ -15,10 +15,9 @@ class NDTF(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : NDTFConfig, optional
@@ -30,10 +29,6 @@ class NDTF(BaseModel):
 
     Attributes
     ----------
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
     penalty_factor : float
         Scaling factor for the penalty applied during training, specified in the self.hparams.
     input_dimensions : list of int
@@ -84,7 +79,8 @@ class NDTF(BaseModel):
         if input_dimensions is None:
             input_dimensions = [input_dim]
             for _ in range(self.hparams.n_ensembles - 1):
-                input_dimensions.append(np.random.randint(1, input_dim))
+                # A one-dimensional input has no smaller prefix to sample.
+                input_dimensions.append(np.random.randint(1, input_dim) if input_dim > 1 else 1)
         if depths is None:
             depths = [
                 np.random.randint(self.hparams.min_depth, self.hparams.max_depth)

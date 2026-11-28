@@ -37,19 +37,19 @@ class MambAttentionConfig(BaseModelConfig):
     attn_dropout : float, default=0.2
         Dropout rate for the attention mechanism.
     dt_rank : str, default='auto'
-        Rank of the decision tree.
+        Rank of the dynamic time components.
     d_state : int, default=128
         Dimensionality of the state in recurrent layers.
     dt_scale : float, default=1.0
-        Scaling factor for the decision tree.
+        Scaling factor for the dynamic time components.
     dt_init : str, default='random'
-        Initialization method for the decision tree.
+        Initialization method for the dynamic time components.
     dt_max : float, default=0.1
-        Maximum value for decision tree initialization.
+        Maximum value for dynamic time component initialization.
     dt_min : float, default=0.0001
-        Minimum value for decision tree initialization.
+        Minimum value for dynamic time component initialization.
     dt_init_floor : float, default=0.0001
-        Floor value for decision tree initialization.
+        Floor value for dynamic time component initialization.
     norm : str, default='LayerNorm'
         Type of normalization used in the model.
     AD_weight_decay : bool, default=True

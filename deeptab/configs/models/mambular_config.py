@@ -29,19 +29,19 @@ class MambularConfig(BaseModelConfig):
     dropout : float, default=0.0
         Dropout rate for regularization.
     dt_rank : str, default='auto'
-        Rank of the decision tree used in the model.
+        Rank of the dynamic time components used in the model.
     d_state : int, default=128
         Dimensionality of the state in recurrent layers.
     dt_scale : float, default=1.0
-        Scaling factor for decision tree parameters.
+        Scaling factor for dynamic time component parameters.
     dt_init : str, default='random'
-        Initialization method for decision tree parameters.
+        Initialization method for dynamic time component parameters.
     dt_max : float, default=0.1
-        Maximum value for decision tree initialization.
+        Maximum value for dynamic time component initialization.
     dt_min : float, default=0.0001
-        Minimum value for decision tree initialization.
+        Minimum value for dynamic time component initialization.
     dt_init_floor : float, default=0.0001
-        Floor value for decision tree initialization.
+        Floor value for dynamic time component initialization.
     norm : str, default='RMSNorm'
         Type of normalization used ('RMSNorm', etc.).
     conv_bias : bool, default=False
