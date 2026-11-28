@@ -201,3 +201,8 @@ def test_memory_efficient_predictions_and_gradients_match_standard_path(tabr_fac
     torch.testing.assert_close(efficient.linear.weight.grad, standard.linear.weight.grad)
     if use_embeddings:
         assert any(parameter.grad is not None for parameter in efficient.embedding_layer.parameters())
+
+
+def test_embedding_construction_prints_nothing(tabr_factory, capsys):
+    tabr_factory(use_embeddings=True, d_model=4)
+    assert capsys.readouterr().out == ""

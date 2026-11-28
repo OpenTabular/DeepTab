@@ -53,7 +53,7 @@ v2.0 is a ground-up restructuring of DeepTab. The high-level estimator API stays
 - **Observability**: `ObservabilityConfig` adds structured lifecycle logging via `structlog` and one-line MLflow or TensorBoard tracking, opt-in and silent by default.
 - **Deployment-safe inference**: `InferenceModel` exposes a read-only prediction surface with schema validation, so a served model cannot be re-fitted by accident.
 - **Self-describing artifacts**: a single `.deeptab` save format bundles the architecture, feature schema, preprocessing, and versions with the weights.
-- **Registry-driven training**: optimizers, schedulers, and losses are selectable by name through `TrainerConfig` and extensible at runtime.
+- **Registry-driven training**: optimizers and schedulers are selectable by name through `TrainerConfig` (`optimizer_type`, `scheduler_type`), classification losses by name through `fit(loss_fct=...)` (e.g. `"focal"`), and all three registries are extensible at runtime.
 - **Unified metrics**: 25+ metric classes auto-selected per task across regression, classification, and distributional models.
 - **Typed data layer**: `TabularDataset`, `TabularDataModule`, and `FeatureSchema` give the pipeline an inspectable contract.
 - **Reproducibility**: cross-platform seeding across CPU, CUDA, and MPS.
@@ -67,8 +67,9 @@ things changed that affect existing code:
 2. **Config classes** lost their `Default` prefix, so `DefaultMambularConfig` is now
    `MambularConfig`. Settings are also split across `MambularConfig` (architecture),
    `PreprocessingConfig` (feature handling), and `TrainerConfig` (optimisation).
-3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset`; the old
-   `Mambular*` aliases are deprecated.
+3. **Data modules** were renamed to `TabularDataModule` and `TabularDataset` (in
+   `deeptab.data`); the v1 `MambularDataModule` and `MambularDataset` names were removed,
+   so importing them raises `ImportError`.
 
 If you need to stay on v1 for now, pin `deeptab<2.0`. Note that the v1 branch receives
 no bug fixes or security updates. See the [migration guide](getting_started/migration)

@@ -25,7 +25,9 @@ class TabTransformerConfig(BaseModelConfig):
     attn_dropout : float, default=0.2
         Dropout rate for the attention mechanism.
     ff_dropout : float, default=0.1
-        Dropout rate for the feed-forward layers.
+        Not used by this architecture's encoder layers: the feed-forward hidden
+        activations are not dropped out. Kept for config compatibility; use
+        ``attn_dropout`` to regularise the encoder.
     norm : str, default='LayerNorm'
         Normalization method to be used.
     transformer_activation : Callable, default=ReGLU()

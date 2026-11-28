@@ -136,3 +136,35 @@ class TestDataAPIIntegration:
         # Test tuple conversion
         batch_tuple = batch.to_tuple()
         assert isinstance(batch_tuple, tuple)
+
+
+@pytest.mark.parametrize("missing_column", ["num", "cat"])
+def test_single_row_with_missing_value_matches_batched_prediction(missing_column):
+    """A missing value is imputed by the fitted preprocessor, whatever the batch size."""
+    import numpy as np
+
+    from deeptab.configs import TrainerConfig
+    from deeptab.core.inference import InferenceModel
+    from deeptab.models import MLPRegressor
+
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        {
+            "num": rng.normal(50, 10, 120),
+            "cat": rng.choice(["a", "b", "c"], 120).astype(object),
+            "other": rng.normal(size=120),
+        }
+    )
+    X.loc[::10, "num"] = np.nan
+    X.loc[5::10, "cat"] = np.nan
+    y = X["other"].to_numpy() + rng.normal(size=120)
+    model = MLPRegressor(trainer_config=TrainerConfig(max_epochs=1, batch_size=32), random_state=0)
+    model.fit(X, y, accelerator="cpu", logger=False, enable_progress_bar=False, enable_model_summary=False)
+
+    row = X.iloc[[1]].copy()
+    row[missing_column] = np.nan
+    batch = pd.concat([row, X.iloc[[2]]], ignore_index=True)
+    np.testing.assert_allclose(model.predict(row), model.predict(batch)[:1], rtol=1e-5)
+
+    validated = InferenceModel.from_estimator(model).validate_input(row)
+    assert bool(validated[missing_column].isna().all())
