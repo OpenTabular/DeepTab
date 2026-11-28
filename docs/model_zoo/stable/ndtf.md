@@ -34,7 +34,7 @@ features -> Conv1d feature interaction -> NeuralDecisionTree x n_ensembles -> we
 
 ## Implementation Notes
 
-The first tree receives the full input dimension. Remaining trees receive randomly sampled prefix dimensions. Tree depths are sampled with `np.random.randint(min_depth, max_depth)`, so the upper bound is exclusive: with the defaults `min_depth=4` and `max_depth=16`, sampled depths range from 4 to 15 (inclusive). Temperatures are jittered around the configured `temperature`.
+The first tree receives the full input dimension. Remaining trees receive randomly sampled prefix dimensions. Tree depths are sampled with `np.random.randint(min_depth, max_depth)`, so the upper bound is exclusive: with the defaults `min_depth=4` and `max_depth=16`, sampled depths range from 4 to 15 (inclusive). `max_depth` must therefore be greater than `min_depth`; use `max_depth=min_depth + 1` for a fixed depth. Temperatures are jittered around the configured `temperature`.
 
 `penalty_forward` returns `(prediction, penalty_factor * penalty)`, which can be used by the training module when penalty-aware training is enabled.
 

@@ -43,6 +43,7 @@ For manual control, call :func:`set_seed` directly or use the
 
 from __future__ import annotations
 
+import numbers
 import os
 import random
 from collections.abc import Generator
@@ -82,6 +83,7 @@ def set_seed(seed: int, *, deterministic: bool = False) -> None:
     ----------
     seed : int
         Non-negative integer seed.  Must be in the range ``[0, 2**32 - 1]``.
+        NumPy integer scalars such as ``np.int64(7)`` are accepted as well.
     deterministic : bool, optional
         When ``True``, additionally call
         ``torch.use_deterministic_algorithms(True)``.  This forces every
@@ -100,8 +102,10 @@ def set_seed(seed: int, *, deterministic: bool = False) -> None:
     >>> (t1 == t2).all().item()
     True
     """
-    if not isinstance(seed, int) or seed < 0:
+    if not isinstance(seed, numbers.Integral) or seed < 0:
         raise ValueError(f"seed must be a non-negative integer, got {seed!r}")
+    # random.seed() rejects NumPy integer scalars, so seed every RNG with the equivalent Python int.
+    seed = int(seed)
 
     # Python / NumPy
     random.seed(seed)

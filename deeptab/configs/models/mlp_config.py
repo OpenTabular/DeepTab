@@ -11,9 +11,9 @@ class MLPConfig(BaseModelConfig):
     """Architecture-only configuration for MLP models (DeepTab 2.0 API).
 
     Contains only structural hyperparameters.  Training parameters (``lr``,
-    ``max_epochs``, …) go in :class:`~deeptab.configs.trainer_config.TrainerConfig`
+    ``max_epochs``, …) go in :class:`~deeptab.configs.TrainerConfig`
     and preprocessing parameters go in
-    :class:`~deeptab.configs.preprocessing_config.PreprocessingConfig`.
+    :class:`~deeptab.configs.PreprocessingConfig`.
 
     Parameters
     ----------

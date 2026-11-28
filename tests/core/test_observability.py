@@ -202,3 +202,50 @@ def test_build_lightning_loggers_user_logger_does_not_replace(monkeypatch):
     result = build_lightning_loggers(cfg)
     assert len(result) == 2
     assert result[-1] is user_logger
+
+
+def test_lifecycle_jsonl_records_values_json_cannot_encode(monkeypatch, tmp_path):
+    """Paths, NumPy values and other objects must not make event logging fail."""
+    import json
+
+    import numpy as np
+
+    monkeypatch.setitem(sys.modules, "structlog", MagicMock())
+    logger = build_structlog_logger(
+        ObservabilityConfig(structured_logging=True, log_to_console=False, log_to_file=True, verbosity=3),
+        run_dir=str(tmp_path),
+    )
+    logger.info(
+        "save_started",
+        path=tmp_path / "model.deeptab",
+        count=np.int64(3),
+        flag=np.bool_(True),
+        values=np.arange(2),
+        other=ModuleType("custom"),
+    )
+    record = json.loads((tmp_path / "lifecycle.jsonl").read_text(encoding="utf-8").splitlines()[-1])
+    assert record["path"] == str(tmp_path / "model.deeptab")
+    assert record["count"] == 3
+    assert record["flag"] is True
+    assert record["values"] == [0, 1]
+    assert record["other"] == str(ModuleType("custom"))
+
+
+def test_save_to_a_path_object_with_file_logging(tmp_path):
+    pytest.importorskip("structlog")
+    import numpy as np
+
+    from deeptab.models import MLPRegressor
+
+    observability = ObservabilityConfig(
+        root_dir=str(tmp_path), structured_logging=True, log_to_console=False, log_to_file=True, verbosity=3
+    )
+    features = np.random.default_rng(0).normal(size=(60, 3))
+    model = MLPRegressor(observability_config=observability, random_state=0)
+    model.fit(features, features[:, 0], max_epochs=1, accelerator="cpu", enable_progress_bar=False, logger=False)
+
+    target = tmp_path / "model.deeptab"
+    model.save(target)
+    assert target.is_file()
+    (lifecycle,) = (tmp_path / "runs").rglob("lifecycle.jsonl")
+    assert "save_completed" in lifecycle.read_text(encoding="utf-8")

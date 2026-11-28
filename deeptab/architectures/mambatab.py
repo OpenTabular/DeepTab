@@ -16,10 +16,9 @@ class MambaTab(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : MambaTabConfig, optional
@@ -30,10 +29,6 @@ class MambaTab(BaseModel):
 
     Attributes
     ----------
-    cat_feature_info : dict
-        Stores categorical feature information.
-    num_feature_info : dict
-        Stores numerical feature information.
     initial_layer : nn.Linear
         Linear layer for the initial transformation of concatenated feature embeddings.
     norm_f : LayerNorm

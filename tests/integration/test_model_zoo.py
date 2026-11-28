@@ -674,6 +674,7 @@ ALL_CATEGORICAL_MODELS = [
     NODEClassifier,
     NDTFClassifier,
     MambaTabClassifier,
+    TromptClassifier,
 ]
 
 

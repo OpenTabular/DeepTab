@@ -7,6 +7,7 @@ and :func:`unregister_optimizer` (extension points), and
 
 from __future__ import annotations
 
+import inspect
 from typing import Any
 
 import torch
@@ -422,6 +423,17 @@ def build_parameter_groups(
     return groups
 
 
+def _accepts_weight_decay(cls: type) -> bool:
+    """Return ``True`` when the optimizer constructor accepts a ``weight_decay`` argument."""
+    try:
+        parameters = inspect.signature(cls).parameters
+    except (TypeError, ValueError):  # pragma: no cover - signature not introspectable
+        return True
+    return "weight_decay" in parameters or any(
+        parameter.kind is inspect.Parameter.VAR_KEYWORD for parameter in parameters.values()
+    )
+
+
 def build_optimizer(
     module_or_params: Any,
     *,
@@ -452,7 +464,10 @@ def build_optimizer(
     weight_decay : float, default=1e-6
         L2 weight-decay coefficient.  When *no_weight_decay_for_bias_and_norm*
         is ``True``, this value applies only to the decay parameter group (see
-        :func:`build_parameter_groups`).
+        :func:`build_parameter_groups`).  Optimizers whose constructor has no
+        ``weight_decay`` argument (``LBFGS``, ``Rprop``, ``SparseAdam``) are
+        built without it and without parameter groups; a non-zero value is then
+        ignored with a :class:`~deeptab.core.exceptions.ConfigWarning`.
     optimizer_kwargs : dict or None, default=None
         Extra keyword arguments forwarded verbatim to the optimizer constructor
         after ``lr`` and ``weight_decay``.  Keys that start with
@@ -468,13 +483,19 @@ def build_optimizer(
     Returns
     -------
     torch.optim.Optimizer
-        A ready-to-use optimizer with ``lr`` and ``weight_decay`` set on the
-        appropriate parameter groups.
+        A ready-to-use optimizer with ``lr`` and, when the optimizer supports
+        it, ``weight_decay`` set on the appropriate parameter groups.
 
     Raises
     ------
     ~deeptab.core.exceptions.InvalidParamError
         If *optimizer_type* is not registered.
+
+    Warns
+    -----
+    ~deeptab.core.exceptions.ConfigWarning
+        If *weight_decay* is non-zero but the optimizer has no ``weight_decay``
+        argument; the value is ignored.
 
     Examples
     --------
@@ -529,6 +550,19 @@ def build_optimizer(
     """
     cls = get_optimizer(optimizer_type)
     extra: dict[str, Any] = optimizer_kwargs or {}
+
+    if not _accepts_weight_decay(cls):
+        # e.g. LBFGS, Rprop and SparseAdam: passing weight_decay would raise a TypeError.
+        if weight_decay:
+            from deeptab.core.exceptions import warn_config
+
+            warn_config(
+                f"{cls.__name__} has no weight_decay option, so weight_decay={weight_decay} is ignored. "
+                "Set weight_decay=0 to silence this warning.",
+                stacklevel=3,
+            )
+        raw_params = module_or_params.parameters() if isinstance(module_or_params, nn.Module) else module_or_params
+        return cls(raw_params, lr=lr, **extra)  # type: ignore[call-arg]
 
     has_no_decay_markers = isinstance(module_or_params, nn.Module) and any(
         getattr(p, "_no_weight_decay", False) for p in module_or_params.parameters()

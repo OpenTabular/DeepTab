@@ -110,6 +110,12 @@ class _FitMixin:
     # Model construction
     # ------------------------------------------------------------------
 
+    def _mark_unfitted(self) -> None:
+        """Forget a previous ``fit()``: its fitted flag and its best checkpoint."""
+        if getattr(self, "is_fitted_", False):
+            self.is_fitted_ = False
+        self._best_model_path = None
+
     def _build_model(
         self,
         X,
@@ -138,6 +144,9 @@ class _FitMixin:
         mode: str | None = None,
     ):
         """Builds the model using the provided training data."""
+        # The rebuilt network has untrained weights, so a previous fit() no
+        # longer describes this estimator until it is fitted again.
+        self._mark_unfitted()
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
 
@@ -181,7 +190,7 @@ class _FitMixin:
         if hasattr(y, "values"):
             y = y.values
         if X_val is not None:
-            X_val = ensure_dataframe(X_val)
+            X_val = ensure_dataframe(X_val, context="validation")
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
 
@@ -371,8 +380,12 @@ class _FitMixin:
         from deeptab.core.default_factories import DefaultDataModuleFactory
 
         factory = getattr(self, "_data_module_factory", None) or DefaultDataModuleFactory()
+        # Continuation reuses the fitted representation, which lives on the
+        # previous data module; self._preprocessor may already be an unfitted
+        # replacement created by set_params() for the next full fit.
+        fitted_preprocessor = getattr(previous, "preprocessor", None)
         prepared = factory.create(
-            preprocessor=self._preprocessor,
+            preprocessor=fitted_preprocessor if fitted_preprocessor is not None else self._preprocessor,
             batch_size=batch_size,
             shuffle=shuffle,
             regression=regression,

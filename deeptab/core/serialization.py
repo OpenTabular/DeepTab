@@ -557,12 +557,19 @@ def build_save_bundle(
     else:
         task = "regression" if estimator._data_module.regression else "classification"
 
+    # set_params() may already have swapped estimator._preprocessor for an
+    # unfitted one configured for the next fit(); the artifact needs the
+    # preprocessor the data module was actually fitted with.
+    fitted_preprocessor = getattr(estimator._data_module, "preprocessor", None)
+    if fitted_preprocessor is None:
+        fitted_preprocessor = estimator._preprocessor
+
     artifact_metadata = build_artifact_metadata(
         estimator=estimator,
         model_class=type(estimator._estimator),
         config=estimator.config,
         data_module=estimator._data_module,
-        preprocessor=estimator._preprocessor,
+        preprocessor=fitted_preprocessor,
         preprocessor_kwargs=getattr(estimator, "_preprocessor_kwargs", {}),
         task=task,
         regression=estimator._data_module.regression,
@@ -589,7 +596,7 @@ def build_save_bundle(
         "trainer_config": estimator.trainer_config,
         "random_state": estimator.random_state,
         "preprocessor_kwargs": getattr(estimator, "_preprocessor_kwargs", {}),
-        "preprocessor": estimator._preprocessor,
+        "preprocessor": fitted_preprocessor,
         "feature_info": {
             "num": estimator._data_module.num_feature_info,
             "cat": estimator._data_module.cat_feature_info,

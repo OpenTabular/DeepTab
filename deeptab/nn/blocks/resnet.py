@@ -13,8 +13,8 @@ class ResidualBlock(nn.Module):
             Output dimension of the block.
         activation : Callable
             Activation function.
-        norm_layer : Callable, optional
-            Normalization layer function, by default None.
+        norm : bool, optional
+            Whether to apply layer normalization, by default False.
         dropout : float, optional
             Dropout rate, by default 0.0.
         """
