@@ -397,3 +397,37 @@ class TestParameterGroupingViaTrainerConfig:
         all_param_ids = {id(p) for p in model.parameters()}
         grouped_ids = {id(p) for g in groups for p in g["params"]}
         assert all_param_ids == grouped_ids
+
+
+@pytest.mark.parametrize("name", ["lbfgs", "rprop", "sparseadam"])
+def test_optimizers_without_weight_decay_can_be_built(name):
+    import warnings
+
+    from deeptab.core.exceptions import ConfigWarning
+
+    model = nn.Linear(4, 1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("error", ConfigWarning)
+        optimizer = build_optimizer(model, optimizer_type=name, lr=1e-3, weight_decay=0.0)
+    assert "weight_decay" not in optimizer.defaults
+    with pytest.warns(ConfigWarning, match="weight_decay"):
+        build_optimizer(model, optimizer_type=name, lr=1e-3, weight_decay=1e-4)
+
+
+def test_lbfgs_trains_an_estimator():
+    import numpy as np
+    import pandas as pd
+
+    from deeptab.configs import MLPConfig, TrainerConfig
+    from deeptab.models import MLPRegressor
+
+    rng = np.random.default_rng(0)
+    features = pd.DataFrame({"a": rng.normal(size=64), "b": rng.normal(size=64)})
+    targets = features["a"].to_numpy()
+    model = MLPRegressor(
+        model_config=MLPConfig(layer_sizes=[8]),
+        trainer_config=TrainerConfig(optimizer_type="LBFGS", weight_decay=0.0, max_epochs=1, batch_size=16),
+        random_state=0,
+    )
+    model.fit(features, targets, accelerator="cpu", logger=False, enable_progress_bar=False)
+    assert np.isfinite(model.predict(features)).all()

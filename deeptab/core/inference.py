@@ -322,7 +322,7 @@ class InferenceModel:
         >>> X_valid = model.validate_input(X_new)
         >>> predictions = model.predict(X_valid)
         """
-        X_df = ensure_dataframe(X)
+        X_df = ensure_dataframe(X, context="predict")
 
         expected_names = self.feature_names
 

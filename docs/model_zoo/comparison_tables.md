@@ -127,7 +127,7 @@ The table below gives practical guidance on whether each model trains comfortabl
 The "CPU comfort zone" is where training at default config finishes in reasonable wall-clock time on a modern CPU. Beyond it, a CUDA, MPS, or similar accelerator provides meaningful speedup.
 
 ```{tip}
-**Apple Silicon (MPS):** All models run on MPS via PyTorch's MPS backend. Set `accelerator="mps"` in `TrainerConfig`. MPS provides meaningful speedup for most models except those with Mamba CUDA kernels, which fall back to CPU on MPS unless a dedicated MPS implementation is available.
+**Apple Silicon (MPS):** All models run on MPS via PyTorch's MPS backend. Pass `accelerator="mps"` to `fit()`. MPS provides meaningful speedup for most models except those with Mamba CUDA kernels, which fall back to CPU on MPS unless a dedicated MPS implementation is available.
 ```
 
 ```{note}

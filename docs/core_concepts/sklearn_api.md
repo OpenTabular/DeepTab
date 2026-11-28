@@ -100,12 +100,21 @@ X = np.random.randn(1000, 10)
 
 For mixed numerical/categorical data, DataFrames are strongly preferred.
 
+A DataFrame whose column labels are not all strings, for example the integer
+labels of `pd.read_csv(path, header=None)`, is treated like an array: its
+columns are used by position, and `feature_names_in_` is not set.
+
 Targets are required and must be finite. Classifiers require discrete labels;
 point regressors accept one numeric target column. Distributional models retain
 their task-specific target dimensions, including Dirichlet component columns.
 When supplying an explicit validation set, provide both `X_val` and `y_val`.
 Feature widths, ordered DataFrame columns, and target widths must match training
-data; classifier validation labels must occur in the training classes.
+data; classifier validation labels must occur in the training classes. When `X`
+is a DataFrame with string column names, `X_val` must carry the same names in
+the same order: an unnamed array, a list of rows, or a frame with positional
+labels is rejected with a `ColumnNameError` before any fitted state changes.
+Training on an array and validating on a named frame remains possible, because
+array columns are used by position.
 
 Preflight input rejection leaves a previously fitted estimator unchanged,
 including classes, preprocessing, weights, and predictions. A failure during
@@ -494,6 +503,10 @@ Use `runtime_info()` in benchmark notebooks and experiment logs. It records the 
 DeepTab implements `get_params` and `set_params`, including nested config parameters:
 
 ```python
+from deeptab.configs import MambularConfig, TrainerConfig
+from deeptab.models import MambularClassifier
+
+model = MambularClassifier(model_config=MambularConfig(), trainer_config=TrainerConfig())
 model.get_params()
 
 model.set_params(
@@ -502,7 +515,11 @@ model.set_params(
 )
 ```
 
-This enables `GridSearchCV`:
+Nested `<config>__<field>` keys need an estimator constructed with config
+objects, as above. On a default-constructed estimator, which stores `None` for
+every config, they raise `ValueError`.
+
+The same nested keys work in `GridSearchCV`:
 
 ```python
 from sklearn.model_selection import GridSearchCV

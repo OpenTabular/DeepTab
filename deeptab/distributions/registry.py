@@ -59,7 +59,7 @@ def get_distribution(family: str, **kwargs: object) -> BaseDistribution:
     if family not in DISTRIBUTION_REGISTRY:
         available = sorted(DISTRIBUTION_REGISTRY)
         raise invalid_param_error(
-            "MambularLSS / LSS model",
+            "get_distribution",
             "family",
             family,
             "must be a registered distribution family name",

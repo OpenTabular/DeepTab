@@ -15,10 +15,9 @@ class Mambular(BaseModel):
 
     Parameters
     ----------
-    cat_feature_info : dict
-        Dictionary containing information about categorical features, including their names and dimensions.
-    num_feature_info : dict
-        Dictionary containing information about numerical features, including their names and dimensions.
+    feature_information : tuple
+        A tuple containing feature information for numerical, categorical, and
+        embedding features.
     num_classes : int, optional
         The number of output classes or target dimensions for regression, by default 1.
     config : MambularConfig, optional
@@ -53,7 +52,7 @@ class Mambular(BaseModel):
 
     def __init__(
         self,
-        feature_information: tuple,  # Expecting (cat_feature_info, num_feature_info, embedding_feature_info)
+        feature_information: tuple,  # Expecting (num_feature_info, cat_feature_info, embedding_feature_info)
         num_classes=1,
         config: MambularConfig = MambularConfig(),  # noqa: B008
         **kwargs,

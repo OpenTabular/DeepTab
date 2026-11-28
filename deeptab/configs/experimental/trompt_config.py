@@ -21,7 +21,7 @@ class TromptConfig(BaseModelConfig):
     n_cells : int, default=4
         Number of cells in each cycle.
     P : int, default=128
-        Number of steps in the Trompt model.
+        Number of prompts in the Trompt model.
     """
 
     # Trompt-specific architecture

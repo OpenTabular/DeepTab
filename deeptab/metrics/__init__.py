@@ -1,7 +1,7 @@
 """Metric utilities for tabular model evaluation.
 
 Every metric is a :class:`~deeptab.metrics.DeepTabMetric` subclass that
-exposes three attributes the framework reads automatically:
+exposes three metadata attributes:
 
 * **``name``** -- short string identifier used as the dict key in
   ``model.evaluate()`` results and as the suffix in training-log entries
@@ -9,8 +9,9 @@ exposes three attributes the framework reads automatically:
 
 * **``higher_is_better``** -- ``True`` when a *larger* value is better
   (accuracy, AUROC, R2, log-score), ``False`` when a *smaller* value is
-  better (MSE, MAE, NLL, deviances).  The training loop and HPO use this
-  to set the optimisation direction automatically.
+  better (MSE, MAE, NLL, CRPS, deviances).  This is descriptive metadata:
+  HPO always minimises ``val_loss``, and early stopping and checkpointing
+  follow ``monitor`` and ``mode``.
 
 * **``needs_raw``** -- ``False`` (default) means the metric receives
   *already-transformed* distribution parameters from
@@ -44,7 +45,7 @@ Pass metrics to ``model.fit()`` for live training logging::
 
     model = MambularLSS()
     model.fit(
-        X_train, y_train,
+        X_train, y_train, family="normal",
         val_metrics={
             "crps": CRPS(family="normal"),   # logged as "val_crps"
             "mae":  MeanAbsoluteError(),      # logged as "val_mae"

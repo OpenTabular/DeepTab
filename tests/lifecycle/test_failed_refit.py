@@ -286,6 +286,26 @@ def test_named_validation_schema_preserves_state(tmp_path):
     _assert_preserved(model, validation_features, snapshot)
 
 
+@pytest.mark.parametrize("container", ["ndarray", "positional_frame", "list"])
+def test_unnamed_validation_features_preserve_state(tmp_path, container):
+    """An unnamed X_val for a named training frame is rejected before the fitted
+    model is replaced, instead of failing inside the fitted preprocessor afterwards."""
+    features, labels, validation_features, validation_labels = _data()
+    features = pd.DataFrame(features, columns=pd.Index(["first", "second", "third"]))
+    validation_features = pd.DataFrame(validation_features, columns=features.columns)
+    model = _model(MLPClassifier, tmp_path)
+    model.fit(features, labels, X_val=validation_features, y_val=validation_labels, **_fit_options())
+    snapshot = _snapshot(model, validation_features)
+    unnamed = {
+        "ndarray": validation_features.to_numpy(),
+        "positional_frame": pd.DataFrame(validation_features.to_numpy()),
+        "list": validation_features.to_numpy().tolist(),
+    }[container]
+    with pytest.raises(DataError, match="first"):
+        model.fit(features, labels, X_val=unnamed, y_val=validation_labels, **_fit_options())
+    _assert_preserved(model, validation_features, snapshot)
+
+
 def test_dirichlet_refit_preserves_target_dimensions_and_selected_family(tmp_path):
     features, _, validation_features, _ = _data()
     targets = np.random.default_rng(19).dirichlet([2, 3, 4], size=len(features))

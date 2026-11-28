@@ -224,6 +224,43 @@ def test_fitted_pickle_does_not_serialize_the_lightning_task(regression_data, mo
     np.testing.assert_array_equal(model.predict(features), expected)
 
 
+def _registered_families():
+    from deeptab.distributions import DISTRIBUTION_REGISTRY
+
+    return sorted(DISTRIBUTION_REGISTRY)
+
+
+@pytest.mark.parametrize("family", _registered_families())
+def test_every_distribution_family_survives_a_pickle_round_trip(family):
+    """Families hold their parameter transforms, which therefore must be picklable."""
+    from deeptab.distributions import get_distribution
+
+    distribution = get_distribution(family)
+    restored = pickle.loads(pickle.dumps(distribution))
+    assert type(restored) is type(distribution)
+    assert restored.param_names == distribution.param_names
+    if family == "normal":
+        raw = torch.randn(5, distribution.parameter_count)
+        torch.testing.assert_close(restored(raw), distribution(raw))
+
+
+@pytest.mark.parametrize("family", ["normal", "quantile", "categorical"])
+def test_fitted_lss_can_be_pickled(family, regression_data, tmp_path):
+    features, _, targets, _ = regression_data
+    if family == "categorical":
+        targets = (targets > np.median(targets)).astype(int)
+    model = MLPLSS(
+        model_config=MLPConfig(layer_sizes=[16]),
+        trainer_config=TrainerConfig(max_epochs=1, batch_size=64, checkpoint_path=str(tmp_path)),
+        random_state=42,
+    )
+    model.fit(features, targets, family=family, accelerator="cpu", logger=False, enable_progress_bar=False)
+    restored = pickle.loads(pickle.dumps(model))
+    assert restored.family_name == model.family_name
+    with pytest.raises(NotFittedError):
+        check_is_fitted(restored)
+
+
 def test_regressor_save_raises_when_unfitted():
     model = MLPRegressor()
     with pytest.raises(ValueError, match="fitted"):
@@ -392,6 +429,25 @@ def test_lss_save_load_predictions(regression_data):
         preds_after,
         err_msg="MLPLSS predictions changed after save/load round-trip",
     )
+
+
+@pytest.mark.parametrize(
+    "saved_class, caller",
+    [(MLPLSS, MLPRegressor), (MLPLSS, MLPClassifier), (MLPRegressor, MLPLSS), (MLPClassifier, MLPLSS)],
+    ids=["lss-via-regressor", "lss-via-classifier", "regressor-via-lss", "classifier-via-lss"],
+)
+def test_load_returns_the_saved_class_whichever_class_is_called(saved_class, caller, regression_data, tmp_path):
+    X_train, X_test, y_train, _ = regression_data
+    options = {"family": "normal"} if saved_class is MLPLSS else {}
+    targets = (y_train > np.median(y_train)).astype(int) if saved_class is MLPClassifier else y_train
+    model = saved_class(trainer_config=TrainerConfig(max_epochs=1, checkpoint_path=str(tmp_path)), random_state=0)
+    model.fit(X_train, targets, **options, **FIT_KWARGS)
+    path = str(tmp_path / "model.deeptab")
+    model.save(path)
+
+    loaded = caller.load(path, device="auto")
+    assert type(loaded) is saved_class
+    np.testing.assert_array_equal(loaded.predict(X_test), model.predict(X_test))
 
 
 def test_preprocessing_metadata_survives_save_load_round_trip(regression_data):

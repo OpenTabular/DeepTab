@@ -73,13 +73,13 @@ model = TabMClassifier(
 
 Key settings:
 
-| Setting             | Typical range                          | Effect                                           |
-| ------------------- | -------------------------------------- | ------------------------------------------------ |
-| `ensemble_size`     | `8` to `64`                            | Number of virtual ensemble members.              |
-| `layer_sizes`       | `[128, 128]` to `[512, 256, 128]`      | Shared MLP capacity.                             |
-| `model_type`        | `"mini"` or `"full"`                   | Amount of member-specific scaling.               |
-| `average_ensembles` | `False` or `True`                      | Return per-member outputs or average internally. |
-| `scaling_init`      | `"ones"`, `"random-signs"`, `"normal"` | Diversity initialization for scaling factors.    |
+| Setting             | Typical range                          | Effect                                                   |
+| ------------------- | -------------------------------------- | -------------------------------------------------------- |
+| `ensemble_size`     | `8` to `64`                            | Number of virtual ensemble members.                      |
+| `layer_sizes`       | `[128, 128]` to `[512, 256, 128]`      | Shared MLP capacity.                                     |
+| `model_type`        | `"mini"` or `"full"`                   | Amount of member-specific scaling.                       |
+| `average_ensembles` | `False` or `True`                      | Return per-member outputs or average internally.         |
+| `scaling_init`      | `"ones"`, `"random-signs"`, `"normal"` | Scaling-factor initialization: 1, random ±1, or N(0, 1). |
 
 ## When To Use
 

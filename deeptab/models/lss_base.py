@@ -28,6 +28,29 @@ from deeptab.models.base import SklearnBase, _validate_fit_inputs
 from deeptab.training import TaskModel
 
 
+def _as_numpy(value):
+    """Return *value* as a NumPy array; tensors are moved to the CPU first."""
+    return value.detach().cpu().numpy() if isinstance(value, torch.Tensor) else np.asarray(value)
+
+
+def _same_family_options(options: dict, stored: dict) -> bool:
+    """Compare family options, treating arrays and tensors (e.g. quantile levels) by value.
+
+    A plain ``options != stored`` raises for array values, because NumPy and
+    torch cannot turn an element-wise comparison into a single truth value.
+    """
+    if options.keys() != stored.keys():
+        return False
+    for key, value in options.items():
+        other = stored[key]
+        if isinstance(value, np.ndarray | torch.Tensor) or isinstance(other, np.ndarray | torch.Tensor):
+            if not np.array_equal(_as_numpy(value), _as_numpy(other)):
+                return False
+        elif value != other:
+            return False
+    return True
+
+
 class SklearnBaseLSS(SklearnBase):
     """Distributional regression base class (LSS variant of SklearnBase).
 
@@ -59,7 +82,9 @@ class SklearnBaseLSS(SklearnBase):
                 raise ValueError("Dirichlet num_classes must match the number of target components")
             options["num_classes"] = count
         if not allow_change:
-            if family != getattr(self, "family_name", None) or options != getattr(self, "distributional_kwargs_", {}):
+            if family != getattr(self, "family_name", None) or not _same_family_options(
+                options, getattr(self, "distributional_kwargs_", {})
+            ):
                 raise ValueError("Changing the distribution family or options requires rebuild=True")
             return
         self.family = get_distribution(family, **options)
@@ -137,8 +162,13 @@ class SklearnBaseLSS(SklearnBase):
         Returns
         -------
         self : object
-            The built distributional regressor.
+            The built distributional regressor. Its weights are untrained, so
+            the estimator counts as unfitted (``predict()`` raises
+            ``NotFittedError``) until ``fit()`` completes.
         """
+        # The rebuilt network has untrained weights, so a previous fit() no
+        # longer describes this estimator until it is fitted again.
+        self._mark_unfitted()
         if dataloader_kwargs is None:
             dataloader_kwargs = {}
         self._configure_distribution(y, family, distributional_kwargs)
@@ -176,7 +206,7 @@ class SklearnBaseLSS(SklearnBase):
         if hasattr(y, "values"):
             y = y.values
         if X_val is not None:
-            X_val = ensure_dataframe(X_val)
+            X_val = ensure_dataframe(X_val, context="validation")
             if y_val is not None and hasattr(y_val, "values"):
                 y_val = y_val.values
         if self.family_name == "categorical":
@@ -844,10 +874,11 @@ class SklearnBaseLSS(SklearnBase):
         Returns
         -------
         estimator
-            A fully reconstructed, ready-to-predict estimator. Exposes
-            ``artifact_metadata_``, ``architecture_metadata_``,
-            ``feature_schema_``, ``input_columns_``, ``task_info_``,
-            ``classes_``, and ``versions_`` attributes after loading.
+            A fully reconstructed, ready-to-predict estimator of the same type
+            that was saved. Exposes ``artifact_metadata_``,
+            ``architecture_metadata_``, ``feature_schema_``, ``input_columns_``,
+            ``task_info_``, ``classes_``, and ``versions_`` attributes after
+            loading.
 
         Raises
         ------
@@ -875,7 +906,9 @@ class SklearnBaseLSS(SklearnBase):
         _warn_extension(path)
         map_location = resolve_inference_accelerator(device)[2]
         bundle = torch.load(path, weights_only=False, map_location=map_location)
-        return cls._load_from_bundle(bundle, device=device, path=path)
+        # Rebuild with the saved class's own loader, whichever class load() is
+        # called on: an LSS artifact needs the LSS reconstruction and vice versa.
+        return bundle.get("_class", cls)._load_from_bundle(bundle, device=device, path=path)
 
     @classmethod
     def _load_from_bundle(cls, bundle, device: str = "cpu", *, path: str | None = None):

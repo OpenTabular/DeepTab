@@ -31,6 +31,8 @@ y_reg = RNG.standard_normal(N)
 
 _FAST_TRAINER = TrainerConfig(max_epochs=1, batch_size=64, patience=1)
 
+_FIT_KWARGS = {"max_epochs": 1, "accelerator": "cpu", "logger": False, "enable_progress_bar": False}
+
 
 @pytest.mark.parametrize("model_cls", [MLPClassifier, ResNetClassifier, TabMClassifier])
 def test_classifier_task_tags_and_default_cv(model_cls):
@@ -142,6 +144,32 @@ class TestEstimatorSetParams:
         model.set_params(preprocessing_config__numerical_preprocessing="quantile")
         assert model.preprocessing_config.numerical_preprocessing == "quantile"
 
+    def test_set_params_nested_preprocessing_config_reaches_fit(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[8]),
+            preprocessing_config=PreprocessingConfig(numerical_method="ple", output_dim=5),
+            trainer_config=_FAST_TRAINER,
+            random_state=0,
+        )
+        model.set_params(preprocessing_config__numerical_method="quantile", preprocessing_config__output_dim=3)
+        assert model._preprocessor_kwargs["numerical_method"] == "quantile"
+        assert model._preprocessor_kwargs["output_dim"] == 3
+
+        model.fit(X_reg, y_reg, accelerator="cpu", logger=False, enable_progress_bar=False)
+        feature_info = model._data_module.num_feature_info
+        assert all(info["preprocessing"].endswith("quantile") for info in feature_info.values())
+
+    def test_preprocessing_config_attribute_mutation_reaches_fit(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[8]),
+            preprocessing_config=PreprocessingConfig(numerical_method="ple", output_dim=5),
+            trainer_config=_FAST_TRAINER,
+            random_state=0,
+        )
+        model.preprocessing_config.output_dim = 3
+        model.fit(X_reg, y_reg, accelerator="cpu", logger=False, enable_progress_bar=False)
+        assert all(info["dimension"] == 3 for info in model._data_module.num_feature_info.values())
+
     def test_set_params_replace_whole_config(self):
         model = MLPClassifier(
             model_config=MLPConfig(),
@@ -240,6 +268,23 @@ class TestSplitConfigSetParams:
         with pytest.raises(ValueError, match="abc"):
             model.set_params(abc=123)
 
+    def test_nested_model_config_keys_without_model_config_tune_the_default_config(self):
+        model = MLPRegressor(trainer_config=_FAST_TRAINER).set_params(model_config__layer_sizes=[4])
+        assert model.config.layer_sizes == [4]
+        assert model.get_params()["model_config__layer_sizes"] == [4]
+        assert clone(model).config.layer_sizes == [4]
+
+    def test_grid_search_over_nested_model_config_keys_without_model_config(self, tmp_path):
+        from sklearn.model_selection import GridSearchCV
+
+        estimator = MLPRegressor(trainer_config=_FAST_TRAINER, random_state=0)
+        search = GridSearchCV(estimator, {"model_config__layer_sizes": [[4], [16]]}, cv=2)
+        search.fit(
+            X_reg, y_reg, checkpoint_path=str(tmp_path), accelerator="cpu", logger=False, enable_progress_bar=False
+        )
+        best_width = search.best_params_["model_config__layer_sizes"][0]
+        assert search.best_estimator_._task_model.estimator.layers[0].out_features == best_width
+
 
 _TRAINING_FIELDS = {"lr", "lr_patience", "lr_factor", "weight_decay"}
 
@@ -333,3 +378,52 @@ class TestFlatConstructorParamRejection:
             trainer_config=TrainerConfig(max_epochs=1),
         )
         assert model.model_config is not None
+
+
+class TestSetParamsConfigsReachFit:
+    """Configs assigned through set_params() must be the ones fit() trains with and clone() copies."""
+
+    def test_model_config_on_default_estimator_is_trained(self, tmp_path):
+        model = MLPRegressor().set_params(model_config=MLPConfig(layer_sizes=[8]))
+        assert model.config.layer_sizes == [8]
+        assert clone(model).config.layer_sizes == [8]
+        model.fit(X_reg, y_reg, checkpoint_path=str(tmp_path), **_FIT_KWARGS)
+        assert model._task_model.estimator.layers[0].out_features == 8
+
+    def test_trainer_and_preprocessing_configs_on_default_estimator(self):
+        model = MLPRegressor().set_params(
+            trainer_config=TrainerConfig(optimizer_type="SGD"),
+            preprocessing_config=PreprocessingConfig(numerical_method="standardization"),
+        )
+        assert model._optimizer_type == "SGD"
+        assert model._preprocessor_kwargs["numerical_method"] == "standardization"
+        assert model._preprocessor.get_params()["numerical_method"] == "standardization"
+
+    def test_flat_keys_still_apply_next_to_a_config_object(self):
+        model = MLPRegressor().set_params(trainer_config=_FAST_TRAINER, layer_sizes=[4])
+        assert model.config.layer_sizes == [4]
+        assert model.trainer_config is _FAST_TRAINER
+
+    def test_grid_search_over_model_config_objects_trains_selected_config(self, tmp_path):
+        from sklearn.model_selection import GridSearchCV
+
+        candidates = [MLPConfig(layer_sizes=[4]), MLPConfig(layer_sizes=[16])]
+        search = GridSearchCV(MLPRegressor(random_state=0), {"model_config": candidates}, cv=2)
+        search.fit(X_reg, y_reg, checkpoint_path=str(tmp_path), **_FIT_KWARGS)
+        best = search.best_estimator_
+        assert best.config.layer_sizes == search.best_params_["model_config"].layer_sizes
+        assert best._task_model.estimator.layers[0].out_features == best.config.layer_sizes[0]
+
+    def test_setting_configs_to_none_restores_defaults(self):
+        model = MLPRegressor(
+            model_config=MLPConfig(layer_sizes=[4]),
+            preprocessing_config=PreprocessingConfig(numerical_method="standardization", output_dim=3),
+            trainer_config=TrainerConfig(max_epochs=1, optimizer_type="SGD"),
+        )
+        model.set_params(model_config=None, preprocessing_config=None, trainer_config=None)
+        default = MLPRegressor()
+        assert model.config.layer_sizes == default.config.layer_sizes
+        assert model._preprocessor_kwargs == {}
+        assert model._preprocessor.get_params() == default._preprocessor.get_params()
+        assert model._optimizer_type == "Adam"
+        assert clone(model).config.layer_sizes == default.config.layer_sizes

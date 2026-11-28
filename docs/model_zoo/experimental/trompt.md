@@ -135,6 +135,7 @@ param_grid = {
 ## Nuances and Limitations
 
 - Trompt returns a prediction for each cycle. DeepTab's loss handling treats those cycle predictions like an ensemble.
+- Any feature group may be absent. A table with only categorical columns, only numerical columns, or only external embeddings sizes the prompt records from whichever group is present. Previously, a categorical-only table crashed in the first forward pass because the batch size was read from the (empty) numerical group.
 - Increasing `P` increases the number of prompt records and the prompt-column importance map size.
 - Increasing `n_cycles` increases iterative refinement cost and adds more cycle predictions to the loss.
 - The current implementation is prompt-inspired but not a standard Transformer with attention heads.
